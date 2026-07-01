@@ -16,6 +16,7 @@ boots a React-based UI through the shared `support.js` runtime (loaded via
 | --- | --- |
 | `Caribbean Capital Network.dc.html` | Primary platform prototype — portfolio dashboard, investment agent, and fund views. |
 | `Caribbean Capital Network - Warm.dc.html` | Warm-themed variant with voice assistant, goals, and portfolio flows. |
+| `Caribbean Capital Network - Warm (standalone).html` | Fully self-contained single-file build of the Warm variant — inlines the runtime, so it needs no `support.js`. |
 | `CCN Directions.dc.html` | Directions / directory view for funds and portfolios. |
 
 ### Runtime

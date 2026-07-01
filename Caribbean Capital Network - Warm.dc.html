@@ -425,17 +425,24 @@ body{margin:0;background:#f2ebdf}
         <!-- STEP 2: risk tolerance -->
         <sc-if value="{{ onb2 }}" hint-placeholder-val="{{ false }}">
           <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px;margin-bottom:4px">Your risk tolerance</div>
-          <p style="margin:0 0 20px;font-size:13.5px;color:#8a7d6c;line-height:1.5">Three quick questions calibrate which opportunities your agent will surface.</p>
+          <p style="margin:0 0 20px;font-size:13.5px;color:#8a7d6c;line-height:1.5">Three questions from the Sagicor Life fact-find set your risk profile.</p>
           <div style="display:flex;flex-direction:column;gap:20px">
             <sc-for list="{{ riskQ }}" as="q" hint-placeholder-count="3">
-              <div><div style="font-size:14.5px;font-weight:600;color:#2a2320;margin-bottom:10px">{{ q.q }}</div><div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ q.opts }}" as="o" hint-placeholder-count="3"><button onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button></sc-for></div></div>
+              <div><div style="font-size:14.5px;font-weight:600;color:#2a2320;margin-bottom:10px">{{ q.q }}</div><div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ q.opts }}" as="o" hint-placeholder-count="5"><button onClick="{{ o.onClick }}" style="{{ o.style }}"><span style="{{ o.badge }}">{{ o.letter }}</span><span style="flex:1">{{ o.label }}</span></button></sc-for></div></div>
             </sc-for>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#faf5ec;border:1px solid #e9dfce;border-radius:12px;padding:13px 16px">
+              <span style="font-size:12px;color:#6a5f52;font-weight:700;letter-spacing:.5px;text-transform:uppercase">Derived risk profile</span>
+              <sc-if value="{{ riskAnsweredAll }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;color:#0e5952">{{ riskProfile }} · score {{ riskTotal }}</span></sc-if>
+              <sc-if value="{{ riskNotDone }}" hint-placeholder-val="{{ true }}"><span style="font-size:13px;color:#a99a83;font-weight:600">Answer all three</span></sc-if>
+            </div>
           </div>
         </sc-if>
         <!-- STEP 3: source of funds -->
         <sc-if value="{{ onb3 }}" hint-placeholder-val="{{ false }}">
           <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px;margin-bottom:4px">Source of funds</div>
-          <p style="margin:0 0 20px;font-size:13.5px;color:#8a7d6c;line-height:1.5">Regulators require the origin of capital you invest. Select all that apply — this unlocks private-market opportunities.</p>
+          <p style="margin:0 0 20px;font-size:13.5px;color:#8a7d6c;line-height:1.5">Regulators require your occupation and the origin of the capital you invest.</p>
+          <div style="margin-bottom:18px"><div style="font-size:12.5px;font-weight:600;color:#6a5f52;margin-bottom:7px">Occupation / Nature of Entity</div><div style="padding:13px 15px;border:1px solid #e2d6c2;border-radius:12px;background:#faf5ec;font-size:15px;color:#2a2320">Software Engineer</div></div>
+          <div style="font-size:12.5px;font-weight:600;color:#6a5f52;margin-bottom:9px">Source of Funds</div>
           <div style="display:flex;flex-direction:column;gap:10px">
             <sc-for list="{{ sourceOpts }}" as="s" hint-placeholder-count="4"><button onClick="{{ s.onClick }}" style="{{ s.style }}"><span style="{{ s.box }}">{{ s.check }}</span>{{ s.label }}</button></sc-for>
           </div>
@@ -633,7 +640,7 @@ class Component extends DCLogic {
     nav:'home', cur:'USD', draft:'', typing:false, oppFilter:'All', listening:false, speakOn:false,
     vaOpen:false, vaListening:false, vaTranscript:'', vaResponse:'', toast:'',
     modal:null, modalStep:0,
-    onbStep:0, riskAns:{}, sources:{ employment:true },
+    onbStep:0, riskAns:{}, sources:{ salary:true },
     chat:[
       { role:'agent', text:"Welcome back, Marcus. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. Two things need your attention this week." },
       { role:'agent', text:"Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?" },
@@ -698,9 +705,9 @@ class Component extends DCLogic {
   ];
 
   riskQuestions = [
-    { q:'If your portfolio dropped 15% in a month, you would\u2026', opts:[['Sell to protect capital',1],['Hold and wait it out',2],['Buy more at lower prices',3]] },
-    { q:'The primary aim for this money is\u2026', opts:[['Preserve what I have',1],['Steady income',2],['Long-term growth',3]] },
-    { q:'When will you need most of this money?', opts:[['Within 3 years',1],['3\u20137 years',2],['7+ years',3]] },
+    { q:'What is your investment goal?', opts:[['A','To grow aggressively',5],['B','To grow significantly',4],['C','To grow moderately',3],['D','To grow with caution',2],['E','To avoid losing money',1]] },
+    { q:'Which statement best describes your attitude toward investing over three (3) years?', opts:[['A',"I don't mind if I lose money",5],['B','I can tolerate a loss',4],['C','I can tolerate a small loss',3],['D','I need to see at least a little return',2],['E',"I'd have a hard time tolerating any losses",1]] },
+    { q:'Which statement best describes your attitude toward investing over three (3) months?', opts:[['A','Who cares? One calendar quarter means nothing',5],['B',"I wouldn't worry about losses in that time frame",4],['C',"If I suffered a loss of greater than 10%, I'd be concerned",3],['D','I can only tolerate small short-term losses',2],['E',"I'd have a hard time accepting any losses",1]] },
   ];
   declarations = [
     'I am not a Politically Exposed Person (PEP)',
@@ -708,10 +715,10 @@ class Component extends DCLogic {
     'I understand investments carry risk and may lose value',
   ];
   sourceList = [
-    { id:'employment', label:'Employment income / salary' },
-    { id:'savings', label:'Personal savings' },
-    { id:'investment', label:'Investment returns / dividends' },
-    { id:'property', label:'Sale of property or assets' },
+    { id:'investment', label:'Investment' },
+    { id:'salary', label:'Salary' },
+    { id:'business', label:'Business' },
+    { id:'other', label:'Other' },
   ];
 
   partnerKpis = [
@@ -862,7 +869,7 @@ class Component extends DCLogic {
   // ---- onboarding ----
   onbAnswer(i, v){ return () => this.setState(s => ({ riskAns:{ ...s.riskAns, [i]:v } })); }
   toggleSource(id){ return () => this.setState(s => ({ sources:{ ...s.sources, [id]: !s.sources[id] } })); }
-  onbNext(){ this.setState(s => { const n = Math.min(4, s.onbStep+1); if(n===4) this.showToast('Onboarding complete \u2014 Tier 2 verified'); return { onbStep:n }; }); }
+  onbNext(){ this.setState(s => { if(s.onbStep===4){ this.showToast('Verified \u2014 opening your matched opportunities'); return { nav:'opportunities' }; } const n = Math.min(4, s.onbStep+1); if(n===4) this.showToast('Onboarding complete \u2014 Tier 2 verified'); return { onbStep:n }; }); }
   onbBack(){ this.setState(s => ({ onbStep: Math.max(0, s.onbStep-1) })); }
 
   renderVals(){
@@ -906,12 +913,14 @@ class Component extends DCLogic {
 
     // onboarding
     const onbTitles = ['Get verified','Compliance & suitability','Your risk tolerance','Source of funds','You\u2019re all set'];
-    const onbSubs = ['A one-time setup so your agent can act on your behalf.','Declarations required across Caribbean jurisdictions.','Calibrates which opportunities your agent surfaces.','Required by regulators before you invest.','Verification complete.'];
+    const onbSubs = ['A one-time setup so your agent can act on your behalf.','Declarations required across Caribbean jurisdictions.','From the Sagicor Life fact-find \u2014 three questions set your risk profile.','Required by regulators before you invest.','Verification complete.'];
     const onbLabels = ['Identity','Compliance','Risk','Funds'];
     const onbSteps = onbLabels.map((l,idx) => ({ label:l, bar: idx<=s.onbStep ? (idx<s.onbStep?'#17786e':'#f0b98d') : '#efe5d6', ink: idx<=s.onbStep ? '#0e5952' : '#b3a794' }));
-    const scoreSum = Object.values(s.riskAns).reduce((a,b)=>a+b,0);
-    const riskProfile = scoreSum<=4 ? 'conservative' : scoreSum<=7 ? 'balanced-income' : 'growth';
-    const riskQ = this.riskQuestions.map((q,qi) => ({ q:q.q, opts:q.opts.map(([label,val]) => { const on = s.riskAns[qi]===val; return { label, onClick:this.onbAnswer(qi,val), style:`text-align:left;padding:13px 15px;border:1.5px solid ${on?'#124e48':'#e2d6c2'};border-radius:12px;background:${on?'#eaf5f0':'#fffdf9'};color:${on?'#0e5952':'#3a332c'};font-family:'Hanken Grotesk',sans-serif;font-size:14.5px;font-weight:${on?'700':'500'};cursor:pointer` }; }) }));
+    const riskVals = Object.values(s.riskAns);
+    const riskTotal = riskVals.reduce((a,b)=>a+b,0);
+    const riskAvg = riskVals.length===3 ? Math.round(riskTotal/3) : 0;
+    const riskProfile = ({1:'Low',2:'Low Moderate',3:'High Moderate',4:'Low High',5:'High'})[riskAvg] || 'High Moderate';
+    const riskQ = this.riskQuestions.map((q,qi) => ({ q:q.q, opts:q.opts.map(([letter,label,val]) => { const on = s.riskAns[qi]===val; return { letter, label, onClick:this.onbAnswer(qi,val), badge:`width:26px;height:26px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;background:${on?'#124e48':'#f2ece1'};color:${on?'#fff':'#8a7d6c'}`, style:`display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border:1.5px solid ${on?'#124e48':'#e2d6c2'};border-radius:12px;background:${on?'#eaf5f0':'#fffdf9'};color:${on?'#0e5952':'#3a332c'};font-family:'Hanken Grotesk',sans-serif;font-size:14px;font-weight:${on?'700':'500'};cursor:pointer` }; }) }));
     const sourceOpts = this.sourceList.map(o => { const on = !!s.sources[o.id]; return { label:o.label, onClick:this.toggleSource(o.id), check: on?'✓':'', box:`width:22px;height:22px;border-radius:6px;border:1.5px solid ${on?'#124e48':'#c9bba3'};background:${on?'#124e48':'transparent'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;margin-right:12px`, style:`display:flex;align-items:center;text-align:left;padding:14px 16px;border:1.5px solid ${on?'#124e48':'#e2d6c2'};border-radius:13px;background:${on?'#f7fbf9':'#fffdf9'};color:#3a332c;font-family:'Hanken Grotesk',sans-serif;font-size:14.5px;font-weight:500;cursor:pointer` }; });
 
     // partner console
@@ -977,7 +986,7 @@ class Component extends DCLogic {
       onb0:s.onbStep===0, onb1:s.onbStep===1, onb2:s.onbStep===2, onb3:s.onbStep===3, onb4:s.onbStep===4,
       onbCanBack: s.onbStep>0 && s.onbStep<4, onbBack:()=>this.onbBack(), onbNext:()=>this.onbNext(),
       onbCta: s.onbStep===0?'Start verification' : s.onbStep===3?'Confirm & finish' : s.onbStep===4?'Explore opportunities' : 'Continue',
-      declarations:this.declarations, riskQ, sourceOpts, riskProfile,
+      declarations:this.declarations, riskQ, sourceOpts, riskProfile, riskTotal, riskAnsweredAll: riskVals.length===3, riskNotDone: riskVals.length!==3,
       partnerKpis:this.partnerKpis, kycStages, partnerProducts:this.partnerProducts, auditTrail:this.auditTrail,
       vaOpen:s.vaOpen, openVA:()=>this.openVA(), closeVA:()=>this.closeVA(), vaMic:()=>this.vaMic(),
       vaTranscript:s.vaTranscript, vaResponse:s.vaResponse, vaChips, fabStyle, vaOrbStyle,
