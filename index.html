@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caribbean Capital Network</title>
+<meta name="description" content="Caribbean Capital Network — an agentic investment platform prototype.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh;
+    background:#f5f7fa;
+    font-family:'Space Grotesk',system-ui,-apple-system,sans-serif;
+    color:#33475b;
+    -webkit-font-smoothing:antialiased;
+    letter-spacing:.1px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:64px 24px;
+  }
+  .shell{width:100%;max-width:920px}
+  .kicker{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:#d9a441;
+    margin:0 0 14px;
+  }
+  h1{
+    font-family:'Spectral',Georgia,serif;
+    font-weight:600;
+    font-size:clamp(30px,5vw,46px);
+    line-height:1.1;
+    margin:0 0 14px;
+    color:#0f233c;
+  }
+  .lede{
+    font-size:17px;
+    line-height:1.55;
+    max-width:620px;
+    margin:0 0 40px;
+    color:#5f7180;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:18px;
+  }
+  a.card{
+    display:flex;
+    flex-direction:column;
+    text-decoration:none;
+    color:inherit;
+    background:#fff;
+    border:1px solid #eef1f5;
+    border-radius:14px;
+    padding:22px 22px 20px;
+    box-shadow:0 1px 2px rgba(15,35,60,.04);
+    transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;
+  }
+  a.card:hover{
+    transform:translateY(-3px);
+    box-shadow:0 12px 30px rgba(15,35,60,.10);
+    border-color:#d9a441;
+  }
+  .card .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    color:#8a99a8;
+    margin-bottom:12px;
+  }
+  .card h2{
+    font-family:'Spectral',Georgia,serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0 0 8px;
+    color:#0f233c;
+  }
+  .card p{
+    font-size:14px;
+    line-height:1.5;
+    margin:0 0 18px;
+    color:#5f7180;
+  }
+  .card .go{
+    margin-top:auto;
+    font-size:14px;
+    font-weight:600;
+    color:#d9a441;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  footer{
+    margin-top:48px;
+    font-size:13px;
+    color:#8a99a8;
+    max-width:620px;
+    line-height:1.5;
+  }
+  footer code{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#5f7180}
+</style>
+</head>
+<body>
+  <main class="shell">
+    <p class="kicker">Caribbean Capital Network</p>
+    <h1>Agentic investment platform</h1>
+    <p class="lede">
+      A conversational AI investment agent paired with portfolio dashboards,
+      fund directories, and goal-based planning. Choose a prototype to explore.
+    </p>
+
+    <div class="grid">
+      <a class="card" href="./Caribbean%20Capital%20Network.dc.html">
+        <span class="tag">Primary</span>
+        <h2>Caribbean Capital Network</h2>
+        <p>Portfolio dashboard, investment agent, and fund views — the main platform experience.</p>
+        <span class="go">Open prototype &rarr;</span>
+      </a>
+
+      <a class="card" href="./Caribbean%20Capital%20Network%20-%20Warm.dc.html">
+        <span class="tag">Variant</span>
+        <h2>Warm theme</h2>
+        <p>Warm-toned variant with the voice assistant, goals, and portfolio flows.</p>
+        <span class="go">Open prototype &rarr;</span>
+      </a>
+
+      <a class="card" href="./CCN%20Directions.dc.html">
+        <span class="tag">Directory</span>
+        <h2>CCN Directions</h2>
+        <p>Directions and directory view for navigating funds and portfolios.</p>
+        <span class="go">Open prototype &rarr;</span>
+      </a>
+    </div>
+
+    <footer>
+      Prototypes are self-contained and boot a React UI via the shared
+      <code>support.js</code> runtime. No build step required.
+    </footer>
+  </main>
+</body>
+</html>
