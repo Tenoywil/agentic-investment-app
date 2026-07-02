@@ -43,6 +43,20 @@ body{margin:0;background:#efece4}
 @media (max-width:960px){[data-landing-hero]{grid-template-columns:1fr !important}[data-pipe]{grid-template-columns:1fr 1fr 1fr !important}[data-mission]{grid-template-columns:1fr !important;gap:18px !important}[data-benefits]{grid-template-columns:1fr 1fr !important}[data-features]{grid-template-columns:1fr !important}}
 @media (max-width:760px){[data-landing-links]{display:none !important}[data-landing-nav]{padding:16px 20px !important}[data-benefits]{grid-template-columns:1fr !important}}
 @media (max-width:620px){[data-pipe]{grid-template-columns:1fr 1fr !important}}
+@media (max-width:760px){
+  [data-landing] div[style*="max-width:1200px"]{padding-left:22px !important;padding-right:22px !important}
+  [data-sec]{padding-top:38px !important}
+  [data-hero-h1]{font-size:40px !important;letter-spacing:-1px !important}
+  [data-sec-h1]{font-size:25px !important;letter-spacing:-.4px !important}
+}
+@media (max-width:480px){[data-nav-signin]{display:none !important}}
+@media (max-width:560px){[data-cols4]{grid-template-columns:1fr !important}}
+@media (max-width:440px){
+  [data-landing] div[style*="max-width:1200px"]{padding-left:18px !important;padding-right:18px !important}
+  [data-hero-h1]{font-size:33px !important}
+  [data-landing-hero]{gap:24px !important}
+  [data-screen-label]{padding:18px 14px 84px !important}
+}
 </style>
 </helmet>
 
@@ -54,7 +68,7 @@ body{margin:0;background:#efece4}
     <div data-landing-nav style="display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;padding:22px 40px;gap:20px">
       <div style="display:flex;align-items:center;gap:11px">
         <div style="width:38px;height:38px;border-radius:11px;background:#124e48;display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px">C</div>
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px;letter-spacing:-.2px">Caribbean Capital</div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px;letter-spacing:-.2px;white-space:nowrap">Caribbean Capital</div>
       </div>
       <div data-landing-links style="display:flex;align-items:center;gap:30px;font-size:15px;color:#5c5449;font-weight:500">
         <a href="#how-it-works" style="cursor:pointer;color:inherit;text-decoration:none">How it works</a>
@@ -62,15 +76,15 @@ body{margin:0;background:#efece4}
         <span style="cursor:pointer" onClick="{{ goInstitutions }}">For institutions</span>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
-        <button onClick="{{ goSignup }}" style="padding:10px 16px;border:none;background:transparent;color:#1e1c19;font-family:'Hanken Grotesk',sans-serif;font-size:15px;font-weight:600;cursor:pointer">Sign in</button>
-        <button onClick="{{ goDemo }}" style="padding:11px 20px;border:none;border-radius:11px;background:#124e48;color:#fff;font-family:'Hanken Grotesk',sans-serif;font-size:15px;font-weight:700;cursor:pointer">See a demo</button>
+        <button data-nav-signin onClick="{{ goSignup }}" style="padding:10px 16px;border:none;background:transparent;color:#1e1c19;font-family:'Hanken Grotesk',sans-serif;font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;flex:none">Sign in</button>
+        <button onClick="{{ goDemo }}" style="padding:11px 20px;border:none;border-radius:11px;background:#124e48;color:#fff;font-family:'Hanken Grotesk',sans-serif;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap;flex:none">See a demo</button>
       </div>
     </div>
 
     <div data-landing-hero style="max-width:1200px;margin:0 auto;padding:40px 40px 34px;display:grid;grid-template-columns:1.02fr .98fr;gap:52px;align-items:center">
       <div>
         <div style="display:inline-flex;align-items:center;gap:8px;background:#fdfcfa;border:1px solid #e4e0d6;border-radius:22px;padding:7px 14px;font-size:13px;font-weight:600;color:#0e5952;letter-spacing:.3px;margin-bottom:22px"><span style="width:7px;height:7px;border-radius:50%;background:#0a8f5b"></span>The financial operating system of the Caribbean</div>
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:53px;line-height:1.04;letter-spacing:-1.6px">One agent for your whole Caribbean portfolio.</div>
+        <div data-hero-h1 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:53px;line-height:1.04;letter-spacing:-1.6px">One agent for your whole Caribbean portfolio.</div>
         <p style="margin:20px 0 0;font-size:18px;line-height:1.55;color:#5c5449;max-width:520px">CCN unifies every licensed partner in one place. Your AI capital agent researches regional opportunities, screens them for suitability, clears compliance, and executes on your approval.</p>
         <div style="display:flex;gap:12px;margin-top:28px;flex-wrap:wrap">
           <button onClick="{{ goSignup }}" style="display:inline-flex;align-items:center;gap:11px;padding:15px 22px;border:1px solid #dcd6c8;border-radius:12px;background:#fdfcfa;color:#1e1c19;font-family:'Hanken Grotesk',sans-serif;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px rgba(30,20,10,.05)"><span style="width:22px;height:22px;border-radius:50%;background:#fff;border:1px solid #e4e0d6;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:14px;color:#3f7ae0">G</span>Continue with Google</button>
@@ -108,18 +122,18 @@ body{margin:0;background:#efece4}
     </div>
 
     <!-- MISSION -->
-    <div style="max-width:1200px;margin:0 auto;padding:58px 40px 8px">
+    <div data-sec style="max-width:1200px;margin:0 auto;padding:58px 40px 8px">
       <div data-mission style="display:grid;grid-template-columns:1fr 1fr;gap:52px;align-items:start">
         <div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#0e5952;margin-bottom:14px">Why CCN</div>
-          <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:33px;line-height:1.14;letter-spacing:-.7px">Caribbean wealth is scattered across a dozen institutions and borders.</div>
+          <div data-sec-h1 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:33px;line-height:1.14;letter-spacing:-.7px">Caribbean wealth is scattered across a dozen institutions and borders.</div>
         </div>
         <p style="margin:0;padding-top:6px;font-size:17px;line-height:1.62;color:#5c5449">If you are building a life between the region and the diaspora, your money lives in fragments: a bond at NCB, a fund at Sagicor, cash at JMMB, a pension you have half-forgotten. CCN brings all of it into one place and gives you an agent that researches, screens and acts on it, so your capital is always working and always under your control.</p>
       </div>
     </div>
 
     <!-- BENEFITS -->
-    <div style="max-width:1200px;margin:0 auto;padding:34px 40px 6px">
+    <div data-sec style="max-width:1200px;margin:0 auto;padding:34px 40px 6px">
       <div data-benefits style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
         <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:14px;padding:24px 22px">
           <span style="width:44px;height:44px;border-radius:11px;background:#e8f1ec;display:flex;align-items:center;justify-content:center;margin-bottom:16px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0e5952" stroke-width="1.9"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></span>
@@ -140,8 +154,8 @@ body{margin:0;background:#efece4}
     </div>
 
     <!-- WHAT’S INSIDE -->
-    <div style="max-width:1200px;margin:0 auto;padding:52px 40px 0">
-      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-.5px;margin-bottom:6px">Everything to grow and protect wealth in the region</div>
+    <div data-sec style="max-width:1200px;margin:0 auto;padding:52px 40px 0">
+      <div data-sec-h1 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-.5px;margin-bottom:6px">Everything to grow and protect wealth in the region</div>
       <div style="font-size:16px;color:#5c5449;margin-bottom:22px">Four surfaces, one account. Tap any to open it in the live demo.</div>
       <div data-features style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div onClick="{{ goDemo }}" style="display:flex;gap:15px;padding:21px 22px;border:1px solid #e4e0d6;border-radius:14px;background:#fdfcfa;cursor:pointer" style-hover="border-color:#cadbd3;box-shadow:0 6px 20px rgba(40,34,22,.06)">
@@ -163,8 +177,8 @@ body{margin:0;background:#efece4}
       </div>
     </div>
 
-    <div id="how-it-works" style="max-width:1200px;margin:0 auto;padding:54px 40px 62px;scroll-margin-top:20px">
-      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-.5px;margin-bottom:6px">Your agent does the work. You keep control.</div>
+    <div id="how-it-works" data-sec style="max-width:1200px;margin:0 auto;padding:54px 40px 62px;scroll-margin-top:20px">
+      <div data-sec-h1 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-.5px;margin-bottom:6px">Your agent does the work. You keep control.</div>
       <div style="font-size:16px;color:#5c5449;margin-bottom:26px">Every action is researched, screened and checked, then brought to you.</div>
       <div data-pipe style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
         <div style="padding:18px;border:1px solid #e4e0d6;border-radius:13px;background:#fdfcfa"><div style="width:30px;height:30px;border-radius:8px;background:#e8f1ec;color:#0e5952;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:15px;margin-bottom:12px">1</div><div style="font-size:16px;font-weight:700;margin-bottom:5px">Research</div><div style="font-size:14px;color:#6b6459;line-height:1.45">Scans 47 instruments across 8 partners</div></div>
