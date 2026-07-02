@@ -18,6 +18,8 @@ The site is a single page: the **Warm theme** prototype, served as `index.html`.
   document and renders it with React (loaded from a CDN at runtime). Generated
   from `dc-runtime/src/*.ts` (do not edit by hand).
 - `.thumbnail` — WebP preview thumbnail of the prototype.
+- `favicon.svg` / `favicon-32.png` / `apple-touch-icon.png` — site favicon (the
+  CCN "C" logo mark on the brand teal), linked from `index.html`.
 
 ### Assets
 
