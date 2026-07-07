@@ -1,0 +1,46 @@
+%% CCN — Agentic Workflow (inputs → orchestration → HITL → outputs)
+%% This is the primary end-to-end diagram: decision points + human-in-the-loop.
+flowchart TD
+    subgraph IN["Inputs"]
+        I1["User goals &amp; risk band"]
+        I2["Per-move &amp; daily limits"]
+        I3["Portfolio state (8 partners)"]
+        I4["Market events · maturing coupons · idle cash"]
+    end
+
+    IN --> RES["Research Agent<br/>surface opportunity across partners"]
+
+    subgraph SRC["Data sources &amp; APIs"]
+        D1["Partner APIs · FSC-licensed"]
+        D2["Market &amp; reference data"]
+        D3["KYC / AML / source-of-funds"]
+    end
+    D1 -.feeds.-> RES
+    D2 -.feeds.-> RES
+
+    RES --> SUIT{"In risk band<br/>&amp; suitable?"}
+    SUIT -- No --> DROP["Log rationale · discard"]:::terminal
+    SUIT -- Yes --> COMPG{"Compliance clear?<br/>KYC / AML / limits"}
+    D3 -.checks.-> COMPG
+    COMPG -- Blocked --> DROP
+    COMPG -- Clear --> LIM{"Within your<br/>set limits?"}
+
+    LIM -- "Yes · auto-act" --> EXE["Execution Agent<br/>place order via partner API"]
+    LIM -- "No · larger move" --> CARD["Create &quot;Needs your approval&quot; card"]
+
+    CARD --> HITL{"Human approves?<br/>one-tap"}
+    HITL -- "Approve" --> EXE
+    HITL -- "Reject / expire" --> DROP
+
+    EXE --> SETTLE["Custody &amp; settlement<br/>at licensed partner"]
+    SETTLE --> UPD["Update unified portfolio<br/>(Realtime)"]
+
+    subgraph OUT["Outputs"]
+        O1["Approval / result card"]
+        O2["Voice readout + projected yield impact"]
+        O3["Portfolio &amp; goal rings updated"]
+    end
+    UPD --> OUT
+    OUT --> LOG[("Immutable audit log<br/>KYC/AML trail")]:::terminal
+
+    classDef terminal fill:#e8f1ec,stroke:#0e5952,color:#0e5952;

@@ -40,3 +40,12 @@ python3 -m http.server 8000
 
 No build step is required; `support.js` loads React at runtime, so the page
 needs network access to its CDN the first time it renders.
+
+## System design
+
+The agent architecture and workflow diagrams live in
+[`design/agents/`](design/agents/README.md) — system architecture, multi-agent
+orchestration, the end-to-end agentic workflow (inputs → decisions →
+human-in-the-loop → outputs), the approval sequence, the data/API integration
+map, and the KYC onboarding gate. Diagrams are authored in Mermaid with rendered
+SVG/PNG exports.

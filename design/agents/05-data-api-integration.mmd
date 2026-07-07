@@ -1,0 +1,33 @@
+%% CCN — Data &amp; API integration map
+flowchart LR
+    subgraph Partners["FSC-licensed partners · custody &amp; execution"]
+        direction TB
+        P1["NCB"]
+        P2["Sagicor"]
+        P3["JMMB"]
+        P4["Proven"]
+        P5["Barita"]
+        P6["Republic"]
+        P7["Sygnus"]
+    end
+
+    MKT["Market &amp; reference data"]
+    KYCP["KYC / AML / source-of-funds provider"]
+
+    subgraph CCN["CCN Platform"]
+        AGG["Aggregation &amp; Normalization<br/>unify holdings · yield · allocation"]
+        ROUTER["Order Router<br/>place / cancel within limits"]
+        GATE["Compliance Gateway<br/>KYC · AML · suitability"]
+        STOREPG[("Supabase Postgres<br/>in-region")]
+    end
+
+    APP["Web app · Agent"]
+
+    Partners -->|"holdings · quotes · statements"| AGG
+    ROUTER -->|"orders"| Partners
+    MKT -->|"prices · yields"| AGG
+    AGG --> STOREPG
+    ROUTER --> GATE
+    GATE <--> KYCP
+    GATE --> STOREPG
+    AGG -->|"unified live view"| APP
