@@ -1,10 +1,18 @@
 # CCN — Agentic System Design
 
-Design of the **Caribbean Capital Network (CCN)** AI capital agent: one agent for a
-whole Caribbean portfolio that researches regional opportunities, acts inside
-limits you set, and escalates larger moves for approval. This document specifies
-the agent architecture, orchestration, human-in-the-loop control, data sources,
-and key decision points, with the workflow diagrams the design is built around.
+Design of the **Caribbean Capital Network (CCN)** financial operating system and
+its AI capital agent: one agent for a whole Caribbean portfolio that researches
+regional opportunities, acts inside limits you set, and escalates larger moves
+for approval.
+
+**Vision:** transform Caribbean capital flows from consumption to wealth
+creation — intelligent infrastructure connecting local investors *and the global
+diaspora* with regional investment opportunities, delivered through a single
+trusted interface for wealth creation in the Caribbean.
+
+This document specifies the agent architecture, orchestration,
+human-in-the-loop control, data sources, key decision points, the stack, the
+external resources required, and the compute/model strategy.
 
 > Diagrams are authored in Mermaid (`*.mmd`) and rendered to `exports/*.svg` and
 > `exports/*.png`. GitHub renders the inline Mermaid below directly.
@@ -16,14 +24,15 @@ build already ships as a React UI on Vercel):
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Client | React app on **Vercel** | Existing Warm prototype; fast static + edge delivery. Voice via Web Speech / TTS. |
+| Client | React app on **Vercel** | Existing Warm prototype; fast static + edge delivery. Voice via streaming STT/TTS. |
+| Auth | **Better Auth** — sign in with Google | Simpler social-sign-on DX than Supabase Auth for a Google-first signup flow. Runs in the server runtime; sessions and accounts persist in the same Postgres. |
 | API + agent runtime | **Supabase Edge Functions (Deno)** | Server-side home for the Claude tool-use loop and the guardrail/limits engine — secrets and partner calls never touch the client. |
-| Agent model | **Anthropic Claude** (tool use) | Orchestrator + specialist agents as tool-calling loops. |
-| Data | **Supabase Postgres** (in-region) | Holdings, instruments, limits, approvals, goals, immutable audit log. Row-level security per user. |
+| Agent models | **Anthropic Claude** (tool use, tiered — see [Compute & models](#compute--model-strategy)) | Orchestrator + specialist agents as tool-calling loops. |
+| Data | **Supabase Postgres** (in-region) + **pgvector** | Holdings, instruments, limits, approvals, goals, immutable audit log, auth sessions, document embeddings. |
 | Live updates | **Supabase Realtime** | Push portfolio changes and "Needs your approval" cards to the client. |
 | Docs | **Supabase Storage** | KYC / source-of-funds documents, held in-region. |
-| Auth | **Supabase Auth** | Sessions; KYC-gated activation. |
-| External | FSC-licensed **partner APIs**, market/reference data, **KYC/AML** provider | Custody, execution, quotes, verification. |
+| Batch compute | Serverless batch (e.g. **Modal** / AWS Batch) | Market-scan sweeps, Monte Carlo goal projections, portfolio optimization, re-embedding jobs. |
+| External | FSC-licensed **partner APIs**, market/product data, **KYC/AML APIs**, asset management systems | Custody, execution, quotes, offerings, verification, transfers/enrollments. |
 
 **Regulated & regional by construction:** every instrument is custodied and
 executed by an FSC-licensed partner; KYC, suitability, and source-of-funds are
@@ -31,7 +40,8 @@ handled before the agent can act; data is held in-region.
 
 ## 1. System architecture
 
-Where the agent runs and what it talks to.
+Where the agent runs and what it talks to. Sign-in is Google OAuth via Better
+Auth; sessions live in the same Postgres as the portfolio data.
 
 ```mermaid
 %% CCN — System Architecture (agent runtime + stack)
@@ -42,16 +52,15 @@ flowchart TB
     end
 
     subgraph Runtime["API &amp; Agent Runtime · Supabase Edge Functions (Deno)"]
-        ORCH["Capital Agent — Orchestrator<br/>Claude tool-use loop"]
+        ORCH["Unified Wealth Agent — Orchestrator<br/>Claude tool-use loop"]
         GUARD["Guardrail &amp; Limits Engine<br/>risk band · per-move limits"]
         AUD["Audit Log Writer<br/>immutable action trail"]
     end
 
     subgraph Data["Data · Supabase (in-region)"]
-        PG[("Postgres<br/>holdings · instruments · limits<br/>approvals · goals · audit")]
+        PG[("Postgres<br/>holdings · instruments · limits<br/>approvals · goals · audit<br/>+ Better Auth sessions")]
         RT{{"Realtime channels<br/>portfolio · approval cards"}}
         STG[("Storage<br/>KYC / source-of-funds docs")]
-        AUTH["Supabase Auth<br/>session · row-level security"]
     end
 
     subgraph External["External · FSC-licensed partners &amp; providers"]
@@ -59,11 +68,17 @@ flowchart TB
         MKT["Market &amp; Reference Data"]
         KYCP["KYC / AML / Source-of-Funds"]
         LLM["Anthropic Claude API"]
+        GOOG["Google OAuth<br/>identity provider"]
     end
+
+    AUTH["Better Auth<br/>sign in with Google<br/>sessions in Postgres"]
+    Runtime --- AUTH
 
     UI <-->|HTTPS / RPC| Runtime
     VOICE <--> UI
-    UI -->|login| AUTH
+    UI -->|"sign in with Google"| AUTH
+    AUTH <-->|OAuth| GOOG
+    AUTH -->|sessions| PG
 
     ORCH <-->|reason · tool calls| LLM
     ORCH --> GUARD --> AUD --> PG
@@ -77,36 +92,37 @@ flowchart TB
 
 ## 2. Agent orchestration
 
-A single **Capital Agent** orchestrator plans and delegates to specialist agents,
-each exposed to it as a tool. They share context (your limits, risk band,
-portfolio state, audit) so decisions are consistent.
+A single **Unified Wealth Agent** (the capital agent) owns overall strategy. It
+plans and delegates to specialist agents, each exposed to it as a tool. They
+share context (your limits, risk band, portfolio state, audit) so decisions are
+consistent.
 
 ```mermaid
 %% CCN — Agent Orchestration (orchestrator + specialist agents)
 flowchart TB
-    USER((User)) -->|"chat · schedule · market event"| ORCH
+    USER((User<br/>local &amp; diaspora investor)) -->|"chat · schedule · market event"| ORCH
 
-    ORCH["Capital Agent · Orchestrator<br/>plans, delegates, composes replies"]
+    ORCH["Unified Wealth Agent · Orchestrator<br/>overall strategy · plans, delegates,<br/>composes replies"]
 
     subgraph Specialists["Specialist agents (tools of the orchestrator)"]
-        RES["Research Agent<br/>scan ~47 instruments · 8 partners<br/>Opportunities marketplace"]
-        RISK["Risk &amp; Suitability Agent<br/>risk band · concentration · suitability"]
+        ONB["Client Onboarding Agent<br/>ID &amp; compliance · KYC · AML<br/>source of funds"]
+        PROF["Financial Profiling Agent<br/>risk assessment · risk band<br/>suitability · concentration"]
+        RES["Opportunity Monitor Agent<br/>scan regional markets: bonds · funds<br/>IPOs · real estate · insurance"]
         EXE["Execution Agent<br/>route &amp; place orders within limits"]
         PLAN["Planning Agent<br/>insurance · retirement · estate · mortgage<br/>goal progress rings"]
-        COMP["Compliance Agent<br/>KYC · AML · source of funds"]
     end
 
+    ORCH -->|"verify client"| ONB
+    ORCH -->|"score candidate"| PROF
     ORCH -->|"find yield / idle cash"| RES
-    ORCH -->|"score candidate"| RISK
     ORCH -->|"place approved move"| EXE
     ORCH -->|"track goals"| PLAN
-    ORCH -->|"gate actions"| COMP
 
+    ONB -->|"cleared / blocked"| ORCH
+    PROF -->|"in-band? + rationale"| ORCH
     RES -->|"ranked opportunities"| ORCH
-    RISK -->|"in-band? + rationale"| ORCH
     EXE -->|"order status / fills"| ORCH
     PLAN -->|"progress + gaps"| ORCH
-    COMP -->|"cleared / blocked"| ORCH
 
     ORCH -->|"proposal · approval card · voice"| USER
 
@@ -117,12 +133,12 @@ flowchart TB
 
 | Agent | Responsibility | Reads | Acts on |
 | --- | --- | --- | --- |
-| **Capital Agent** (orchestrator) | Plans, delegates, composes replies, owns the approval loop | Shared context | Proposals, approval cards, voice |
-| **Research** | Surface opportunities across ~47 instruments / 8 partners | Partner APIs, market data | Ranked candidate list |
-| **Risk & Suitability** | Check against risk band, concentration, suitability | Portfolio, risk band | In-band verdict + rationale |
-| **Execution** | Route and place orders **within limits** | Limits, approvals | Partner order APIs |
-| **Planning** | Track insurance / retirement / estate / mortgage goals | Goals, holdings | Progress rings, gap flags |
-| **Compliance** | KYC / AML / source-of-funds gating | KYC store, provider | Clear / block |
+| **Unified Wealth Agent** (orchestrator) | Overall strategy; plans, delegates, composes replies, owns the approval loop | Shared context | Proposals, approval cards, voice |
+| **Client Onboarding** | ID & compliance — KYC / AML / source-of-funds gating | KYC store, KYC/AML APIs | Clear / block |
+| **Financial Profiling** | Risk assessment — risk band, concentration, suitability | Portfolio, risk band | In-band verdict + rationale |
+| **Opportunity Monitor** | Scan regional markets — bonds, funds, IPOs & private raises, real estate, insurance across ~47 instruments / 8 partners | Partner APIs, market & product data | Ranked candidate list |
+| **Execution** | Route and place orders **within limits** | Limits, approvals | Partner order APIs, asset mgmt systems |
+| **Planning** | Insurance / retirement / estate / mortgage goals | Goals, holdings | Progress rings, gap flags |
 
 ## 3. Agentic workflow — the money loop *(primary diagram)*
 
@@ -135,56 +151,70 @@ decision points."
 %% CCN — Agentic Workflow (inputs → orchestration → HITL → outputs)
 flowchart TD
     subgraph IN["Inputs"]
-        I1["User goals &amp; risk band"]
+        I1["Investor inputs — local &amp; diaspora<br/>goals · risk tolerance"]
         I2["Per-move &amp; daily limits"]
         I3["Portfolio state (8 partners)"]
         I4["Market events · maturing coupons · idle cash"]
     end
 
-    IN --> RES["Research Agent<br/>surface opportunity across partners"]
+    IN --> RES["Opportunity Monitor Agent<br/>scan regional markets across partners"]
 
     subgraph SRC["Data sources &amp; APIs"]
-        D1["Partner APIs · FSC-licensed"]
-        D2["Market &amp; reference data"]
-        D3["KYC / AML / source-of-funds"]
+        D1["Partner banks &amp; brokers APIs · FSC-licensed"]
+        D2["Market &amp; reference data<br/>gov bonds · JSE · FX"]
+        D3["Product catalogs<br/>IPOs &amp; private raises · real estate funds<br/>insurance products"]
+        D4["KYC / AML APIs"]
     end
     D1 -.feeds.-> RES
     D2 -.feeds.-> RES
+    D3 -.feeds.-> RES
 
-    RES --> SUIT{"In risk band<br/>&amp; suitable?"}
+    RES --> MATCH{"Investment match<br/>found?"}
+    MATCH -- "No · keep monitoring" --> RES
+    MATCH -- Yes --> SUIT{"In risk band<br/>&amp; suitable?"}
     SUIT -- No --> DROP["Log rationale · discard"]:::terminal
     SUIT -- Yes --> COMPG{"Compliance clear?<br/>KYC / AML / limits"}
-    D3 -.checks.-> COMPG
+    D4 -.checks.-> COMPG
     COMPG -- Blocked --> DROP
     COMPG -- Clear --> LIM{"Within your<br/>set limits?"}
 
     LIM -- "Yes · auto-act" --> EXE["Execution Agent<br/>place order via partner API"]
-    LIM -- "No · larger move" --> CARD["Create &quot;Needs your approval&quot; card"]
+    LIM -- "No · larger move" --> CARD["&quot;Needs your approval&quot; card:<br/>investment · fund transfer<br/>· policy/plan enrollment"]
 
-    CARD --> HITL{"Human approves?<br/>one-tap"}
+    CARD --> HITL{"Client approves?<br/>one-tap"}
     HITL -- "Approve" --> EXE
     HITL -- "Reject / expire" --> DROP
 
     EXE --> SETTLE["Custody &amp; settlement<br/>at licensed partner"]
     SETTLE --> UPD["Update unified portfolio<br/>(Realtime)"]
 
+    UPD --> REN{"Renewal / diversification<br/>needed?"}
+    REN -- "Yes · loop" --> RES
+    REN -- No --> OUT
+
     subgraph OUT["Outputs"]
-        O1["Approval / result card"]
+        O1["Unified investor dashboard<br/>portfolio · performance · real-time"]
         O2["Voice readout + projected yield impact"]
-        O3["Portfolio &amp; goal rings updated"]
+        O3["Personalized recommendations<br/>goal rings · planning services"]
     end
-    UPD --> OUT
     OUT --> LOG[("Immutable audit log<br/>KYC/AML trail")]:::terminal
 
     classDef terminal fill:#e8f1ec,stroke:#0e5952,color:#0e5952;
 ```
 
 **Key decision points**
-1. **In risk band & suitable?** — Risk agent rejects anything outside your band.
-2. **Compliance clear?** — KYC / AML / source-of-funds and hard limits.
-3. **Within your set limits?** — the auto-act vs. escalate fork. At or below your
+1. **Investment match found?** — the Opportunity Monitor keeps scanning until a
+   candidate fits the investor's goals; no match → keep monitoring.
+2. **In risk band & suitable?** — the Financial Profiling agent rejects anything
+   outside your band.
+3. **Compliance clear?** — KYC / AML / source-of-funds and hard limits.
+4. **Within your set limits?** — the auto-act vs. escalate fork. At or below your
    limit the agent acts; above it, the move becomes an approval card.
-4. **Human approves?** — one-tap Approve; reject or expiry means no order.
+5. **Client approves?** — one-tap Approve on three card types: **investment
+   recommendation**, **fund transfer authorization**, **policy/plan enrollment**.
+   Reject or expiry means no order.
+6. **Renewal / diversification needed?** — after settlement the loop re-enters
+   monitoring (e.g. reinvest a maturing coupon, rebalance concentration).
 
 ## 4. Human-in-the-loop approval
 
@@ -224,7 +254,8 @@ executed at FSC-licensed partners.
 ```mermaid
 %% CCN — Data &amp; API integration map
 flowchart LR
-    subgraph Partners["FSC-licensed partners (custody &amp; execution)"]
+    subgraph Partners["FSC-licensed partners · custody &amp; execution"]
+        direction TB
         P1["NCB"]
         P2["Sagicor"]
         P3["JMMB"]
@@ -234,6 +265,15 @@ flowchart LR
         P7["Sygnus"]
     end
 
+    subgraph Sources["Market &amp; product data"]
+        direction TB
+        MKT["Market &amp; reference data<br/>gov bonds · JSE · FX"]
+        CAT["Product catalogs<br/>IPOs &amp; private raises<br/>real estate funds · insurance"]
+    end
+
+    KYCP["KYC / AML APIs<br/>ID · sanctions · source of funds"]
+    AMS["Asset management systems"]
+
     subgraph CCN["CCN Platform"]
         AGG["Aggregation &amp; Normalization<br/>unify holdings · yield · allocation"]
         ROUTER["Order Router<br/>place / cancel within limits"]
@@ -241,37 +281,96 @@ flowchart LR
         STOREPG[("Supabase Postgres<br/>in-region")]
     end
 
-    MKT["Market &amp; reference data"]
-    KYCP["KYC / AML / source-of-funds provider"]
+    APP["Web app · Agent<br/>unified investor dashboard"]
 
-    P1 & P2 & P3 & P4 & P5 & P6 & P7 -->|"holdings · quotes · statements"| AGG
-    ROUTER -->|"orders"| P1 & P2 & P3 & P4 & P5 & P6 & P7
+    Partners -->|"holdings · quotes · statements"| AGG
+    ROUTER -->|"orders"| Partners
+    ROUTER -->|"transfers · enrollments"| AMS
     MKT -->|"prices · yields"| AGG
+    CAT -->|"offerings"| AGG
     AGG --> STOREPG
-    GATE <--> KYCP
     ROUTER --> GATE
-    AGG -->|"unified live view"| APP["Web app · Agent"]
+    GATE <--> KYCP
     GATE --> STOREPG
+    AGG -->|"unified live view"| APP
 ```
 
 ## 6. Onboarding / KYC gate
 
 The agent cannot act until KYC + source-of-funds are verified, a risk band is set,
-and limits are configured.
+and limits are configured. Sign-up is one tap with Google.
 
 ```mermaid
 %% CCN — Onboarding / KYC gate (agent activation)
 flowchart TD
-    S(("Start")) --> SIGN["Sign up · Supabase Auth"]
+    S(("Start")) --> SIGN["Sign up with Google<br/>· Better Auth"]
     SIGN --> KYC{"KYC + source of<br/>funds verified?"}
     KYC -- No --> COLL["Collect documents<br/>→ Supabase Storage"]
-    COLL --> REV["Compliance Agent review<br/>(KYC/AML provider)"]
+    COLL --> REV["Client Onboarding Agent review<br/>(KYC/AML provider)"]
     REV --> KYC
     KYC -- Yes --> SUIT["Suitability assessment<br/>→ set risk band"]
     SUIT --> LIM["Set agent limits<br/>per-move · daily · categories"]
     LIM --> CONNECT["Connect FSC partners<br/>(read + trade scopes)"]
     CONNECT --> ACTIVE(("Agent active<br/>within your limits"))
 ```
+
+## External resources & integrations
+
+What CCN needs from outside the codebase, roughly in order of criticality:
+
+| Category | Resource | Used for |
+| --- | --- | --- |
+| Partner access | API agreements with FSC-licensed institutions — NCB, Sagicor, JMMB, Proven, Barita, Republic, Sygnus (+ future partners, e.g. GraceKennedy) | Holdings feeds, quotes, statements, order placement, custody & settlement |
+| Market data | JSE market feed · BOJ/MoF government bond auction data · FX rates (JMD/USD/TTD/BBD) · fund NAVs | Pricing, yield calc, opportunity scanning |
+| Product catalogs | IPO & private raise listings, real estate fund offerings, insurance product details | Opportunities marketplace, Planning agent |
+| Identity | Google Cloud OAuth credentials (Better Auth) | Sign up / sign in with Google |
+| KYC / AML | KYC provider (e.g. Smile ID / Onfido / Persona) + sanctions & PEP screening (e.g. ComplyAdvantage) | Onboarding gate, per-action compliance checks |
+| AI | Anthropic API (Claude, tiered) · embeddings provider (e.g. Voyage) | Agents, retrieval |
+| Voice | Streaming STT + TTS provider (e.g. Deepgram / ElevenLabs; Web Speech fallback) | Voice input and spoken agent responses |
+| Hosting | Vercel (client) · Supabase (runtime, data, realtime, storage — nearest in-region deployment) | Platform |
+| Batch compute | Modal / AWS Batch (or similar serverless batch) | Simulations, sweeps, re-embedding (below) |
+| Asset mgmt | Asset management system integrations | Fund transfers, policy/plan enrollment |
+| Observability | Error tracking (Sentry) · agent tracing/evals (e.g. Braintrust/LangSmith) | Reliability, agent quality regression |
+
+## Compute & model strategy
+
+Where heavy compute pays off, and how to spend it without runaway cost:
+
+**Model tiering (Claude)**
+- **Orchestrator & proposals** — a frontier model (Opus/Sonnet class) for
+  strategy, multi-step tool use, and composing rationale the user will read.
+- **High-volume classification** — a small fast model (Haiku class) for intent
+  routing, alert triage, transaction tagging, and first-pass instrument
+  screening. The Opportunity Monitor screens wide with the small model and
+  escalates shortlisted candidates to the big one.
+- **Prompt caching + response caching** — portfolio context and instrument
+  briefs are cached; identical research questions reuse cached briefs.
+
+**Batch inference (cheap bulk compute)**
+- Nightly **market sweep**: score the full instrument universe (today ~47; at
+  scale every JSE listing, bond auction, fund fact sheet) via the Batch API at
+  off-peak pricing → a pre-scored opportunity pool the live agent queries
+  instantly instead of reasoning from scratch.
+- Nightly **re-embedding** of prospectuses, fund fact sheets, policy documents
+  into pgvector for retrieval-augmented answers.
+
+**Numeric compute (not LLM)**
+- **Monte Carlo goal projections** (retirement, education, estate) and
+  **portfolio optimization / stress tests** run as serverless batch jobs
+  (Modal / AWS Batch), triggered by the Planning agent; results land in
+  Postgres and render as goal rings and projected-impact numbers.
+- Optional later: yield-curve / FX forecasting models trained offline (GPU) and
+  served as cheap inference endpoints feeding the Opportunity Monitor.
+
+**Document intelligence**
+- Vision-capable model or dedicated OCR (Textract / Document AI) for KYC
+  documents and for partners that only provide PDF statements — turning
+  statements into structured holdings where no API exists yet. This is the
+  pragmatic bridge while partner API agreements are negotiated.
+
+**Guardrail principle for all of it:** heavy compute generates *candidates and
+projections*; the Limits Engine and the human approval loop remain the only
+paths to an executed action.
 
 ## Guardrails & data model (supporting)
 
@@ -284,9 +383,9 @@ flowchart TD
 - Partner scopes are explicit (read vs. trade); trade scope requires an active
   approval or an in-limit auto-act.
 
-**Core tables** (illustrative): `users`, `partners`, `instruments`, `holdings`,
-`limits`, `risk_profiles`, `opportunities`, `approvals`, `goals`, `audit_log`,
-`kyc_documents`.
+**Core tables** (illustrative): `users`, `sessions` (Better Auth), `partners`,
+`instruments`, `holdings`, `limits`, `risk_profiles`, `opportunities`,
+`approvals`, `goals`, `audit_log`, `kyc_documents`, `embeddings` (pgvector).
 
 ## Files
 

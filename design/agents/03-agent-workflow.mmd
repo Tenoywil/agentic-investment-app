@@ -2,45 +2,52 @@
 %% This is the primary end-to-end diagram: decision points + human-in-the-loop.
 flowchart TD
     subgraph IN["Inputs"]
-        I1["User goals &amp; risk band"]
+        I1["Investor inputs — local &amp; diaspora<br/>goals · risk tolerance"]
         I2["Per-move &amp; daily limits"]
         I3["Portfolio state (8 partners)"]
         I4["Market events · maturing coupons · idle cash"]
     end
 
-    IN --> RES["Research Agent<br/>surface opportunity across partners"]
+    IN --> RES["Opportunity Monitor Agent<br/>scan regional markets across partners"]
 
     subgraph SRC["Data sources &amp; APIs"]
-        D1["Partner APIs · FSC-licensed"]
-        D2["Market &amp; reference data"]
-        D3["KYC / AML / source-of-funds"]
+        D1["Partner banks &amp; brokers APIs · FSC-licensed"]
+        D2["Market &amp; reference data<br/>gov bonds · JSE · FX"]
+        D3["Product catalogs<br/>IPOs &amp; private raises · real estate funds<br/>insurance products"]
+        D4["KYC / AML APIs"]
     end
     D1 -.feeds.-> RES
     D2 -.feeds.-> RES
+    D3 -.feeds.-> RES
 
-    RES --> SUIT{"In risk band<br/>&amp; suitable?"}
+    RES --> MATCH{"Investment match<br/>found?"}
+    MATCH -- "No · keep monitoring" --> RES
+    MATCH -- Yes --> SUIT{"In risk band<br/>&amp; suitable?"}
     SUIT -- No --> DROP["Log rationale · discard"]:::terminal
     SUIT -- Yes --> COMPG{"Compliance clear?<br/>KYC / AML / limits"}
-    D3 -.checks.-> COMPG
+    D4 -.checks.-> COMPG
     COMPG -- Blocked --> DROP
     COMPG -- Clear --> LIM{"Within your<br/>set limits?"}
 
     LIM -- "Yes · auto-act" --> EXE["Execution Agent<br/>place order via partner API"]
-    LIM -- "No · larger move" --> CARD["Create &quot;Needs your approval&quot; card"]
+    LIM -- "No · larger move" --> CARD["&quot;Needs your approval&quot; card:<br/>investment · fund transfer<br/>· policy/plan enrollment"]
 
-    CARD --> HITL{"Human approves?<br/>one-tap"}
+    CARD --> HITL{"Client approves?<br/>one-tap"}
     HITL -- "Approve" --> EXE
     HITL -- "Reject / expire" --> DROP
 
     EXE --> SETTLE["Custody &amp; settlement<br/>at licensed partner"]
     SETTLE --> UPD["Update unified portfolio<br/>(Realtime)"]
 
+    UPD --> REN{"Renewal / diversification<br/>needed?"}
+    REN -- "Yes · loop" --> RES
+    REN -- No --> OUT
+
     subgraph OUT["Outputs"]
-        O1["Approval / result card"]
+        O1["Unified investor dashboard<br/>portfolio · performance · real-time"]
         O2["Voice readout + projected yield impact"]
-        O3["Portfolio &amp; goal rings updated"]
+        O3["Personalized recommendations<br/>goal rings · planning services"]
     end
-    UPD --> OUT
     OUT --> LOG[("Immutable audit log<br/>KYC/AML trail")]:::terminal
 
     classDef terminal fill:#e8f1ec,stroke:#0e5952,color:#0e5952;

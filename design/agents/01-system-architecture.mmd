@@ -6,16 +6,15 @@ flowchart TB
     end
 
     subgraph Runtime["API &amp; Agent Runtime · Supabase Edge Functions (Deno)"]
-        ORCH["Capital Agent — Orchestrator<br/>Claude tool-use loop"]
+        ORCH["Unified Wealth Agent — Orchestrator<br/>Claude tool-use loop"]
         GUARD["Guardrail &amp; Limits Engine<br/>risk band · per-move limits"]
         AUD["Audit Log Writer<br/>immutable action trail"]
     end
 
     subgraph Data["Data · Supabase (in-region)"]
-        PG[("Postgres<br/>holdings · instruments · limits<br/>approvals · goals · audit")]
+        PG[("Postgres<br/>holdings · instruments · limits<br/>approvals · goals · audit<br/>+ Better Auth sessions")]
         RT{{"Realtime channels<br/>portfolio · approval cards"}}
         STG[("Storage<br/>KYC / source-of-funds docs")]
-        AUTH["Supabase Auth<br/>session · row-level security"]
     end
 
     subgraph External["External · FSC-licensed partners &amp; providers"]
@@ -23,11 +22,17 @@ flowchart TB
         MKT["Market &amp; Reference Data"]
         KYCP["KYC / AML / Source-of-Funds"]
         LLM["Anthropic Claude API"]
+        GOOG["Google OAuth<br/>identity provider"]
     end
+
+    AUTH["Better Auth<br/>sign in with Google<br/>sessions in Postgres"]
+    Runtime --- AUTH
 
     UI <-->|HTTPS / RPC| Runtime
     VOICE <--> UI
-    UI -->|login| AUTH
+    UI -->|"sign in with Google"| AUTH
+    AUTH <-->|OAuth| GOOG
+    AUTH -->|sessions| PG
 
     ORCH <-->|reason · tool calls| LLM
     ORCH --> GUARD --> AUD --> PG

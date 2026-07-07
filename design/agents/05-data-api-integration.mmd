@@ -11,8 +11,14 @@ flowchart LR
         P7["Sygnus"]
     end
 
-    MKT["Market &amp; reference data"]
-    KYCP["KYC / AML / source-of-funds provider"]
+    subgraph Sources["Market &amp; product data"]
+        direction TB
+        MKT["Market &amp; reference data<br/>gov bonds · JSE · FX"]
+        CAT["Product catalogs<br/>IPOs &amp; private raises<br/>real estate funds · insurance"]
+    end
+
+    KYCP["KYC / AML APIs<br/>ID · sanctions · source of funds"]
+    AMS["Asset management systems"]
 
     subgraph CCN["CCN Platform"]
         AGG["Aggregation &amp; Normalization<br/>unify holdings · yield · allocation"]
@@ -21,11 +27,13 @@ flowchart LR
         STOREPG[("Supabase Postgres<br/>in-region")]
     end
 
-    APP["Web app · Agent"]
+    APP["Web app · Agent<br/>unified investor dashboard"]
 
     Partners -->|"holdings · quotes · statements"| AGG
     ROUTER -->|"orders"| Partners
+    ROUTER -->|"transfers · enrollments"| AMS
     MKT -->|"prices · yields"| AGG
+    CAT -->|"offerings"| AGG
     AGG --> STOREPG
     ROUTER --> GATE
     GATE <--> KYCP
