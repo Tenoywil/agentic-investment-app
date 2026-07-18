@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caribbean Capital Network — Guided Tour</title>
+<meta name="description" content="A guided walkthrough of the Caribbean Capital Network agent platform.">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal:#10302b; --teal2:#0e5952; --teal-deep:#0b201d;
+    --cream:#f4f0e7; --cream-dim:#cdd6ce; --gold:#d9a441; --terra:#c56a3e;
+    --ink:#12332e; --line:rgba(244,240,231,.14);
+    --disp:'Bricolage Grotesque',Georgia,serif;
+    --body:'Hanken Grotesk',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(1200px 700px at 78% -10%,#16413a 0%,var(--teal) 42%,var(--teal-deep) 100%);
+    color:var(--cream);font-family:var(--body);-webkit-font-smoothing:antialiased;
+    overflow:hidden;letter-spacing:.1px;
+  }
+  .wrap{display:flex;flex-direction:column;height:100vh;padding:22px clamp(18px,3.4vw,52px)}
+
+  /* top bar */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:11px}
+  .cmark{width:34px;height:34px;border-radius:10px;background:var(--teal2);display:flex;align-items:center;
+    justify-content:center;color:#fff;font-family:var(--disp);font-weight:700;font-size:18px;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+  .brand b{font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:.2px}
+  .brand span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-top:1px}
+  .counter{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--cream-dim)}
+
+  /* stage */
+  .stage{flex:1 1 auto;display:grid;grid-template-columns:minmax(300px,42%) 1fr;gap:clamp(20px,3vw,54px);
+    align-items:center;min-height:0;padding:min(3vh,26px) 0}
+  .stage.solo{grid-template-columns:1fr;text-align:center;place-items:center}
+
+  .copy{max-width:560px;animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
+  .title{font-family:var(--disp);font-weight:700;line-height:1.05;letter-spacing:-.5px;
+    font-size:clamp(28px,4.6vw,52px);color:#fff;margin-bottom:16px}
+  .solo .title{font-size:clamp(30px,5.4vw,62px);max-width:15ch}
+  .narr{font-size:clamp(15px,1.35vw,19px);line-height:1.6;color:var(--cream-dim);max-width:52ch}
+  .solo .narr{margin:0 auto}
+  .em{color:var(--gold);font-weight:600}
+  .emc{color:#fff;font-weight:600}
+
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px;justify-content:inherit}
+  .solo .pills{justify-content:center}
+  .pill{border:1px solid var(--line);background:rgba(244,240,231,.04);border-radius:999px;
+    padding:9px 15px;font-size:13px;color:var(--cream);display:flex;align-items:center;gap:8px}
+  .pill i{width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block}
+
+  .hint{margin-top:30px;font-size:13px;color:rgba(244,240,231,.5)}
+  .hint kbd{font-family:var(--mono);font-size:11px;background:rgba(244,240,231,.08);
+    border:1px solid var(--line);border-radius:5px;padding:2px 6px;color:var(--cream)}
+
+  /* device frame */
+  .device{justify-self:center;width:100%;max-width:min(56vw,760px);animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+  .frame{position:relative;background:#fff;border-radius:16px;overflow:hidden;
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.6),0 0 0 1px rgba(244,240,231,.08);
+    max-height:78vh}
+  .frame .bar{height:34px;background:#e9e3d7;display:flex;align-items:center;gap:7px;padding:0 13px;flex:0 0 auto}
+  .frame .bar i{width:11px;height:11px;border-radius:50%;background:#c9c1b1}
+  .frame .bar i:nth-child(1){background:#e0a08a}.frame .bar i:nth-child(2){background:#e6c98a}.frame .bar i:nth-child(3){background:#a9cbb4}
+  .frame .bar span{margin-left:8px;font-family:var(--mono);font-size:11px;color:#8a8172}
+  .shot{position:relative;overflow:hidden;background:#f5f1e8}
+  .shot img{display:block;width:100%;height:auto}
+  /* highlight */
+  .hl{position:absolute;border:2px solid var(--gold);border-radius:12px;
+    box-shadow:0 0 0 4000px rgba(11,32,29,.42),0 0 22px 3px rgba(217,164,65,.5);
+    transition:all .5s cubic-bezier(.2,.7,.2,1);pointer-events:none;opacity:0}
+  .hl.on{opacity:1;animation:pulse 2.4s ease-in-out infinite}
+  .tag{position:absolute;background:var(--gold);color:#3a2a08;font-weight:700;font-size:12px;
+    font-family:var(--body);padding:5px 11px;border-radius:999px;white-space:nowrap;transform:translateY(-50%);
+    box-shadow:0 4px 14px rgba(0,0,0,.3);opacity:0;transition:opacity .4s .2s}
+  .hl.on .tag{opacity:1}
+
+  /* approve micro-moment */
+  .approve{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:5;
+    display:none;flex-direction:column;align-items:center;gap:12px}
+  .approve.show{display:flex}
+  .abtn{background:var(--teal2);color:#fff;border:none;font-family:var(--body);font-weight:700;font-size:16px;
+    padding:14px 30px;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.35);cursor:default;
+    display:flex;align-items:center;gap:10px}
+  .abadge{background:#fff;color:var(--teal2);border:1px solid #cfe0d6;border-radius:999px;padding:8px 16px;
+    font-weight:700;font-size:14px;opacity:0;transform:translateY(6px);transition:all .4s}
+  .abadge.on{opacity:1;transform:none}
+
+  /* controls */
+  .ctrl{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:12px}
+  .btn{border:1px solid var(--line);background:rgba(244,240,231,.05);color:var(--cream);
+    font-family:var(--body);font-weight:600;font-size:14px;padding:11px 20px;border-radius:11px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;transition:.18s}
+  .btn:hover{background:rgba(244,240,231,.11);border-color:rgba(244,240,231,.28)}
+  .btn.primary{background:var(--gold);color:#3a2a08;border-color:var(--gold)}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn:disabled{opacity:.35;cursor:default}
+  .dots{display:flex;gap:9px;align-items:center}
+  .dot{width:9px;height:9px;border-radius:50%;background:rgba(244,240,231,.22);cursor:pointer;transition:.2s}
+  .dot.on{background:var(--gold);transform:scale(1.25)}
+  .right{display:flex;align-items:center;gap:10px}
+  .toggle{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--cream-dim);cursor:pointer;
+    border:1px solid var(--line);border-radius:8px;padding:8px 11px;user-select:none}
+  .toggle.on{color:#3a2a08;background:var(--gold);border-color:var(--gold)}
+  .pbar{position:fixed;left:0;bottom:0;height:3px;background:var(--gold);width:0;transition:width .4s;z-index:20}
+
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4000px rgba(11,32,29,.42),0 0 18px 2px rgba(217,164,65,.4)}
+    50%{box-shadow:0 0 0 4000px rgba(11,32,29,.42),0 0 30px 6px rgba(217,164,65,.7)}}
+
+  @media (max-width:900px){
+    .stage{grid-template-columns:1fr;gap:20px;overflow-y:auto;text-align:left}
+    .device{max-width:100%;order:2}.copy{order:1}
+    .frame{max-height:none}
+    .hint{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="cmark">C</div>
+      <div><b>Caribbean Capital Network</b><span>Guided tour</span></div>
+    </div>
+    <div class="counter" id="counter">01 / 10</div>
+  </div>
+
+  <div class="stage" id="stage"><!-- rendered --></div>
+
+  <div class="ctrl">
+    <button class="btn" id="prev">← Back</button>
+    <div class="dots" id="dots"></div>
+    <div class="right">
+      <div class="toggle" id="auto">▶ AUTOPLAY</div>
+      <button class="btn primary" id="next">Next →</button>
+    </div>
+  </div>
+</div>
+<div class="pbar" id="pbar"></div>
+
+<script>
+const A = './demo/assets/';
+const steps = [
+  { solo:true, kicker:'The financial operating system of the Caribbean',
+    title:'One agent for your whole Caribbean portfolio.',
+    narr:'Transforming Caribbean capital flows from consumption to wealth creation — connecting local investors and the global diaspora with regional opportunity.',
+    pills:['FSC-regulated partners','KYC / AML built in','Data held in-region'],
+    hint:true },
+
+  { img:'landing.png', kicker:'The problem',
+    title:'Caribbean wealth lives in fragments.',
+    narr:'A bond at NCB, a fund at Sagicor, cash sitting idle at JMMB, a pension you have half-forgotten. Capital is scattered across a dozen institutions and borders — and most of it isn’t working.',
+    hl:{l:5,t:51,w:46,h:15,tag:'Scattered today',tx:'left'} },
+
+  { img:'home.png', kicker:'One portfolio, every partner',
+    title:'Every holding, unified and live.',
+    narr:'Net worth, blended yield and allocation across all your licensed partners in a single view — <span class="emc">not a spreadsheet you maintain</span>.',
+    hl:{l:24,t:7.5,w:43,h:23,tag:'Unified net worth',tx:'right'} },
+
+  { img:'agent.png', kicker:'The capital agent',
+    title:'An agent that works the whole region.',
+    narr:'It monitors <span class="em">47 instruments across 8 licensed partners</span>, finds yield, checks each idea against your risk band, and proposes moves in plain language.',
+    hl:{l:25,t:19,w:41,h:22,tag:'Proposes a move',tx:'right'} },
+
+  { img:'agent.png', kicker:'Human-in-the-loop · trust',
+    title:'It acts only inside limits you set.',
+    narr:'Auto-invest idle cash up to a cap, keep a cash floor, cap any single move. <span class="emc">The agent can propose anything, but can execute only what your rules allow.</span>',
+    hl:{l:67.5,t:48,w:30.5,h:15,tag:'Your limits & rules',tx:'left'} },
+
+  { img:'home.png', kicker:'One-tap approval', approve:true,
+    title:'Larger moves come to you.',
+    narr:'Anything above your limit becomes a “Needs your approval” card. One tap, and the agent executes at the licensed partner — then your portfolio updates live.',
+    hl:{l:60.5,t:44.5,w:37.5,h:26,tag:'Needs your approval',tx:'left'} },
+
+  { img:'opportunities.png', kicker:'The marketplace',
+    title:'A regional opportunities marketplace.',
+    narr:'Government bonds, funds, equity raises, real estate and private credit — screened for your goals and <span class="emc">executed by FSC-licensed partners</span>.',
+    hl:{l:23.5,t:12.5,w:74.5,h:23,tag:'Screened & regulated',tx:'right'} },
+
+  { img:'planning.png', kicker:'Plan across borders',
+    title:'Built for a life between the region and the diaspora.',
+    narr:'Insurance, retirement, estate and a <span class="em">diaspora mortgage</span> that recognizes income earned abroad — with goal rings that track every plan.',
+    hl:{l:23.5,t:69.5,w:74.5,h:18,tag:'Goals on track',tx:'right'} },
+
+  { solo:true, kicker:'Regulated. Regional. Yours.',
+    title:'The trust layer is the product.',
+    narr:'Every instrument is custodied and executed by an FSC-licensed partner. KYC, suitability and source-of-funds are handled before the agent can act. Your data stays in-region.',
+    pills:['Held at licensed partners','KYC / AML built in','Data held in-region','Immutable audit trail'] },
+
+  { solo:true, kicker:'Caribbean Capital Network',
+    title:'A single trusted interface for wealth creation in the Caribbean.',
+    narr:'One agent. Every partner. Inside your limits. Ready when you are.',
+    pills:['See a live demo','Talk to the team'], close:true }
+];
+
+let i = 0, autoplay = false, timer = null;
+const stage = document.getElementById('stage');
+const counter = document.getElementById('counter');
+const dotsEl = document.getElementById('dots');
+const pbar = document.getElementById('pbar');
+const nextB = document.getElementById('next');
+const prevB = document.getElementById('prev');
+const autoB = document.getElementById('auto');
+
+dotsEl.innerHTML = steps.map((_,n)=>`<div class="dot" data-n="${n}"></div>`).join('');
+const dots = [...dotsEl.children];
+dotsEl.addEventListener('click', e=>{ const n=e.target.dataset.n; if(n!=null) go(+n); });
+
+function render(){
+  const s = steps[i];
+  stage.className = 'stage' + (s.solo ? ' solo' : '');
+  const copy = `
+    <div class="copy">
+      <div class="kicker">${s.kicker}</div>
+      <h1 class="title">${s.title}</h1>
+      <p class="narr">${s.narr}</p>
+      ${s.pills?`<div class="pills">${s.pills.map(p=>`<span class="pill"><i></i>${p}</span>`).join('')}</div>`:''}
+      ${s.hint?`<p class="hint">Navigate with <kbd>&larr;</kbd> <kbd>&rarr;</kbd> &nbsp;·&nbsp; <kbd>Space</kbd> next &nbsp;·&nbsp; <kbd>A</kbd> autoplay &nbsp;·&nbsp; <kbd>F</kbd> fullscreen</p>`:''}
+    </div>`;
+  let device = '';
+  if(!s.solo){
+    const h = s.hl;
+    const tagPos = h.tx==='left' ? `left:8px` : `right:8px`;
+    device = `
+      <div class="device">
+        <div class="frame">
+          <div class="bar"><i></i><i></i><i></i><span>caribbean-capital-network.app</span></div>
+          <div class="shot">
+            <img src="${A}${s.img}" alt="">
+            <div class="hl on" style="left:${h.l}%;top:${h.t}%;width:${h.w}%;height:${h.h}%">
+              <div class="tag" style="top:-2px;${tagPos}">${h.tag}</div>
+            </div>
+            ${s.approve?`
+            <div class="approve" id="approve">
+              <button class="abtn" id="abtn">Approve</button>
+              <div class="abadge" id="abadge">✓ Executed at NCB · net worth +US$412</div>
+            </div>`:''}
+          </div>
+        </div>
+      </div>`;
+  }
+  stage.innerHTML = s.solo ? copy : copy + device;
+  counter.textContent = String(i+1).padStart(2,'0') + ' / ' + String(steps.length).padStart(2,'0');
+  dots.forEach((d,n)=>d.classList.toggle('on', n===i));
+  pbar.style.width = ((i+1)/steps.length*100) + '%';
+  prevB.disabled = i===0;
+  nextB.textContent = i===steps.length-1 ? 'Restart ↺' : 'Next →';
+  if(s.approve) runApprove();
+}
+function runApprove(){
+  const wrap=document.getElementById('approve'), btn=document.getElementById('abtn'), badge=document.getElementById('abadge');
+  if(!wrap) return;
+  setTimeout(()=>{ wrap.classList.add('show'); },600);
+  setTimeout(()=>{ btn.innerHTML='<span>Approving…</span>'; btn.style.opacity=.8; },1700);
+  setTimeout(()=>{ btn.innerHTML='✓ Approved'; btn.style.background='#0e5952'; },2500);
+  setTimeout(()=>{ badge.classList.add('on'); },2900);
+}
+function go(n){ i=(n+steps.length)%steps.length; render(); }
+function next(){ go(i+1); }
+function prev(){ go(i-1); }
+
+nextB.onclick = ()=>{ i===steps.length-1 ? go(0) : next(); };
+prevB.onclick = prev;
+autoB.onclick = toggleAuto;
+function toggleAuto(){
+  autoplay=!autoplay; autoB.classList.toggle('on',autoplay); autoB.textContent=autoplay?'⏸ AUTOPLAY':'▶ AUTOPLAY';
+  clearInterval(timer);
+  if(autoplay) timer=setInterval(()=>{ i===steps.length-1?(toggleAuto()):next(); },6500);
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); next(); }
+  else if(e.key==='ArrowLeft'){ prev(); }
+  else if(e.key.toLowerCase()==='a'){ toggleAuto(); }
+  else if(e.key.toLowerCase()==='f'){ document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(); }
+});
+render();
+</script>
+</body>
+</html>
