@@ -258,6 +258,29 @@ body{margin:0;background:#efece4}
   </aside>
   </sc-if>
 
+  <sc-if value="{{ isInstitutions }}" hint-placeholder-val="{{ false }}">
+  <!-- ============ PARTNER CONSOLE SIDEBAR ============ -->
+  <aside data-sidebar style="width:262px;flex:none;position:sticky;top:0;height:100vh;background:#0e2c28;color:#dce9e4;display:flex;flex-direction:column;padding:24px 16px 18px">
+    <div style="display:flex;align-items:center;gap:11px;padding:0 8px 20px">
+      <div style="width:42px;height:42px;border-radius:12px;background:#1f6f66;display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px">S</div>
+      <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;line-height:1.05;color:#fff">Sagicor Group</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#7fb5ad;margin-top:3px">Partner console</div></div>
+    </div>
+    <button style="{{ pNav.overview }}" onClick="{{ setPOv }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg><span>Overview</span></button>
+    <button style="{{ pNav.orders }}" onClick="{{ setPOrd }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M4 12h16M4 19h10"/></svg><span style="flex:1">Order flow</span><sc-if value="{{ hasNewOrders }}" hint-placeholder-val="{{ true }}"><span style="background:#f0b98d;color:#3a2415;font-size:12px;font-weight:700;border-radius:999px;padding:1px 8px">{{ newOrderCount }}</span></sc-if></button>
+    <button style="{{ pNav.products }}" onClick="{{ setPProd }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 9l9-6 9 6v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 21V12h6v9"/></svg><span>Products</span></button>
+    <button style="{{ pNav.clients }}" onClick="{{ setPCli }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.9"/></svg><span>Clients &amp; KYC</span></button>
+    <button style="{{ pNav.compliance }}" onClick="{{ setPComp }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/></svg><span>Compliance</span></button>
+
+    <div style="flex:1"></div>
+
+    <div style="background:rgba(143,227,192,.09);border:1px solid rgba(143,227,192,.18);border-radius:14px;padding:14px 15px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#8fe3c0;margin-bottom:5px"><span style="width:7px;height:7px;border-radius:50%;background:#8fe3c0"></span>Agreement active · FSC Jamaica</div>
+      <div style="font-size:12.5px;color:#a9c4bc;line-height:1.4">CCN routes orders. You execute, custody and settle.</div>
+    </div>
+    <button onClick="{{ goHome }}" style="display:flex;align-items:center;gap:9px;width:100%;padding:12px 14px;border:1px solid rgba(220,233,228,.2);border-radius:12px;background:transparent;color:#dce9e4;font-family:'Hanken Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M9 18l-6-6 6-6M3 12h13a5 5 0 015 5v1"/></svg>Switch to investor view</button>
+  </aside>
+  </sc-if>
+
   <!-- ================= MAIN ================= -->
   <main data-main style="flex:1;min-width:0">
 
@@ -726,127 +749,125 @@ body{margin:0;background:#efece4}
 
   <!-- ---------- FOR INSTITUTIONS ---------- -->
   <sc-if value="{{ isInstitutions }}" hint-placeholder-val="{{ false }}">
-  <div data-screen-label="For institutions" style="padding:30px 40px 90px;max-width:1360px">
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px">
+  <div data-screen-label="Partner console" style="padding:30px 40px 90px;max-width:1360px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:22px">
       <div>
-        <div style="font-size:15px;color:#6b6459;margin-bottom:2px">For institutions</div>
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-.4px">One platform, both sides of the market</div>
+        <div style="font-size:14.5px;color:#6b6459;margin-bottom:2px">{{ pTitleSub }}</div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-.4px">{{ pTitle }}</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button onClick="{{ setInstValue }}" style="{{ instValueBtn }}">Why partner</button>
-        <button onClick="{{ setInstConsole }}" style="{{ instConsoleBtn }}">Console preview</button>
-        <button onClick="{{ goHome }}" style="padding:10px 18px;border:1px solid #ddd6c8;border-radius:10px;background:#fdfcfa;color:#5c5449;font-family:'Hanken Grotesk',sans-serif;font-size:14.5px;font-weight:600;cursor:pointer">Back to my dashboard</button>
-      </div>
-    </div>
-
-    <!-- WHY PARTNER -->
-    <sc-if value="{{ instValue }}" hint-placeholder-val="{{ true }}">
-    <p style="margin:0 0 26px;max-width:760px;font-size:16.5px;line-height:1.6;color:#5c5449">CCN only works because both sides win. Clients get one live portfolio and an agent that prepares moves inside their limits. Partners get qualified, verified order flow into the products they already run, under their own license and brand. Neither side gives anything up: you keep the client relationship, custody and the regulated duties you carry today.</p>
-
-    <div data-cols2 style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px">
-      <div style="background:#124e48;border-radius:20px;padding:26px 28px;color:#eafaf5">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#f0b98d;margin-bottom:14px">For your institution</div>
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:21px;margin-bottom:16px">Distribution without new branches</div>
-        <div style="display:flex;flex-direction:column;gap:13px;font-size:14.5px;line-height:1.5">
-          <div style="display:flex;gap:10px"><span style="color:#8fe3c0;font-weight:700">01</span><span><b>New AUM from verified clients.</b> The agent routes qualified, KYC-cleared demand into your funds, bonds and raises. Orders arrive attributed and auditable.</span></div>
-          <div style="display:flex;gap:10px"><span style="color:#8fe3c0;font-weight:700">02</span><span><b>Diaspora reach you don't have to build.</b> Investors abroad find your products through one interface, with source-of-funds already screened.</span></div>
-          <div style="display:flex;gap:10px"><span style="color:#8fe3c0;font-weight:700">03</span><span><b>KYC you did once keeps paying.</b> Your verification travels with client consent, so a referred client is a funded account, not an abandoned form.</span></div>
-          <div style="display:flex;gap:10px"><span style="color:#8fe3c0;font-weight:700">04</span><span><b>No channel conflict.</b> Your name and regulator sit on every deal card. Execution, custody and settlement never leave your desk.</span></div>
-        </div>
-      </div>
-      <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:26px 28px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c56a3e;margin-bottom:14px">For your clients</div>
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:21px;margin-bottom:16px">A reason to consolidate with you</div>
-        <div style="display:flex;flex-direction:column;gap:13px;font-size:14.5px;line-height:1.5;color:#3d4f46">
-          <div style="display:flex;gap:10px"><span style="color:#124e48;font-weight:700">01</span><span><b>One live view</b> of everything they hold with you and everyone else: net worth, yield and allocation, unified.</span></div>
-          <div style="display:flex;gap:10px"><span style="color:#124e48;font-weight:700">02</span><span><b>An agent inside their limits</b> that surfaces your products when they genuinely fit the client's risk band and goals.</span></div>
-          <div style="display:flex;gap:10px"><span style="color:#124e48;font-weight:700">03</span><span><b>One-tap approvals</b> instead of branch visits and forms, with every action logged and reversible before execution.</span></div>
-          <div style="display:flex;gap:10px"><span style="color:#124e48;font-weight:700">04</span><span><b>Plans, not just products:</b> insurance, retirement, estate and mortgage goals delivered by licensed providers like you.</span></div>
-        </div>
+      <div style="display:flex;align-items:center;gap:9px;background:#eef4f0;border:1px solid #cde0d8;border-radius:999px;padding:6px 8px 6px 15px">
+        <span style="font-size:13px;color:#3d5049">Preview with sample data</span>
+        <span style="font-size:12px;background:#124e48;color:#fff;border-radius:999px;padding:5px 11px;font-weight:600">Partner view</span>
       </div>
     </div>
 
-    <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:24px 28px;margin-bottom:20px">
-      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;margin-bottom:16px">How the flywheel turns</div>
-      <div data-cols4 style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
-        <div style="border:1px solid #ece6da;border-radius:14px;padding:16px 18px"><div style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;color:#c56a3e;margin-bottom:8px">1</div><div style="font-size:14px;line-height:1.45;color:#3d4f46">More partners put more products on the shelf</div></div>
-        <div style="border:1px solid #ece6da;border-radius:14px;padding:16px 18px"><div style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;color:#c56a3e;margin-bottom:8px">2</div><div style="font-size:14px;line-height:1.45;color:#3d4f46">More products give the agent better matches for each client</div></div>
-        <div style="border:1px solid #ece6da;border-radius:14px;padding:16px 18px"><div style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;color:#c56a3e;margin-bottom:8px">3</div><div style="font-size:14px;line-height:1.45;color:#3d4f46">Better matches bring more investors, at home and in the diaspora</div></div>
-        <div style="border:1px solid #ece6da;border-radius:14px;padding:16px 18px"><div style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;color:#c56a3e;margin-bottom:8px">4</div><div style="font-size:14px;line-height:1.45;color:#3d4f46">More investors bring partners more AUM, which attracts more partners</div></div>
-      </div>
-    </div>
-
-    <div data-cols2 style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-bottom:24px">
-      <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:24px 28px">
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;margin-bottom:16px">Integration path</div>
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <div style="display:flex;gap:14px;align-items:flex-start"><div style="width:30px;height:30px;border-radius:9px;background:#e8f1ec;color:#0e5952;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;flex:none">1</div><div><div style="font-size:15px;font-weight:700;margin-bottom:3px">Read integration</div><div style="font-size:14px;color:#6b6459;line-height:1.5">Holdings and statements feed the unified view. Read-only, weeks not months, no change to your core banking.</div></div></div>
-          <div style="display:flex;gap:14px;align-items:flex-start"><div style="width:30px;height:30px;border-radius:9px;background:#e8f1ec;color:#0e5952;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;flex:none">2</div><div><div style="font-size:15px;font-weight:700;margin-bottom:3px">KYC linkage</div><div style="font-size:14px;color:#6b6459;line-height:1.5">Consent-based reuse of the verification you already performed. You remain the regulated owner of KYC and AML.</div></div></div>
-          <div style="display:flex;gap:14px;align-items:flex-start"><div style="width:30px;height:30px;border-radius:9px;background:#e8f1ec;color:#0e5952;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;flex:none">3</div><div><div style="font-size:15px;font-weight:700;margin-bottom:3px">Order routing</div><div style="font-size:14px;color:#6b6459;line-height:1.5">Signed client instructions route to your desk. You execute, custody and settle every trade under your license.</div></div></div>
-        </div>
-      </div>
-      <div style="background:#f4f0e7;border:1px solid #e4e0d6;border-radius:20px;padding:24px 28px;display:flex;flex-direction:column">
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;margin-bottom:12px">The line we never cross</div>
-        <p style="margin:0 0 18px;font-size:14.5px;line-height:1.55;color:#5c5449">CCN never holds client money, never executes trades, and never becomes the custodian. The regulated duties stay where regulators put them: with you. We make them usable from one place, with an audit trail both of us can read.</p>
-        <div style="margin-top:auto;display:flex;gap:10px;flex-wrap:wrap">
-          <button onClick="{{ instRequest }}" style="padding:12px 20px;border:none;border-radius:11px;background:#124e48;color:#fff;font-family:'Hanken Grotesk',sans-serif;font-size:15px;font-weight:700;cursor:pointer">Request the partner pack</button>
-          <button onClick="{{ setInstConsole }}" style="padding:12px 20px;border:1px solid #c9bba3;border-radius:11px;background:transparent;color:#5c5449;font-family:'Hanken Grotesk',sans-serif;font-size:15px;font-weight:600;cursor:pointer">See the console preview</button>
-        </div>
-      </div>
-    </div>
-    </sc-if>
-
-    <!-- CONSOLE PREVIEW -->
-    <sc-if value="{{ instConsole }}" hint-placeholder-val="{{ false }}">
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
-      <div style="width:48px;height:48px;border-radius:13px;background:#124e48;display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px">S</div>
-      <div>
-        <div style="font-size:15px;color:#6b6459;margin-bottom:2px">Console preview · what a partner sees, shown with sample data</div>
-        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-.4px">Sagicor Group</div>
-      </div>
-    </div>
-    <div data-cols4 style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">
-      <sc-for list="{{ partnerKpis }}" as="k" hint-placeholder-count="4">
-        <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:18px;padding:20px 22px"><div style="font-size:14px;color:#6b6459;margin-bottom:8px">{{ k.label }}</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:29px;letter-spacing:-.6px;color:{{ k.color }}">{{ k.value }}</div><div style="font-size:13.5px;color:#0a8f5b;margin-top:3px;font-weight:600">{{ k.sub }}</div></div>
+    <!-- KPI ROW (shared across tabs) -->
+    <div data-cols4 style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px">
+      <sc-for list="{{ pKpis }}" as="k" hint-placeholder-count="4">
+        <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:16px;padding:18px 20px"><div style="font-size:13.5px;color:#6b6459;margin-bottom:7px">{{ k.label }}</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:26px;letter-spacing:-.4px;color:{{ k.color }}">{{ k.value }}</div><div style="font-size:12.5px;color:#8a8172;margin-top:3px">{{ k.sub }}</div></div>
       </sc-for>
     </div>
-    <div data-cols2 style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px">
-      <div style="display:flex;flex-direction:column;gap:18px">
-        <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:22px 24px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px">Onboarding pipeline</div><span style="font-size:13.5px;color:#6b6459">Agent-driven KYC · last 90 days</span></div>
-          <div style="display:flex;flex-direction:column;gap:15px">
-            <sc-for list="{{ kycStages }}" as="k" hint-placeholder-count="4">
-              <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:14.5px;color:#45596d;font-weight:500">{{ k.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14.5px;font-weight:700;color:#1e1c19">{{ k.count }}</span></div><div style="height:13px;background:#e6e0d2;border-radius:7px;overflow:hidden"><div style="{{ k.barStyle }}"></div></div></div>
-            </sc-for>
-          </div>
-        </div>
-        <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;overflow:hidden">
-          <div style="padding:20px 24px 12px;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px">Product distribution via CCN</div>
-          <div style="display:grid;grid-template-columns:2.4fr 1fr 1fr .9fr;padding:0 24px 8px;font-size:12.5px;letter-spacing:.5px;text-transform:uppercase;color:#726a5b;border-bottom:1px solid #ece6da"><span>Product</span><span style="text-align:right">Clients</span><span style="text-align:right">AUM</span><span style="text-align:right">Growth</span></div>
-          <sc-for list="{{ partnerProducts }}" as="p" hint-placeholder-count="5">
-            <div style="display:grid;grid-template-columns:2.4fr 1fr 1fr .9fr;align-items:center;padding:14px 24px;border-bottom:1px solid #ece6da"><div style="min-width:0"><div style="font-size:14.5px;font-weight:600;color:#17293c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div><div style="font-size:13px;color:#6b6459">{{ p.type }}</div></div><span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:14px;color:#45596d">{{ p.clients }}</span><span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:#1e1c19">{{ p.aum }}</span><span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:700;color:#0a8f5b">{{ p.trend }}</span></div>
-          </sc-for>
-        </div>
+
+    <!-- OVERVIEW -->
+    <sc-if value="{{ pOverview }}" hint-placeholder-val="{{ true }}">
+    <div data-cols2 style="display:grid;grid-template-columns:1.5fr 1fr;gap:18px">
+      <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px">Incoming order flow</div><button onClick="{{ setPOrd }}" style="font-size:13.5px;color:#0e5952;font-weight:600;background:none;border:none;cursor:pointer;font-family:'Hanken Grotesk',sans-serif">Open queue</button></div>
+        <div style="padding:0 24px 8px;font-size:13px;color:#726a5b;line-height:1.45">Orders arrive here when a CCN client approves a deal in your products. You execute, custody and settle each one.</div>
+        <div style="display:grid;grid-template-columns:2fr 1fr auto;padding:12px 24px 8px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:#726a5b;border-bottom:1px solid #ece6da"><span>Product · client</span><span style="text-align:right">Amount</span><span style="text-align:right;padding-left:16px">Action</span></div>
+        <sc-for list="{{ orderSnapshot }}" as="o" hint-placeholder-count="3">
+          <div style="display:grid;grid-template-columns:2fr 1fr auto;align-items:center;padding:13px 24px;border-bottom:1px solid #ece6da"><div style="min-width:0"><div style="font-size:14px;font-weight:600;color:#17293c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.product }}</div><div style="font-size:12.5px;color:#8a8172">{{ o.client }} · {{ o.when }}</div></div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px">{{ o.amtFmt }}</div><div style="text-align:right;padding-left:16px"><button onClick="{{ o.onAction }}" style="{{ o.actionStyle }}">{{ o.actionLabel }}</button></div></div>
+        </sc-for>
       </div>
       <div style="display:flex;flex-direction:column;gap:18px">
         <div style="background:#124e48;border-radius:20px;padding:22px 24px;color:#eafaf5">
-          <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8fe3c0" stroke-width="1.8"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9.4 12l1.9 1.9 3.3-3.6"/></svg><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px">Licensing &amp; compliance</span></div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Regulator</span><span style="font-weight:700">FSC Jamaica</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Partner agreement</span><span style="font-weight:700;color:#8fe3c0">Active</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Data residency</span><span style="font-weight:700">In-region</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Last audit</span><span style="font-weight:700">Jun 12, 2026</span></div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:2px;text-transform:uppercase;color:#f0b98d;margin-bottom:13px">Why this flow matters</div>
+          <div style="display:flex;flex-direction:column;gap:11px;font-size:13.5px;line-height:1.45">
+            <div style="display:flex;gap:9px"><span style="color:#8fe3c0;font-weight:700">+</span><span>Qualified, KYC-cleared demand into products you already run</span></div>
+            <div style="display:flex;gap:9px"><span style="color:#8fe3c0;font-weight:700">+</span><span>Diaspora reach without building cross-border onboarding</span></div>
+            <div style="display:flex;gap:9px"><span style="color:#8fe3c0;font-weight:700">+</span><span>Your name and regulator on every deal card, no channel conflict</span></div>
+            <div style="display:flex;gap:9px"><span style="color:#8fe3c0;font-weight:700">+</span><span>You keep execution, custody and settlement under your license</span></div>
           </div>
         </div>
-        <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:22px 24px">
-          <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px;margin-bottom:15px">Live audit trail</div>
-          <sc-for list="{{ auditTrail }}" as="a" hint-placeholder-count="5">
-            <div style="display:flex;gap:11px;padding:11px 0;border-bottom:1px solid #ece6da"><span style="width:9px;height:9px;border-radius:50%;background:{{ a.dot }};flex:none;margin-top:5px"></span><div style="flex:1"><div style="font-size:14px;color:#33475b;line-height:1.4">{{ a.action }}</div><div style="font-size:13px;color:#726a5b;margin-top:2px">{{ a.actor }} · {{ a.time }}</div></div></div>
-          </sc-for>
+        <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:20px 24px">
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;margin-bottom:6px">The line CCN never crosses</div>
+          <div style="font-size:13.5px;color:#5c5449;line-height:1.5">CCN holds no client money, executes nothing and never becomes custodian. The regulated duties stay with you; CCN routes signed instructions and keeps the audit trail.</div>
         </div>
       </div>
     </div>
     </sc-if>
+
+    <!-- ORDER FLOW -->
+    <sc-if value="{{ pOrders }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:20px 24px 14px">
+        <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px">Order flow</div><div style="font-size:13px;color:#726a5b;margin-top:2px">{{ orderCounts }}</div></div>
+        <div style="font-size:12.5px;color:#8a8172;max-width:360px;text-align:right;line-height:1.4">Accept moves an order to your desk for execution. Settle confirms it back to the client's unified portfolio.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2.2fr 1.1fr 1fr 1.1fr;padding:0 24px 8px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:#726a5b;border-bottom:1px solid #ece6da"><span>Product</span><span>Client</span><span style="text-align:right">Amount</span><span style="text-align:right">Status</span></div>
+      <sc-for list="{{ orderFeed }}" as="o" hint-placeholder-count="5">
+        <div style="display:grid;grid-template-columns:2.2fr 1.1fr 1fr 1.1fr;align-items:center;padding:14px 24px;border-bottom:1px solid #ece6da"><div style="min-width:0"><div style="font-size:14px;font-weight:600;color:#17293c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.product }}</div><div style="font-size:12px;color:#8a8172">{{ o.partnerTag }} · {{ o.when }}</div></div><div style="font-size:13.5px;color:#45596d">{{ o.client }}</div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px">{{ o.amtFmt }}</div><div style="text-align:right"><button onClick="{{ o.onAction }}" style="{{ o.actionStyle }}">{{ o.actionLabel }}</button></div></div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- PRODUCTS -->
+    <sc-if value="{{ pProducts }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 14px"><div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px">Your products on CCN</div><div style="font-size:13px;color:#726a5b;margin-top:2px">Listed products the agent can match to suitable clients.</div></div><button onClick="{{ onListProduct }}" style="padding:10px 16px;border:none;border-radius:10px;background:#124e48;color:#fff;font-family:'Hanken Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer">List a product</button></div>
+      <div style="display:grid;grid-template-columns:2.2fr 1fr 1fr .9fr 1fr;padding:0 24px 8px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:#726a5b;border-bottom:1px solid #ece6da"><span>Product</span><span style="text-align:right">Clients</span><span style="text-align:right">AUM via CCN</span><span style="text-align:right">Inflow</span><span style="text-align:right">Status</span></div>
+      <sc-for list="{{ productsView }}" as="p" hint-placeholder-count="5">
+        <div style="display:grid;grid-template-columns:2.2fr 1fr 1fr .9fr 1fr;align-items:center;padding:14px 24px;border-bottom:1px solid #ece6da"><div style="min-width:0"><div style="font-size:14px;font-weight:600;color:#17293c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div><div style="font-size:12px;color:#8a8172">{{ p.type }}</div></div><div style="text-align:right;font-size:14px;color:#45596d">{{ p.clients }}</div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13.5px">{{ p.aum }}</div><div style="text-align:right;font-size:13.5px;color:#0a8f5b;font-weight:600">{{ p.trend }}</div><div style="text-align:right"><button onClick="{{ p.onToggle }}" style="{{ p.toggleStyle }}">{{ p.toggleLabel }}</button></div></div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- CLIENTS -->
+    <sc-if value="{{ pClients }}" hint-placeholder-val="{{ false }}">
+    <div data-cols2 style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px">
+      <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:22px 24px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px;margin-bottom:4px">Onboarding pipeline</div>
+        <div style="font-size:13px;color:#726a5b;margin-bottom:18px">Agent-referred clients, last 90 days</div>
+        <div style="display:flex;flex-direction:column;gap:15px">
+          <sc-for list="{{ kycStages }}" as="k" hint-placeholder-count="4">
+            <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:14.5px;color:#45596d;font-weight:500">{{ k.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14.5px;font-weight:700;color:#1e1c19">{{ k.count }}</span></div><div style="height:9px;border-radius:6px;background:#ece6da;overflow:hidden"><div style="height:100%;width:{{ k.pct }}%;background:{{ k.color }}"></div></div></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="background:#f4f0e7;border:1px solid #e4e0d6;border-radius:20px;padding:22px 24px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px;margin-bottom:12px">KYC stays yours</div>
+        <p style="margin:0 0 14px;font-size:14px;line-height:1.55;color:#5c5449">You already verified these clients. CCN links that status with their consent rather than re-collecting it, so a referral becomes a funded account instead of an abandoned form. You remain the regulated owner of KYC and AML.</p>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;justify-content:space-between;font-size:13.5px"><span style="color:#6b6459">Verification reused (with consent)</span><span style="font-weight:700">2,760</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13.5px"><span style="color:#6b6459">Re-verification required</span><span style="font-weight:700;color:#0a8f5b">0</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13.5px"><span style="color:#6b6459">Onboarding time saved</span><span style="font-weight:700">~6 days / client</span></div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- COMPLIANCE -->
+    <sc-if value="{{ pCompliance }}" hint-placeholder-val="{{ false }}">
+    <div data-cols2 style="display:grid;grid-template-columns:1fr 1.3fr;gap:18px">
+      <div style="background:#124e48;border-radius:20px;padding:22px 24px;color:#eafaf5;height:fit-content">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8fe3c0" stroke-width="1.8"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9.4 12l1.9 1.9 3.3-3.6"/></svg><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px">Agreement &amp; residency</span></div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Regulator</span><span style="font-weight:700">FSC Jamaica</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Partner agreement</span><span style="font-weight:700;color:#8fe3c0">Active</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Data residency</span><span style="font-weight:700">In-region</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">CCN role</span><span style="font-weight:700">Orchestration only</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:14px"><span style="opacity:.78">Last audit</span><span style="font-weight:700">Jun 12, 2026</span></div>
+        </div>
+      </div>
+      <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:20px;padding:22px 24px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px;margin-bottom:15px">Live audit trail</div>
+        <sc-for list="{{ auditTrail }}" as="a" hint-placeholder-count="5">
+          <div style="display:flex;gap:11px;padding:11px 0;border-bottom:1px solid #ece6da"><span style="width:9px;height:9px;border-radius:50%;background:{{ a.dot }};flex:none;margin-top:5px"></span><div style="flex:1"><div style="font-size:14px;color:#33475b">{{ a.text }}</div><div style="font-size:12.5px;color:#8a8172;margin-top:2px">{{ a.time }}</div></div></div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
   </div>
   </sc-if>
 
@@ -965,6 +986,13 @@ class Component extends DCLogic {
     nav:'landing', cur:'USD', draft:'', typing:false, oppFilter:'All', listening:false, speakOn:false, actedNew:[], settledCash:2150,
     vaOpen:false, vaListening:false, vaTranscript:'', vaResponse:'', toast:'',
     modal:null, modalStep:0, execAmt:0, ruleOn:[true,true,true,true],
+    pTab:'overview', settledSession:0, pausedProducts:{},
+    partnerOrders:[
+      { id:'o1', product:'Sagicor Real Estate X Fund', partnerTag:'Sagicor', client:'Client ••4821', amount:5000, when:'2m ago', status:'new' },
+      { id:'o2', product:'GOJ USD Global Bond 2032', partnerTag:'NCB Capital', client:'Client ••7134', amount:2000, when:'11m ago', status:'new' },
+      { id:'o3', product:'Sagicor Sigma Global Fund', partnerTag:'Sagicor', client:'Client ••2290', amount:3500, when:'1h ago', status:'accepted' },
+      { id:'o4', product:'Proven USD Income Fund', partnerTag:'Proven', client:'Client ••5567', amount:10000, when:'3h ago', status:'settled' },
+    ],
     onbStep:0, riskAns:{}, sources:{ salary:true },
     chat:[
       { role:'agent', text:"Welcome back, Marcus. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. Two things need your attention this week." },
@@ -1208,7 +1236,12 @@ class Component extends DCLogic {
   onExecAmt(e){ const v=parseInt(String(e.target.value).replace(/[^0-9]/g,''))||0; this.setState({ execAmt:v }); }
   execMin(){ const s=this.state; const o=this.opps.find(x=>x.id===(s.modal&&s.modal.oppId)); return o?(parseInt(String(o.min).replace(/[^0-9]/g,''))||0):0; }
   execAuthorize(){ const s=this.state; const o=this.opps.find(x=>x.id===(s.modal&&s.modal.oppId)); if((s.execAmt||0)<this.execMin()){ this.showToast('Enter at least '+(o?o.min:'the minimum')); return; } this.applyExec(o, s.execAmt||0); this.setState({ modalStep:2 }); this.showToast('Instruction routed to '+(o?o.partner:'the partner')+'. They execute and custody it'); }
-  instTabBtn(on){ return 'padding:10px 18px;border-radius:10px;border:1px solid '+(on?'#124e48':'#ddd6c8')+';background:'+(on?'#124e48':'#fdfcfa')+';color:'+(on?'#fff':'#5c5449')+";font-family:'Hanken Grotesk',sans-serif;font-size:14.5px;font-weight:600;cursor:pointer"; }
+  pNavBtn(on){ return 'display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:11px 14px;margin-bottom:4px;border:none;border-radius:12px;background:'+(on?'#1f6f66':'transparent')+';color:'+(on?'#fff':'#a9c4bc')+";font-family:'Hanken Grotesk',sans-serif;font-size:14.5px;font-weight:"+(on?'700':'500')+';cursor:pointer'; }
+  setPTab(t){ this.setState({ pTab:t }); }
+  acceptOrder(id){ this.setState(s => ({ partnerOrders:s.partnerOrders.map(o => o.id===id?{...o,status:'accepted'}:o) })); this.showToast('Order accepted. Routed to your desk for execution'); }
+  settleOrder(id){ this.setState(s => ({ partnerOrders:s.partnerOrders.map(o => o.id===id?{...o,status:'settled'}:o), settledSession:s.settledSession+1 })); this.showToast('Settled and confirmed to the client portfolio'); }
+  toggleProductLive(name){ this.setState(s => ({ pausedProducts:{...s.pausedProducts, [name]:!s.pausedProducts[name]} })); }
+  onListProduct(){ this.showToast('Product listing request sent to CCN for review'); }
   partnerMeta(p){ if(/NCB/i.test(p)) return { code:'NCB' }; if(/Sagicor/i.test(p)) return { code:'SAG' }; if(/Proven/i.test(p)) return { code:'PRV' }; if(/JMMB/i.test(p)) return { code:'JMMB' }; if(/Barita/i.test(p)) return { code:'BAR', full:'Barita Investments', kind:'Broker · Investments', color:'#6b4a9e', tint:'#f0eaf8' }; if(/Republic/i.test(p)) return { code:'REP', full:'Republic Bank', kind:'Bank · Treasury', color:'#1a6aa0', tint:'#e7f0f8' }; if(/Sygnus/i.test(p)) return { code:'SYG', full:'Sygnus Capital', kind:'Private credit', color:'#8a5a2e', tint:'#f6eee2' }; return { code:'NCB' }; }
   applyExec(o, amt){ if(!o) return; this.setState(st => {
     const drawn = Math.min(st.settledCash, amt); const deposit = amt - drawn;
@@ -1223,7 +1256,8 @@ class Component extends DCLogic {
     tgt.amt += amt;
     const note = deposit>0 ? ('US$'+drawn.toLocaleString('en-US')+' from settled cash, US$'+deposit.toLocaleString('en-US')+' as a new deposit at '+o.partner+'.') : ('Funded from your settled cash.');
     const acted = [{ text:'Routed US$'+amt.toLocaleString('en-US')+' to '+o.partner+': '+o.title, meta:'You approved this. Execution and custody stay with the partner', time:'Just now', dot:'#17786e' }, ...st.actedNew];
-    return { institutions:inst, settledCash:st.settledCash-drawn, recs:st.recs.filter(r => r.opp !== o.id), actedNew:acted, execNote:note };
+    const ord = { id:'ox'+Date.now(), product:o.title, partnerTag:pm.code, client:'Client ••'+(1000+Math.floor(Math.random()*8999)), amount:amt, when:'just now', status:'new', fromMe:true };
+    return { institutions:inst, settledCash:st.settledCash-drawn, recs:st.recs.filter(r => r.opp !== o.id), actedNew:acted, execNote:note, partnerOrders:[ord, ...st.partnerOrders] };
   }); }
   openInfo(title, body){ this.setState({ modal:{ kind:'info', title, body } }); }
   openAlerts(){ this.setState({ modal:{ kind:'alerts' } }); }
@@ -1339,16 +1373,45 @@ class Component extends DCLogic {
     ].map(c => ({ label:c.label, onClick:this.vaQuick(c.cmd) }));
     const vaListening = s.vaListening;
     const fabStyle = `position:fixed;right:26px;bottom:26px;z-index:110;display:flex;align-items:center;gap:11px;padding:16px 24px;border:none;border-radius:32px;background:#124e48;color:#fff;font-family:'Hanken Grotesk',sans-serif;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(18,60,50,.26)`;
+    // ---- partner console view-model ----
+    const pcTitles = { overview:{t:'Sagicor Group',s:'Partner console · overview'}, orders:{t:'Order flow',s:'Client instructions routed to you'}, products:{t:'Products',s:'Your listings on CCN'}, clients:{t:'Clients & KYC',s:'Agent-referred, verified by you'}, compliance:{t:'Compliance',s:'Agreement, residency & audit'} };
+    const pcTitle = pcTitles[s.pTab] || pcTitles.overview;
+    const pOrders_ = s.partnerOrders || [];
+    const newOrderCount = pOrders_.filter(o=>o.status==='new').length;
+    const acceptedCount = pOrders_.filter(o=>o.status==='accepted').length;
+    const settledCount = pOrders_.filter(o=>o.status==='settled').length;
+    const orderCounts = newOrderCount+' new · '+acceptedCount+' accepted · '+settledCount+' settled';
+    const orderFeed = pOrders_.map(o => {
+      const isSettled = o.status==='settled';
+      const st = o.status==='new' ? { actionLabel:'Accept', style:'padding:8px 16px;border:none;border-radius:9px;background:#124e48;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:\'Hanken Grotesk\',sans-serif', act:()=>this.acceptOrder(o.id) }
+        : o.status==='accepted' ? { actionLabel:'Settle', style:'padding:8px 16px;border:1px solid #c56a3e;border-radius:9px;background:#fff;color:#c56a3e;font-weight:700;font-size:13px;cursor:pointer;font-family:\'Hanken Grotesk\',sans-serif', act:()=>this.settleOrder(o.id) }
+        : { actionLabel:'Settled', style:'padding:8px 16px;border:none;border-radius:9px;background:#e2f4ea;color:#0a8f5b;font-weight:700;font-size:13px;cursor:default;font-family:\'Hanken Grotesk\',sans-serif', act:()=>{} };
+      return { product:o.product, partnerTag:o.partnerTag, client:o.client, when:o.when, amtFmt:'US$'+(o.amount||0).toLocaleString('en-US'), actionLabel:st.actionLabel, actionStyle:st.style, onAction:st.act, isSettled };
+    });
+    const pKpis = [
+      { label:'Referred AUM', value:'US$48.2M', sub:'+18% QoQ', color:'#0e5952' },
+      { label:'Funded clients (MTD)', value:'1,284', sub:'+9%', color:'#1e1c19' },
+      { label:'Orders pending', value:String(newOrderCount), sub:newOrderCount?'awaiting your accept':'all clear', color:(newOrderCount?'#c56a3e':'#0a8f5b') },
+      { label:'Settled this session', value:String(s.settledSession||0), sub:'confirmed to clients', color:'#0a8f5b' },
+    ];
+    const productsView = this.partnerProducts.map(p => {
+      const paused = !!s.pausedProducts[p.name];
+      return { ...p, live:!paused, toggleLabel:paused?'Paused':'Live', onToggle:()=>this.toggleProductLive(p.name),
+        toggleStyle:'padding:6px 14px;border-radius:999px;border:1px solid '+(paused?'#ddd6c8':'#a9d8c4')+';background:'+(paused?'#f4f0e7':'#e2f4ea')+';color:'+(paused?'#8a8172':'#0a8f5b')+';font-weight:700;font-size:12.5px;cursor:pointer;font-family:\'Hanken Grotesk\',sans-serif' };
+    });
+
     const vaOrbStyle = `width:92px;height:92px;border-radius:50%;border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;background:${vaListening?'#c56a3e':'#124e48'}${vaListening?';animation:ccnMic 1.1s infinite':''}`;
 
     return {
       today, netWorth: fmt(usdTotal), connectedCount, oppCount:this.opps.length,
-      isHome:s.nav==='home', isPortfolio:s.nav==='portfolio', isOpps:s.nav==='opportunities', isAgent:s.nav==='agent', isPlanning:s.nav==='planning', isOnboarding:s.nav==='onboarding', isInstitutions:s.nav==='institutions', isLanding:s.nav==='landing', isSignup:s.nav==='signup', showShell:(s.nav!=='landing'&&s.nav!=='signup'), showSidebar:(s.nav!=='landing'&&s.nav!=='signup'&&s.nav!=='onboarding'), showChrome:!['landing','signup','onboarding'].includes(s.nav),
+      isHome:s.nav==='home', isPortfolio:s.nav==='portfolio', isOpps:s.nav==='opportunities', isAgent:s.nav==='agent', isPlanning:s.nav==='planning', isOnboarding:s.nav==='onboarding', isInstitutions:s.nav==='institutions', isLanding:s.nav==='landing', isSignup:s.nav==='signup', showShell:(s.nav!=='landing'&&s.nav!=='signup'), showSidebar:(s.nav!=='landing'&&s.nav!=='signup'&&s.nav!=='onboarding'&&s.nav!=='institutions'), showChrome:!['landing','signup','onboarding','institutions'].includes(s.nav),
       goHome:this.go('home'), goPortfolio:this.go('portfolio'), goOpps:this.go('opportunities'), goAgent:this.go('agent'), goPlanning:this.go('planning'), goOnboarding:this.go('onboarding'), goInstitutions:this.go('institutions'), goDemo:this.go('home'), goSignup:this.go('signup'), goLanding:this.go('landing'), googleContinue:()=>this.googleContinue(),
-      instValue:(s.instTab||'value')!=='console', instConsole:(s.instTab||'value')==='console',
-      setInstValue:()=>this.setState({ instTab:'value' }), setInstConsole:()=>this.setState({ instTab:'console' }),
-      instValueBtn:this.instTabBtn((s.instTab||'value')!=='console'), instConsoleBtn:this.instTabBtn((s.instTab||'value')==='console'),
-      instRequest:()=>this.showToast('Thanks. The partnerships team will reach out with the partner pack'),
+      pOverview:(s.pTab||'overview')==='overview', pOrders:s.pTab==='orders', pProducts:s.pTab==='products', pClients:s.pTab==='clients', pCompliance:s.pTab==='compliance',
+      setPOv:()=>this.setPTab('overview'), setPOrd:()=>this.setPTab('orders'), setPProd:()=>this.setPTab('products'), setPCli:()=>this.setPTab('clients'), setPComp:()=>this.setPTab('compliance'),
+      pNav:{ overview:this.pNavBtn((s.pTab||'overview')==='overview'), orders:this.pNavBtn(s.pTab==='orders'), products:this.pNavBtn(s.pTab==='products'), clients:this.pNavBtn(s.pTab==='clients'), compliance:this.pNavBtn(s.pTab==='compliance') },
+      pTitle:pcTitle.t, pTitleSub:pcTitle.s,
+      pKpis:pKpis, orderFeed:orderFeed, orderSnapshot:orderFeed.filter(o=>!o.isSettled).slice(0,3), orderCounts:orderCounts, newOrderCount:newOrderCount, hasNewOrders:newOrderCount>0,
+      productsView:productsView, kycStages:this.kycStages, auditTrail:this.auditTrail, onListProduct:()=>this.onListProduct(),
       navStyle:{ home:this.navBtn(s.nav==='home'), portfolio:this.navBtn(s.nav==='portfolio'), opportunities:this.navBtn(s.nav==='opportunities'), agent:this.navBtn(s.nav==='agent'), planning:this.navBtn(s.nav==='planning'), onboarding:this.navBtn(s.nav==='onboarding'), institutions:this.navBtn(s.nav==='institutions') },
       agentBadge:'font-size:13.5px;font-weight:700;background:#f5e7d9;color:#c56a3e;border-radius:20px;padding:2px 9px;min-width:24px;text-align:center',
       countBadge:'font-size:13.5px;font-weight:700;background:#e8f1ec;color:#0e5952;border-radius:20px;padding:2px 9px;min-width:24px;text-align:center',
