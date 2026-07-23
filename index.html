@@ -151,7 +151,7 @@ body{margin:0;background:#efece4}
         <div style="background:#fdfcfa;border:1px solid #e4e0d6;border-radius:14px;padding:24px 22px">
           <span style="width:44px;height:44px;border-radius:11px;background:#e8f1ec;display:flex;align-items:center;justify-content:center;margin-bottom:16px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0e5952" stroke-width="1.9"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9.3 12l1.9 1.9 3.6-3.9"/></svg></span>
           <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px;margin-bottom:7px">Regulated and regional</div>
-          <div style="font-size:14.5px;line-height:1.55;color:#5c5449">Every instrument is custodied and executed by an FSC-licensed partner, with KYC, suitability and source-of-funds handled for you.</div>
+          <div style="font-size:14.5px;line-height:1.55;color:#5c5449">Every instrument is custodied and executed by an FSC-licensed partner. KYC, suitability and source-of-funds stay with the partner that already knows you; CCN links your verified status instead of re-collecting it. CCN never holds your money.</div>
         </div>
       </div>
     </div>
@@ -661,7 +661,7 @@ body{margin:0;background:#efece4}
         <!-- STEP 0: identity -->
         <sc-if value="{{ onb0 }}" hint-placeholder-val="{{ true }}">
           <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px;margin-bottom:4px">Verify your identity</div>
-          <p style="margin:0 0 20px;font-size:14.5px;color:#6b6459;line-height:1.5">KYC is required across all Caribbean jurisdictions. Your details are encrypted and shared only with the licensed partner executing each trade.</p>
+          <p style="margin:0 0 20px;font-size:14.5px;color:#6b6459;line-height:1.5">Verification is performed by the licensed partners, who already carry the regulatory duty. CCN links your verified status and shares your details only with the partner executing each trade, with your consent.</p>
           <div style="display:flex;flex-direction:column;gap:14px">
             <div><div style="font-size:13.5px;font-weight:600;color:#5c5449;margin-bottom:7px">Full legal name</div><div style="padding:13px 15px;border:1px solid #ddd6c8;border-radius:12px;background:#f4f0e7;font-size:16px;color:#1e1c19">Marcus A. Bailey</div></div>
             <div style="display:flex;gap:12px"><div style="flex:1"><div style="font-size:13.5px;font-weight:600;color:#5c5449;margin-bottom:7px">Country of residence</div><div style="padding:13px 15px;border:1px solid #ddd6c8;border-radius:12px;background:#f4f0e7;font-size:16px;color:#1e1c19">United Kingdom</div></div><div style="flex:1"><div style="font-size:13.5px;font-weight:600;color:#5c5449;margin-bottom:7px">ID document</div><div style="padding:13px 15px;border:1px solid #ddd6c8;border-radius:12px;background:#f4f0e7;font-size:16px;color:#1e1c19">Passport · verified</div></div></div>
@@ -855,7 +855,7 @@ body{margin:0;background:#efece4}
             <div style="text-align:center;padding:6px 0 4px">
               <div style="width:68px;height:68px;border-radius:50%;background:#e2f4ea;display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0a8f5b" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg></div>
               <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:21px">Instruction submitted</div>
-              <p style="margin:8px auto 18px;max-width:330px;font-size:14.5px;line-height:1.55;color:#5c5449">Your {{ execAmtFmt }} order is being executed by {{ selOpp.partner }}. Your agent will confirm and update your portfolio once it settles (T+2).</p>
+              <p style="margin:8px auto 18px;max-width:330px;font-size:14.5px;line-height:1.55;color:#5c5449">CCN routed your {{ execAmtFmt }} instruction to {{ selOpp.partner }}, who executes, custodies and settles it (T+2). {{ execNote }} CCN never holds your money. Projections are estimates, not guarantees.</p>
               <div style="background:#f4f0e7;border-radius:12px;padding:14px 16px;text-align:left;max-width:320px;margin:0 auto"><div style="display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0"><span style="color:#6b6459">Reference</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:700">CCN-8F42-QX</span></div><div style="display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0"><span style="color:#6b6459">Status</span><span style="color:#c56a3e;font-weight:700">Processing</span></div></div>
             </div>
           </sc-if>
@@ -893,15 +893,15 @@ body{margin:0;background:#efece4}
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:860},&quot;startView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;landing&quot;,&quot;signup&quot;,&quot;home&quot;,&quot;portfolio&quot;,&quot;opportunities&quot;,&quot;agent&quot;,&quot;planning&quot;,&quot;onboarding&quot;,&quot;institutions&quot;],&quot;default&quot;:&quot;landing&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo&quot;}}">
 class Component extends DCLogic {
   state = {
-    nav:'landing', cur:'USD', draft:'', typing:false, oppFilter:'All', listening:false, speakOn:false,
+    nav:'landing', cur:'USD', draft:'', typing:false, oppFilter:'All', listening:false, speakOn:false, actedNew:[], settledCash:2150,
     vaOpen:false, vaListening:false, vaTranscript:'', vaResponse:'', toast:'',
     modal:null, modalStep:0, execAmt:0, ruleOn:[true,true,true,true],
     onbStep:0, riskAns:{}, sources:{ salary:true },
     chat:[
       { role:'agent', text:"Welcome back, Marcus. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. Two things need your attention this week." },
-      { role:'agent', text:"Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?" },
+      { role:'agent', text:"Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> is projected to lift your blended yield to about <b>6.9%</b> and stays inside your risk band. Want me to prepare it?" },
       { role:'user', text:"What about the idle cash?" },
-      { role:'agent', text:"Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> with same-day access. I've queued both for your approval." },
+      { role:'agent', text:"Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> is projected to add about <b>US$110/yr</b> at the current variable rate, with same-day access. I've queued both for your approval." },
     ],
     institutions:[
       { name:'NCB', full:'National Commercial Bank', kind:'Bank · Capital Markets', accounts:'GOJ Bond 2029 · Chequing', amt:13400, color:'#1a4aa0', tint:'#e7edf8',
@@ -914,8 +914,8 @@ class Component extends DCLogic {
         holdings:[ {name:'JMMB Money Market Fund', value:'US$3,000', ret:'+2.0%'}, {name:'USD Savings', value:'US$1,150', ret:'—'} ] },
     ],
     recs:[
-      { tag:'Reinvest', accent:'#1f6f66', when:'Today', title:'Put your GOJ coupon to work', body:'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.', cta:'Review deal', opp:'sagrex' },
-      { tag:'Idle cash', accent:'#c56a3e', when:'2d ago', title:'US$2,150 earning nothing', body:'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.', cta:'Move cash', opp:'ncbmm' },
+      { tag:'Reinvest', accent:'#1f6f66', when:'Today', title:'Put your GOJ coupon to work', body:'US$412 settles Friday. Reinvesting into the Real Estate X Fund is projected to lift blended yield to about 6.9%. Sagicor executes.', cta:'Review deal', opp:'sagrex' },
+      { tag:'Idle cash', accent:'#c56a3e', when:'2d ago', title:'US$2,150 earning nothing', body:'Sweep your USD cash into the NCB Money Market Fund, projected ~US$110/yr at the current rate, same-day access. NCB executes.', cta:'Move cash', opp:'ncbmm' },
     ],
   };
 
@@ -1052,18 +1052,22 @@ class Component extends DCLogic {
   onDraftKey(e){ if(e.key==='Enter') this.doSend(); }
   agentReply(k){
     const map = {
-      summary:"Here's your week: your GOJ 2026 coupon of US$412 settles Friday \u2014 I'd reinvest it into the Real Estate X Fund to lift blended yield to 6.9%. Your US$2,150 cash is idle; a money-market sweep adds about US$110 a year. Both are queued for your approval.",
-      rebalance:"You're overweight fixed income at 46% and light on equities at 14%. Shifting about US$3,000 from cash into the GraceKennedy offering moves you toward your balanced-income target while keeping risk in band.",
-      income:"For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout \u2014 hard currency, sovereign, and it lifts your blended yield to 6.9%. Shall I prepare it for your approval?",
-      idle:"You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund yields 5.1% with same-day access \u2014 about US$110 a year. I can queue it now.",
+      summary:"Here's your week: your GOJ 2026 coupon of US$412 settles Friday. I'd reinvest it into the Real Estate X Fund, which is projected to lift blended yield to about 6.9%. Your US$2,150 cash is idle; a money-market sweep is projected to add about US$110 a year. Both are queued for your approval.",
+      rebalance:"You're overweight fixed income at 46% and light on equities at 14%. Shifting about US$3,000 from cash into the GraceKennedy offering moves you toward your balanced-income target while keeping risk in band. I can prepare it, and Barita would execute it.",
+      income:"For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?",
+      idle:"You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Rates move; the fund's rate is variable. I can queue it now.",
+      kyc:"Your identity checks live with the licensed partners, not with me. NCB already verified you to Tier 2, and with your consent CCN reuses that status across partners, so there's no new paperwork. Each partner remains the regulated entity responsible for KYC and AML on its own accounts.",
+      safety:"Here's the honest split: I research, screen and prepare. The licensed, FSC-regulated partners execute, custody and settle. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every action is written to an audit log you can read.",
+      fees:"CCN charges a flat platform fee; the partners' own product fees are shown on each deal card before you approve, and there are no hidden spreads from me. I always show the partner's fee line next to any projection.",
+      cant:"Things I won't do: I can't guarantee a return, I can't move money above the limits you set, and I can't act on anything that fails the partner's suitability or compliance checks. Anything larger than your limits becomes an approval card that waits for you.",
     };
-    return map[k] || "I discover regional opportunities across jurisdictions, screen them against your suitability profile, and \u2014 on your approval \u2014 coordinate execution through the licensed partner that holds the instrument. Ask me about income, rebalancing, or any specific deal.";
+    return map[k] || "I research regional opportunities, screen them against your suitability profile, and prepare them for your approval. Execution, custody and settlement always stay with the licensed partner that holds the instrument. Ask me about income, rebalancing, idle cash, fees, or how your data and KYC are handled.";
   }
   quickAsk(q, label){ return () => { this.pushUser(label); this.thenAgent(this.agentReply(q)); }; }
   doSend(){
     const t = (this.state.draft||'').trim(); if(!t) return;
     this.pushUser(t); this.setState({ draft:'' });
-    const k = /summar|week|find|overview/i.test(t)?'summary' : /rebalanc|allocat|overweight|diversif/i.test(t)?'rebalance' : /income|yield|best|deal|coupon|bond/i.test(t)?'income' : /idle|cash|spare|sitting/i.test(t)?'idle' : '';
+    const k = /kyc|verif|identity|paperwork|document/i.test(t)?'kyc' : /safe|secure|regulat|custod|trust|hold my|licen/i.test(t)?'safety' : /fee|cost|charge|commission|spread/i.test(t)?'fees' : /guarantee|promise|can'?t|cannot|limit|risk of/i.test(t)?'cant' : /summar|week|find|overview/i.test(t)?'summary' : /rebalanc|allocat|overweight|diversif/i.test(t)?'rebalance' : /income|yield|best|deal|coupon|bond/i.test(t)?'income' : /idle|cash|spare|sitting/i.test(t)?'idle' : '';
     this.thenAgent(this.agentReply(k));
   }
   pushUser(text){ this.setState(s => ({ chat:[...s.chat, { role:'user', text }] })); }
@@ -1071,7 +1075,9 @@ class Component extends DCLogic {
 
   // ---- speech ----
   componentDidMount(){
-    if(this.props && this.props.startView){ this.setState({ nav:this.props.startView }); }
+    const q = (typeof location!=='undefined' && new URLSearchParams(location.search).get('view')) || '';
+    if(/^(landing|signup|home|portfolio|opportunities|agent|planning|onboarding|institutions)$/.test(q)){ this.setState({ nav:q }); }
+    else if(this.props && this.props.startView){ this.setState({ nav:this.props.startView }); }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SR) return;
     const rec = new SR();
@@ -1132,7 +1138,23 @@ class Component extends DCLogic {
   execBack(){ this.setState(s => ({ modalStep: Math.max(0, s.modalStep-1) })); }
   onExecAmt(e){ const v=parseInt(String(e.target.value).replace(/[^0-9]/g,''))||0; this.setState({ execAmt:v }); }
   execMin(){ const s=this.state; const o=this.opps.find(x=>x.id===(s.modal&&s.modal.oppId)); return o?(parseInt(String(o.min).replace(/[^0-9]/g,''))||0):0; }
-  execAuthorize(){ const s=this.state; const o=this.opps.find(x=>x.id===(s.modal&&s.modal.oppId)); if((s.execAmt||0)<this.execMin()){ this.showToast('Enter at least '+(o?o.min:'the minimum')); return; } this.setState({ modalStep:2 }); this.showToast('Instruction sent to '+(o?o.partner:'the partner')+' for execution'); }
+  execAuthorize(){ const s=this.state; const o=this.opps.find(x=>x.id===(s.modal&&s.modal.oppId)); if((s.execAmt||0)<this.execMin()){ this.showToast('Enter at least '+(o?o.min:'the minimum')); return; } this.applyExec(o, s.execAmt||0); this.setState({ modalStep:2 }); this.showToast('Instruction routed to '+(o?o.partner:'the partner')+'. They execute and custody it'); }
+  partnerMeta(p){ if(/NCB/i.test(p)) return { code:'NCB' }; if(/Sagicor/i.test(p)) return { code:'SAG' }; if(/Proven/i.test(p)) return { code:'PRV' }; if(/JMMB/i.test(p)) return { code:'JMMB' }; if(/Barita/i.test(p)) return { code:'BAR', full:'Barita Investments', kind:'Broker · Investments', color:'#6b4a9e', tint:'#f0eaf8' }; if(/Republic/i.test(p)) return { code:'REP', full:'Republic Bank', kind:'Bank · Treasury', color:'#1a6aa0', tint:'#e7f0f8' }; if(/Sygnus/i.test(p)) return { code:'SYG', full:'Sygnus Capital', kind:'Private credit', color:'#8a5a2e', tint:'#f6eee2' }; return { code:'NCB' }; }
+  applyExec(o, amt){ if(!o) return; this.setState(st => {
+    const drawn = Math.min(st.settledCash, amt); const deposit = amt - drawn;
+    let toDraw = drawn;
+    const inst = st.institutions.map(i => ({ ...i, holdings: i.holdings.map(h => ({ ...h })) }));
+    inst.forEach(i => i.holdings.forEach(h => { if(toDraw>0 && /Chequing|Savings/.test(h.name)){ const v = parseInt(String(h.value).replace(/[^0-9]/g,''))||0; const take = Math.min(v, toDraw); h.value = 'US$' + (v-take).toLocaleString('en-US'); i.amt -= take; toDraw -= take; } }));
+    const pm = this.partnerMeta(o.partner);
+    let tgt = inst.find(i => i.name === pm.code);
+    if(!tgt){ tgt = { name:pm.code, full:pm.full, kind:pm.kind, accounts:o.title, amt:0, color:pm.color, tint:pm.tint, holdings:[] }; inst.push(tgt); }
+    const ex = tgt.holdings.find(h => h.name === o.title);
+    if(ex){ const v = parseInt(String(ex.value).replace(/[^0-9]/g,''))||0; ex.value = 'US$' + (v+amt).toLocaleString('en-US'); } else { tgt.holdings.push({ name:o.title, value:'US$' + amt.toLocaleString('en-US'), ret:'settling' }); }
+    tgt.amt += amt;
+    const note = deposit>0 ? ('US$'+drawn.toLocaleString('en-US')+' from settled cash, US$'+deposit.toLocaleString('en-US')+' as a new deposit at '+o.partner+'.') : ('Funded from your settled cash.');
+    const acted = [{ text:'Routed US$'+amt.toLocaleString('en-US')+' to '+o.partner+': '+o.title, meta:'You approved this. Execution and custody stay with the partner', time:'Just now', dot:'#17786e' }, ...st.actedNew];
+    return { institutions:inst, settledCash:st.settledCash-drawn, recs:st.recs.filter(r => r.opp !== o.id), actedNew:acted, execNote:note };
+  }); }
   openInfo(title, body){ this.setState({ modal:{ kind:'info', title, body } }); }
   openAlerts(){ this.setState({ modal:{ kind:'alerts' } }); }
   closeModal(){ this.setState({ modal:null, modalStep:0 }); }
@@ -1151,7 +1173,7 @@ class Component extends DCLogic {
     const usd = (n) => 'US$' + Math.round(n).toLocaleString('en-US');
     const rates={USD:1,JMD:157.2,TTD:6.79}, cursym={USD:'US$',JMD:'J$',TTD:'TT$'};
     const fmt=(n)=>cursym[s.cur]+Math.round(n*rates[s.cur]).toLocaleString('en-US');
-    const retColor = (r) => r && r.startsWith('+') ? '#0a8f5b' : (r==='—' ? '#9c927f' : '#c56a3e');
+    const retColor = (r) => r && r.startsWith('+') ? '#0a8f5b' : ((r==='—'||r==='settling') ? '#9c927f' : '#c56a3e');
     const connectedCount = s.institutions.length;
     const usdTotal = s.institutions.reduce((sum,i) => sum + (i.amt||0), 0);
     const netWorthByCur = { USD: usd(usdTotal), JMD:'J$'+Math.round(usdTotal*157.2).toLocaleString('en-US'), TTD:'TT$'+Math.round(usdTotal*6.79).toLocaleString('en-US') };
@@ -1182,7 +1204,7 @@ class Component extends DCLogic {
     const recExec = (opp) => () => { this.setState({ nav:'opportunities' }); this.openExec(opp); };
     const recs = s.recs.map(r => ({ ...r, tagStyle:this.recTag(r.accent, r.accent==='#c56a3e'?'#f5e7d9':'#e2f1ee'), onClick: recExec(r.opp), onDismiss:() => this.dismissRec(r.title) }));
     const approvalsCount = s.recs.length;
-    const autonomyFeed = this.autonomyData;
+    const autonomyFeed = [...s.actedNew, ...this.autonomyData];
     const _tgOn='width:38px;height:22px;border-radius:22px;background:#124e48;flex:none;display:flex;align-items:center;padding:2px;justify-content:flex-end;transition:all .18s';
     const _tgOff='width:38px;height:22px;border-radius:22px;background:#cfc7b8;flex:none;display:flex;align-items:center;padding:2px;justify-content:flex-start;transition:all .18s';
     const _knob='width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)';
@@ -1276,7 +1298,7 @@ class Component extends DCLogic {
       vaOpen:s.vaOpen, openVA:()=>this.openVA(), closeVA:()=>this.closeVA(), vaMic:()=>this.vaMic(),
       vaTranscript:s.vaTranscript, vaResponse:s.vaResponse, vaChips, fabStyle, vaOrbStyle,
       vaStatus: vaListening?'Listening…':(s.vaResponse?'Tap the mic to ask again':'Tap the mic and speak'), vaStatusColor: vaListening?'#c56a3e':'#1e1c19',
-      modalOpen: !!modal, modal, selOpp, execAmtInput, execAmtFmt, onExecAmt:e=>this.onExecAmt(e), execDetail: isExec && st===0, execAuth: isExec && st===1, execDone: isExec && st===2,
+      modalOpen: !!modal, modal, selOpp, execAmtInput, execAmtFmt, execNote:(s.execNote||''), onExecAmt:e=>this.onExecAmt(e), execDetail: isExec && st===0, execAuth: isExec && st===1, execDone: isExec && st===2,
       closeModal:()=>this.closeModal(), stopProp:(e)=>e.stopPropagation(),
       toast:s.toast,
     };
