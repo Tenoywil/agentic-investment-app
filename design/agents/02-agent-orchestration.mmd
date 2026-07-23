@@ -1,0 +1,31 @@
+%% CCN — Agent Orchestration (orchestrator + specialist agents)
+flowchart TB
+    USER((User<br/>local &amp; diaspora investor)) -->|"chat · schedule · market event"| ORCH
+
+    ORCH["Unified Wealth Agent · Orchestrator<br/>overall strategy · plans, delegates,<br/>composes replies"]
+
+    subgraph Specialists["Specialist agents (tools of the orchestrator)"]
+        ONB["Client Onboarding Agent<br/>ID &amp; compliance · KYC · AML<br/>source of funds"]
+        PROF["Financial Profiling Agent<br/>risk assessment · risk band<br/>suitability · concentration"]
+        RES["Opportunity Monitor Agent<br/>scan regional markets: bonds · funds<br/>IPOs · real estate · insurance"]
+        EXE["Execution Agent<br/>route &amp; place orders within limits"]
+        PLAN["Planning Agent<br/>insurance · retirement · estate · mortgage<br/>goal progress rings"]
+    end
+
+    ORCH -->|"verify client"| ONB
+    ORCH -->|"score candidate"| PROF
+    ORCH -->|"find yield / idle cash"| RES
+    ORCH -->|"place approved move"| EXE
+    ORCH -->|"track goals"| PLAN
+
+    ONB -->|"cleared / blocked"| ORCH
+    PROF -->|"in-band? + rationale"| ORCH
+    RES -->|"ranked opportunities"| ORCH
+    EXE -->|"order status / fills"| ORCH
+    PLAN -->|"progress + gaps"| ORCH
+
+    ORCH -->|"proposal · approval card · voice"| USER
+
+    MEM[("Shared context<br/>user limits · risk band<br/>portfolio state · audit")]
+    ORCH <--> MEM
+    Specialists <--> MEM

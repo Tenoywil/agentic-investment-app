@@ -1,0 +1,22 @@
+%% CCN — Human-in-the-loop approval (sequence)
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant AG as Capital Agent
+    participant GL as Guardrail / Limits
+    participant EX as Execution Agent
+    participant PA as Partner API (FSC)
+    participant DB as Supabase (PG + Realtime)
+
+    AG->>GL: proposed move (instrument, amount, rationale)
+    GL-->>AG: exceeds set limit → approval required
+    AG->>DB: create approval card + snapshot
+    DB-->>U: Realtime "Needs your approval" (+ voice)
+    U->>DB: one-tap Approve
+    DB-->>AG: approval event (scope, timestamp)
+    AG->>EX: execute within approved scope
+    EX->>PA: place order
+    PA-->>EX: fill / confirmation
+    EX->>DB: write holding + immutable audit entry
+    DB-->>U: portfolio updated (+ voice: projected yield impact)
+    Note over AG,DB: If rejected or expired → no order, rationale logged

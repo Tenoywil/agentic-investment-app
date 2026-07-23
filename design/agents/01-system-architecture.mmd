@@ -1,0 +1,44 @@
+%% CCN — System Architecture (agent runtime + stack)
+flowchart TB
+    subgraph Client["Client · React on Vercel"]
+        UI["Warm Web App<br/>Home · Portfolio · Opportunities<br/>Agent · Planning · Institutions"]
+        VOICE["Voice I/O<br/>speech-to-text · TTS readout"]
+    end
+
+    subgraph Runtime["API &amp; Agent Runtime · Supabase Edge Functions (Deno)"]
+        ORCH["Unified Wealth Agent — Orchestrator<br/>Claude tool-use loop"]
+        GUARD["Guardrail &amp; Limits Engine<br/>risk band · per-move limits"]
+        AUD["Audit Log Writer<br/>immutable action trail"]
+    end
+
+    subgraph Data["Data · Supabase (in-region)"]
+        PG[("Postgres<br/>holdings · instruments · limits<br/>approvals · goals · audit<br/>+ Better Auth sessions")]
+        RT{{"Realtime channels<br/>portfolio · approval cards"}}
+        STG[("Storage<br/>KYC / source-of-funds docs")]
+    end
+
+    subgraph External["External · FSC-licensed partners &amp; providers"]
+        PART["Partner APIs<br/>NCB · Sagicor · JMMB · Proven<br/>Barita · Republic · Sygnus"]
+        MKT["Market &amp; Reference Data"]
+        KYCP["KYC / AML / Source-of-Funds"]
+        LLM["Anthropic Claude API"]
+        GOOG["Google OAuth<br/>identity provider"]
+    end
+
+    AUTH["Better Auth<br/>sign in with Google<br/>sessions in Postgres"]
+    Runtime --- AUTH
+
+    UI <-->|HTTPS / RPC| Runtime
+    VOICE <--> UI
+    UI -->|"sign in with Google"| AUTH
+    AUTH <-->|OAuth| GOOG
+    AUTH -->|sessions| PG
+
+    ORCH <-->|reason · tool calls| LLM
+    ORCH --> GUARD --> AUD --> PG
+    Runtime <-->|read / write| PG
+    Runtime -->|push| RT --> UI
+    Runtime <-->|holdings · quotes · orders| PART
+    Runtime <-->|prices| MKT
+    Runtime <-->|verify| KYCP
+    STG --- Runtime

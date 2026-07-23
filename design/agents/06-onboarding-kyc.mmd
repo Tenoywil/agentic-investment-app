@@ -1,0 +1,11 @@
+%% CCN — Onboarding / KYC gate (agent activation)
+flowchart TD
+    S(("Start")) --> SIGN["Sign up with Google<br/>· Better Auth"]
+    SIGN --> KYC{"KYC + source of<br/>funds verified?"}
+    KYC -- No --> COLL["Collect documents<br/>→ Supabase Storage"]
+    COLL --> REV["Client Onboarding Agent review<br/>(KYC/AML provider)"]
+    REV --> KYC
+    KYC -- Yes --> SUIT["Suitability assessment<br/>→ set risk band"]
+    SUIT --> LIM["Set agent limits<br/>per-move · daily · categories"]
+    LIM --> CONNECT["Connect FSC partners<br/>(read + trade scopes)"]
+    CONNECT --> ACTIVE(("Agent active<br/>within your limits"))

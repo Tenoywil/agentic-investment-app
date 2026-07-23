@@ -11,6 +11,7 @@ The site is a single page: the **Warm theme** prototype, served as `index.html`.
 | File | Description |
 | --- | --- |
 | `index.html` | The Warm-themed CCN platform prototype — landing, sign-up, home, portfolio, opportunities, agent, and planning views. Boots a React UI through the shared `support.js` runtime. |
+| `story.html` | **Guided tour** — a self-contained presenter that walks a client or investor through the product story (problem → unified portfolio → agent → limits → one-tap approval → marketplace → cross-border planning → trust). Served at `/story.html`. Keyboard: `←/→` navigate, `Space` next, `A` autoplay, `F` fullscreen. Visuals live in `demo/assets/`. |
 
 ### Runtime
 
@@ -40,3 +41,12 @@ python3 -m http.server 8000
 
 No build step is required; `support.js` loads React at runtime, so the page
 needs network access to its CDN the first time it renders.
+
+## System design
+
+The agent architecture and workflow diagrams live in
+[`design/agents/`](design/agents/README.md) — system architecture, multi-agent
+orchestration, the end-to-end agentic workflow (inputs → decisions →
+human-in-the-loop → outputs), the approval sequence, the data/API integration
+map, and the KYC onboarding gate. Diagrams are authored in Mermaid with rendered
+SVG/PNG exports.
