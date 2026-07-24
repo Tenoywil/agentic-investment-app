@@ -229,7 +229,7 @@ function render(){
       <p class="narr">${s.narr}</p>
       ${s.list?`<div class="list">${s.list.map(p=>`<div>${p}</div>`).join('')}</div>`:''}
       ${s.link?`<a class="try" href="${s.link.href}" target="_blank" rel="noopener">${s.link.label} <small>opens the interactive app</small></a>`:''}
-      ${s.cta?`<a class="try" href="./index.html" target="_blank" rel="noopener">Open the live demo</a>`:''}
+      ${s.cta?`<span style="display:flex;gap:10px;flex-wrap:wrap"><a class="try" href="./index.html" target="_blank" rel="noopener">Open the live demo</a><a class="try" href="./investor.html" target="_blank" rel="noopener">Read the investor brief</a></span>`:''}
       ${s.hint?`<p class="hint">Navigate with <kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>Space</kbd> · <kbd>A</kbd> autoplay · <kbd>F</kbd> fullscreen</p>`:''}
     </div>`;
   let device = '';

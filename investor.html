@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caribbean Capital Network. Investor brief</title>
+<meta name="description" content="Caribbean Capital Network investor brief: problem, market, model, moat, regulatory strategy and the ask.">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4f0e7; --card:#fdfcfa; --ink:#1e1c19; --dim:#5c5449; --faint:#8a8172;
+    --teal:#124e48; --teal2:#0e5952; --gold:#c58a2e; --terra:#c56a3e; --line:#e4e0d6;
+    --disp:'Bricolage Grotesque',Georgia,serif; --body:'Hanken Grotesk',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased;line-height:1.6;overflow-x:hidden}
+  .wrap{max-width:920px;margin:0 auto;padding:0 22px}
+  a{color:var(--teal2)}
+  .mono{font-family:var(--mono)}
+
+  header.top{position:sticky;top:0;z-index:20;background:rgba(244,240,231,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .top .wrap{display:flex;align-items:center;justify-content:space-between;padding-top:14px;padding-bottom:14px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .cmark{width:32px;height:32px;border-radius:9px;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;font-size:17px}
+  .brand b{font-family:var(--disp);font-size:15px}
+  .top a.cta{text-decoration:none;background:var(--teal);color:#fff;font-weight:700;font-size:14px;padding:9px 16px;border-radius:9px}
+
+  .hero{padding:64px 0 30px}
+  .kick{font-family:var(--mono);font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:18px}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(32px,5.4vw,52px);line-height:1.05;letter-spacing:-.5px;margin-bottom:18px}
+  .lede{font-size:clamp(17px,1.7vw,20px);color:var(--dim);max-width:62ch}
+  .disclaim{margin-top:20px;font-size:12.5px;color:var(--faint);border-left:2px solid var(--gold);padding-left:12px;max-width:64ch}
+
+  section{padding:34px 0;border-top:1px solid var(--line)}
+  .snum{font-family:var(--mono);font-size:12px;color:var(--gold);letter-spacing:1px;margin-bottom:8px}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(23px,3vw,30px);letter-spacing:-.3px;margin-bottom:16px}
+  h3{font-size:16px;margin-bottom:6px}
+  p{color:var(--dim);margin-bottom:14px;max-width:70ch}
+  p b, li b{color:var(--ink);font-weight:600}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 24px}
+  .card p{font-size:14.5px;margin-bottom:0}
+  .card p+p{margin-top:10px}
+  .stat{font-family:var(--disp);font-weight:700;font-size:30px;color:var(--teal2);letter-spacing:-.5px}
+  .statc{font-size:13px;color:var(--faint);margin-top:2px}
+  ul{list-style:none;margin:0 0 8px;padding:0}
+  ul li{position:relative;padding-left:20px;margin-bottom:11px;color:var(--dim);font-size:15px;max-width:70ch}
+  ul li::before{content:"";position:absolute;left:2px;top:9px;width:6px;height:6px;border-radius:50%;background:var(--gold)}
+  .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--terra);background:rgba(197,106,62,.09);border:1px solid rgba(197,106,62,.2);border-radius:6px;padding:3px 9px;margin-bottom:12px}
+  table.model{width:100%;border-collapse:collapse;font-size:14.5px}
+  table.model th,table.model td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.model th{font-family:var(--mono);font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);font-weight:600}
+  table.model td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+  .risk h3{color:var(--terra)}
+  .teal-card{background:var(--teal);color:#eafaf5;border-color:var(--teal)}
+  .teal-card h2{color:#fff}
+  .teal-card p{color:rgba(234,250,245,.86)}
+  footer{padding:40px 0 60px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+  .scroller{overflow-x:auto}
+  @media (max-width:720px){ .grid2,.grid3{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="brand"><div class="cmark">C</div><b>Caribbean Capital Network</b></div>
+  <a class="cta" href="./index.html" target="_blank" rel="noopener">Open the product</a>
+</div></header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="kick">Investor brief · Seed</div>
+    <h1>The account layer for Caribbean and diaspora wealth.</h1>
+    <p class="lede">CCN unifies every FSC-licensed institution behind one interface and one AI agent that researches regional opportunities, acts inside limits the client sets, and routes execution to the licensed partner that holds the instrument. We do not hold money or execute trades. We own the relationship, the intelligence, and the order flow.</p>
+    <div class="disclaim">This brief is a working document for discussion. All figures are illustrative or order-of-magnitude estimates to be validated in diligence, not audited metrics or committed projections. The product shown is a functional prototype; the partner and traction numbers in it are sample data.</div>
+  </div>
+
+  <section>
+    <div class="snum">01 / Problem</div>
+    <h2>Caribbean capital is fragmented and idle.</h2>
+    <p>A typical affluent household in the region holds a bond at NCB, a fund at Sagicor, cash at JMMB, and a policy or pension it has half-forgotten. Nothing talks to anything. The diaspora, which sends billions home every year, has almost no compliant way to invest into the region from abroad. The result is capital that sits in low-yield accounts because moving it is slow, opaque, and spread across institutions that each only see their own slice.</p>
+    <ul>
+      <li><b>For the household:</b> no single view, no advice that spans providers, and idle cash that quietly loses to inflation and FX.</li>
+      <li><b>For the diaspora:</b> remittances flow in for consumption, not wealth creation, because cross-border onboarding and suitability are painful.</li>
+      <li><b>For the institutions:</b> distribution is branch-bound and expensive, and they cannot see or serve the wallet a client holds elsewhere.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="snum">02 / Why now</div>
+    <h2>Three curves are crossing.</h2>
+    <div class="grid3">
+      <div class="card"><h3>Capable agents</h3><p>LLM tool-use is finally good enough to research instruments, screen suitability and draft actions in plain language, at a cost that works for retail accounts.</p></div>
+      <div class="card"><h3>Diaspora at scale</h3><p>Remittances to the region run into the tens of billions a year. A generation abroad wants to build wealth at home, not just send money for spending.</p></div>
+      <div class="card"><h3>Regional rails</h3><p>FSC-licensed institutions are digitizing and opening APIs. Aggregation that was impossible five years ago is now an integration problem, not a policy one.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="snum">03 / Market</div>
+    <h2>Small country, large corridor.</h2>
+    <p>We are candid that Caribbean domestic retail wealth alone is not a venture-scale market. The wedge is the <b>diaspora corridor plus regional consolidation</b>: money that already moves to the region every year, redirected from consumption into invested, fee-bearing assets held at licensed partners.</p>
+    <div class="grid3" style="margin-top:6px">
+      <div class="card"><div class="stat">Tens of $B / yr</div><div class="statc">Remittances into the region (the corridor we redirect)</div></div>
+      <div class="card"><div class="stat">8 &rarr; 20+</div><div class="statc">FSC-licensed partners we aggregate, starting with anchors</div></div>
+      <div class="card"><div class="stat">Fee on AUM</div><div class="statc">Every dollar consolidated or invested becomes recurring revenue</div></div>
+    </div>
+    <p style="margin-top:16px;font-size:13.5px;color:var(--faint)">The number that matters is not total Caribbean GDP; it is the share of an existing remittance corridor we can convert to invested AUM, times our take rate, compounded by consolidation of assets already held elsewhere. Here is that model, worked for corridor one.</p>
+
+    <div class="card" style="margin-top:18px">
+      <span class="tag">Illustrative · to be validated in diligence</span>
+      <h3 style="font-family:var(--disp);font-size:20px;margin-bottom:6px">The corridor math, worked: UK + US Jamaican diaspora</h3>
+      <p style="font-size:14px">Bottom-up, from public migration and remittance data plus stated assumptions. Every input is deliberately conservative and shown so you can attack it.</p>
+      <div class="scroller"><table class="model">
+        <thead><tr><th>Step</th><th>Assumption</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Corridor base</td><td>Jamaican-born adults in the UK and US (public census data), grouped into remitting households</td><td>~700k households</td></tr>
+          <tr><td>Target segment</td><td>Professional and affluent households that remit or hold assets at home regularly (15%)</td><td>~105k households</td></tr>
+          <tr><td>Penetration</td><td>Funded accounts by month 36 in corridor one (4% of segment)</td><td>~4,200 accounts</td></tr>
+          <tr><td>Balance build</td><td>Redirected flow of US$150 to 300 per month, plus consolidation of holdings the household already has at partner institutions</td><td>~US$12k avg per account</td></tr>
+          <tr><td>Corridor AUM</td><td>4,200 accounts × ~US$12k by month 36</td><td>~US$50M</td></tr>
+          <tr><td>Blended take rate</td><td>Platform fee + distribution bps + routing + protection referrals</td><td>60 to 100 bps</td></tr>
+          <tr><td>Corridor revenue</td><td>US$50M × 80 bps midpoint</td><td>~US$400k ARR</td></tr>
+        </tbody>
+      </table></div>
+      <p style="margin-top:14px;font-size:14px"><b>Read that number honestly: corridor one is proof, not the prize.</b> US$400k ARR is a seed milestone that validates the loop (funded accounts, balance build, take rate). The venture case is what it unlocks:</p>
+      <ul style="margin-top:4px">
+        <li><b>Replication:</b> the same playbook across the US, Canadian and UK corridors for Jamaica, Trinidad, Barbados and Guyana. Ten corridors at corridor-one scale is ~US$500M AUM and ~US$4M ARR before any growth in penetration.</li>
+        <li><b>Consolidation kicker:</b> each diaspora account tends to pull in the household's existing domestic holdings (the bond at NCB, the fund at Sagicor). Consolidated assets arrive in large lumps and are already invested, so they convert to fee-bearing AUM immediately. This is the multiplier remittance-only models miss.</li>
+        <li><b>Deepening:</b> penetration at 4% and balances at US$12k are entry assumptions. Mature fintech corridors reach 10%+ of segment; every point of penetration in corridor one alone is ~US$100k ARR.</li>
+      </ul>
+      <p style="margin-top:10px;font-size:13.5px;color:var(--faint)"><b>Sensitivity:</b> the model lives or dies on two inputs: penetration of the target segment and blended take rate. Remittance redirection alone does not carry it; consolidation is what moves balances from US$3k to US$12k+. That is why the seed milestone is defined as a working corridor with a measured take rate, not signups.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="snum">04 / Product</div>
+    <h2>Built, not slideware.</h2>
+    <p>The working product unifies holdings across partners, runs a conversational capital agent that acts inside client-set limits, escalates larger moves for one-tap approval, and gives each partner its own console for the order flow it receives. Approving a deal on the client side routes a real order into the partner side in the same session.</p>
+    <ul>
+      <li><b>Client app:</b> unified portfolio, agent, opportunities marketplace, cross-border planning, KYC onboarding.</li>
+      <li><b>Partner console:</b> a separate surface where institutions accept and settle routed orders, manage listings, and see referred-client KYC.</li>
+      <li><b>Guardrails:</b> the agent proposes; a server-side limits engine and human approval are the only paths to execution, with an immutable audit trail.</li>
+    </ul>
+    <p><a href="./index.html" target="_blank" rel="noopener">Open the product</a> &nbsp;·&nbsp; <a href="./story.html" target="_blank" rel="noopener">Watch the 2-minute guided tour</a></p>
+  </section>
+
+  <section>
+    <div class="snum">05 / Business model</div>
+    <h2>Four ways one consolidated dollar pays.</h2>
+    <div class="scroller"><table class="model">
+      <thead><tr><th>Line</th><th>What</th><th>Who pays</th></tr></thead>
+      <tbody>
+        <tr><td>Platform</td><td>Flat subscription for the unified account and agent</td><td>Client</td></tr>
+        <tr><td>Distribution</td><td>Basis points on AUM routed to and held at partners</td><td>Partner</td></tr>
+        <tr><td>Transaction</td><td>Thin routing fee on executed instructions</td><td>Partner / client</td></tr>
+        <tr><td>Protection</td><td>Referral economics on planning products (insurance, retirement, mortgage) placed with licensed providers</td><td>Provider</td></tr>
+      </tbody>
+    </table></div>
+    <p style="margin-top:14px">The model is deliberately partner-aligned: we are paid most when a partner gains AUM they would not have won on their own. No hidden spreads, and each partner's product fees are shown to the client before approval. Unit economics (blended take rate on consolidated AUM, CAC via the diaspora corridor, payback) are illustrative today and are the core thing the seed round exists to prove.</p>
+  </section>
+
+  <section>
+    <div class="snum">06 / Moat</div>
+    <h2>The wedge is easy. The compounding is the moat.</h2>
+    <div class="grid2">
+      <div class="card"><h3>Partner integrations</h3><p>Each licensed integration is slow and relationship-heavy, which is exactly why a network of them is hard to copy. First mover on the shelf sets the default.</p></div>
+      <div class="card"><h3>Two-sided network</h3><p>More partners mean better agent matches, which bring more investors, which bring partners more AUM, which attracts more partners. Neutral aggregation is a position no single incumbent can occupy.</p></div>
+      <div class="card"><h3>Regulatory posture</h3><p>Being the orchestration layer that never touches custody or execution is a deliberate, defensible position that keeps us light while partners carry the licensed duties.</p></div>
+      <div class="card"><h3>Data and trust</h3><p>Cross-partner holdings, suitability and outcomes give the agent context no single institution has, and the audit trail earns the trust that lets clients grant real limits.</p></div>
+    </div>
+    <p style="margin-top:14px;font-size:13.5px;color:var(--faint)">We are not claiming a moat today. We are claiming a credible path to one, and the first integration plus the first corridor are what turn the claim into evidence.</p>
+  </section>
+
+  <section>
+    <div class="snum">07 / Regulatory strategy</div>
+    <span class="tag">The question every serious investor asks first</span>
+    <h2>We orchestrate. Partners are regulated.</h2>
+    <p>An agent that recommends and routes orders can constitute regulated activity, and we treat that as the central execution risk rather than hand-waving it. Our position: CCN is an introducer and technology layer. Custody, execution, suitability sign-off and KYC/AML remain with the FSC-licensed partner on every transaction. The agent surfaces and prepares; a licensed entity is always the actor of record.</p>
+    <ul>
+      <li><b>Per-jurisdiction:</b> we scope the licensing path (introducer vs advisory) with counsel in each market before we route a single order there.</li>
+      <li><b>Consent-based KYC:</b> we link a partner's existing verification with client consent; we do not become the KYC owner.</li>
+      <li><b>Auditability:</b> every proposed, approved and executed action is logged immutably, so a regulator or partner can reconstruct any decision.</li>
+      <li><b>Data residency:</b> client data is held in-region.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="snum">08 / Go to market</div>
+    <h2>Solve the cold start with one corridor and one anchor.</h2>
+    <p>Two-sided products die trying to boil the ocean. We do not launch eight partners and every diaspora at once. We land <b>one anchor institution</b> that wants distribution and <b>one diaspora corridor</b> (for example, the UK or US Jamaican community) and make that single loop work end to end before widening. Supply and demand are seeded together, in one market, deliberately narrow.</p>
+    <div class="grid3">
+      <div class="card"><h3>Beachhead</h3><p>One corridor, one anchor partner, one flagship instrument set. Prove the routed-order loop and the take rate.</p></div>
+      <div class="card"><h3>Expand supply</h3><p>Add partners onto proven demand. Each new listing improves agent matches for the users already there.</p></div>
+      <div class="card"><h3>Expand corridors</h3><p>Replicate the loop into the next diaspora market once CAC and retention hold in the first.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="snum">09 / Competition</div>
+    <h2>Everyone owns a slice. Nobody owns the account.</h2>
+    <ul>
+      <li><b>Incumbent apps (NCB, JMMB, Sagicor):</b> excellent for their own products, structurally unable to show or advise on a competitor's. They cannot be the neutral layer.</li>
+      <li><b>Remittance and neobank apps:</b> move money well, but stop at the wallet. No invested products, no suitability, no regional custody.</li>
+      <li><b>Generic aggregators / robo-advisors:</b> built for US/UK rails and products; they do not have the Caribbean partner relationships or the diaspora corridor focus.</li>
+    </ul>
+    <p>CCN wins by being the one place that is neutral across partners, agent-native, and built for the region-plus-diaspora reality rather than retrofitted to it.</p>
+  </section>
+
+  <section>
+    <div class="snum">10 / Traction and roadmap</div>
+    <h2>Honest about the stage.</h2>
+    <p>This is pre-revenue. We are not going to show you invented AUM. What exists is a functional two-sided product and a clear thesis. The seed round buys the evidence.</p>
+    <div class="grid2">
+      <div class="card"><h3>Now</h3><p>Working client app and partner console; regulatory scoping underway; design-partner conversations with anchor institutions.</p></div>
+      <div class="card"><h3>Next 12 months</h3><p>First signed partner integration, first diaspora corridor live, first cohort of funded accounts, and a validated blended take rate on real consolidated AUM.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="teal-card card">
+      <div class="snum" style="color:#f0b98d">11 / The ask</div>
+      <h2>Seed round to prove one corridor.</h2>
+      <p>We are raising a seed round to fund the first partner integration, the first diaspora corridor, the regulatory groundwork in the launch market, and the small team to run the loop. The milestone this round is judged on is a single working corridor with a defensible take rate, not vanity user counts. Round size, structure and use-of-funds detail are in the data room.</p>
+    </div>
+  </section>
+
+  <section class="risk">
+    <div class="snum">12 / Key risks</div>
+    <h2>What could sink this.</h2>
+    <div class="grid2">
+      <div class="card risk"><h3>Regulatory</h3><p>A jurisdiction could deem the agent to be giving regulated advice. Mitigation: introducer posture, counsel per market, licensed partner as actor of record.</p></div>
+      <div class="card risk"><h3>Partner dependence</h3><p>Early reliance on one or two anchors. Mitigation: neutral positioning and fast follow-on integrations once demand is proven.</p></div>
+      <div class="card risk"><h3>Cold start</h3><p>Two-sided liquidity is hard. Mitigation: one narrow corridor seeded on both sides before expansion.</p></div>
+      <div class="card risk"><h3>Take rate</h3><p>Blended economics are unproven. Mitigation: this is precisely what the seed milestone validates before scaling spend.</p></div>
+    </div>
+  </section>
+
+</div>
+
+<footer><div class="wrap">
+  Caribbean Capital Network. Investor brief for discussion. Figures are illustrative and to be validated in diligence. &nbsp;·&nbsp;
+  <a href="./index.html" target="_blank" rel="noopener">Product</a> &nbsp;·&nbsp; <a href="./story.html" target="_blank" rel="noopener">Guided tour</a>
+</div></footer>
+</body>
+</html>
