@@ -37,6 +37,11 @@ jobs:
 
   secret-scan:
     runs-on: ubuntu-latest
+    # gitleaks-action enumerates the PR's commits via the API on pull_request
+    # events, which needs pull-requests:read on top of the workflow default.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
