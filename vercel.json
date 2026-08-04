@@ -3,6 +3,5 @@
   "framework": null,
   "buildCommand": "",
   "installCommand": "",
-  "outputDirectory": ".",
-  "comment": "TEMPORARY (Phase 1): serve the existing static prototype from repo root unchanged. Phase 2 replaces this with the Next.js app in apps/web (rootDirectory)."
+  "outputDirectory": "."
 }
