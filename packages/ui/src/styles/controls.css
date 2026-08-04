@@ -1,0 +1,82 @@
+/* Appearance controls — native inputs styled as chips; visible checked + focus states. */
+
+.ccn-field {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+.ccn-legend {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+}
+.ccn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.ccn-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.ccn-chip input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.ccn-chip:has(input:checked) {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  border-color: var(--primary);
+}
+.ccn-chip:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* size-preview text so "Comfortable → Largest" reads at its own weight */
+.ccn-chip[data-scale="base"] {
+  font-size: 1rem;
+}
+.ccn-chip[data-scale="lg"] {
+  font-size: 1.06rem;
+}
+.ccn-chip[data-scale="xl"] {
+  font-size: 1.12rem;
+}
+.ccn-chip[data-scale="xxl"] {
+  font-size: 1.2rem;
+}
+
+.ccn-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--target-min);
+  cursor: pointer;
+}
+.ccn-switch input {
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  accent-color: var(--primary);
+}

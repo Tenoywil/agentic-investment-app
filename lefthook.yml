@@ -1,0 +1,17 @@
+# Fast local guards. Install with `bunx lefthook install` (runs via `bun run prepare`).
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: '*.{js,jsx,ts,tsx,json,jsonc,css}'
+      run: bunx biome check --no-errors-on-unmatched {staged_files}
+    typecheck:
+      run: bun run typecheck
+    gitleaks:
+      # Soft-skip when gitleaks is not installed locally; CI runs it unconditionally.
+      run: command -v gitleaks >/dev/null 2>&1 && gitleaks protect --staged --no-banner || true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: bunx commitlint --edit {1}

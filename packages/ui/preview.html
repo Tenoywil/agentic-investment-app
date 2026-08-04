@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CCN design system — preview</title>
+<script>
+/* no-flash init (mirrors src/theme/init.ts) */
+(function(){try{var d=document.documentElement;
+var scale=localStorage.getItem('ccn.uiScale')||'base';
+var theme=localStorage.getItem('ccn.theme')||'system';
+var contrast=localStorage.getItem('ccn.contrast')||'normal';
+var dark=theme==='dark'||(theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);
+d.setAttribute('data-theme',dark?'dark':'light');
+d.setAttribute('data-contrast',contrast);
+if(scale&&scale!=='base')d.setAttribute('data-ui-scale',scale);
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="./src/styles/index.css" />
+<style>
+  .wrap { max-width: 60rem; margin: 0 auto; padding: var(--sp-6) var(--sp-5) var(--sp-8); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--sp-4); align-items: center; }
+  .card { padding: var(--sp-5); margin-top: var(--sp-4); }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
+  .sw { border-radius: var(--radius-md); border: 1px solid var(--border); overflow: hidden; }
+  .sw .chip { height: 3rem; } .sw .lbl { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-caption); }
+  .controls { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--border); padding: var(--sp-4) var(--sp-5); z-index: 5; }
+  .controls-inner { max-width: 60rem; margin: 0 auto; display: grid; gap: var(--sp-4); }
+  .scaleline { font-family: var(--font-mono); font-size: var(--fs-caption); color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="controls">
+    <div class="controls-inner">
+      <fieldset class="ccn-field">
+        <legend class="ccn-legend">Text size (scales the whole page)</legend>
+        <div class="ccn-chips" id="sizes"></div>
+      </fieldset>
+      <div class="row">
+        <fieldset class="ccn-field">
+          <legend class="ccn-legend">Theme</legend>
+          <div class="ccn-chips" id="themes"></div>
+        </fieldset>
+        <label class="ccn-switch"><input type="checkbox" id="contrast" /> Higher contrast</label>
+      </div>
+      <div class="scaleline" id="scaleline"></div>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <p class="ccn-legend" style="color: var(--accent)">Caribbean Capital Network · design system</p>
+    <h1>One agent for your whole portfolio.</h1>
+    <p class="prose">Built for a 35-and-up audience: the base text is 18px, targets are at least
+      48px, and every element is sized in rem, so this control — and the browser's own zoom — scale
+      the entire interface together, not just the words.</p>
+
+    <div class="row">
+      <button class="btn btn-primary">Review &amp; approve</button>
+      <button class="btn btn-secondary">Keep browsing</button>
+    </div>
+
+    <div class="surface card">
+      <h3>Type scale</h3>
+      <div style="font-size: var(--fs-display); font-family: var(--font-display)">Display 2.75rem</div>
+      <div style="font-size: var(--fs-heading); font-family: var(--font-display)">Heading 1.875rem</div>
+      <div style="font-size: var(--fs-title); font-family: var(--font-display)">Title 1.5rem</div>
+      <div style="font-size: var(--fs-body-lg)">Body large 1.125rem</div>
+      <div style="font-size: var(--fs-body)">Body 1rem (18px at Comfortable)</div>
+      <div style="font-size: var(--fs-caption); color: var(--text-muted)">Caption 0.875rem · labels only</div>
+    </div>
+
+    <div class="surface card">
+      <h3>Semantic colours</h3>
+      <div class="swatches">
+        <div class="sw"><div class="chip" style="background: var(--primary)"></div><div class="lbl">primary</div></div>
+        <div class="sw"><div class="chip" style="background: var(--accent)"></div><div class="lbl">accent</div></div>
+        <div class="sw"><div class="chip" style="background: var(--success)"></div><div class="lbl">success</div></div>
+        <div class="sw"><div class="chip" style="background: var(--warning)"></div><div class="lbl">warning</div></div>
+        <div class="sw"><div class="chip" style="background: var(--danger)"></div><div class="lbl">danger</div></div>
+        <div class="sw"><div class="chip" style="background: var(--surface); border-bottom: 1px solid var(--border)"></div><div class="lbl">surface</div></div>
+      </div>
+    </div>
+  </main>
+
+<script>
+  var d = document.documentElement;
+  var SIZES = [['base','Comfortable'],['lg','Large'],['xl','Larger'],['xxl','Largest']];
+  var THEMES = [['light','Light'],['dark','Dark'],['system','System']];
+
+  function px(){ return getComputedStyle(d).fontSize; }
+  function refresh(){
+    var s = localStorage.getItem('ccn.uiScale')||'base';
+    document.getElementById('scaleline').textContent =
+      'root font-size = ' + px() + '  ·  data-ui-scale=' + s +
+      '  ·  data-theme=' + d.getAttribute('data-theme') +
+      '  ·  data-contrast=' + d.getAttribute('data-contrast');
+  }
+  function chip(name, val, label, checked){
+    var l = document.createElement('label'); l.className='ccn-chip'; if(name==='ccn-text-size') l.setAttribute('data-scale',val);
+    var i = document.createElement('input'); i.type='radio'; i.name=name; i.value=val; i.checked=checked;
+    l.appendChild(i); l.appendChild(document.createTextNode(label)); return l;
+  }
+  var sizeWrap = document.getElementById('sizes');
+  SIZES.forEach(function(o){
+    var cur = (localStorage.getItem('ccn.uiScale')||'base')===o[0];
+    var c = chip('ccn-text-size', o[0], o[1], cur);
+    c.querySelector('input').addEventListener('change', function(){
+      localStorage.setItem('ccn.uiScale', o[0]);
+      if(o[0]==='base') d.removeAttribute('data-ui-scale'); else d.setAttribute('data-ui-scale', o[0]);
+      refresh();
+    });
+    sizeWrap.appendChild(c);
+  });
+  var themeWrap = document.getElementById('themes');
+  THEMES.forEach(function(o){
+    var cur = (localStorage.getItem('ccn.theme')||'system')===o[0];
+    var c = chip('ccn-theme', o[0], o[1], cur);
+    c.querySelector('input').addEventListener('change', function(){
+      localStorage.setItem('ccn.theme', o[0]);
+      var dark = o[0]==='dark' || (o[0]==='system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      d.setAttribute('data-theme', dark?'dark':'light'); refresh();
+    });
+    themeWrap.appendChild(c);
+  });
+  var cb = document.getElementById('contrast');
+  cb.checked = (localStorage.getItem('ccn.contrast')||'normal')==='high';
+  cb.addEventListener('change', function(){
+    var v = cb.checked?'high':'normal';
+    localStorage.setItem('ccn.contrast', v); d.setAttribute('data-contrast', v); refresh();
+  });
+  refresh();
+</script>
+</body>
+</html>
