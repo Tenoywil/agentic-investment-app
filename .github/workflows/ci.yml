@@ -45,7 +45,9 @@ jobs:
         image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          # Ephemeral CI-only container on localhost — no password (trust auth),
+          # so there is no credential literal to leak.
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: ccn_test
         ports:
           - 5432:5432
@@ -55,7 +57,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ccn_test
+      DATABASE_URL: postgres://postgres@localhost:5432/ccn_test
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }

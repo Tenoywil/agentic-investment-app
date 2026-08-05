@@ -40,16 +40,16 @@ export function createDb(
 /** Tenant context applied to every request-scoped transaction for RLS. */
 export interface RlsContext {
   /** Authenticated end-user id; drives `app.current_user_id` in policies. */
-  userId?: string;
+  userId?: string | undefined;
   /** Bound partner id for partner-operator sessions; drives `app.current_partner_id`. */
-  partnerId?: string;
+  partnerId?: string | undefined;
   /** App RBAC role (e.g. 'compliance', 'admin'); exposed to policies via
    *  `app.current_role` (e.g. compliance-wide audit visibility). */
-  appRole?: string;
+  appRole?: string | undefined;
   /** Postgres role to SET LOCAL. In tests/dev we drop to the non-superuser
    *  `ccn_app` so policies apply; in production the connection is already that
    *  role, so leave it undefined. */
-  dbRole?: string;
+  dbRole?: string | undefined;
 }
 
 /**

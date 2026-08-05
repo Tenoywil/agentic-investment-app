@@ -26,14 +26,19 @@ const SECRET_KEYS = new Set([
 const serverSchema = z.object({
   APP_ENV: appEnv.default('development'),
   NODE_ENV: z.string().default('development'),
+  PORT: z.coerce.number().int().positive().default(3001),
 
   // Database / Supabase (Postgres + Storage only)
   DATABASE_URL: z.string().url(),
+  // Non-superuser role the request transaction drops to (SET LOCAL ROLE) so RLS
+  // is enforced. In prod the connection is already this role, making it a no-op.
+  DB_APP_ROLE: z.string().min(1).default('ccn_app'),
   SUPABASE_URL: z.string().url(),
   SUPABASE_STORAGE_BUCKET: z.string().min(1).default('ccn-private'),
 
   // Auth
   BETTER_AUTH_URL: z.string().url(),
+  APP_WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
