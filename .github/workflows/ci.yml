@@ -36,9 +36,10 @@ jobs:
         run: bun run test
 
   db:
-    # Applies migrations and runs the RLS + immutable-audit suite against a real
-    # Postgres with pgvector — the tests SET LOCAL ROLE to a non-superuser so
-    # Row-Level Security is actually exercised.
+    # Applies migrations and runs the RLS + immutable-audit suite AND the
+    # trading integration suite (gate → order → accept → settle + realtime NOTIFY)
+    # against a real Postgres with pgvector — the tests SET LOCAL ROLE to a
+    # non-superuser so Row-Level Security is actually exercised.
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -72,9 +73,8 @@ jobs:
       - name: Seed (prototype dataset)
         working-directory: packages/db
         run: bun run db:seed
-      - name: RLS + audit integration tests
-        working-directory: packages/db
-        run: bun test
+      - name: RLS + audit + trading integration tests
+        run: bun test packages/db apps/api
 
   secret-scan:
     runs-on: ubuntu-latest

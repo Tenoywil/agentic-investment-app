@@ -6,6 +6,10 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { AppDeps, AppEnv } from './context';
 import { withTenant } from './context';
 import { requireAuth, sessionMiddleware } from './middleware';
+import { approvalsRoutes } from './routes/approvals';
+import { consoleRoutes } from './routes/console';
+import { ordersRoutes } from './routes/orders';
+import { portfolioRoutes } from './routes/portfolio';
 
 /**
  * The CCN API surface. Better Auth owns /api/auth/*; every other /api/* route is
@@ -40,6 +44,13 @@ export function createApp(deps: AppDeps) {
     });
     return c.json({ user: tenant.user, roles: tenant.roles, ...data });
   });
+
+  // Trading surface: the Limits-Engine-gated order path, approval cards, the
+  // unified portfolio, and the partner console's order flow.
+  app.route('/api/orders', ordersRoutes(deps));
+  app.route('/api/approvals', approvalsRoutes(deps));
+  app.route('/api/portfolio', portfolioRoutes(deps));
+  app.route('/api/console', consoleRoutes(deps));
 
   return app;
 }

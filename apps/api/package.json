@@ -13,6 +13,9 @@
   "dependencies": {
     "@ccn/config": "workspace:*",
     "@ccn/db": "workspace:*",
+    "@ccn/domain": "workspace:*",
+    "@ccn/limits-engine": "workspace:*",
+    "@ccn/money": "workspace:*",
     "better-auth": "1.2.8",
     "drizzle-orm": "0.44.2",
     "hono": "4.6.14",

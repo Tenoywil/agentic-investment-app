@@ -1,7 +1,6 @@
-import { userRoles } from '@ccn/db';
-import { eq } from 'drizzle-orm';
 import { createMiddleware } from 'hono/factory';
-import type { AppDeps, AppEnv, SessionUser, TenantContext } from './context';
+import type { AppDeps, AppEnv, SessionUser } from './context';
+import { tenantFromUser } from './tenant';
 
 /** Resolve the Better Auth session (if any) and attach the user to the context. */
 export function sessionMiddleware(deps: AppDeps) {
@@ -28,27 +27,7 @@ export function requireAuth(deps: AppDeps) {
   return createMiddleware<AppEnv>(async (c, next) => {
     const user = c.get('user');
     if (!user) return c.json({ error: 'authentication required' }, 401);
-
-    const roleRows = await deps.db
-      .select({ role: userRoles.role, partnerId: userRoles.partnerId })
-      .from(userRoles)
-      .where(eq(userRoles.userId, user.id));
-
-    const roles = roleRows.map((r) => r.role);
-    const partnerId = roleRows.find((r) => r.role === 'partner_operator')?.partnerId ?? undefined;
-    const appRole = roles.includes('admin')
-      ? 'admin'
-      : roles.includes('compliance')
-        ? 'compliance'
-        : undefined;
-
-    const tenant: TenantContext = {
-      user,
-      roles,
-      ...(partnerId ? { partnerId } : {}),
-      ...(appRole ? { appRole } : {}),
-    };
-    c.set('tenant', tenant);
+    c.set('tenant', await tenantFromUser(deps, user));
     await next();
   });
 }
