@@ -19,9 +19,24 @@ const SECRET_KEYS = new Set([
   'BETTER_AUTH_SECRET',
   'GOOGLE_CLIENT_SECRET',
   'OPENAI_API_KEY',
+  'MINIMAX_SECRET',
   'FIELD_ENCRYPTION_KEY',
   'SENTRY_DSN',
 ]);
+
+/**
+ * Provider-branded aliases for the AI gateway key. The Impala gateway is
+ * OpenAI-compatible, so `OPENAI_API_KEY` is canonical and everything downstream
+ * reads that; `MINIMAX_SECRET` is honored as a fallback (some deploy platforms
+ * name the secret after the model). An explicit `OPENAI_API_KEY` always wins.
+ * Returns a copy — the caller's env object is never mutated.
+ */
+function withAliases(
+  source: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  if (source.OPENAI_API_KEY || !source.MINIMAX_SECRET) return source;
+  return { ...source, OPENAI_API_KEY: source.MINIMAX_SECRET };
+}
 
 const serverSchema = z.object({
   APP_ENV: appEnv.default('development'),
@@ -73,7 +88,7 @@ function format(error: z.ZodError): string {
 export function loadServerConfig(
   source: Record<string, string | undefined> = process.env,
 ): ServerConfig {
-  const parsed = serverSchema.safeParse(source);
+  const parsed = serverSchema.safeParse(withAliases(source));
   if (!parsed.success) throw new Error(format(parsed.error));
   return Object.freeze(parsed.data);
 }

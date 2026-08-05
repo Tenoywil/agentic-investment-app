@@ -32,6 +32,24 @@ group('loadServerConfig', () => {
     expect(() => loadServerConfig(missing)).toThrow(/OPENAI_API_KEY/);
   });
 
+  test('accepts MINIMAX_SECRET as an alias for the gateway key', () => {
+    const { OPENAI_API_KEY, ...rest } = valid;
+    const cfg = loadServerConfig({ ...rest, MINIMAX_SECRET: 'sk-minimax' });
+    expect(cfg.OPENAI_API_KEY).toBe('sk-minimax');
+  });
+
+  test('an explicit OPENAI_API_KEY wins over MINIMAX_SECRET', () => {
+    const cfg = loadServerConfig({ ...valid, MINIMAX_SECRET: 'sk-alias' });
+    expect(cfg.OPENAI_API_KEY).toBe('sk-test');
+  });
+
+  test('does not mutate the caller env when applying the alias', () => {
+    const { OPENAI_API_KEY, ...rest } = valid;
+    const env = { ...rest, MINIMAX_SECRET: 'sk-minimax' };
+    loadServerConfig(env);
+    expect('OPENAI_API_KEY' in env).toBe(false);
+  });
+
   test('describe() redacts secret values', () => {
     const view = describe(loadServerConfig(valid));
     expect(view.OPENAI_API_KEY).toBe('***');
