@@ -8,6 +8,11 @@
     "node": ">=22"
   },
   "workspaces": ["apps/*", "packages/*"],
+  "//overrides": "Pin one React 19 type surface across the monorepo so packages authored against @types/react 18 (e.g. @ccn/ui) match the Next 15 app.",
+  "overrides": {
+    "@types/react": "19.0.2",
+    "@types/react-dom": "19.0.2"
+  },
   "scripts": {
     "lint": "biome check .",
     "format": "biome format --write .",

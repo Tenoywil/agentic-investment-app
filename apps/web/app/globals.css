@@ -1,0 +1,274 @@
+/*
+ * App layout on top of the @ccn/ui design tokens. Everything is expressed in the
+ * token scale (rem type, 8pt spacing, semantic colour roles) so the text-size and
+ * theme controls scale the whole page together. No hardcoded px/hex here.
+ */
+
+.skip-link {
+  position: absolute;
+  left: var(--sp-3);
+  top: -4rem;
+  z-index: 20;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-4);
+  transition: top 0.15s ease;
+}
+.skip-link:focus-visible {
+  top: var(--sp-3);
+  outline: 3px solid var(--focus);
+}
+
+.container {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: var(--sp-5);
+}
+
+/* ---------- Buttons (base.css already enforces >=48px targets) ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border-radius: var(--radius-md);
+  padding: 0 var(--sp-5);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-body);
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  border-color: var(--primary);
+}
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-block {
+  width: 100%;
+}
+
+/* ---------- Header ---------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.site-header__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding-block: var(--sp-3);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-body-lg);
+  color: var(--text);
+  text-decoration: none;
+}
+.brand__mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-weight: var(--fw-bold);
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: var(--text);
+  text-decoration: none;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  font-weight: var(--fw-medium);
+}
+.site-nav a:hover {
+  background: var(--surface);
+}
+
+/* ---------- Sections ---------- */
+.section {
+  padding-block: var(--sp-8);
+}
+.section--tight {
+  padding-block: var(--sp-6);
+}
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  color: var(--accent);
+}
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-heading);
+  margin: var(--sp-3) 0 var(--sp-4);
+  max-width: 18ch;
+}
+.lead {
+  font-size: var(--fs-body-lg);
+  line-height: var(--lh-long);
+  color: var(--text-muted);
+  max-width: var(--measure);
+}
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+
+/* ---------- Cards / grids ---------- */
+.grid {
+  display: grid;
+  gap: var(--sp-5);
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+}
+.card h3 {
+  font-size: var(--fs-title);
+  margin: 0 0 var(--sp-2);
+}
+.card p {
+  color: var(--text-muted);
+  line-height: var(--lh-long);
+  margin: 0;
+}
+.step-index {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-weight: var(--fw-bold);
+  margin-bottom: var(--sp-3);
+}
+
+/* ---------- Partner strip ---------- */
+.partner-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+.partner-chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-caption);
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Trust note ---------- */
+.trust {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+}
+
+/* ---------- Auth / onboarding panels ---------- */
+.panel {
+  max-width: 34rem;
+  margin-inline: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
+}
+.panel h1 {
+  font-size: var(--fs-heading);
+  margin: 0 0 var(--sp-2);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.field > label {
+  font-weight: var(--fw-semibold);
+}
+.field input[type="text"],
+.field input[type="email"] {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--sp-4);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-body);
+}
+.stepbar {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-5);
+  list-style: none;
+  padding: 0;
+  flex-wrap: wrap;
+}
+.stepbar li {
+  flex: 1 1 6rem;
+  border-top: 3px solid var(--border);
+  padding-top: var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+}
+.stepbar li[data-state="done"],
+.stepbar li[data-state="current"] {
+  border-top-color: var(--primary);
+  color: var(--text);
+}
+
+/* ---------- Footer ---------- */
+.site-footer {
+  border-top: 1px solid var(--border);
+  margin-top: var(--sp-8);
+  padding-block: var(--sp-7);
+  color: var(--text-muted);
+}
+.site-footer__cols {
+  display: grid;
+  gap: var(--sp-6);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
