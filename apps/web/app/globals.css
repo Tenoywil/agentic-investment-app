@@ -259,6 +259,19 @@ button:focus-visible {
   outline-color: #0e5952;
 }
 
+/* Visually hidden, still exposed to assistive tech (for input labels etc). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Reduced motion (2.3.3 / prefers-reduced-motion). */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -301,6 +314,27 @@ button:focus-visible {
   grid-template-columns: 1.3fr 1fr;
   gap: 18px;
 }
+.g-agent {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.g4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+@media (max-width: 1100px) {
+  .g4 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .g4 {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 1000px) {
   .g5 {
     grid-template-columns: repeat(3, 1fr);
@@ -310,7 +344,8 @@ button:focus-visible {
   .g-hero,
   .g2,
   .g3,
-  .g-held {
+  .g-held,
+  .g-agent {
     grid-template-columns: 1fr;
   }
   .g5 {
@@ -334,9 +369,33 @@ button:focus-visible {
   .app-sidebar .app-sidebar__agentcard {
     display: none !important;
   }
+  .console-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+  }
 }
 @media (max-width: 560px) {
   .g5 {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---- Native <dialog> for the exec / approval modals (APG dialog pattern:
+   focus trap, Escape, focus return all come from showModal()). ---- */
+dialog.ccn-modal {
+  width: 100%;
+  max-width: 468px;
+  max-height: 90vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0;
+  border: none;
+  border-radius: 22px;
+  background: #fdfcfa;
+  color: #1e1c19;
+  box-shadow: 0 30px 80px rgba(30, 20, 10, 0.42);
+}
+dialog.ccn-modal::backdrop {
+  background: rgba(30, 22, 12, 0.44);
 }
