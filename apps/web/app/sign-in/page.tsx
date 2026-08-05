@@ -144,7 +144,7 @@ export default function SignInPage() {
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
             <span style={{ height: 1, flex: 1, background: '#e4e0d6' }} />
-            <span style={{ fontSize: 13, color: '#8c8478' }}>or</span>
+            <span style={{ fontSize: 13, color: '#675d4d' }}>or</span>
             <span style={{ height: 1, flex: 1, background: '#e4e0d6' }} />
           </div>
           <button
@@ -173,7 +173,7 @@ export default function SignInPage() {
               gap: 8,
               marginTop: 22,
               fontSize: 13,
-              color: '#8c8478',
+              color: '#675d4d',
             }}
           >
             <svg
@@ -182,7 +182,7 @@ export default function SignInPage() {
               height="14"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#8c8478"
+              stroke="#675d4d"
               strokeWidth={2}
             >
               <rect x="4" y="11" width="16" height="10" rx="2" />

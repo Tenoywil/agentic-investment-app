@@ -142,7 +142,7 @@ export default function LandingPage() {
       .social({ provider: 'google', callbackURL: `${window.location.origin}/onboarding` })
       .catch(() => {});
   };
-  const demo = () => router.push('/onboarding');
+  const demo = () => router.push('/home');
 
   return (
     <div
@@ -267,7 +267,7 @@ export default function LandingPage() {
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0a8f5b' }} />
             The financial operating system of the Caribbean
           </div>
-          <div
+          <h1
             data-hero-h1
             style={{
               fontFamily: DISPLAY,
@@ -275,10 +275,11 @@ export default function LandingPage() {
               fontSize: 53,
               lineHeight: 1.04,
               letterSpacing: '-1.6px',
+              margin: 0,
             }}
           >
             One agent for your whole Caribbean portfolio.
-          </div>
+          </h1>
           <p
             style={{
               margin: '20px 0 0',
@@ -326,7 +327,7 @@ export default function LandingPage() {
               gap: 14,
               marginTop: 24,
               fontSize: 13.5,
-              color: '#726a5b',
+              color: '#5f5748',
               flexWrap: 'wrap',
             }}
           >
@@ -349,7 +350,7 @@ export default function LandingPage() {
             <span>·</span>
             <span>Data held in-region</span>
           </div>
-          <div style={{ marginTop: 13, fontSize: 13, color: '#8a8172' }}>
+          <div style={{ marginTop: 13, fontSize: 13, color: '#675d4d' }}>
             One flat platform fee. Each partner's product fees are shown before you approve, with no
             hidden spreads from CCN.
           </div>
@@ -446,7 +447,7 @@ export default function LandingPage() {
               <div style={{ fontSize: 14, color: '#2c2925', lineHeight: 1.4, fontWeight: 600 }}>
                 Agent swept US$400 into your money-market fund
               </div>
-              <div style={{ fontSize: 12.5, color: '#8c8478', marginTop: 2 }}>
+              <div style={{ fontSize: 12.5, color: '#675d4d', marginTop: 2 }}>
                 Inside your US$500 limit · 2 days ago
               </div>
             </div>
@@ -519,7 +520,7 @@ export default function LandingPage() {
               fontSize: 13,
               letterSpacing: '.6px',
               textTransform: 'uppercase',
-              color: '#8c8478',
+              color: '#675d4d',
               fontWeight: 600,
             }}
           >
@@ -605,7 +606,7 @@ export default function LandingPage() {
             {
               icon: <IconShield />,
               title: 'Regulated and regional',
-              body: 'Every instrument is custodied and executed by an FSC-licensed partner. KYC, suitability and source-of-funds stay with the partner that already knows you; CCN links your verified status instead of re-collecting it. CCN never holds your money.',
+              body: 'Every instrument is custodied and executed by an FSC-licensed partner, with KYC, suitability and source-of-funds handled for you.',
             },
           ].map((b) => (
             <div key={b.title} style={benefitCard}>
@@ -786,7 +787,7 @@ export default function LandingPage() {
             flexWrap: 'wrap',
             gap: 12,
             fontSize: 13.5,
-            color: '#8c8478',
+            color: '#675d4d',
           }}
         >
           <span>© 2026 Caribbean Capital Network</span>
