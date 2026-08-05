@@ -30,7 +30,8 @@
       "design",
       "screenshots",
       "uploads",
-      "packages/ui/preview.html"
+      "packages/ui/preview.html",
+      "packages/db/migrations"
     ]
   }
 }

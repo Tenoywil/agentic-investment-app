@@ -35,6 +35,45 @@ jobs:
       - name: Test
         run: bun run test
 
+  db:
+    # Applies migrations and runs the RLS + immutable-audit suite against a real
+    # Postgres with pgvector — the tests SET LOCAL ROLE to a non-superuser so
+    # Row-Level Security is actually exercised.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ccn_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ccn_test
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Migrate (tables + RLS + immutable audit + pgvector)
+        working-directory: packages/db
+        run: bun run db:migrate
+      - name: Seed (prototype dataset)
+        working-directory: packages/db
+        run: bun run db:seed
+      - name: RLS + audit integration tests
+        working-directory: packages/db
+        run: bun test
+
   secret-scan:
     runs-on: ubuntu-latest
     # gitleaks-action enumerates the PR's commits via the API on pull_request
@@ -50,5 +89,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Later phases add: Semgrep (SAST), Trivy (SCA), drizzle-kit migration check,
-  # Playwright e2e, agent-eval gate, Vercel preview + Fly staging deploy.
+  # Later phases add: Semgrep (SAST), Trivy (SCA), Playwright e2e,
+  # agent-eval gate, Vercel preview + Fly staging deploy.
