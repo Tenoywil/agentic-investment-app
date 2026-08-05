@@ -1,0 +1,98 @@
+import { type ModelMessage, stepCountIs, streamText } from 'ai';
+import { ResponseCache } from './cache';
+import type { AgentContext } from './context';
+import { SYSTEM_PROMPT } from './prompt';
+import { type GatewayConfig, createGatewayModel } from './provider';
+import { assertReadOnly, buildTools } from './tools';
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface RunAgentArgs {
+  gateway: GatewayConfig;
+  ctx: AgentContext;
+  /** Prior turns, oldest first. */
+  history: ChatMessage[];
+  /** The new user message (already untrusted-wrapped by the caller if needed). */
+  message: string;
+  system?: string;
+  cache?: ResponseCache<string>;
+  /**
+   * Extra key material folded into the cache key so answers are never shared
+   * across users. The tools read the caller's own data, so the cache MUST be
+   * scoped to it — pass a per-user, per-snapshot fingerprint here.
+   */
+  cacheScope?: unknown;
+  /** Max tool-use steps before the model must answer. */
+  maxSteps?: number;
+}
+
+export interface RunAgentResult {
+  /** The reply text, streamed. */
+  textStream: AsyncIterable<string>;
+  /** True when served from the response cache (no gateway call was made). */
+  cached: boolean;
+}
+
+async function* once(text: string): AsyncIterable<string> {
+  yield text;
+}
+
+async function* teeIntoCache(
+  source: AsyncIterable<string>,
+  cache: ResponseCache<string>,
+  key: string,
+): AsyncIterable<string> {
+  let full = '';
+  for await (const chunk of source) {
+    full += chunk;
+    yield chunk;
+  }
+  if (full.length > 0) cache.set(key, full);
+}
+
+/**
+ * Run one agent turn. The tool set is asserted read/propose-only first (defense
+ * in depth), then the model streams a reply, calling only those tools. Identical
+ * turns (same system + history + message) are served from the response cache
+ * without touching the gateway.
+ *
+ * The LLM is confined to this adapter; all decision logic lives in the pure tools
+ * and the Limits Engine, which is why the eval suite can cover behavior without a
+ * live model.
+ */
+export function runAgent(args: RunAgentArgs): RunAgentResult {
+  const system = args.system ?? SYSTEM_PROMPT;
+  const tools = buildTools(args.ctx);
+  assertReadOnly(tools);
+
+  const key = ResponseCache.key({
+    system,
+    history: args.history,
+    message: args.message,
+    scope: args.cacheScope ?? null,
+  });
+  if (args.cache?.has(key)) {
+    return { textStream: once(args.cache.get(key) ?? ''), cached: true };
+  }
+
+  const messages: ModelMessage[] = [
+    ...args.history.map((m) => ({ role: m.role, content: m.content }) as ModelMessage),
+    { role: 'user', content: args.message },
+  ];
+
+  const result = streamText({
+    model: createGatewayModel(args.gateway),
+    system,
+    messages,
+    tools,
+    stopWhen: stepCountIs(args.maxSteps ?? 8),
+  });
+
+  const textStream = args.cache
+    ? teeIntoCache(result.textStream, args.cache, key)
+    : result.textStream;
+  return { textStream, cached: false };
+}

@@ -6,6 +6,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { AppDeps, AppEnv } from './context';
 import { withTenant } from './context';
 import { requireAuth, sessionMiddleware } from './middleware';
+import { agentRoutes } from './routes/agent';
 import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
 import { ordersRoutes } from './routes/orders';
@@ -51,6 +52,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/approvals', approvalsRoutes(deps));
   app.route('/api/portfolio', portfolioRoutes(deps));
   app.route('/api/console', consoleRoutes(deps));
+  app.route('/api/agent', agentRoutes(deps));
 
   return app;
 }

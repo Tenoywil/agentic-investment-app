@@ -54,6 +54,12 @@ export const approveSchema = z.object({
 });
 export type ApproveInput = z.infer<typeof approveSchema>;
 
+/** POST /api/agent/message — a chat turn to the Capital Agent. */
+export const agentMessageSchema = z.object({
+  message: z.string().min(1).max(2000),
+});
+export type AgentMessageInput = z.infer<typeof agentMessageSchema>;
+
 /** POST /api/approvals/:id/reject and console reject — optional reason. */
 export const rejectSchema = z.object({
   reason: z.string().min(1).max(500).optional(),

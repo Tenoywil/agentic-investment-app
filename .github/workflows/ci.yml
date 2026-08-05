@@ -76,6 +76,25 @@ jobs:
       - name: RLS + audit + trading integration tests
         run: bun test packages/db apps/api
 
+  agent-eval:
+    # The agent-eval gate: deterministic golden sets (suitability, blocked-deal
+    # detection, propose-only tool contract) and prompt-injection resistance
+    # (no state-mutating tool exists; untrusted data cannot break out of its
+    # block). Blocks merge on regression. Live-model rationale evals attach here
+    # when the gateway key is configured; they are skipped otherwise, so the gate
+    # never flakes on the network.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Agent eval (golden sets + prompt-injection)
+        run: bun test packages/agent
+
   secret-scan:
     runs-on: ubuntu-latest
     # gitleaks-action enumerates the PR's commits via the API on pull_request
