@@ -54,6 +54,12 @@ export const approveSchema = z.object({
 });
 export type ApproveInput = z.infer<typeof approveSchema>;
 
+/** POST /api/ingestion/pull — pull a partner's statements into the reconciliation queue. */
+export const ingestPullSchema = z.object({
+  partnerCode: z.string().min(2).max(8),
+});
+export type IngestPullInput = z.infer<typeof ingestPullSchema>;
+
 /** POST /api/agent/message — a chat turn to the Capital Agent. */
 export const agentMessageSchema = z.object({
   message: z.string().min(1).max(2000),

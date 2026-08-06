@@ -9,6 +9,7 @@ import { requireAuth, sessionMiddleware } from './middleware';
 import { agentRoutes } from './routes/agent';
 import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
+import { ingestionRoutes } from './routes/ingestion';
 import { ordersRoutes } from './routes/orders';
 import { portfolioRoutes } from './routes/portfolio';
 
@@ -53,6 +54,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/portfolio', portfolioRoutes(deps));
   app.route('/api/console', consoleRoutes(deps));
   app.route('/api/agent', agentRoutes(deps));
+  app.route('/api/ingestion', ingestionRoutes(deps));
 
   return app;
 }

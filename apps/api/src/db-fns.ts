@@ -111,3 +111,24 @@ export async function auditAppend(tx: Transaction, a: AuditArgs): Promise<void> 
       ${JSON.stringify(a.detail ?? {})}::jsonb)`,
   );
 }
+
+/**
+ * Match a pending reconciliation item → a holding, via the SECURITY DEFINER
+ * choke point. Returns the new holding id. Imported holdings are written ONLY
+ * through this function, never a direct INSERT by the app role.
+ */
+export async function reconcileMatch(tx: Transaction, itemId: string): Promise<string> {
+  const result = await tx.execute(sql`select reconcile_match(${itemId}::uuid) as holding_id`);
+  const row = (result as unknown as { holding_id: string }[])[0];
+  if (!row) throw new Error('reconcile_match returned no holding');
+  return row.holding_id;
+}
+
+/** Dismiss a pending reconciliation item without creating a holding. */
+export async function reconcileReject(
+  tx: Transaction,
+  itemId: string,
+  reason: string,
+): Promise<void> {
+  await tx.execute(sql`select reconcile_reject(${itemId}::uuid, ${reason}::text)`);
+}

@@ -1,10 +1,10 @@
-import { orders as ordersTable } from '@ccn/db';
+import { orders as ordersTable, reconciliationItems } from '@ccn/db';
 import { rejectSchema } from '@ccn/domain';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import type { AppDeps, AppEnv, TenantContext } from '../context';
 import { withTenant } from '../context';
-import { acceptOrder, rejectOrder, settleOrder } from '../db-fns';
+import { acceptOrder, reconcileMatch, reconcileReject, rejectOrder, settleOrder } from '../db-fns';
 import { requireAuth } from '../middleware';
 
 /**
@@ -76,6 +76,79 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
       return c.json({ order });
     } catch {
       return c.json({ error: 'order is not in a state you can reject' }, 409);
+    }
+  });
+
+  // ---- Reconciliation (clients & KYC tab): match ingested statement lines ----
+
+  app.get('/reconciliation', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select()
+        .from(reconciliationItems)
+        .where(
+          and(
+            eq(reconciliationItems.partnerId, scope.partnerId),
+            eq(reconciliationItems.status, 'pending'),
+          ),
+        )
+        .orderBy(desc(reconciliationItems.createdAt)),
+    );
+    return c.json({ items: rows });
+  });
+
+  app.post('/reconciliation/:id/match', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const id = c.req.param('id');
+    try {
+      const holdingId = await withTenant(deps, tenant, async (tx) => {
+        // RLS scopes the read to this operator's partner; matching then writes
+        // the holding via the SECURITY DEFINER choke point.
+        const [item] = await tx
+          .select({ id: reconciliationItems.id })
+          .from(reconciliationItems)
+          .where(
+            and(eq(reconciliationItems.id, id), eq(reconciliationItems.partnerId, scope.partnerId)),
+          );
+        if (!item) throw new Error('not found');
+        return reconcileMatch(tx, id);
+      });
+      return c.json({ holdingId });
+    } catch {
+      return c.json({ error: 'item is not pending or not yours' }, 409);
+    }
+  });
+
+  app.post('/reconciliation/:id/reject', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const parsed = rejectSchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!parsed.success)
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+    const id = c.req.param('id');
+    try {
+      await withTenant(deps, tenant, async (tx) => {
+        const [item] = await tx
+          .select({ id: reconciliationItems.id })
+          .from(reconciliationItems)
+          .where(
+            and(eq(reconciliationItems.id, id), eq(reconciliationItems.partnerId, scope.partnerId)),
+          );
+        if (!item) throw new Error('not found');
+        await reconcileReject(tx, id, parsed.data.reason ?? 'rejected at reconciliation');
+      });
+      return c.json({ ok: true });
+    } catch {
+      return c.json({ error: 'item is not pending or not yours' }, 409);
     }
   });
 
