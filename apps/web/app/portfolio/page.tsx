@@ -1,7 +1,9 @@
 'use client';
 
-import { AppScreen, PageHead } from '../_components/AppScreen';
-import { C, Icon, icons } from '../_lib/ui';
+import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { Card } from '@/app/_components/ui/card';
+import { cn } from '@/app/_lib/utils';
+import { ShieldCheck } from 'lucide-react';
 
 const INSTITUTIONS = [
   {
@@ -55,19 +57,9 @@ export default function PortfolioPage() {
         eyebrow="Every holding, unified · custodied by licensed partners"
         title="Your portfolio"
         right={
-          <div
-            style={{
-              background: C.mint,
-              border: `1px solid ${C.line}`,
-              borderRadius: 12,
-              padding: '10px 16px',
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 8,
-            }}
-          >
-            <b style={{ fontFamily: C.disp, fontSize: 20 }}>US$31,350</b>
-            <span style={{ fontSize: 12.5, color: C.dim }}>
+          <div className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5">
+            <b className="font-display text-xl">US$31,350</b>
+            <span className="text-[12.5px] text-dim">
               total
               <br />
               net worth
@@ -78,95 +70,52 @@ export default function PortfolioPage() {
 
       <div className="g2">
         {INSTITUTIONS.map((inst) => (
-          <div
-            key={inst.code}
-            style={{
-              background: C.card,
-              border: `1px solid ${C.line}`,
-              borderRadius: 16,
-              padding: 22,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <Card key={inst.code} className="p-[22px]">
+            <div className="mb-3 flex items-center gap-3">
               <span
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  background: inst.tint,
-                  color: inst.color,
-                  display: 'grid',
-                  placeItems: 'center',
-                  fontFamily: C.mono,
-                  fontWeight: 700,
-                  fontSize: 12,
-                  flex: 'none',
-                }}
+                className="grid h-10 w-10 flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
+                style={{ background: inst.tint, color: inst.color }}
               >
                 {inst.code}
               </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{inst.name}</div>
-                <div style={{ fontSize: 12.5, color: C.faint }}>{inst.kind}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-bold">{inst.name}</div>
+                <div className="text-[12.5px] text-faint">{inst.kind}</div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: C.mono, fontWeight: 700, fontSize: 15 }}>
-                  {inst.total}
-                </div>
-                <div style={{ fontSize: 11.5, color: C.green }}>· FSC-regulated</div>
+              <div className="text-right">
+                <div className="font-mono text-[15px] font-bold">{inst.total}</div>
+                <div className="text-[11.5px] text-[#0a8f5b]">· FSC-regulated</div>
               </div>
             </div>
             {inst.holdings.map((h) => (
               <div
                 key={h.name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  padding: '11px 0',
-                  borderTop: `1px solid ${C.line}`,
-                }}
+                className="flex items-center justify-between gap-3 border-t border-border py-[11px]"
               >
-                <span style={{ fontSize: 14 }}>{h.name}</span>
-                <span style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-                  <b style={{ fontFamily: C.mono, fontSize: 13.5 }}>{h.value}</b>
+                <span className="text-sm">{h.name}</span>
+                <span className="flex items-baseline gap-2.5">
+                  <b className="font-mono text-[13.5px]">{h.value}</b>
                   <span
-                    style={{
-                      fontSize: 13,
-                      color: h.ret === '—' ? C.faint : C.green,
-                      minWidth: 42,
-                      textAlign: 'right',
-                    }}
+                    className={cn(
+                      'min-w-[42px] text-right text-[13px]',
+                      h.ret === '—' ? 'text-faint' : 'text-[#0a8f5b]',
+                    )}
                   >
                     {h.ret}
                   </span>
                 </span>
               </div>
             ))}
-          </div>
+          </Card>
         ))}
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 14,
-          marginTop: 18,
-          background: C.mint,
-          border: `1px solid ${C.line}`,
-          borderRadius: 16,
-          padding: '18px 22px',
-        }}
-      >
-        <span style={{ color: C.teal2, marginTop: 2 }}>
-          <Icon path={icons.planning} size={22} />
-        </span>
-        <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.55, color: C.dim }}>
-          <b style={{ color: C.ink }}>Held at licensed, FSC-regulated partners.</b> Every instrument
-          is custodied and executed by a regulated institution. Your agent coordinates and monitors;
-          you approve every move.
+      <div className="mt-[18px] flex items-start gap-3.5 rounded-2xl border border-border bg-mint px-[22px] py-[18px]">
+        <ShieldCheck className="mt-0.5 h-[22px] w-[22px] flex-none text-teal2" aria-hidden />
+        <p className="m-0 text-[14.5px] leading-relaxed text-dim">
+          <b className="text-foreground">Held at licensed, FSC-regulated partners.</b> Every
+          instrument is custodied and executed by a regulated institution. Your agent coordinates
+          and monitors; you approve every move.
         </p>
       </div>
     </AppScreen>
