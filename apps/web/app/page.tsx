@@ -1,139 +1,71 @@
 'use client';
 
+import { Button } from '@/app/_components/ui/button';
+import { Card } from '@/app/_components/ui/card';
+import { LineChart, type LucideIcon, ShieldCheck, Target, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { CSSProperties } from 'react';
 import { authClient } from '../lib/auth-client';
 
-const MONO = "'IBM Plex Mono', monospace";
-const DISPLAY = "'Bricolage Grotesque', sans-serif";
-const BODY = "'Hanken Grotesk', sans-serif";
-
-const featureCard: CSSProperties = {
-  display: 'flex',
-  gap: 15,
-  padding: '21px 22px',
-  border: '1px solid #e4e0d6',
-  borderRadius: 14,
-  background: '#fdfcfa',
-  cursor: 'pointer',
-};
-const benefitCard: CSSProperties = {
-  background: '#fdfcfa',
-  border: '1px solid #e4e0d6',
-  borderRadius: 14,
-  padding: '24px 22px',
-};
-const benefitIcon: CSSProperties = {
-  width: 44,
-  height: 44,
-  borderRadius: 11,
-  background: '#e8f1ec',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: 16,
-};
-const pipeNum: CSSProperties = {
-  width: 30,
-  height: 30,
-  borderRadius: 8,
-  background: '#e8f1ec',
-  color: '#0e5952',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontFamily: MONO,
-  fontWeight: 700,
-  fontSize: 15,
-  marginBottom: 12,
-};
-
-function IconChart() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#0e5952"
-      strokeWidth={1.9}
-    >
-      <path d="M3 3v18h18" />
-      <path d="M7 14l4-4 3 3 5-6" />
-    </svg>
-  );
-}
-function IconTarget() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#0e5952"
-      strokeWidth={1.9}
-    >
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="2.6" fill="#0e5952" stroke="none" />
-      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-    </svg>
-  );
-}
-function IconShield() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#0e5952"
-      strokeWidth={1.9}
-    >
-      <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z" />
-      <path d="M9.3 12l1.9 1.9 3.6-3.9" />
-    </svg>
-  );
-}
-function IconTrend() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="21"
-      height="21"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#0e5952"
-      strokeWidth={1.9}
-    >
-      <path d="M3 17l6-6 4 4 8-8M21 7v5M21 7h-5" />
-    </svg>
-  );
-}
 function GoogleG() {
   return (
-    <span
-      style={{
-        width: 22,
-        height: 22,
-        borderRadius: '50%',
-        background: '#fff',
-        border: '1px solid #e4e0d6',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: DISPLAY,
-        fontWeight: 700,
-        fontSize: 14,
-        color: '#3f7ae0',
-      }}
-    >
+    <span className="grid h-[22px] w-[22px] place-items-center rounded-full border border-border bg-white font-display text-sm font-bold text-[#3f7ae0]">
       G
     </span>
   );
 }
+
+const CONTAINER = 'mx-auto max-w-[1200px] px-10 max-[760px]:px-[22px] max-[440px]:px-[18px]';
+const SEC_H1 =
+  'font-display font-bold tracking-tight max-[760px]:text-[25px] max-[760px]:tracking-[-.4px]';
+
+const BENEFITS: { Icon: LucideIcon; title: string; body: string }[] = [
+  {
+    Icon: LineChart,
+    title: 'One portfolio, every partner',
+    body: 'See and manage holdings across eight licensed institutions in a single live view: net worth, yield and allocation, unified.',
+  },
+  {
+    Icon: Target,
+    title: 'An agent inside your limits',
+    body: 'It surfaces regional opportunities, checks each against your risk band, and acts up to the limits you set. Anything larger comes to you to approve.',
+  },
+  {
+    Icon: ShieldCheck,
+    title: 'Regulated and regional',
+    body: 'Every instrument is custodied and executed by an FSC-licensed partner, with KYC, suitability and source-of-funds handled for you.',
+  },
+];
+
+const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
+  {
+    Icon: LineChart,
+    title: 'Unified portfolio',
+    body: 'Every holding across every partner, valued live in your chosen currency.',
+  },
+  {
+    Icon: TrendingUp,
+    title: 'Opportunities marketplace',
+    body: 'Bonds, funds, real estate and private credit from across the region, matched to your goals.',
+  },
+  {
+    Icon: Target,
+    title: 'Capital agent',
+    body: 'Chat or talk to an agent that plans, screens and executes on your say-so, inside your limits.',
+  },
+  {
+    Icon: ShieldCheck,
+    title: 'Planning & protection',
+    body: 'Life cover, retirement, mortgages and estate planning that work across borders.',
+  },
+];
+
+const PIPE = [
+  { n: '1', t: 'Research', b: 'Scans 47 instruments across the 8-partner network', flag: false },
+  { n: '2', t: 'Suitability', b: 'Matches your risk band and goals', flag: false },
+  { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds', flag: false },
+  { n: '4', t: 'Your approval', b: 'You confirm every move above your limits', flag: true },
+  { n: '5', t: 'Execute', b: 'Routed to the partner, then monitored', flag: false },
+];
 
 export default function LandingPage() {
   const router = useRouter();
@@ -145,204 +77,74 @@ export default function LandingPage() {
   const demo = () => router.push('/home');
 
   return (
-    <div
-      data-landing
-      style={{ minHeight: '100vh', background: '#efece4', color: '#1e1c19', fontFamily: BODY }}
-    >
+    <div className="min-h-screen bg-background font-sans text-foreground">
       {/* NAV */}
       <div
-        data-landing-nav
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          maxWidth: 1200,
-          margin: '0 auto',
-          padding: '22px 40px',
-          gap: 20,
-        }}
+        className={`flex items-center justify-between gap-5 py-[22px] max-[760px]:px-5 max-[760px]:py-4 ${CONTAINER}`}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 11,
-              background: '#124e48',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontFamily: DISPLAY,
-              fontWeight: 700,
-              fontSize: 19,
-            }}
-          >
+        <div className="flex items-center gap-[11px]">
+          <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-primary font-display text-[19px] font-bold text-white">
             C
-          </div>
-          <div
-            style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-.2px' }}
-          >
-            Caribbean Capital
-          </div>
+          </span>
+          <span className="font-display text-lg font-bold tracking-tight">Caribbean Capital</span>
         </div>
-        <div
-          data-landing-links
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 30,
-            fontSize: 15,
-            color: '#5c5449',
-            fontWeight: 500,
-          }}
-        >
-          <a
-            href="#how-it-works"
-            style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}
-          >
+        <div className="flex items-center gap-[30px] text-[15px] font-medium text-dim max-[760px]:hidden">
+          <a href="#how-it-works" className="text-inherit no-underline">
             How it works
           </a>
-          <button type="button" onClick={demo} style={linkButton}>
+          <button type="button" onClick={demo} className="text-inherit">
             Product
           </button>
-          <button type="button" onClick={() => router.push('/sign-in')} style={linkButton}>
+          <button type="button" onClick={() => router.push('/sign-in')} className="text-inherit">
             For institutions
           </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            data-nav-signin
-            type="button"
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
             onClick={() => router.push('/sign-in')}
-            style={{
-              padding: '10px 16px',
-              border: 'none',
-              background: 'transparent',
-              color: '#1e1c19',
-              fontFamily: BODY,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className="font-semibold max-[480px]:hidden"
           >
             Sign in
-          </button>
-          <button type="button" onClick={demo} style={tealBtn(15)}>
-            See a demo
-          </button>
+          </Button>
+          <Button onClick={demo}>See a demo</Button>
         </div>
       </div>
 
       {/* HERO */}
       <div
-        data-landing-hero
-        style={{
-          maxWidth: 1200,
-          margin: '0 auto',
-          padding: '40px 40px 34px',
-          display: 'grid',
-          gridTemplateColumns: '1.02fr .98fr',
-          gap: 52,
-          alignItems: 'center',
-        }}
+        className={`grid grid-cols-[1.02fr_.98fr] items-center gap-[52px] py-10 pb-[34px] max-[960px]:grid-cols-1 max-[440px]:gap-6 ${CONTAINER}`}
       >
         <div>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              background: '#fdfcfa',
-              border: '1px solid #e4e0d6',
-              borderRadius: 22,
-              padding: '7px 14px',
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#0e5952',
-              letterSpacing: '.3px',
-              marginBottom: 22,
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0a8f5b' }} />
+          <div className="mb-[22px] inline-flex items-center gap-2 rounded-[22px] border border-border bg-card px-3.5 py-[7px] text-[13px] font-semibold tracking-wide text-teal2">
+            <span className="h-[7px] w-[7px] rounded-full bg-[#0a8f5b]" />
             The financial operating system of the Caribbean
           </div>
-          <h1
-            data-hero-h1
-            style={{
-              fontFamily: DISPLAY,
-              fontWeight: 700,
-              fontSize: 53,
-              lineHeight: 1.04,
-              letterSpacing: '-1.6px',
-              margin: 0,
-            }}
-          >
+          <h1 className="m-0 font-display text-[53px] font-bold leading-[1.04] tracking-[-1.6px] max-[760px]:text-[40px] max-[760px]:tracking-[-1px] max-[440px]:text-[33px]">
             One agent for your whole Caribbean portfolio.
           </h1>
-          <p
-            style={{
-              margin: '20px 0 0',
-              fontSize: 18,
-              lineHeight: 1.55,
-              color: '#5c5449',
-              maxWidth: 520,
-            }}
-          >
+          <p className="mt-5 max-w-[520px] text-lg leading-relaxed text-dim">
             CCN unifies every licensed partner in one place. Your AI capital agent researches
             regional opportunities, screens them for suitability, clears compliance, and executes on
             your approval.
           </p>
-          <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
-            <button
-              type="button"
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              size="lg"
               onClick={google}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 11,
-                padding: '15px 22px',
-                border: '1px solid #dcd6c8',
-                borderRadius: 12,
-                background: '#fdfcfa',
-                color: '#1e1c19',
-                fontFamily: BODY,
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(30,20,10,.05)',
-              }}
+              className="gap-[11px] text-base shadow-[0_1px_2px_rgba(30,20,10,0.05)]"
             >
               <GoogleG />
               Continue with Google
-            </button>
-            <button type="button" onClick={demo} style={tealBtn(16, '15px 22px')}>
+            </Button>
+            <Button size="lg" onClick={demo} className="text-base">
               See a live demo →
-            </button>
+            </Button>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-              marginTop: 24,
-              fontSize: 13.5,
-              color: '#5f5748',
-              flexWrap: 'wrap',
-            }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <svg
-                aria-hidden="true"
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#0a8f5b"
-                strokeWidth={2}
-              >
-                <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z" />
-              </svg>
+          <div className="mt-6 flex flex-wrap items-center gap-3.5 text-[13.5px] text-dim">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-[15px] w-[15px] text-[#0a8f5b]" aria-hidden />
               FSC-regulated partners
             </span>
             <span>·</span>
@@ -350,193 +152,62 @@ export default function LandingPage() {
             <span>·</span>
             <span>Data held in-region</span>
           </div>
-          <div style={{ marginTop: 13, fontSize: 13, color: '#675d4d' }}>
+          <div className="mt-[13px] text-[13px] text-faint">
             One flat platform fee. Each partner's product fees are shown before you approve, with no
             hidden spreads from CCN.
           </div>
         </div>
 
         {/* Hero aside card */}
-        <div
-          style={{
-            background: '#fdfcfa',
-            border: '1px solid #e4e0d6',
-            borderRadius: 16,
-            padding: 16,
-            boxShadow: '0 24px 60px rgba(40,34,22,.12)',
-          }}
-        >
-          <div
-            style={{
-              background: '#124e48',
-              borderRadius: 12,
-              padding: '20px 22px',
-              color: '#eafaf5',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                color: 'rgba(234,250,245,.66)',
-                fontWeight: 600,
-              }}
-            >
+        <Card className="p-4 shadow-[0_24px_60px_rgba(40,34,22,0.12)]">
+          <div className="rounded-xl bg-primary px-[22px] py-5 text-[#eafaf5]">
+            <div className="text-xs font-semibold uppercase tracking-[1px] text-[#eafaf5]/[.66]">
               Total net worth · 4 partners
             </div>
-            <div
-              style={{
-                fontFamily: DISPLAY,
-                fontWeight: 700,
-                fontSize: 40,
-                marginTop: 6,
-                lineHeight: 1,
-                letterSpacing: '-1px',
-              }}
-            >
+            <div className="mt-1.5 font-display text-[40px] font-bold leading-none tracking-[-1px]">
               US$31,350
             </div>
-            <div
-              style={{
-                display: 'flex',
-                gap: 9,
-                marginTop: 9,
-                fontSize: 13.5,
-                alignItems: 'center',
-              }}
-            >
-              <span
-                style={{
-                  background: 'rgba(255,255,255,.1)',
-                  color: '#9fe6c6',
-                  padding: '3px 9px',
-                  borderRadius: 7,
-                  fontFamily: MONO,
-                  fontWeight: 700,
-                }}
-              >
+            <div className="mt-2 flex items-center gap-2.5 text-[13.5px]">
+              <span className="rounded-[7px] bg-white/10 px-[9px] py-[3px] font-mono font-bold text-[#9fe6c6]">
                 ↑ 6.8%
               </span>
-              <span style={{ color: 'rgba(234,250,245,.8)' }}>blended yield 6.2%</span>
+              <span className="text-[#eafaf5]/80">blended yield 6.2%</span>
             </div>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 10,
-              marginTop: 14,
-              padding: '13px 14px',
-              border: '1px solid #e4e0d6',
-              borderRadius: 11,
-              background: '#fbfaf6',
-            }}
-          >
-            <span
-              style={{
-                width: 9,
-                height: 9,
-                borderRadius: '50%',
-                background: '#0a8f5b',
-                flex: 'none',
-                marginTop: 5,
-              }}
-            />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, color: '#2c2925', lineHeight: 1.4, fontWeight: 600 }}>
+          <div className="mt-3.5 flex items-start gap-2.5 rounded-[11px] border border-border bg-[#fbfaf6] px-3.5 py-[13px]">
+            <span className="mt-[5px] h-[9px] w-[9px] flex-none rounded-full bg-[#0a8f5b]" />
+            <div className="flex-1">
+              <div className="text-sm font-semibold leading-snug text-[#2c2925]">
                 Agent swept US$400 into your money-market fund
               </div>
-              <div style={{ fontSize: 12.5, color: '#675d4d', marginTop: 2 }}>
+              <div className="mt-0.5 text-[12.5px] text-faint">
                 Inside your US$500 limit · 2 days ago
               </div>
             </div>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              marginTop: 10,
-              padding: '13px 14px',
-              border: '1px solid #e7c3ab',
-              borderRadius: 11,
-              background: '#f9ede2',
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: '.4px',
-                  textTransform: 'uppercase',
-                  color: '#b4531f',
-                }}
-              >
+          <div className="mt-2.5 flex items-center gap-3 rounded-[11px] border border-[#e7c3ab] bg-[#f9ede2] px-3.5 py-[13px]">
+            <div className="flex-1">
+              <div className="text-[11px] font-bold uppercase tracking-[.4px] text-[#b4531f]">
                 Needs your approval
               </div>
-              <div style={{ fontSize: 14, color: '#1e1c19', fontWeight: 600, marginTop: 2 }}>
+              <div className="mt-0.5 text-sm font-semibold text-foreground">
                 Reinvest US$412 GOJ coupon
               </div>
             </div>
-            <span
-              style={{
-                padding: '8px 14px',
-                borderRadius: 9,
-                background: '#124e48',
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 700,
-              }}
-            >
+            <span className="rounded-[9px] bg-primary px-3.5 py-2 text-[13px] font-bold text-white">
               Approve
             </span>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* PARTNER STRIP */}
-      <div
-        style={{
-          borderTop: '1px solid #e4e0d6',
-          borderBottom: '1px solid #e4e0d6',
-          background: '#fdfcfa',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: '0 auto',
-            padding: '20px 40px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 28,
-            flexWrap: 'wrap',
-          }}
-        >
-          <span
-            style={{
-              fontSize: 13,
-              letterSpacing: '.6px',
-              textTransform: 'uppercase',
-              color: '#675d4d',
-              fontWeight: 600,
-            }}
-          >
+      <div className="border-y border-border bg-card">
+        <div className={`flex flex-wrap items-center gap-7 py-5 ${CONTAINER}`}>
+          <span className="text-[13px] font-semibold uppercase tracking-wide text-faint">
             Held at licensed partners
           </span>
-          <div
-            style={{
-              display: 'flex',
-              gap: 26,
-              flexWrap: 'wrap',
-              fontFamily: MONO,
-              fontSize: 15,
-              fontWeight: 600,
-              color: '#5c5449',
-            }}
-          >
+          <div className="flex flex-wrap gap-[26px] font-mono text-[15px] font-semibold text-dim">
             {['NCB', 'SAGICOR', 'JMMB', 'PROVEN', 'BARITA', 'REPUBLIC', 'SYGNUS'].map((p) => (
               <span key={p}>{p}</span>
             ))}
@@ -545,38 +216,17 @@ export default function LandingPage() {
       </div>
 
       {/* MISSION */}
-      <div data-sec style={{ maxWidth: 1200, margin: '0 auto', padding: '58px 40px 8px' }}>
-        <div
-          data-mission
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 52, alignItems: 'start' }}
-        >
+      <div className={`pb-2 pt-[58px] ${CONTAINER}`}>
+        <div className="grid grid-cols-2 items-start gap-[52px] max-[960px]:grid-cols-1 max-[960px]:gap-[18px]">
           <div>
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 12,
-                letterSpacing: '2px',
-                textTransform: 'uppercase',
-                color: '#0e5952',
-                marginBottom: 14,
-              }}
-            >
+            <div className="mb-3.5 font-mono text-xs uppercase tracking-[2px] text-teal2">
               Why CCN
             </div>
-            <div
-              data-sec-h1
-              style={{
-                fontFamily: DISPLAY,
-                fontWeight: 700,
-                fontSize: 33,
-                lineHeight: 1.14,
-                letterSpacing: '-.7px',
-              }}
-            >
+            <div className={`text-[33px] leading-[1.14] ${SEC_H1}`}>
               Caribbean wealth is scattered across a dozen institutions and borders.
             </div>
           </div>
-          <p style={{ margin: 0, paddingTop: 6, fontSize: 17, lineHeight: 1.62, color: '#5c5449' }}>
+          <p className="m-0 pt-1.5 text-[17px] leading-[1.62] text-dim">
             If you are building a life between the region and the diaspora, your money lives in
             fragments: a bond at NCB, a fund at Sagicor, cash at JMMB, a pension you have
             half-forgotten. CCN brings all of it into one place and gives you an agent that
@@ -587,97 +237,42 @@ export default function LandingPage() {
       </div>
 
       {/* BENEFITS */}
-      <div data-sec style={{ maxWidth: 1200, margin: '0 auto', padding: '34px 40px 6px' }}>
-        <div
-          data-benefits
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}
-        >
-          {[
-            {
-              icon: <IconChart />,
-              title: 'One portfolio, every partner',
-              body: 'See and manage holdings across eight licensed institutions in a single live view: net worth, yield and allocation, unified.',
-            },
-            {
-              icon: <IconTarget />,
-              title: 'An agent inside your limits',
-              body: 'It surfaces regional opportunities, checks each against your risk band, and acts up to the limits you set. Anything larger comes to you to approve.',
-            },
-            {
-              icon: <IconShield />,
-              title: 'Regulated and regional',
-              body: 'Every instrument is custodied and executed by an FSC-licensed partner, with KYC, suitability and source-of-funds handled for you.',
-            },
-          ].map((b) => (
-            <div key={b.title} style={benefitCard}>
-              <span style={benefitIcon}>{b.icon}</span>
-              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 18, marginBottom: 7 }}>
-                {b.title}
-              </div>
-              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#5c5449' }}>{b.body}</div>
-            </div>
+      <div className={`pb-1.5 pt-[34px] ${CONTAINER}`}>
+        <div className="grid grid-cols-3 gap-4 max-[960px]:grid-cols-2 max-[760px]:grid-cols-1">
+          {BENEFITS.map((b) => (
+            <Card key={b.title} className="p-[22px]">
+              <span className="mb-4 grid h-11 w-11 place-items-center rounded-[11px] bg-mint">
+                <b.Icon className="h-[22px] w-[22px] text-teal2" aria-hidden />
+              </span>
+              <div className="mb-1.5 font-display text-lg font-bold">{b.title}</div>
+              <div className="text-[14.5px] leading-relaxed text-dim">{b.body}</div>
+            </Card>
           ))}
         </div>
       </div>
 
       {/* WHAT'S INSIDE */}
-      <div data-sec style={{ maxWidth: 1200, margin: '0 auto', padding: '52px 40px 0' }}>
-        <div
-          data-sec-h1
-          style={{
-            fontFamily: DISPLAY,
-            fontWeight: 700,
-            fontSize: 28,
-            letterSpacing: '-.5px',
-            marginBottom: 6,
-          }}
-        >
+      <div className={`pt-[52px] ${CONTAINER}`}>
+        <div className={`mb-1.5 text-[28px] ${SEC_H1}`}>
           Everything to grow and protect wealth in the region
         </div>
-        <div style={{ fontSize: 16, color: '#5c5449', marginBottom: 22 }}>
+        <div className="mb-[22px] text-base text-dim">
           Four surfaces, one account. Tap any to open it in the live demo.
         </div>
-        <div data-features style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {[
-            {
-              icon: <IconChart />,
-              title: 'Unified portfolio',
-              body: 'Every holding across every partner, valued live in your chosen currency.',
-            },
-            {
-              icon: <IconTrend />,
-              title: 'Opportunities marketplace',
-              body: 'Bonds, funds, real estate and private credit from across the region, matched to your goals.',
-            },
-            {
-              icon: <IconTarget />,
-              title: 'Capital agent',
-              body: 'Chat or talk to an agent that plans, screens and executes on your say-so, inside your limits.',
-            },
-            {
-              icon: <IconShield />,
-              title: 'Planning & protection',
-              body: 'Life cover, retirement, mortgages and estate planning that work across borders.',
-            },
-          ].map((f) => (
+        <div className="grid grid-cols-2 gap-4 max-[960px]:grid-cols-1">
+          {FEATURES.map((f) => (
             <button
               key={f.title}
               type="button"
               onClick={demo}
-              style={{ ...featureCard, textAlign: 'left', font: 'inherit' }}
+              className="flex gap-4 rounded-[14px] border border-border bg-card px-[22px] py-[21px] text-left"
             >
-              <span
-                style={{ ...benefitIcon, width: 42, height: 42, marginBottom: 0, flex: 'none' }}
-              >
-                {f.icon}
+              <span className="grid h-[42px] w-[42px] flex-none place-items-center rounded-[11px] bg-mint">
+                <f.Icon className="h-[22px] w-[22px] text-teal2" aria-hidden />
               </span>
               <div>
-                <div
-                  style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 17, marginBottom: 4 }}
-                >
-                  {f.title}
-                </div>
-                <div style={{ fontSize: 14, lineHeight: 1.5, color: '#5c5449' }}>{f.body}</div>
+                <div className="mb-1 font-display text-[17px] font-bold">{f.title}</div>
+                <div className="text-sm leading-normal text-dim">{f.body}</div>
               </div>
             </button>
           ))}
@@ -685,110 +280,57 @@ export default function LandingPage() {
       </div>
 
       {/* HOW IT WORKS */}
-      <div
-        id="how-it-works"
-        data-sec
-        style={{ maxWidth: 1200, margin: '0 auto', padding: '54px 40px 62px', scrollMarginTop: 20 }}
-      >
-        <div
-          data-sec-h1
-          style={{
-            fontFamily: DISPLAY,
-            fontWeight: 700,
-            fontSize: 30,
-            letterSpacing: '-.5px',
-            marginBottom: 6,
-          }}
-        >
+      <div id="how-it-works" className={`scroll-mt-5 pb-[62px] pt-[54px] ${CONTAINER}`}>
+        <div className={`mb-1.5 text-[30px] ${SEC_H1}`}>
           Your agent does the work. You keep control.
         </div>
-        <div style={{ fontSize: 16, color: '#5c5449', marginBottom: 26 }}>
+        <div className="mb-[26px] text-base text-dim">
           Every action is researched, screened and checked, then brought to you.
         </div>
-        <div data-pipe style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
-          {[
-            {
-              n: '1',
-              t: 'Research',
-              b: 'Scans 47 instruments across the 8-partner network',
-              flag: false,
-            },
-            { n: '2', t: 'Suitability', b: 'Matches your risk band and goals', flag: false },
-            { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds', flag: false },
-            {
-              n: '4',
-              t: 'Your approval',
-              b: 'You confirm every move above your limits',
-              flag: true,
-            },
-            { n: '5', t: 'Execute', b: 'Routed to the partner, then monitored', flag: false },
-          ].map((s) => (
+        <div className="grid grid-cols-5 gap-3.5 max-[960px]:grid-cols-3 max-[620px]:grid-cols-2">
+          {PIPE.map((s) => (
             <div
               key={s.n}
-              style={{
-                padding: 18,
-                border: `1px solid ${s.flag ? '#e7c3ab' : '#e4e0d6'}`,
-                borderRadius: 13,
-                background: s.flag ? '#f9ede2' : '#fdfcfa',
-              }}
+              className={
+                s.flag
+                  ? 'rounded-[13px] border border-[#e7c3ab] bg-[#f9ede2] p-[18px]'
+                  : 'rounded-[13px] border border-border bg-card p-[18px]'
+              }
             >
               <div
-                style={{
-                  ...pipeNum,
-                  background: s.flag ? '#f0d3bd' : '#e8f1ec',
-                  color: s.flag ? '#b4531f' : '#0e5952',
-                }}
+                className={
+                  s.flag
+                    ? 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#f0d3bd] font-mono text-[15px] font-bold text-[#b4531f]'
+                    : 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-mint font-mono text-[15px] font-bold text-teal2'
+                }
               >
                 {s.n}
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 5 }}>{s.t}</div>
+              <div className="mb-1.5 text-base font-bold">{s.t}</div>
               <div
-                style={{ fontSize: 14, color: s.flag ? '#8a5a3e' : '#6b6459', lineHeight: 1.45 }}
+                className={
+                  s.flag ? 'text-sm leading-snug text-[#8a5a3e]' : 'text-sm leading-snug text-faint'
+                }
               >
                 {s.b}
               </div>
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 12, marginTop: 34, flexWrap: 'wrap' }}>
-          <button type="button" onClick={google} style={tealBtn(16, '15px 24px')}>
+        <div className="mt-[34px] flex flex-wrap gap-3">
+          <Button size="lg" onClick={google} className="text-base">
             Get started with Google
-          </button>
-          <button
-            type="button"
-            onClick={demo}
-            style={{
-              padding: '15px 24px',
-              border: '1px solid #dcd6c8',
-              borderRadius: 12,
-              background: '#fdfcfa',
-              color: '#1e1c19',
-              fontFamily: BODY,
-              fontSize: 16,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
+          </Button>
+          <Button variant="outline" size="lg" onClick={demo} className="text-base">
             See a live demo →
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* FOOTER */}
-      <div style={{ borderTop: '1px solid #e4e0d6', background: '#fdfcfa' }}>
+      <div className="border-t border-border bg-card">
         <div
-          style={{
-            maxWidth: 1200,
-            margin: '0 auto',
-            padding: '22px 40px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 12,
-            fontSize: 13.5,
-            color: '#675d4d',
-          }}
+          className={`flex flex-wrap items-center justify-between gap-3 py-[22px] text-[13.5px] text-faint ${CONTAINER}`}
         >
           <span>© 2026 Caribbean Capital Network</span>
           <span>Kingston · Port of Spain · Bridgetown · Toronto · London</span>
@@ -796,28 +338,4 @@ export default function LandingPage() {
       </div>
     </div>
   );
-}
-
-const linkButton: CSSProperties = {
-  cursor: 'pointer',
-  color: 'inherit',
-  background: 'none',
-  border: 'none',
-  font: 'inherit',
-  padding: 0,
-};
-
-function tealBtn(fontSize: number, padding = '11px 20px'): CSSProperties {
-  return {
-    padding,
-    border: 'none',
-    borderRadius: fontSize >= 16 ? 12 : 11,
-    background: '#124e48',
-    color: '#fff',
-    fontFamily: BODY,
-    fontSize,
-    fontWeight: 700,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  };
 }
