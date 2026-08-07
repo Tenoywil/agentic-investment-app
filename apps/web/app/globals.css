@@ -42,6 +42,45 @@
   --navy-active: 171.4 59.6% 18.4%;
 }
 
+/*
+ * Warm dark theme — a real second token set, not an inversion (per the design
+ * system). Deep warm charcoals for ground/surface, brightened teal/terra/gold
+ * accents so links, badges and status colors keep ≥ 4.5:1 on the dark surface.
+ * Activated by the `dark` class on <html> (Tailwind darkMode: ['class']).
+ */
+.dark {
+  --background: 40 8% 8.5%;
+  --foreground: 40 18% 90%;
+  --card: 36 8% 12%;
+  --card-foreground: 40 18% 90%;
+  --popover: 36 8% 12%;
+  --popover-foreground: 40 18% 90%;
+  --primary: 173 45% 34%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 165 18% 17%;
+  --secondary-foreground: 172 52% 68%;
+  --muted: 165 18% 17%;
+  --muted-foreground: 40 8% 64%;
+  --accent: 26.7 62% 64%;
+  --accent-foreground: 36 12% 10%;
+  --destructive: 19.6 62% 56%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 36 6% 24%;
+  --input: 36 6% 28%;
+  --ring: 172 52% 50%;
+  /* Warm extras */
+  --teal2: 172 55% 58%;
+  --mint: 165 20% 17%;
+  --terra: 19.6 64% 60%;
+  --peach: 26.7 62% 64%;
+  --gold: 40 72% 62%;
+  --success: 156 58% 52%;
+  --dim: 40 9% 66%;
+  --faint: 40 7% 56%;
+  --navy: 170 30% 9%;
+  --navy-active: 171 34% 15%;
+}
+
 @layer base {
   /* Preflight is off; give shadcn's `border` utilities the theme border color. */
   *,
@@ -78,8 +117,8 @@
 }
 body {
   margin: 0;
-  background: #efece4;
-  color: #1e1c19;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 ::-webkit-scrollbar {

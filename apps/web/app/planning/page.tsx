@@ -83,7 +83,7 @@ const GOALS = [
     of: 'US$15,000 of US$15,000',
     eta: 'Complete',
     color: '#0a8f5b',
-    etaClass: 'text-[#0a8f5b]',
+    etaClass: 'text-success',
   },
 ];
 

@@ -84,7 +84,7 @@ export default function PortfolioPage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-[15px] font-bold">{inst.total}</div>
-                <div className="text-[11.5px] text-[#0a8f5b]">· FSC-regulated</div>
+                <div className="text-[11.5px] text-success">· FSC-regulated</div>
               </div>
             </div>
             {inst.holdings.map((h) => (
@@ -98,7 +98,7 @@ export default function PortfolioPage() {
                   <span
                     className={cn(
                       'min-w-[42px] text-right text-[13px]',
-                      h.ret === '—' ? 'text-faint' : 'text-[#0a8f5b]',
+                      h.ret === '—' ? 'text-faint' : 'text-success',
                     )}
                   >
                     {h.ret}

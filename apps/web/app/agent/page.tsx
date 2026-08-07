@@ -129,7 +129,7 @@ const STATS: { n: string; cls: string; t: string }[] = [
   { n: '47', cls: 'text-foreground', t: 'instruments monitored' },
   { n: '8', cls: 'text-teal2', t: 'licensed partners' },
   { n: '6', cls: 'text-terra', t: 'matched to goals' },
-  { n: '11', cls: 'text-[#0a8f5b]', t: 'actions this month' },
+  { n: '11', cls: 'text-success', t: 'actions this month' },
 ];
 
 export default function AgentPage() {
@@ -173,7 +173,7 @@ export default function AgentPage() {
         ))}
       </div>
       <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
-        <span className="h-2 w-2 rounded-full bg-[#0a8f5b]" />
+        <span className="h-2 w-2 rounded-full bg-success" />
         Live · monitoring the region
       </div>
 
@@ -187,7 +187,7 @@ export default function AgentPage() {
             <div className="min-w-0 flex-1">
               <div className="font-display text-base font-bold">CCN Capital Agent</div>
               <div className="flex items-center gap-1.5 text-[13px] text-dim">
-                <span className="h-[7px] w-[7px] rounded-full bg-[#0a8f5b]" />
+                <span className="h-[7px] w-[7px] rounded-full bg-success" />
                 Suitability-aware · acts on your approval
               </div>
             </div>
@@ -221,7 +221,7 @@ export default function AgentPage() {
                   <span className="mt-0.5 grid h-[26px] w-[26px] flex-none place-items-center rounded-full bg-mint text-teal2">
                     <Sparkles className="h-[15px] w-[15px]" aria-hidden />
                   </span>
-                  <div className="rounded-[4px_14px_14px_14px] bg-[#f4f0e7] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925]">
+                  <div className="rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
                     {renderRich(m.text)}
                   </div>
                 </div>
@@ -296,7 +296,7 @@ export default function AgentPage() {
           <Card className="p-5">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-              <span className="min-w-[22px] rounded-full bg-[#f9ede2] px-2 py-px text-center text-[12.5px] font-bold text-terra">
+              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
                 2
               </span>
             </div>

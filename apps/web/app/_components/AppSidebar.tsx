@@ -1,5 +1,6 @@
 'use client';
 
+import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { cn } from '@/app/_lib/utils';
 import {
   Building2,
@@ -122,13 +123,16 @@ export function AppSidebar({ active }: { active: Key | 'institutions' }) {
         </Link>
       </div>
 
-      <Link
-        href="/institutions"
-        className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
-      >
-        <Building2 className="h-5 w-5" aria-hidden />
-        For institutions
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/institutions"
+          className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
+        >
+          <Building2 className="h-5 w-5" aria-hidden />
+          For institutions
+        </Link>
+        <ThemeToggle />
+      </div>
     </nav>
   );
 }

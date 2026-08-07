@@ -1,5 +1,6 @@
 'use client';
 
+import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -251,9 +252,12 @@ export default function InstitutionsPage() {
             <div className="mb-1 text-[13.5px] text-dim">Partner console · {TAB_TITLES[tab]}</div>
             <h1 className="font-display text-3xl font-bold tracking-tight">Sagicor Group</h1>
           </div>
-          <div className="flex items-center gap-2.5 rounded-full border border-border bg-card py-1.5 pl-4 pr-1.5">
-            <span className="text-[13.5px] text-dim">Preview with sample data</span>
-            <Badge className="rounded-full px-3 py-1.5 text-[13px]">Partner view</Badge>
+          <div className="flex items-center gap-2.5">
+            <ThemeToggle />
+            <div className="flex items-center gap-2.5 rounded-full border border-border bg-card py-1.5 pl-4 pr-1.5">
+              <span className="text-[13.5px] text-dim">Preview with sample data</span>
+              <Badge className="rounded-full px-3 py-1.5 text-[13px]">Partner view</Badge>
+            </div>
           </div>
         </div>
 

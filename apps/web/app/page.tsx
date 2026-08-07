@@ -1,5 +1,6 @@
 'use client';
 
+import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { LineChart, type LucideIcon, ShieldCheck, Target, TrendingUp } from 'lucide-react';
@@ -100,6 +101,7 @@ export default function LandingPage() {
           </button>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Button
             variant="ghost"
             onClick={() => router.push('/sign-in')}
@@ -117,7 +119,7 @@ export default function LandingPage() {
       >
         <div>
           <div className="mb-[22px] inline-flex items-center gap-2 rounded-[22px] border border-border bg-card px-3.5 py-[7px] text-[13px] font-semibold tracking-wide text-teal2">
-            <span className="h-[7px] w-[7px] rounded-full bg-[#0a8f5b]" />
+            <span className="h-[7px] w-[7px] rounded-full bg-success" />
             The financial operating system of the Caribbean
           </div>
           <h1 className="m-0 font-display text-[53px] font-bold leading-[1.04] tracking-[-1.6px] max-[760px]:text-[40px] max-[760px]:tracking-[-1px] max-[440px]:text-[33px]">
@@ -144,7 +146,7 @@ export default function LandingPage() {
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-3.5 text-[13.5px] text-dim">
             <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-[15px] w-[15px] text-[#0a8f5b]" aria-hidden />
+              <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
               FSC-regulated partners
             </span>
             <span>·</span>
@@ -174,10 +176,10 @@ export default function LandingPage() {
               <span className="text-[#eafaf5]/80">blended yield 6.2%</span>
             </div>
           </div>
-          <div className="mt-3.5 flex items-start gap-2.5 rounded-[11px] border border-border bg-[#fbfaf6] px-3.5 py-[13px]">
-            <span className="mt-[5px] h-[9px] w-[9px] flex-none rounded-full bg-[#0a8f5b]" />
+          <div className="mt-3.5 flex items-start gap-2.5 rounded-[11px] border border-border bg-[#fbfaf6] dark:bg-white/[0.02] px-3.5 py-[13px]">
+            <span className="mt-[5px] h-[9px] w-[9px] flex-none rounded-full bg-success" />
             <div className="flex-1">
-              <div className="text-sm font-semibold leading-snug text-[#2c2925]">
+              <div className="text-sm font-semibold leading-snug text-[#2c2925] dark:text-foreground">
                 Agent swept US$400 into your money-market fund
               </div>
               <div className="mt-0.5 text-[12.5px] text-faint">
@@ -185,7 +187,7 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          <div className="mt-2.5 flex items-center gap-3 rounded-[11px] border border-[#e7c3ab] bg-[#f9ede2] px-3.5 py-[13px]">
+          <div className="mt-2.5 flex items-center gap-3 rounded-[11px] border border-[#e7c3ab] bg-[#f9ede2] dark:border-[#5a3f2a] dark:bg-[#2e2118] px-3.5 py-[13px]">
             <div className="flex-1">
               <div className="text-[11px] font-bold uppercase tracking-[.4px] text-[#b4531f]">
                 Needs your approval
@@ -293,14 +295,14 @@ export default function LandingPage() {
               key={s.n}
               className={
                 s.flag
-                  ? 'rounded-[13px] border border-[#e7c3ab] bg-[#f9ede2] p-[18px]'
+                  ? 'rounded-[13px] border border-[#e7c3ab] bg-[#f9ede2] dark:border-[#5a3f2a] dark:bg-[#2e2118] p-[18px]'
                   : 'rounded-[13px] border border-border bg-card p-[18px]'
               }
             >
               <div
                 className={
                   s.flag
-                    ? 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#f0d3bd] font-mono text-[15px] font-bold text-[#b4531f]'
+                    ? 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#f0d3bd] dark:bg-[#4a3320] font-mono text-[15px] font-bold text-[#b4531f] dark:text-[#e79b6f]'
                     : 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-mint font-mono text-[15px] font-bold text-teal2'
                 }
               >
@@ -309,7 +311,9 @@ export default function LandingPage() {
               <div className="mb-1.5 text-base font-bold">{s.t}</div>
               <div
                 className={
-                  s.flag ? 'text-sm leading-snug text-[#8a5a3e]' : 'text-sm leading-snug text-faint'
+                  s.flag
+                    ? 'text-sm leading-snug text-[#8a5a3e] dark:text-[#c99a76]'
+                    : 'text-sm leading-snug text-faint'
                 }
               >
                 {s.b}

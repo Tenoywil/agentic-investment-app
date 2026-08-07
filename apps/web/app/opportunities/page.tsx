@@ -220,8 +220,9 @@ const BLOCKED = OPPS.find((o) => o.blocked) as Opp;
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
 
-const METRIC_BOX = 'rounded-xl bg-[#f4f0e7] px-[15px] py-[13px]';
-const METRIC_LBL = 'mb-[5px] text-[11.5px] uppercase tracking-[.4px] text-[#6d6455]';
+const METRIC_BOX = 'rounded-xl bg-[#f4f0e7] px-[15px] py-[13px] dark:bg-white/[0.04]';
+const METRIC_LBL =
+  'mb-[5px] text-[11.5px] uppercase tracking-[.4px] text-[#6d6455] dark:text-faint';
 
 function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
   const t = TONE[o.type];
@@ -249,7 +250,7 @@ function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
       <div className="mb-3.5 grid grid-cols-2 gap-[11px]">
         <div className={METRIC_BOX}>
           <div className={METRIC_LBL}>{o.metricLabel}</div>
-          <div className="font-mono text-lg font-bold text-[#0a6e44]">{o.metric}</div>
+          <div className="font-mono text-lg font-bold text-success">{o.metric}</div>
         </div>
         <div className={METRIC_BOX}>
           <div className={METRIC_LBL}>Minimum</div>
@@ -320,7 +321,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
               <div className="mb-[18px] grid grid-cols-2 gap-[11px]">
                 <div className={METRIC_BOX}>
                   <div className={METRIC_LBL}>{opp.metricLabel}</div>
-                  <div className="font-mono text-[21px] font-bold text-[#0a6e44]">{opp.metric}</div>
+                  <div className="font-mono text-[21px] font-bold text-success">{opp.metric}</div>
                 </div>
                 <div className={METRIC_BOX}>
                   <div className={METRIC_LBL}>Minimum</div>
@@ -338,42 +339,52 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
               <p className="mb-4 text-[15px] leading-relaxed text-dim">{opp.desc}</p>
 
               {blocked ? (
-                <div className="mb-4 rounded-xl border border-[#ecd2c2] bg-[#fbeee7] px-[17px] py-[15px]">
+                <div className="mb-4 rounded-xl border border-[#ecd2c2] bg-[#fbeee7] dark:border-[#5a3f2e] dark:bg-[#2c1f17] px-[17px] py-[15px]">
                   <div className="mb-2 flex items-center gap-2">
-                    <CircleAlert className="h-4 w-4 flex-none text-[#a44e20]" aria-hidden />
-                    <span className="text-[13px] font-bold uppercase tracking-[.5px] text-[#9a4a1c]">
+                    <CircleAlert
+                      className="h-4 w-4 flex-none text-[#a44e20] dark:text-terra"
+                      aria-hidden
+                    />
+                    <span className="text-[13px] font-bold uppercase tracking-[.5px] text-[#9a4a1c] dark:text-[#e79b6f]">
                       Your agent recommends against this
                     </span>
                   </div>
-                  <p className="mb-2.5 text-sm leading-snug text-[#5c4636]">{opp.agentNote}</p>
+                  <p className="mb-2.5 text-sm leading-snug text-[#5c4636] dark:text-[#d3b8a4]">
+                    {opp.agentNote}
+                  </p>
                   {opp.blockReasons?.map((reason) => (
                     <div
                       key={reason}
-                      className="flex gap-2.5 border-t border-[#f0dfd2] py-1.5 text-[13.5px] leading-snug text-[#5c4636]"
+                      className="flex gap-2.5 border-t border-[#f0dfd2] dark:border-white/10 py-1.5 text-[13.5px] leading-snug text-[#5c4636] dark:text-[#d3b8a4]"
                     >
-                      <span aria-hidden className="flex-none font-bold text-[#a44e20]">
+                      <span
+                        aria-hidden
+                        className="flex-none font-bold text-[#a44e20] dark:text-terra"
+                      >
                         ×
                       </span>
                       <span>{reason}</span>
                     </div>
                   ))}
-                  <div className="mt-2.5 text-[12.5px] leading-snug text-[#8a6a50]">
+                  <div className="mt-2.5 text-[12.5px] leading-snug text-[#8a6a50] dark:text-[#b39a86]">
                     The agent will not route this order. If your goals or limits change, re-run
                     suitability from your profile and it will reassess.
                   </div>
                 </div>
               ) : (
-                <div className="mb-4 rounded-xl border border-[#cde0d8] bg-mint px-4 py-3.5">
+                <div className="mb-4 rounded-xl border border-[#cde0d8] dark:border-white/10 bg-mint px-4 py-3.5">
                   <div className="mb-1.5 flex items-center gap-2">
                     <Target className="h-[15px] w-[15px] text-teal2" aria-hidden />
                     <span className="text-[13.5px] font-bold text-teal2">Agent assessment</span>
                   </div>
-                  <p className="text-sm leading-snug text-[#2c2925]">{opp.agentNote}</p>
+                  <p className="text-sm leading-snug text-[#2c2925] dark:text-foreground">
+                    {opp.agentNote}
+                  </p>
                 </div>
               )}
 
               <div className="flex items-center gap-2 text-[13.5px] text-dim">
-                <ShieldCheck className="h-3.5 w-3.5 flex-none text-[#0a6e44]" aria-hidden />
+                <ShieldCheck className="h-3.5 w-3.5 flex-none text-success" aria-hidden />
                 Executed by {opp.partner} · Regulated by {opp.regulator}
               </div>
             </>
@@ -423,9 +434,9 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                   <span className="text-sm font-semibold">T+2 · USD wallet</span>
                 </div>
               </div>
-              <div className="rounded-xl border border-[#cde0d8] bg-mint px-4 py-3.5">
+              <div className="rounded-xl border border-[#cde0d8] dark:border-white/10 bg-mint px-4 py-3.5">
                 <div className="mb-2 flex items-center gap-2">
-                  <ShieldCheck className="h-[15px] w-[15px] text-[#0a6e44]" aria-hidden />
+                  <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
                   <span className="text-[13.5px] font-bold text-teal2">
                     Agent ran your compliance checks
                   </span>
@@ -436,8 +447,11 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                     'Suitability: matches your balanced-income profile',
                     'Source of funds confirmed',
                   ].map((line) => (
-                    <div key={line} className="flex items-center gap-2 text-sm text-[#2c2925]">
-                      <Check className="h-4 w-4 flex-none text-[#0a6e44]" aria-hidden />
+                    <div
+                      key={line}
+                      className="flex items-center gap-2 text-sm text-[#2c2925] dark:text-foreground"
+                    >
+                      <Check className="h-4 w-4 flex-none text-success" aria-hidden />
                       {line}
                     </div>
                   ))}
@@ -448,8 +462,8 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
 
           {step === 2 && !blocked && (
             <div className="px-0 pb-1 pt-1.5 text-center">
-              <div className="mx-auto mb-4 grid h-[68px] w-[68px] place-items-center rounded-full bg-[#e2f4ea]">
-                <Check className="h-8 w-8 text-[#0a6e44]" aria-hidden strokeWidth={2.2} />
+              <div className="mx-auto mb-4 grid h-[68px] w-[68px] place-items-center rounded-full bg-[#e2f4ea] dark:bg-[#12352a]">
+                <Check className="h-8 w-8 text-success" aria-hidden strokeWidth={2.2} />
               </div>
               <div className="font-display text-[21px] font-bold">Instruction submitted</div>
               <p className="mx-auto mb-[18px] mt-2 max-w-[330px] text-[14.5px] leading-snug text-dim">
@@ -457,14 +471,14 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 settles it (T+2). CCN never holds your money. Projections are estimates, not
                 guarantees.
               </p>
-              <div className="mx-auto max-w-[320px] rounded-xl bg-[#f4f0e7] px-4 py-3.5 text-left">
+              <div className="mx-auto max-w-[320px] rounded-xl bg-[#f4f0e7] dark:bg-white/[0.04] px-4 py-3.5 text-left">
                 <div className="flex justify-between py-1 text-[13.5px]">
                   <span className="text-dim">Reference</span>
                   <span className="font-mono font-bold">CCN-8F42-QX</span>
                 </div>
                 <div className="flex justify-between py-1 text-[13.5px]">
                   <span className="text-dim">Status</span>
-                  <span className="font-bold text-[#a44e20]">Processing</span>
+                  <span className="font-bold text-[#a44e20] dark:text-terra">Processing</span>
                 </div>
               </div>
             </div>
@@ -568,7 +582,7 @@ export default function OpportunitiesPage() {
         Listed so you can see exactly what fails your suitability profile, and why.
       </p>
       <Card
-        className="flex flex-wrap items-start gap-4 border-[#ecd2c2] p-[22px]"
+        className="flex flex-wrap items-start gap-4 border-[#ecd2c2] dark:border-[#5a3f2e] p-[22px]"
         style={{ borderLeft: '4px solid #c56a3e' }}
       >
         <span className="grid h-10 w-10 flex-none place-items-center rounded-[10px] bg-[#f2e7de] font-mono text-xs font-bold text-[#7d4f36]">

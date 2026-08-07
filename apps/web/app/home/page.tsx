@@ -104,7 +104,7 @@ const STATS: {
     label: 'Blended yield',
     Icon: TrendingUp,
     val: '6.2%',
-    valClass: 'text-[#0a8f5b]',
+    valClass: 'text-success',
     sub: '≈ US$1,940 income / year',
     subClass: 'text-faint',
   },
@@ -260,14 +260,18 @@ export default function HomePage() {
               key={s.n}
               className={cn(
                 'rounded-xl border p-4',
-                s.flag ? 'border-[#e7c3ab] bg-[#f9ede2]' : 'border-border bg-[#fbfaf6]',
+                s.flag
+                  ? 'border-[#e7c3ab] bg-[#f9ede2] dark:border-[#5a3f2a] dark:bg-[#2e2118]'
+                  : 'border-border bg-[#fbfaf6] dark:bg-white/[0.02]',
               )}
             >
               <div className="mb-2 flex items-center gap-2">
                 <span
                   className={cn(
                     'grid h-6 w-6 place-items-center rounded-[7px] font-mono text-[13px] font-bold',
-                    s.flag ? 'bg-[#f0d3bd] text-[#b4531f]' : 'bg-mint text-teal2',
+                    s.flag
+                      ? 'bg-[#f0d3bd] text-[#b4531f] dark:bg-[#4a3320] dark:text-[#e79b6f]'
+                      : 'bg-mint text-teal2',
                   )}
                 >
                   {s.n}
@@ -275,7 +279,10 @@ export default function HomePage() {
                 <b className="text-[14.5px]">{s.t}</b>
               </div>
               <div
-                className={cn('text-[13px] leading-snug', s.flag ? 'text-[#8a5a3e]' : 'text-dim')}
+                className={cn(
+                  'text-[13px] leading-snug',
+                  s.flag ? 'text-[#8a5a3e] dark:text-[#c99a76]' : 'text-dim',
+                )}
               >
                 {s.b}
               </div>
@@ -311,7 +318,7 @@ export default function HomePage() {
         <Card className="p-[22px]">
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-            <span className="min-w-[22px] rounded-full bg-[#f9ede2] px-2 py-px text-center text-[12.5px] font-bold text-terra">
+            <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
               2
             </span>
           </div>
@@ -380,7 +387,7 @@ export default function HomePage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-sm font-bold">{h.amt}</div>
-                <div className="text-[11.5px] text-[#0a8f5b]">· FSC-regulated</div>
+                <div className="text-[11.5px] text-success">· FSC-regulated</div>
               </div>
             </div>
           ))}
