@@ -1,8 +1,20 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
-import { AppScreen, PageHead } from '../_components/AppScreen';
-import { C } from '../_lib/ui';
+import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
+import { Button } from '@/app/_components/ui/button';
+import { Card } from '@/app/_components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/_components/ui/dialog';
+import { Input } from '@/app/_components/ui/input';
+import { cn } from '@/app/_lib/utils';
+import { Check, CircleAlert, ShieldCheck, Target } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
 
 /* ---- type palette (warm), ported from the prototype tone() map. The text inks
    are darkened from the prototype's originals so every label and pill clears
@@ -15,10 +27,10 @@ const TONE: Record<Kind, { ink: string; tint: string }> = {
   'Real Estate': { ink: '#7a5712', tint: '#f6efdf' },
   Private: { ink: '#7d4f36', tint: '#f2e7de' },
 };
-const RISK: Record<string, { fg: string; bg: string }> = {
-  Low: { fg: '#0a6e44', bg: '#e2f4ea' },
-  Medium: { fg: '#7a5712', bg: '#f6efdf' },
-  High: { fg: '#a44e20', bg: '#f5e7d9' },
+const RISK_VARIANT: Record<string, BadgeProps['variant']> = {
+  Low: 'success',
+  Medium: 'warning',
+  High: 'terra',
 };
 
 type Opp = {
@@ -208,178 +220,63 @@ const BLOCKED = OPPS.find((o) => o.blocked) as Opp;
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
 
-function chipStyle(active: boolean) {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 7,
-    padding: '9px 17px',
-    borderRadius: 22,
-    border: `1px solid ${active ? C.teal : '#ddd6c8'}`,
-    background: active ? C.teal : C.card,
-    color: active ? '#fff' : C.dim,
-    fontFamily: C.body,
-    fontWeight: 600,
-    fontSize: 14.5,
-    cursor: 'pointer',
-  } as const;
-}
-
-const metricBox = { background: '#f4f0e7', borderRadius: 12, padding: '13px 15px' } as const;
-const metricLbl = {
-  fontSize: 11.5,
-  letterSpacing: '.4px',
-  textTransform: 'uppercase',
-  color: '#6d6455',
-  marginBottom: 5,
-} as const;
+const METRIC_BOX = 'rounded-xl bg-[#f4f0e7] px-[15px] py-[13px]';
+const METRIC_LBL = 'mb-[5px] text-[11.5px] uppercase tracking-[.4px] text-[#6d6455]';
 
 function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
   const t = TONE[o.type];
-  const r = RISK[o.risk];
   return (
-    <div
-      style={{
-        background: C.card,
-        border: `1px solid ${C.line}`,
-        borderLeft: `4px solid ${t.ink}`,
-        borderRadius: 16,
-        padding: 22,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+    <Card className="flex flex-col p-[22px]" style={{ borderLeft: `4px solid ${t.ink}` }}>
+      <div className="mb-1.5 flex items-center gap-3">
         <span
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            background: t.tint,
-            color: t.ink,
-            display: 'grid',
-            placeItems: 'center',
-            fontFamily: C.mono,
-            fontWeight: 700,
-            fontSize: 12,
-            flex: 'none',
-          }}
+          className="grid h-10 w-10 flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
+          style={{ background: t.tint, color: t.ink }}
         >
           {o.abbr}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div className="flex flex-wrap items-center gap-2">
           <span
-            style={{
-              fontSize: 12.5,
-              fontWeight: 700,
-              letterSpacing: '.6px',
-              textTransform: 'uppercase',
-              color: t.ink,
-            }}
+            className="text-[12.5px] font-bold uppercase tracking-[.6px]"
+            style={{ color: t.ink }}
           >
             {o.type}
           </span>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              padding: '2px 9px',
-              borderRadius: 6,
-              color: r?.fg,
-              background: r?.bg,
-            }}
-          >
-            {o.risk} risk
-          </span>
+          <Badge variant={RISK_VARIANT[o.risk]}>{o.risk} risk</Badge>
         </div>
       </div>
-      <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>{o.region}</div>
-      <div
-        style={{
-          fontFamily: C.disp,
-          fontWeight: 700,
-          fontSize: 18,
-          lineHeight: 1.25,
-          marginBottom: 14,
-        }}
-      >
-        {o.name}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11, marginBottom: 14 }}>
-        <div style={metricBox}>
-          <div style={metricLbl}>{o.metricLabel}</div>
-          <div style={{ fontFamily: C.mono, fontWeight: 700, fontSize: 18, color: '#0a6e44' }}>
-            {o.metric}
-          </div>
+      <div className="mb-1 text-[13px] text-faint">{o.region}</div>
+      <div className="mb-3.5 font-display text-lg font-bold leading-tight">{o.name}</div>
+      <div className="mb-3.5 grid grid-cols-2 gap-[11px]">
+        <div className={METRIC_BOX}>
+          <div className={METRIC_LBL}>{o.metricLabel}</div>
+          <div className="font-mono text-lg font-bold text-[#0a6e44]">{o.metric}</div>
         </div>
-        <div style={metricBox}>
-          <div style={metricLbl}>Minimum</div>
-          <div style={{ fontFamily: C.mono, fontWeight: 700, fontSize: 18, color: C.ink }}>
-            {o.min}
-          </div>
+        <div className={METRIC_BOX}>
+          <div className={METRIC_LBL}>Minimum</div>
+          <div className="font-mono text-lg font-bold text-foreground">{o.min}</div>
         </div>
       </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontSize: 13,
-          color: C.dim,
-          marginBottom: 16,
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            width: 16,
-            height: 16,
-            borderRadius: '50%',
-            border: `1.6px solid ${C.teal2}`,
-            flex: 'none',
-          }}
-        />
+      <div className="mb-4 flex items-center gap-2 text-[13px] text-dim">
+        <span aria-hidden className="h-4 w-4 flex-none rounded-full border-[1.6px] border-teal2" />
         {o.partner} · {o.regulator}
       </div>
-      <button
-        type="button"
-        onClick={() => onOpen(o)}
-        style={{
-          marginTop: 'auto',
-          width: '100%',
-          padding: 13,
-          borderRadius: 12,
-          border: 'none',
-          background: C.teal,
-          color: '#fff',
-          fontFamily: C.body,
-          fontWeight: 700,
-          fontSize: 15,
-          cursor: 'pointer',
-        }}
-      >
+      <Button className="mt-auto w-full" onClick={() => onOpen(o)}>
         Review &amp; invest
-      </button>
-    </div>
+      </Button>
+    </Card>
   );
 }
 
 function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [step, setStep] = useState(0);
   const [amt, setAmt] = useState('');
 
-  // Open/close the native dialog in step with the selected opportunity.
+  // Reset the wizard whenever a new opportunity is opened.
   useEffect(() => {
-    const dlg = ref.current;
-    if (!dlg) return;
     if (opp) {
       setStep(0);
       setAmt(String(minValue(opp)));
-      if (!dlg.open) dlg.showModal();
-    } else if (dlg.open) {
-      dlg.close();
     }
   }, [opp]);
 
@@ -390,239 +287,93 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
   const amtFmt = `US$${amtNum.toLocaleString('en-US')}`;
 
   return (
-    <dialog ref={ref} className="ccn-modal" aria-labelledby={titleId} onClose={onClose}>
-      <div style={{ fontFamily: C.body, color: C.ink }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 13,
-            padding: '20px 22px',
-            borderBottom: '1px solid #ece6da',
-          }}
-        >
+    <Dialog
+      open={!!opp}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent className="gap-0 p-0 font-sans text-foreground">
+        <DialogHeader className="flex-row items-start gap-3 border-b border-[#ece6da] p-[22px] pr-14">
           <span
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: t.tint,
-              color: t.ink,
-              display: 'grid',
-              placeItems: 'center',
-              fontWeight: 700,
-              fontSize: 14,
-              fontFamily: C.mono,
-              flex: 'none',
-            }}
+            className="grid h-11 w-11 flex-none place-items-center rounded-xl font-mono text-sm font-bold"
+            style={{ background: t.tint, color: t.ink }}
           >
             {opp.abbr}
           </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 12.5,
-                fontWeight: 700,
-                letterSpacing: '.4px',
-                textTransform: 'uppercase',
-                color: '#6d6455',
-              }}
-            >
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-bold uppercase tracking-[.4px] text-[#6d6455]">
               {blocked ? 'Screened out' : opp.type}
             </div>
-            <div
-              id={titleId}
-              style={{
-                fontFamily: C.disp,
-                fontWeight: 700,
-                fontSize: 18,
-                lineHeight: 1.25,
-                marginTop: 3,
-              }}
-            >
+            <DialogTitle id={titleId} className="mt-1 text-lg">
               {opp.name}
-            </div>
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {opp.region} · executed by {opp.partner}
+            </DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              width: 32,
-              height: 32,
-              border: 'none',
-              borderRadius: 9,
-              background: '#ece6da',
-              color: '#6b6459',
-              cursor: 'pointer',
-              fontSize: 16,
-              flex: 'none',
-            }}
-          >
-            ✕
-          </button>
-        </div>
+        </DialogHeader>
 
-        <div style={{ padding: 22 }}>
+        <div className="p-[22px]">
           {step === 0 && (
             <>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 11,
-                  marginBottom: 18,
-                }}
-              >
-                <div style={metricBox}>
-                  <div style={metricLbl}>{opp.metricLabel}</div>
-                  <div
-                    style={{ fontFamily: C.mono, fontSize: 21, fontWeight: 700, color: '#0a6e44' }}
-                  >
-                    {opp.metric}
-                  </div>
+              <div className="mb-[18px] grid grid-cols-2 gap-[11px]">
+                <div className={METRIC_BOX}>
+                  <div className={METRIC_LBL}>{opp.metricLabel}</div>
+                  <div className="font-mono text-[21px] font-bold text-[#0a6e44]">{opp.metric}</div>
                 </div>
-                <div style={metricBox}>
-                  <div style={metricLbl}>Minimum</div>
-                  <div style={{ fontFamily: C.mono, fontSize: 21, fontWeight: 700, color: C.ink }}>
-                    {opp.min}
-                  </div>
+                <div className={METRIC_BOX}>
+                  <div className={METRIC_LBL}>Minimum</div>
+                  <div className="font-mono text-[21px] font-bold text-foreground">{opp.min}</div>
                 </div>
-                <div style={metricBox}>
-                  <div style={metricLbl}>Term</div>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>{opp.term}</div>
+                <div className={METRIC_BOX}>
+                  <div className={METRIC_LBL}>Term</div>
+                  <div className="text-base font-bold">{opp.term}</div>
                 </div>
-                <div style={metricBox}>
-                  <div style={metricLbl}>Risk rating</div>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>{opp.risk}</div>
+                <div className={METRIC_BOX}>
+                  <div className={METRIC_LBL}>Risk rating</div>
+                  <div className="text-base font-bold">{opp.risk}</div>
                 </div>
               </div>
-              <p style={{ margin: '0 0 16px', fontSize: 15, lineHeight: 1.6, color: C.dim }}>
-                {opp.desc}
-              </p>
+              <p className="mb-4 text-[15px] leading-relaxed text-dim">{opp.desc}</p>
 
               {blocked ? (
-                <div
-                  style={{
-                    background: '#fbeee7',
-                    border: '1px solid #ecd2c2',
-                    borderRadius: 12,
-                    padding: '15px 17px',
-                    marginBottom: 16,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#a44e20"
-                      strokeWidth="2"
-                      aria-hidden="true"
-                    >
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M12 8v5M12 16.5v.5" />
-                    </svg>
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: '.5px',
-                        textTransform: 'uppercase',
-                        color: '#9a4a1c',
-                      }}
-                    >
+                <div className="mb-4 rounded-xl border border-[#ecd2c2] bg-[#fbeee7] px-[17px] py-[15px]">
+                  <div className="mb-2 flex items-center gap-2">
+                    <CircleAlert className="h-4 w-4 flex-none text-[#a44e20]" aria-hidden />
+                    <span className="text-[13px] font-bold uppercase tracking-[.5px] text-[#9a4a1c]">
                       Your agent recommends against this
                     </span>
                   </div>
-                  <p
-                    style={{ margin: '0 0 11px', fontSize: 14, lineHeight: 1.55, color: '#5c4636' }}
-                  >
-                    {opp.agentNote}
-                  </p>
+                  <p className="mb-2.5 text-sm leading-snug text-[#5c4636]">{opp.agentNote}</p>
                   {opp.blockReasons?.map((reason) => (
                     <div
                       key={reason}
-                      style={{
-                        display: 'flex',
-                        gap: 9,
-                        padding: '6px 0',
-                        fontSize: 13.5,
-                        lineHeight: 1.45,
-                        color: '#5c4636',
-                        borderTop: '1px solid #f0dfd2',
-                      }}
+                      className="flex gap-2.5 border-t border-[#f0dfd2] py-1.5 text-[13.5px] leading-snug text-[#5c4636]"
                     >
-                      <span
-                        aria-hidden="true"
-                        style={{ color: '#a44e20', fontWeight: 700, flex: 'none' }}
-                      >
+                      <span aria-hidden className="flex-none font-bold text-[#a44e20]">
                         ×
                       </span>
                       <span>{reason}</span>
                     </div>
                   ))}
-                  <div
-                    style={{ marginTop: 11, fontSize: 12.5, color: '#8a6a50', lineHeight: 1.45 }}
-                  >
+                  <div className="mt-2.5 text-[12.5px] leading-snug text-[#8a6a50]">
                     The agent will not route this order. If your goals or limits change, re-run
                     suitability from your profile and it will reassess.
                   </div>
                 </div>
               ) : (
-                <div
-                  style={{
-                    background: C.mint,
-                    border: '1px solid #cde0d8',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                    marginBottom: 16,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={C.teal2}
-                      strokeWidth="1.9"
-                      aria-hidden="true"
-                    >
-                      <circle cx="12" cy="12" r="8.5" />
-                      <circle cx="12" cy="12" r="2.2" fill={C.teal2} stroke="none" />
-                    </svg>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: C.teal2 }}>
-                      Agent assessment
-                    </span>
+                <div className="mb-4 rounded-xl border border-[#cde0d8] bg-mint px-4 py-3.5">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <Target className="h-[15px] w-[15px] text-teal2" aria-hidden />
+                    <span className="text-[13.5px] font-bold text-teal2">Agent assessment</span>
                   </div>
-                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#2c2925' }}>
-                    {opp.agentNote}
-                  </p>
+                  <p className="text-sm leading-snug text-[#2c2925]">{opp.agentNote}</p>
                 </div>
               )}
 
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: 13.5,
-                  color: C.dim,
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#0a6e44"
-                  strokeWidth="1.9"
-                  aria-hidden="true"
-                >
-                  <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z" />
-                </svg>
+              <div className="flex items-center gap-2 text-[13.5px] text-dim">
+                <ShieldCheck className="h-3.5 w-3.5 flex-none text-[#0a6e44]" aria-hidden />
                 Executed by {opp.partner} · Regulated by {opp.regulator}
               </div>
             </>
@@ -630,163 +381,63 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
 
           {step === 1 && !blocked && (
             <>
-              <div
-                style={{
-                  fontSize: 12.5,
-                  letterSpacing: '.5px',
-                  textTransform: 'uppercase',
-                  color: C.teal2,
-                  fontWeight: 700,
-                  marginBottom: 10,
-                }}
-              >
+              <div className="mb-2.5 text-[12.5px] font-bold uppercase tracking-[.5px] text-teal2">
                 Review &amp; authorize
               </div>
-              <div
-                style={{
-                  border: `1px solid ${C.line}`,
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                  marginBottom: 14,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '13px 16px',
-                    borderBottom: '1px solid #ece6da',
-                  }}
-                >
-                  <span style={{ fontSize: 14, color: C.dim }}>Instrument</span>
-                  <span
-                    style={{ fontSize: 14, fontWeight: 600, textAlign: 'right', maxWidth: '60%' }}
-                  >
-                    {opp.name}
-                  </span>
+              <div className="mb-3.5 overflow-hidden rounded-xl border border-border">
+                <div className="flex justify-between border-b border-[#ece6da] px-4 py-3.5">
+                  <span className="text-sm text-dim">Instrument</span>
+                  <span className="max-w-[60%] text-right text-sm font-semibold">{opp.name}</span>
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    padding: '13px 16px',
-                    borderBottom: '1px solid #ece6da',
-                  }}
-                >
-                  <label
-                    htmlFor={`${titleId}-amt`}
-                    style={{ fontSize: 14, color: C.dim, paddingTop: 9 }}
-                  >
+                <div className="flex items-start justify-between border-b border-[#ece6da] px-4 py-3.5">
+                  <label htmlFor={`${titleId}-amt`} className="pt-2 text-sm text-dim">
                     Amount
                   </label>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-end',
-                      gap: 4,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        border: '1.5px solid #cde0d8',
-                        borderRadius: 9,
-                        background: C.card,
-                        padding: '6px 11px',
-                      }}
-                    >
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="relative">
                       <span
-                        style={{ fontFamily: C.mono, fontSize: 14, fontWeight: 700, color: C.dim }}
+                        aria-hidden
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm font-bold text-dim"
                       >
                         US$
                       </span>
-                      <input
+                      <Input
                         id={`${titleId}-amt`}
                         value={amt}
                         onChange={(e) => setAmt(e.target.value)}
                         inputMode="numeric"
-                        style={{
-                          width: 90,
-                          border: 'none',
-                          background: 'transparent',
-                          outline: 'none',
-                          fontFamily: C.mono,
-                          fontSize: 16,
-                          fontWeight: 700,
-                          color: C.ink,
-                          textAlign: 'right',
-                        }}
+                        className="h-10 w-[140px] pl-11 text-right font-mono font-bold"
                       />
                     </div>
-                    <span style={{ fontSize: 12.5, color: C.faint }}>
+                    <span className="text-[12.5px] text-faint">
                       Minimum {opp.min} · from your USD wallet
                     </span>
                   </div>
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '13px 16px',
-                    borderBottom: '1px solid #ece6da',
-                  }}
-                >
-                  <span style={{ fontSize: 14, color: C.dim }}>Executing partner</span>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{opp.partner}</span>
+                <div className="flex justify-between border-b border-[#ece6da] px-4 py-3.5">
+                  <span className="text-sm text-dim">Executing partner</span>
+                  <span className="text-sm font-semibold">{opp.partner}</span>
                 </div>
-                <div
-                  style={{ display: 'flex', justifyContent: 'space-between', padding: '13px 16px' }}
-                >
-                  <span style={{ fontSize: 14, color: C.dim }}>Settlement</span>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>T+2 · USD wallet</span>
+                <div className="flex justify-between px-4 py-3.5">
+                  <span className="text-sm text-dim">Settlement</span>
+                  <span className="text-sm font-semibold">T+2 · USD wallet</span>
                 </div>
               </div>
-              <div
-                style={{
-                  background: C.mint,
-                  border: '1px solid #cde0d8',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#0a6e44"
-                    strokeWidth="1.9"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z" />
-                  </svg>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: C.teal2 }}>
+              <div className="rounded-xl border border-[#cde0d8] bg-mint px-4 py-3.5">
+                <div className="mb-2 flex items-center gap-2">
+                  <ShieldCheck className="h-[15px] w-[15px] text-[#0a6e44]" aria-hidden />
+                  <span className="text-[13.5px] font-bold text-teal2">
                     Agent ran your compliance checks
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <div className="flex flex-col gap-1.5">
                   {[
                     'Identity verified (KYC · Tier 2)',
                     'Suitability: matches your balanced-income profile',
                     'Source of funds confirmed',
                   ].map((line) => (
-                    <div
-                      key={line}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 14,
-                        color: '#2c2925',
-                      }}
-                    >
-                      <span aria-hidden="true" style={{ color: '#0a6e44', fontWeight: 700 }}>
-                        ✓
-                      </span>
+                    <div key={line} className="flex items-center gap-2 text-sm text-[#2c2925]">
+                      <Check className="h-4 w-4 flex-none text-[#0a6e44]" aria-hidden />
                       {line}
                     </div>
                   ))}
@@ -796,185 +447,65 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
           )}
 
           {step === 2 && !blocked && (
-            <div style={{ textAlign: 'center', padding: '6px 0 4px' }}>
-              <div
-                style={{
-                  width: 68,
-                  height: 68,
-                  borderRadius: '50%',
-                  background: '#e2f4ea',
-                  display: 'grid',
-                  placeItems: 'center',
-                  margin: '0 auto 16px',
-                }}
-              >
-                <svg
-                  width="34"
-                  height="34"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#0a6e44"
-                  strokeWidth="2.2"
-                  aria-hidden="true"
-                >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
+            <div className="px-0 pb-1 pt-1.5 text-center">
+              <div className="mx-auto mb-4 grid h-[68px] w-[68px] place-items-center rounded-full bg-[#e2f4ea]">
+                <Check className="h-8 w-8 text-[#0a6e44]" aria-hidden strokeWidth={2.2} />
               </div>
-              <div style={{ fontFamily: C.disp, fontWeight: 700, fontSize: 21 }}>
-                Instruction submitted
-              </div>
-              <p
-                style={{
-                  margin: '8px auto 18px',
-                  maxWidth: 330,
-                  fontSize: 14.5,
-                  lineHeight: 1.55,
-                  color: C.dim,
-                }}
-              >
+              <div className="font-display text-[21px] font-bold">Instruction submitted</div>
+              <p className="mx-auto mb-[18px] mt-2 max-w-[330px] text-[14.5px] leading-snug text-dim">
                 CCN routed your {amtFmt} instruction to {opp.partner}, who executes, custodies and
                 settles it (T+2). CCN never holds your money. Projections are estimates, not
                 guarantees.
               </p>
-              <div
-                style={{
-                  background: '#f4f0e7',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  textAlign: 'left',
-                  maxWidth: 320,
-                  margin: '0 auto',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 13.5,
-                    padding: '4px 0',
-                  }}
-                >
-                  <span style={{ color: C.dim }}>Reference</span>
-                  <span style={{ fontFamily: C.mono, fontWeight: 700 }}>CCN-8F42-QX</span>
+              <div className="mx-auto max-w-[320px] rounded-xl bg-[#f4f0e7] px-4 py-3.5 text-left">
+                <div className="flex justify-between py-1 text-[13.5px]">
+                  <span className="text-dim">Reference</span>
+                  <span className="font-mono font-bold">CCN-8F42-QX</span>
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 13.5,
-                    padding: '4px 0',
-                  }}
-                >
-                  <span style={{ color: C.dim }}>Status</span>
-                  <span style={{ color: '#a44e20', fontWeight: 700 }}>Processing</span>
+                <div className="flex justify-between py-1 text-[13.5px]">
+                  <span className="text-dim">Status</span>
+                  <span className="font-bold text-[#a44e20]">Processing</span>
                 </div>
               </div>
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <div className="mt-[18px] flex gap-2.5">
             {step === 1 && !blocked && (
-              <button
-                type="button"
-                onClick={() => setStep(0)}
-                style={{
-                  padding: '14px 18px',
-                  border: '1px solid #ddd6c8',
-                  borderRadius: 13,
-                  background: C.card,
-                  color: C.dim,
-                  fontFamily: C.body,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
+              <Button variant="outline" size="lg" onClick={() => setStep(0)}>
                 Back
-              </button>
+              </Button>
             )}
             {blocked ? (
-              <button
-                type="button"
+              <Button
+                size="lg"
+                className="flex-1 bg-terra text-white hover:bg-terra/90"
                 onClick={onClose}
-                style={{
-                  flex: 1,
-                  padding: 14,
-                  border: 'none',
-                  borderRadius: 13,
-                  background: C.terra,
-                  color: '#fff',
-                  fontFamily: C.body,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
               >
                 Close — understood
-              </button>
+              </Button>
             ) : step === 0 ? (
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                style={{
-                  flex: 1,
-                  padding: 14,
-                  border: 'none',
-                  borderRadius: 13,
-                  background: C.teal,
-                  color: '#fff',
-                  fontFamily: C.body,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
+              <Button size="lg" className="flex-1" onClick={() => setStep(1)}>
                 Continue to authorize
-              </button>
+              </Button>
             ) : step === 1 ? (
-              <button
-                type="button"
+              <Button
+                size="lg"
+                className="flex-1"
                 disabled={amtNum < minValue(opp)}
                 onClick={() => setStep(2)}
-                style={{
-                  flex: 1,
-                  padding: 14,
-                  border: 'none',
-                  borderRadius: 13,
-                  background: C.teal,
-                  color: '#fff',
-                  fontFamily: C.body,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  cursor: amtNum < minValue(opp) ? 'not-allowed' : 'pointer',
-                  opacity: amtNum < minValue(opp) ? 0.5 : 1,
-                }}
               >
                 Authorize &amp; route {amtFmt}
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  flex: 1,
-                  padding: 14,
-                  border: 'none',
-                  borderRadius: 13,
-                  background: C.teal,
-                  color: '#fff',
-                  fontFamily: C.body,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
+              <Button size="lg" className="flex-1" onClick={onClose}>
                 Done
-              </button>
+              </Button>
             )}
           </div>
         </div>
-      </div>
-    </dialog>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -992,19 +523,9 @@ export default function OpportunitiesPage() {
         eyebrow="Regional investments across jurisdictions · executed by licensed partners"
         title="Opportunities"
         right={
-          <div
-            style={{
-              background: C.mint,
-              border: `1px solid ${C.line}`,
-              borderRadius: 12,
-              padding: '9px 15px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <b style={{ fontFamily: C.disp, fontSize: 20 }}>6</b>
-            <span style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.2 }}>
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-mint px-[15px] py-[9px]">
+            <b className="font-display text-xl">6</b>
+            <span className="text-[12.5px] leading-tight text-dim">
               matched to
               <br />
               your goals
@@ -1013,17 +534,22 @@ export default function OpportunitiesPage() {
         }
       />
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+      <div className="mb-5 flex flex-wrap gap-2.5">
         {FILTERS.map((f) => (
           <button
             key={f}
             type="button"
             aria-pressed={filter === f}
             onClick={() => setFilter(f)}
-            style={chipStyle(filter === f)}
+            className={cn(
+              'inline-flex items-center gap-[7px] rounded-[22px] border px-[17px] py-[9px] text-[14.5px] font-semibold',
+              filter === f
+                ? 'border-primary bg-primary text-white'
+                : 'border-[#ddd6c8] bg-card text-dim',
+            )}
           >
             {f}
-            <span style={{ opacity: 0.6, fontFamily: C.mono }}>{count(f)}</span>
+            <span className="font-mono opacity-60">{count(f)}</span>
           </button>
         ))}
       </div>
@@ -1035,111 +561,37 @@ export default function OpportunitiesPage() {
       </div>
 
       {/* What your agent screens out — the guardrail the product is built around. */}
-      <h2 style={{ fontFamily: C.disp, fontWeight: 700, fontSize: 20, margin: '30px 0 6px' }}>
+      <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
         What your agent screens out
       </h2>
-      <p style={{ margin: '0 0 14px', fontSize: 14, color: C.dim }}>
+      <p className="mb-3.5 text-sm text-dim">
         Listed so you can see exactly what fails your suitability profile, and why.
       </p>
-      <div
-        style={{
-          background: C.card,
-          border: '1px solid #ecd2c2',
-          borderLeft: `4px solid ${C.terra}`,
-          borderRadius: 16,
-          padding: 22,
-          display: 'flex',
-          gap: 16,
-          flexWrap: 'wrap',
-          alignItems: 'flex-start',
-        }}
+      <Card
+        className="flex flex-wrap items-start gap-4 border-[#ecd2c2] p-[22px]"
+        style={{ borderLeft: '4px solid #c56a3e' }}
       >
-        <span
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            background: '#f2e7de',
-            color: '#7d4f36',
-            display: 'grid',
-            placeItems: 'center',
-            fontFamily: C.mono,
-            fontWeight: 700,
-            fontSize: 12,
-            flex: 'none',
-          }}
-        >
+        <span className="grid h-10 w-10 flex-none place-items-center rounded-[10px] bg-[#f2e7de] font-mono text-xs font-bold text-[#7d4f36]">
           {BLOCKED.abbr}
         </span>
-        <div style={{ flex: 1, minWidth: 240 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 4,
-              flexWrap: 'wrap',
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12.5,
-                fontWeight: 700,
-                letterSpacing: '.6px',
-                textTransform: 'uppercase',
-                color: '#7d4f36',
-              }}
-            >
+        <div className="min-w-[240px] flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="text-[12.5px] font-bold uppercase tracking-[.6px] text-[#7d4f36]">
               {BLOCKED.type}
             </span>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                padding: '2px 9px',
-                borderRadius: 6,
-                color: '#a44e20',
-                background: '#f5e7d9',
-              }}
-            >
-              Screened out
-            </span>
+            <Badge variant="terra">Screened out</Badge>
           </div>
-          <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>{BLOCKED.region}</div>
-          <div
-            style={{
-              fontFamily: C.disp,
-              fontWeight: 700,
-              fontSize: 18,
-              lineHeight: 1.25,
-              marginBottom: 8,
-            }}
-          >
-            {BLOCKED.name}
-          </div>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: C.dim }}>
-            {BLOCKED.agentNote}
-          </p>
+          <div className="mb-1 text-[13px] text-faint">{BLOCKED.region}</div>
+          <div className="mb-2 font-display text-lg font-bold leading-tight">{BLOCKED.name}</div>
+          <p className="text-sm leading-snug text-dim">{BLOCKED.agentNote}</p>
         </div>
-        <button
-          type="button"
+        <Button
+          className="flex-none bg-terra text-white hover:bg-terra/90"
           onClick={() => setSelected(BLOCKED)}
-          style={{
-            padding: '12px 18px',
-            borderRadius: 12,
-            border: 'none',
-            background: C.terra,
-            color: '#fff',
-            fontFamily: C.body,
-            fontWeight: 700,
-            fontSize: 14.5,
-            cursor: 'pointer',
-            flex: 'none',
-          }}
         >
           Why the agent flags this
-        </button>
-      </div>
+        </Button>
+      </Card>
 
       <ExecDialog opp={selected} onClose={() => setSelected(null)} />
     </AppScreen>
