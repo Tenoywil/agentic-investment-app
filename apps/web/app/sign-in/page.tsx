@@ -1,10 +1,10 @@
 'use client';
 
+import { Button } from '@/app/_components/ui/button';
+import { Card } from '@/app/_components/ui/card';
+import { Lock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { authClient } from '../../lib/auth-client';
-
-const DISPLAY = "'Bricolage Grotesque', sans-serif";
-const BODY = "'Hanken Grotesk', sans-serif";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -15,200 +15,61 @@ export default function SignInPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#efece4',
-      }}
-    >
-      <div style={{ padding: '22px 40px' }}>
+    <div className="flex min-h-screen flex-col bg-background font-sans text-foreground">
+      <div className="px-10 py-[22px]">
         <button
           type="button"
           onClick={() => router.push('/')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 11,
-            cursor: 'pointer',
-            background: 'none',
-            border: 'none',
-            padding: 0,
-          }}
+          className="inline-flex items-center gap-[11px]"
         >
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              background: '#124e48',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontFamily: DISPLAY,
-              fontWeight: 700,
-              fontSize: 17,
-            }}
-          >
+          <span className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-primary font-display text-[17px] font-bold text-white">
             C
-          </div>
-          <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 17, color: '#1e1c19' }}>
-            Caribbean Capital
-          </div>
+          </span>
+          <span className="font-display text-[17px] font-bold">Caribbean Capital</span>
         </button>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px 24px 60px',
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: 428,
-            background: '#fdfcfa',
-            border: '1px solid #e4e0d6',
-            borderRadius: 16,
-            padding: '36px 34px',
-            boxShadow: '0 12px 44px rgba(40,34,22,.09)',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: DISPLAY,
-              fontWeight: 700,
-              fontSize: 25,
-              textAlign: 'center',
-              letterSpacing: '-.3px',
-            }}
-          >
+      <div className="flex flex-1 items-center justify-center px-6 pb-[60px] pt-6">
+        <Card className="w-full max-w-[428px] px-[34px] py-9 shadow-[0_12px_44px_rgba(40,34,22,0.09)]">
+          <h1 className="text-center font-display text-[25px] font-bold tracking-tight">
             Create your account
-          </div>
-          <p
-            style={{
-              margin: '9px 0 26px',
-              textAlign: 'center',
-              fontSize: 15,
-              lineHeight: 1.5,
-              color: '#5c5449',
-            }}
-          >
+          </h1>
+          <p className="mx-0 mb-[26px] mt-[9px] text-center text-[15px] leading-relaxed text-dim">
             Sign up so your capital agent can work across every licensed partner in the region.
           </p>
-          <button
-            type="button"
-            onClick={google}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 12,
-              padding: 15,
-              border: '1px solid #dcd6c8',
-              borderRadius: 12,
-              background: '#fff',
-              color: '#1e1c19',
-              fontFamily: BODY,
-              fontSize: 16,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            <span
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                background: '#fff',
-                border: '1px solid #e4e0d6',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontFamily: DISPLAY,
-                fontWeight: 700,
-                fontSize: 14,
-                color: '#3f7ae0',
-              }}
-            >
+          <Button variant="outline" onClick={google} className="h-[54px] w-full gap-3 text-base">
+            <span className="grid h-[22px] w-[22px] place-items-center rounded-full border border-border bg-white font-display text-sm font-bold text-[#3f7ae0]">
               G
             </span>
             Continue with Google
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-            <span style={{ height: 1, flex: 1, background: '#e4e0d6' }} />
-            <span style={{ fontSize: 13, color: '#675d4d' }}>or</span>
-            <span style={{ height: 1, flex: 1, background: '#e4e0d6' }} />
+          </Button>
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[13px] text-faint">or</span>
+            <span className="h-px flex-1 bg-border" />
           </div>
-          <button
-            type="button"
+          <Button
+            variant="outline"
             onClick={() => router.push('/onboarding')}
-            style={{
-              width: '100%',
-              padding: 14,
-              border: '1px solid #dcd6c8',
-              borderRadius: 12,
-              background: '#fdfcfa',
-              color: '#0e5952',
-              fontFamily: BODY,
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
+            className="w-full text-teal2"
           >
             Explore the demo instead
-          </button>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              marginTop: 22,
-              fontSize: 13,
-              color: '#675d4d',
-            }}
-          >
-            <svg
-              aria-hidden="true"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#675d4d"
-              strokeWidth={2}
-            >
-              <rect x="4" y="11" width="16" height="10" rx="2" />
-              <path d="M8 11V7a4 4 0 018 0v4" />
-            </svg>
+          </Button>
+          <div className="mt-[22px] flex items-center justify-center gap-2 text-[13px] text-faint">
+            <Lock className="h-3.5 w-3.5" aria-hidden />
             Bank-level encryption · KYC handled by your partner
           </div>
-          <div style={{ textAlign: 'center', marginTop: 20, fontSize: 14.5, color: '#5c5449' }}>
+          <div className="mt-5 text-center text-[14.5px] text-dim">
             Already have an account?{' '}
             <button
               type="button"
               onClick={google}
-              style={{
-                color: '#0e5952',
-                fontWeight: 700,
-                cursor: 'pointer',
-                background: 'none',
-                border: 'none',
-                font: 'inherit',
-                padding: 0,
-              }}
+              className="font-bold text-teal2 underline-offset-4 hover:underline"
             >
               Sign in
             </button>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
