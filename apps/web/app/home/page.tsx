@@ -1,9 +1,14 @@
 'use client';
 
+import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
+import { Badge } from '@/app/_components/ui/badge';
+import { Button } from '@/app/_components/ui/button';
+import { Card } from '@/app/_components/ui/card';
+import { cn } from '@/app/_lib/utils';
+import { Bell, LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { AppSidebar } from '../_components/AppSidebar';
-import { C, Icon, icons } from '../_lib/ui';
 
 const PIPE = [
   { n: '1', t: 'Research', b: 'Scans 47 instruments across 8 partners', flag: false },
@@ -15,25 +20,25 @@ const PIPE = [
 
 const ACTED = [
   {
-    dot: C.green,
+    dot: '#0a8f5b',
     t: 'Swept US$400 of idle cash into the NCB Money Market Fund',
     s: 'Inside your US$500 auto-invest limit · 2 days ago',
   },
   {
-    dot: C.green,
+    dot: '#0a8f5b',
     t: 'Reinvested a US$388 GOJ coupon after you approved it',
     s: 'Human-in-the-loop · Last week',
   },
   {
-    dot: C.terra,
+    dot: '#c56a3e',
     t: 'Paused a JMD transfer. FX spread was 0.4% above your rule',
     s: 'Held for your review · Last week',
   },
 ];
 
 const APPROVALS = [
-  { tag: 'Reinvest', tagColor: C.teal, title: 'Put your GOJ coupon to work', when: 'Today' },
-  { tag: 'Idle cash', tagColor: C.terra, title: 'US$2,150 earning nothing', when: '2d ago' },
+  { tag: 'Reinvest', tagColor: '#124e48', title: 'Put your GOJ coupon to work', when: 'Today' },
+  { tag: 'Idle cash', tagColor: '#c56a3e', title: 'US$2,150 earning nothing', when: '2d ago' },
 ];
 
 const HELD = [
@@ -79,13 +84,41 @@ const ALLOC = [
   { label: 'Cash', pct: 7, color: '#e6dccb' },
 ];
 
-const cardBox = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 16 } as const;
-const uppr = {
-  fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: '1px',
-  textTransform: 'uppercase',
-} as const;
+const STATS: {
+  label: string;
+  Icon: LucideIcon;
+  val: string;
+  valClass: string;
+  sub: string;
+  subClass: string;
+}[] = [
+  {
+    label: 'Tracked across partners',
+    Icon: LineChart,
+    val: 'US$31,350',
+    valClass: 'text-foreground',
+    sub: '47 holdings · 4 institutions · live',
+    subClass: 'text-faint',
+  },
+  {
+    label: 'Blended yield',
+    Icon: TrendingUp,
+    val: '6.2%',
+    valClass: 'text-[#0a8f5b]',
+    sub: '≈ US$1,940 income / year',
+    subClass: 'text-faint',
+  },
+  {
+    label: 'Matched to your goals',
+    Icon: Sparkles,
+    val: '6',
+    valClass: 'text-foreground',
+    sub: '2 ready for your approval →',
+    subClass: 'font-bold text-terra',
+  },
+];
+
+const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
 
 function Donut() {
   const r = 52;
@@ -121,602 +154,258 @@ export default function HomePage() {
   const [cur, setCur] = useState<'USD' | 'JMD' | 'TTD'>('USD');
 
   return (
-    <div className="app-shell" style={{ background: C.bg, color: C.ink, fontFamily: C.body }}>
-      <AppSidebar active="home" />
-      <main style={{ flex: 1, minWidth: 0, padding: '26px 32px 96px', position: 'relative' }}>
-        {/* Top bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-            flexWrap: 'wrap',
-            marginBottom: 20,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 13.5, color: C.dim, marginBottom: 4 }}>Saturday, July 18</div>
-            <h1
-              style={{
-                fontFamily: C.disp,
-                fontWeight: 700,
-                fontSize: 30,
-                letterSpacing: '-.4px',
-                margin: 0,
-              }}
-            >
-              Good afternoon, Marcus
-            </h1>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                display: 'flex',
-                background: C.card,
-                border: `1px solid ${C.line}`,
-                borderRadius: 10,
-                padding: 3,
-              }}
-            >
+    <AppScreen active="home">
+      <PageHead
+        eyebrow="Saturday, July 18"
+        title="Good afternoon, Marcus"
+        right={
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-[10px] border border-border bg-card p-[3px]">
               {(['USD', 'JMD', 'TTD'] as const).map((c) => (
                 <button
                   key={c}
                   type="button"
                   aria-pressed={cur === c}
                   onClick={() => setCur(c)}
-                  style={{
-                    padding: '7px 13px',
-                    borderRadius: 8,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: C.mono,
-                    fontWeight: 600,
-                    fontSize: 13,
-                    background: cur === c ? C.teal : 'transparent',
-                    color: cur === c ? '#fff' : C.dim,
-                  }}
+                  className={cn(
+                    'rounded-lg px-[13px] py-[7px] font-mono text-[13px] font-semibold',
+                    cur === c ? 'bg-primary text-white' : 'text-dim',
+                  )}
                 >
                   {c}
                 </button>
               ))}
             </div>
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="icon"
               aria-label="Notifications"
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: '50%',
-                background: C.card,
-                border: `1px solid ${C.line}`,
-                display: 'grid',
-                placeItems: 'center',
-                color: C.dim,
-                cursor: 'pointer',
-              }}
+              className="h-[42px] w-[42px] rounded-full text-dim [&_svg]:size-[18px]"
             >
-              <Icon path={icons.bell} size={19} />
-            </button>
-            <span
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: '50%',
-                background: C.teal,
-                color: '#fff',
-                display: 'grid',
-                placeItems: 'center',
-                fontWeight: 700,
-              }}
-            >
-              MB
+              <Bell />
+            </Button>
+            <Avatar className="h-[42px] w-[42px]">
+              <AvatarFallback>MB</AvatarFallback>
+            </Avatar>
+          </div>
+        }
+      />
+
+      {/* Hero card */}
+      <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">
+        <div>
+          <div className={cn(UPPR, 'text-[#eafaf5]/[.66]')}>
+            Total net worth · 4 licensed partners
+          </div>
+          <div className="my-[10px] mb-3 font-display text-[52px] font-bold leading-none tracking-[-1.5px]">
+            US$31,350
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5 text-sm text-[#eafaf5]/[.82]">
+            <span className="rounded-[7px] bg-white/[.12] px-[9px] py-[3px] font-mono font-bold text-[#9fe6c6]">
+              ↑ 6.8%
             </span>
+            +US$1,994 all-time · 47 holdings · yield 6.2%
           </div>
-        </div>
-
-        {/* Hero card */}
-        <div
-          className="g-hero"
-          style={{ background: C.teal, borderRadius: 20, padding: 28, color: C.tealInk }}
-        >
-          <div>
-            <div style={{ ...uppr, color: 'rgba(234,250,245,.66)' }}>
-              Total net worth · 4 licensed partners
-            </div>
-            <div
-              style={{
-                fontFamily: C.disp,
-                fontWeight: 700,
-                fontSize: 52,
-                lineHeight: 1,
-                letterSpacing: '-1.5px',
-                margin: '10px 0 12px',
-              }}
-            >
-              US$31,350
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                fontSize: 14,
-                color: 'rgba(234,250,245,.82)',
-                flexWrap: 'wrap',
-              }}
-            >
-              <span
-                style={{
-                  background: 'rgba(255,255,255,.12)',
-                  color: '#9fe6c6',
-                  padding: '3px 9px',
-                  borderRadius: 7,
-                  fontFamily: C.mono,
-                  fontWeight: 700,
-                }}
-              >
-                ↑ 6.8%
-              </span>
-              +US$1,994 all-time · 47 holdings · yield 6.2%
-            </div>
-            <svg
-              width="100%"
-              height="64"
-              viewBox="0 0 420 64"
-              preserveAspectRatio="none"
-              style={{ marginTop: 16 }}
-              aria-hidden="true"
-            >
-              <polyline
-                points="0,52 40,48 80,50 120,40 160,44 200,32 240,36 280,24 320,26 360,16 420,10"
-                fill="none"
-                stroke="rgba(159,230,198,.75)"
-                strokeWidth="2.5"
-              />
-            </svg>
-          </div>
-          <div style={{ borderLeft: '1px solid rgba(234,250,245,.16)', paddingLeft: 26 }}>
-            <div
-              style={{
-                ...uppr,
-                color: 'rgba(234,250,245,.66)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-              }}
-            >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.peach }} />
-              Your agent · acting within your limits
-            </div>
-            <p
-              style={{
-                fontSize: 17,
-                lineHeight: 1.5,
-                color: '#fff',
-                margin: '12px 0 18px',
-                fontWeight: 500,
-              }}
-            >
-              This week I matched <b style={{ color: C.gold }}>6 opportunities</b>, swept{' '}
-              <b style={{ color: C.gold }}>US$400</b> of idle cash inside your limit, and prepared{' '}
-              <b style={{ color: C.gold }}>2 actions</b> for your approval.
-            </p>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <Link
-                href="/agent"
-                style={{
-                  padding: '11px 18px',
-                  borderRadius: 11,
-                  background: C.peach,
-                  color: '#3a2415',
-                  fontWeight: 700,
-                  fontSize: 14.5,
-                  textDecoration: 'none',
-                }}
-              >
-                Review 2 approvals
-              </Link>
-              <Link
-                href="/opportunities"
-                style={{
-                  padding: '11px 18px',
-                  borderRadius: 11,
-                  background: 'transparent',
-                  color: '#fff',
-                  border: '1px solid rgba(234,250,245,.3)',
-                  fontWeight: 700,
-                  fontSize: 14.5,
-                  textDecoration: 'none',
-                }}
-              >
-                Opportunities
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* How your agent works */}
-        <section style={{ ...cardBox, padding: 22, marginTop: 18 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 12,
-              marginBottom: 16,
-              flexWrap: 'wrap',
-            }}
+          <svg
+            width="100%"
+            height="64"
+            viewBox="0 0 420 64"
+            preserveAspectRatio="none"
+            className="mt-4"
+            aria-hidden="true"
           >
-            <span style={{ ...uppr, color: C.ink }}>How your agent works</span>
-            <span style={{ fontSize: 14, color: C.dim }}>
-              Every action is researched, screened and checked, then brought to you
-            </span>
-          </div>
-          <div className="g5">
-            {PIPE.map((s) => (
-              <div
-                key={s.n}
-                style={{
-                  padding: 16,
-                  borderRadius: 12,
-                  border: `1px solid ${s.flag ? C.peachLine : C.line}`,
-                  background: s.flag ? C.peachBg : C.card2,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 7,
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: s.flag ? '#f0d3bd' : C.mint,
-                      color: s.flag ? '#b4531f' : C.teal2,
-                      fontFamily: C.mono,
-                      fontWeight: 700,
-                      fontSize: 13,
-                    }}
-                  >
-                    {s.n}
-                  </span>
-                  <b style={{ fontSize: 14.5 }}>{s.t}</b>
-                </div>
-                <div style={{ fontSize: 13, color: s.flag ? '#8a5a3e' : C.dim, lineHeight: 1.45 }}>
-                  {s.b}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Acted / Approvals */}
-        <div className="g2" style={{ marginTop: 18 }}>
-          <section style={{ ...cardBox, padding: 22 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <span style={{ ...uppr, color: C.ink }}>Acted on your behalf</span>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: C.teal2,
-                  background: C.mint,
-                  padding: '3px 9px',
-                  borderRadius: 7,
-                }}
-              >
-                within your limits
-              </span>
-            </div>
-            {ACTED.map((a) => (
-              <div key={a.t} style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
-                <span
-                  style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: '50%',
-                    background: a.dot,
-                    flex: 'none',
-                    marginTop: 6,
-                  }}
-                />
-                <div>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.4 }}>{a.t}</div>
-                  <div style={{ fontSize: 12.5, color: C.faint, marginTop: 2 }}>{a.s}</div>
-                </div>
-              </div>
-            ))}
-            <Link
-              href="/agent"
-              style={{
-                display: 'block',
-                textAlign: 'center',
-                padding: 12,
-                borderRadius: 11,
-                border: `1px solid ${C.line}`,
-                color: C.teal2,
-                fontWeight: 700,
-                fontSize: 14.5,
-                textDecoration: 'none',
-                marginTop: 6,
-              }}
-            >
-              Adjust your agent's limits
-            </Link>
-          </section>
-
-          <section style={{ ...cardBox, padding: 22 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <span style={{ ...uppr, color: C.ink }}>Needs your approval</span>
-              <span
-                style={{
-                  minWidth: 22,
-                  textAlign: 'center',
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: C.terra,
-                  background: C.peachBg,
-                  padding: '1px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                2
-              </span>
-            </div>
-            {APPROVALS.map((a) => (
-              <div
-                key={a.title}
-                style={{
-                  border: `1px solid ${C.line}`,
-                  borderLeft: `3px solid ${a.tagColor}`,
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 12,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: '.5px',
-                      textTransform: 'uppercase',
-                      color: a.tagColor,
-                      background: `${a.tagColor}14`,
-                      padding: '3px 9px',
-                      borderRadius: 6,
-                    }}
-                  >
-                    {a.tag}
-                  </span>
-                  <span style={{ fontSize: 12.5, color: C.faint }}>{a.when}</span>
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>{a.title}</div>
-                <Link
-                  href="/agent"
-                  style={{
-                    display: 'block',
-                    textAlign: 'center',
-                    padding: 11,
-                    borderRadius: 10,
-                    background: C.teal,
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    textDecoration: 'none',
-                  }}
-                >
-                  Review &amp; approve
-                </Link>
-              </div>
-            ))}
-          </section>
+            <polyline
+              points="0,52 40,48 80,50 120,40 160,44 200,32 240,36 280,24 320,26 360,16 420,10"
+              fill="none"
+              stroke="rgba(159,230,198,.75)"
+              strokeWidth="2.5"
+            />
+          </svg>
         </div>
+        <div className="border-l border-[#eafaf5]/[.16] pl-[26px]">
+          <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.66]')}>
+            <span className="h-[7px] w-[7px] rounded-full bg-peach" />
+            Your agent · acting within your limits
+          </div>
+          <p className="my-3 mb-[18px] text-[17px] font-medium leading-relaxed text-white">
+            This week I matched <b className="text-gold">6 opportunities</b>, swept{' '}
+            <b className="text-gold">US$400</b> of idle cash inside your limit, and prepared{' '}
+            <b className="text-gold">2 actions</b> for your approval.
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            <Button variant="peach" asChild>
+              <Link href="/agent">Review 2 approvals</Link>
+            </Button>
+            <Button
+              asChild
+              className="border border-white/30 bg-transparent text-white hover:bg-white/10"
+            >
+              <Link href="/opportunities">Opportunities</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
 
-        {/* Stat cards */}
-        <div className="g3" style={{ marginTop: 18 }}>
-          {[
-            {
-              label: 'Tracked across partners',
-              icon: icons.portfolio,
-              val: 'US$31,350',
-              valColor: C.ink,
-              sub: '47 holdings · 4 institutions · live',
-            },
-            {
-              label: 'Blended yield',
-              icon: icons.opportunities,
-              val: '6.2%',
-              valColor: C.green,
-              sub: '≈ US$1,940 income / year',
-            },
-            {
-              label: 'Matched to your goals',
-              icon: icons.agent,
-              val: '6',
-              valColor: C.ink,
-              sub: '2 ready for your approval →',
-              subColor: C.terra,
-            },
-          ].map((s) => (
-            <div key={s.label} style={{ ...cardBox, padding: 20 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 12,
-                }}
-              >
-                <span style={{ fontSize: 14, color: C.dim }}>{s.label}</span>
+      {/* How your agent works */}
+      <Card className="mt-[18px] p-[22px]">
+        <div className="mb-4 flex flex-wrap items-baseline gap-3">
+          <span className={cn(UPPR, 'text-foreground')}>How your agent works</span>
+          <span className="text-sm text-dim">
+            Every action is researched, screened and checked, then brought to you
+          </span>
+        </div>
+        <div className="g5">
+          {PIPE.map((s) => (
+            <div
+              key={s.n}
+              className={cn(
+                'rounded-xl border p-4',
+                s.flag ? 'border-[#e7c3ab] bg-[#f9ede2]' : 'border-border bg-[#fbfaf6]',
+              )}
+            >
+              <div className="mb-2 flex items-center gap-2">
                 <span
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 9,
-                    background: C.mint,
-                    display: 'grid',
-                    placeItems: 'center',
-                    color: C.teal2,
-                  }}
+                  className={cn(
+                    'grid h-6 w-6 place-items-center rounded-[7px] font-mono text-[13px] font-bold',
+                    s.flag ? 'bg-[#f0d3bd] text-[#b4531f]' : 'bg-mint text-teal2',
+                  )}
                 >
-                  <Icon path={s.icon} size={18} />
+                  {s.n}
                 </span>
+                <b className="text-[14.5px]">{s.t}</b>
               </div>
               <div
-                style={{
-                  fontFamily: C.disp,
-                  fontWeight: 700,
-                  fontSize: 30,
-                  color: s.valColor,
-                  letterSpacing: '-.5px',
-                }}
+                className={cn('text-[13px] leading-snug', s.flag ? 'text-[#8a5a3e]' : 'text-dim')}
               >
-                {s.val}
-              </div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  color: s.subColor ?? C.faint,
-                  marginTop: 4,
-                  fontWeight: s.subColor ? 700 : 400,
-                }}
-              >
-                {s.sub}
+                {s.b}
               </div>
             </div>
           ))}
         </div>
+      </Card>
 
-        {/* Held / Allocation */}
-        <div className="g-held" style={{ marginTop: 18 }}>
-          <section style={{ ...cardBox, padding: 22 }}>
+      {/* Acted / Approvals */}
+      <div className="g2 mt-[18px]">
+        <Card className="p-[22px]">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
+            <Badge variant="secondary">within your limits</Badge>
+          </div>
+          {ACTED.map((a) => (
+            <div key={a.t} className="mb-[15px] flex gap-2.5">
+              <span
+                className="mt-1.5 h-[9px] w-[9px] flex-none rounded-full"
+                style={{ background: a.dot }}
+              />
+              <div>
+                <div className="text-[14.5px] font-semibold leading-snug">{a.t}</div>
+                <div className="mt-0.5 text-[12.5px] text-faint">{a.s}</div>
+              </div>
+            </div>
+          ))}
+          <Button variant="outline" className="mt-1.5 w-full text-teal2" asChild>
+            <Link href="/agent">Adjust your agent's limits</Link>
+          </Button>
+        </Card>
+
+        <Card className="p-[22px]">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
+            <span className="min-w-[22px] rounded-full bg-[#f9ede2] px-2 py-px text-center text-[12.5px] font-bold text-terra">
+              2
+            </span>
+          </div>
+          {APPROVALS.map((a) => (
             <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 14,
-              }}
+              key={a.title}
+              className="mb-3 rounded-xl border border-border p-4"
+              style={{ borderLeft: `3px solid ${a.tagColor}` }}
             >
-              <b style={{ fontFamily: C.disp, fontSize: 18 }}>Held across partners</b>
-              <Link
-                href="/portfolio"
-                style={{ color: C.teal2, fontWeight: 700, fontSize: 14, textDecoration: 'none' }}
-              >
-                View portfolio →
-              </Link>
-            </div>
-            {HELD.map((h) => (
-              <div
-                key={h.code}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '11px 0',
-                  borderTop: `1px solid ${C.line}`,
-                }}
-              >
+              <div className="mb-2 flex items-center justify-between">
                 <span
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 10,
-                    background: h.tint,
-                    color: h.color,
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontFamily: C.mono,
-                    fontWeight: 700,
-                    fontSize: 12,
-                    flex: 'none',
-                  }}
+                  className="rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]"
+                  style={{ color: a.tagColor, background: `${a.tagColor}14` }}
                 >
-                  {h.code}
+                  {a.tag}
                 </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5 }}>{h.name}</div>
-                  <div style={{ fontSize: 12.5, color: C.faint }}>{h.sub}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: C.mono, fontWeight: 700, fontSize: 14 }}>{h.amt}</div>
-                  <div style={{ fontSize: 11.5, color: C.green }}>· FSC-regulated</div>
-                </div>
+                <span className="text-[12.5px] text-faint">{a.when}</span>
               </div>
-            ))}
-          </section>
-
-          <section style={{ ...cardBox, padding: 22 }}>
-            <b style={{ fontFamily: C.disp, fontSize: 18 }}>Allocation</b>
-            <div style={{ fontSize: 13, color: C.faint, marginBottom: 8 }}>
-              Blended across all 4 partners
+              <div className="mb-3 text-[15px] font-bold">{a.title}</div>
+              <Button className="w-full" asChild>
+                <Link href="/agent">Review &amp; approve</Link>
+              </Button>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-              <Donut />
-              <div style={{ flex: 1 }}>
-                {ALLOC.map((a) => (
-                  <div
-                    key={a.label}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      marginBottom: 7,
-                      fontSize: 13.5,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 3,
-                        background: a.color,
-                        flex: 'none',
-                      }}
-                    />
-                    <span style={{ flex: 1, color: C.dim }}>{a.label}</span>
-                    <b style={{ fontFamily: C.mono, fontSize: 13 }}>{a.pct}%</b>
-                  </div>
-                ))}
+          ))}
+        </Card>
+      </div>
+
+      {/* Stat cards */}
+      <div className="g3 mt-[18px]">
+        {STATS.map((s) => (
+          <Card key={s.label} className="p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm text-dim">{s.label}</span>
+              <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-mint text-teal2">
+                <s.Icon className="h-[18px] w-[18px]" aria-hidden />
+              </span>
+            </div>
+            <div className={cn('font-display text-3xl font-bold tracking-[-.5px]', s.valClass)}>
+              {s.val}
+            </div>
+            <div className={cn('mt-1 text-[13.5px]', s.subClass)}>{s.sub}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Held / Allocation */}
+      <div className="g-held mt-[18px]">
+        <Card className="p-[22px]">
+          <div className="mb-3.5 flex items-center justify-between">
+            <b className="font-display text-lg">Held across partners</b>
+            <Link href="/portfolio" className="text-sm font-bold text-teal2 no-underline">
+              View portfolio →
+            </Link>
+          </div>
+          {HELD.map((h) => (
+            <div key={h.code} className="flex items-center gap-3 border-t border-border py-[11px]">
+              <span
+                className="grid h-[38px] w-[38px] flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
+                style={{ background: h.tint, color: h.color }}
+              >
+                {h.code}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14.5px] font-bold">{h.name}</div>
+                <div className="text-[12.5px] text-faint">{h.sub}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-sm font-bold">{h.amt}</div>
+                <div className="text-[11.5px] text-[#0a8f5b]">· FSC-regulated</div>
               </div>
             </div>
-          </section>
-        </div>
+          ))}
+        </Card>
 
-        {/* Ask CCN */}
-        <button
-          type="button"
-          style={{
-            position: 'fixed',
-            right: 30,
-            bottom: 26,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 9,
-            padding: '13px 20px',
-            borderRadius: 999,
-            background: C.teal,
-            color: '#fff',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 12px 30px rgba(18,78,72,.4)',
-            fontFamily: C.body,
-            fontWeight: 700,
-            fontSize: 15,
-          }}
-        >
-          <Icon path={icons.mic} size={18} />
-          Ask CCN
-        </button>
-      </main>
-    </div>
+        <Card className="p-[22px]">
+          <b className="font-display text-lg">Allocation</b>
+          <div className="mb-2 text-[13px] text-faint">Blended across all 4 partners</div>
+          <div className="flex items-center gap-[18px]">
+            <Donut />
+            <div className="flex-1">
+              {ALLOC.map((a) => (
+                <div key={a.label} className="mb-[7px] flex items-center gap-2 text-[13.5px]">
+                  <span
+                    className="h-2.5 w-2.5 flex-none rounded-[3px]"
+                    style={{ background: a.color }}
+                  />
+                  <span className="flex-1 text-dim">{a.label}</span>
+                  <b className="font-mono text-[13px]">{a.pct}%</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      </div>
+    </AppScreen>
   );
 }
