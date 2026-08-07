@@ -1,20 +1,29 @@
 'use client';
 
+import { cn } from '@/app/_lib/utils';
+import {
+  Building2,
+  LayoutGrid,
+  LineChart,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  UserPlus,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
-import { C, Icon, icons } from '../_lib/ui';
 
 type Key = 'home' | 'portfolio' | 'opportunities' | 'agent' | 'planning' | 'onboarding';
 
 const GROUPS: {
   label: string;
-  items: { key: Key; label: string; href: string; icon: ReactNode; badge?: number }[];
+  items: { key: Key; label: string; href: string; Icon: LucideIcon; badge?: number }[];
 }[] = [
   {
     label: 'Overview',
     items: [
-      { key: 'home', label: 'Home', href: '/home', icon: icons.home },
-      { key: 'portfolio', label: 'Portfolio', href: '/portfolio', icon: icons.portfolio, badge: 4 },
+      { key: 'home', label: 'Home', href: '/home', Icon: LayoutGrid },
+      { key: 'portfolio', label: 'Portfolio', href: '/portfolio', Icon: LineChart, badge: 4 },
     ],
   },
   {
@@ -24,17 +33,17 @@ const GROUPS: {
         key: 'opportunities',
         label: 'Opportunities',
         href: '/opportunities',
-        icon: icons.opportunities,
+        Icon: TrendingUp,
         badge: 8,
       },
-      { key: 'agent', label: 'Agent', href: '/agent', icon: icons.agent, badge: 2 },
+      { key: 'agent', label: 'Agent', href: '/agent', Icon: Sparkles, badge: 2 },
     ],
   },
   {
     label: 'Plan',
     items: [
-      { key: 'planning', label: 'Planning', href: '/planning', icon: icons.planning },
-      { key: 'onboarding', label: 'Onboarding', href: '/onboarding', icon: icons.onboarding },
+      { key: 'planning', label: 'Planning', href: '/planning', Icon: ShieldCheck },
+      { key: 'onboarding', label: 'Onboarding', href: '/onboarding', Icon: UserPlus },
     ],
   },
 ];
@@ -42,57 +51,17 @@ const GROUPS: {
 export function AppSidebar({ active }: { active: Key | 'institutions' }) {
   return (
     <nav
-      className="app-sidebar"
+      className="app-sidebar sticky top-0 flex h-screen w-[264px] flex-none flex-col border-r border-border bg-card px-[18px] pb-5 pt-[26px]"
       aria-label="Primary"
-      style={{
-        width: 264,
-        flex: 'none',
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        background: C.card,
-        borderRight: `1px solid ${C.line}`,
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '26px 18px 20px',
-      }}
     >
       <Link
         href="/home"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '0 8px 22px',
-          textDecoration: 'none',
-          color: C.ink,
-        }}
+        className="flex items-center gap-3 px-2 pb-[22px] text-foreground no-underline"
       >
-        <span
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 13,
-            background: C.teal,
-            color: '#fff',
-            display: 'grid',
-            placeItems: 'center',
-            fontFamily: C.disp,
-            fontWeight: 700,
-            fontSize: 20,
-          }}
-        >
+        <span className="grid h-11 w-11 place-items-center rounded-[13px] bg-primary font-display text-xl font-bold text-white">
           C
         </span>
-        <span
-          style={{
-            fontFamily: C.disp,
-            fontWeight: 700,
-            fontSize: 17,
-            lineHeight: 1.05,
-            letterSpacing: '-.2px',
-          }}
-        >
+        <span className="font-display text-[17px] font-bold leading-[1.05] tracking-tight">
           Caribbean
           <br />
           Capital
@@ -101,54 +70,31 @@ export function AppSidebar({ active }: { active: Key | 'institutions' }) {
 
       {GROUPS.map((g) => (
         <div key={g.label}>
-          <div
-            style={{
-              padding: '14px 10px 8px',
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: '1.6px',
-              textTransform: 'uppercase',
-              color: C.faint,
-            }}
-          >
+          <div className="px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
             {g.label}
           </div>
-          {g.items.map((it) => {
-            const on = it.key === active;
+          {g.items.map(({ key, label, href, Icon, badge }) => {
+            const on = key === active;
             return (
               <Link
-                key={it.key}
-                href={it.href}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '11px 12px',
-                  borderRadius: 11,
-                  marginBottom: 2,
-                  textDecoration: 'none',
-                  background: on ? C.mint : 'transparent',
-                  color: on ? C.teal : C.dim,
-                  fontWeight: on ? 700 : 600,
-                  fontSize: 15,
-                }}
+                key={key}
+                href={href}
+                aria-current={on ? 'page' : undefined}
+                className={cn(
+                  'mb-0.5 flex items-center gap-3 rounded-[11px] px-3 py-[11px] text-[15px] no-underline',
+                  on ? 'bg-mint font-bold text-primary' : 'font-semibold text-dim',
+                )}
               >
-                <Icon path={it.icon} />
-                <span style={{ flex: 1 }}>{it.label}</span>
-                {it.badge ? (
+                <Icon className="h-[21px] w-[21px]" aria-hidden />
+                <span className="flex-1">{label}</span>
+                {badge ? (
                   <span
-                    style={{
-                      minWidth: 22,
-                      textAlign: 'center',
-                      padding: '1px 7px',
-                      borderRadius: 999,
-                      background: on ? C.teal : C.line,
-                      color: on ? '#fff' : C.dim,
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                    }}
+                    className={cn(
+                      'min-w-[22px] rounded-full px-1.5 py-px text-center text-[12.5px] font-bold',
+                      on ? 'bg-primary text-white' : 'bg-border text-dim',
+                    )}
                   >
-                    {it.badge}
+                    {badge}
                   </span>
                 ) : null}
               </Link>
@@ -157,51 +103,20 @@ export function AppSidebar({ active }: { active: Key | 'institutions' }) {
         </div>
       ))}
 
-      <div className="app-sidebar__grow" style={{ flex: 1 }} />
+      <div className="app-sidebar__grow flex-1" />
 
-      <div
-        className="app-sidebar__agentcard"
-        style={{
-          background: C.teal,
-          borderRadius: 18,
-          padding: 17,
-          color: C.tealInk,
-          marginBottom: 12,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            fontSize: 13.5,
-            opacity: 0.85,
-            marginBottom: 6,
-          }}
-        >
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.peach }} />
+      <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5]">
+        <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
+          <span className="h-[7px] w-[7px] rounded-full bg-peach" />
           Your agent · live
         </div>
-        <div style={{ fontFamily: C.disp, fontWeight: 600, fontSize: 16, marginBottom: 4 }}>
-          6 opportunities matched
-        </div>
-        <div style={{ fontSize: 13.5, opacity: 0.8, lineHeight: 1.45, marginBottom: 12 }}>
+        <div className="mb-1 font-display text-base font-semibold">6 opportunities matched</div>
+        <div className="mb-3 text-[13.5px] leading-snug opacity-80">
           2 actions ready for your approval this week.
         </div>
         <Link
           href="/agent"
-          style={{
-            display: 'block',
-            textAlign: 'center',
-            padding: 11,
-            borderRadius: 11,
-            background: C.peach,
-            color: '#3a2415',
-            fontFamily: C.body,
-            fontSize: 15,
-            fontWeight: 700,
-            textDecoration: 'none',
-          }}
+          className="block rounded-[11px] bg-peach py-[11px] text-center text-[15px] font-bold text-[#3a2415] no-underline"
         >
           Review with agent
         </Link>
@@ -209,19 +124,9 @@ export function AppSidebar({ active }: { active: Key | 'institutions' }) {
 
       <Link
         href="/institutions"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '11px 12px',
-          borderRadius: 11,
-          color: C.dim,
-          textDecoration: 'none',
-          fontWeight: 600,
-          fontSize: 15,
-        }}
+        className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
       >
-        <Icon path={icons.institutions} size={20} />
+        <Building2 className="h-5 w-5" aria-hidden />
         For institutions
       </Link>
     </nav>

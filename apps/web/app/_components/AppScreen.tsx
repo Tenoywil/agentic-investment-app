@@ -1,7 +1,8 @@
 'use client';
 
+import { Button } from '@/app/_components/ui/button';
+import { Mic } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { C, Icon, icons } from '../_lib/ui';
 import { AppSidebar } from './AppSidebar';
 
 type Key = 'home' | 'portfolio' | 'opportunities' | 'agent' | 'planning' | 'onboarding';
@@ -9,35 +10,16 @@ type Key = 'home' | 'portfolio' | 'opportunities' | 'agent' | 'planning' | 'onbo
 /** The investor app shell: warm sidebar + scrolling main + the Ask CCN button. */
 export function AppScreen({ active, children }: { active: Key; children: ReactNode }) {
   return (
-    <div className="app-shell" style={{ background: C.bg, color: C.ink, fontFamily: C.body }}>
+    <div className="app-shell bg-background font-sans text-foreground">
       <AppSidebar active={active} />
-      <main style={{ flex: 1, minWidth: 0, padding: '26px 32px 96px', position: 'relative' }}>
-        {children}
-      </main>
-      <button
-        type="button"
-        style={{
-          position: 'fixed',
-          right: 30,
-          bottom: 26,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 9,
-          padding: '13px 20px',
-          borderRadius: 999,
-          background: C.teal,
-          color: '#fff',
-          border: 'none',
-          cursor: 'pointer',
-          boxShadow: '0 12px 30px rgba(18,78,72,.4)',
-          fontFamily: C.body,
-          fontWeight: 700,
-          fontSize: 15,
-        }}
+      <main className="relative min-w-0 flex-1 px-8 pb-24 pt-[26px]">{children}</main>
+      <Button
+        size="pill"
+        className="fixed bottom-[26px] right-[30px] shadow-[0_12px_30px_rgba(18,78,72,0.4)]"
       >
-        <Icon path={icons.mic} size={18} />
+        <Mic className="h-[18px] w-[18px]" />
         Ask CCN
-      </button>
+      </Button>
     </div>
   );
 }
@@ -49,29 +31,10 @@ export function PageHead({
   right,
 }: { eyebrow: string; title: string; right?: ReactNode }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        gap: 16,
-        flexWrap: 'wrap',
-        marginBottom: 22,
-      }}
-    >
+    <div className="mb-[22px] flex flex-wrap items-start justify-between gap-4">
       <div>
-        <div style={{ fontSize: 13.5, color: C.dim, marginBottom: 4 }}>{eyebrow}</div>
-        <h1
-          style={{
-            fontFamily: C.disp,
-            fontWeight: 700,
-            fontSize: 30,
-            letterSpacing: '-.4px',
-            margin: 0,
-          }}
-        >
-          {title}
-        </h1>
+        <div className="mb-1 text-[13.5px] text-dim">{eyebrow}</div>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{title}</h1>
       </div>
       {right}
     </div>
