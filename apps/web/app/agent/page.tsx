@@ -1,8 +1,13 @@
 'use client';
 
+import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
+import { Button } from '@/app/_components/ui/button';
+import { Card } from '@/app/_components/ui/card';
+import { Switch } from '@/app/_components/ui/switch';
+import { cn } from '@/app/_lib/utils';
+import { ArrowRight, Mic, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { type ReactNode, useId, useRef, useState } from 'react';
-import { AppScreen, PageHead } from '../_components/AppScreen';
-import { C, Icon, icons } from '../_lib/ui';
 
 type Msg = { role: 'agent' | 'user'; text: string };
 
@@ -72,10 +77,19 @@ function renderRich(text: string): ReactNode {
   });
 }
 
-const APPROVALS = [
+const APPROVALS: {
+  tag: string;
+  variant: BadgeProps['variant'];
+  accent: string;
+  when: string;
+  title: string;
+  body: string;
+  cta: string;
+}[] = [
   {
     tag: 'Reinvest',
-    tagColor: C.teal2,
+    variant: 'secondary',
+    accent: '#0e5952',
     when: 'Today',
     title: 'Put your GOJ coupon to work',
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
@@ -83,7 +97,8 @@ const APPROVALS = [
   },
   {
     tag: 'Idle cash',
-    tagColor: C.terra,
+    variant: 'terra',
+    accent: '#c56a3e',
     when: '2d ago',
     title: 'US$2,150 earning nothing',
     body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
@@ -108,13 +123,14 @@ const RULES = [
   },
 ];
 
-const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 16 } as const;
-const uppr = {
-  fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: '1px',
-  textTransform: 'uppercase',
-} as const;
+const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
+
+const STATS: { n: string; cls: string; t: string }[] = [
+  { n: '47', cls: 'text-foreground', t: 'instruments monitored' },
+  { n: '8', cls: 'text-teal2', t: 'licensed partners' },
+  { n: '6', cls: 'text-terra', t: 'matched to goals' },
+  { n: '11', cls: 'text-[#0a8f5b]', t: 'actions this month' },
+];
 
 export default function AgentPage() {
   const [chat, setChat] = useState<Msg[]>(SEED);
@@ -149,86 +165,29 @@ export default function AgentPage() {
         title="Your Capital Agent"
       />
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          flexWrap: 'wrap',
-          margin: '-10px 0 8px',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 14, color: C.dim }}>
-          {[
-            { n: '47', c: C.ink, t: 'instruments monitored' },
-            { n: '8', c: C.teal2, t: 'licensed partners' },
-            { n: '6', c: C.terra, t: 'matched to goals' },
-            { n: '11', c: C.green, t: 'actions this month' },
-          ].map((s) => (
-            <span key={s.t}>
-              <b style={{ color: s.c, fontFamily: C.mono }}>{s.n}</b> {s.t}
-            </span>
-          ))}
-        </div>
+      <div className="-mt-2.5 mb-2 flex flex-wrap items-center gap-4 text-sm text-dim">
+        {STATS.map((s) => (
+          <span key={s.t}>
+            <b className={cn('font-mono', s.cls)}>{s.n}</b> {s.t}
+          </span>
+        ))}
       </div>
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          background: C.mint,
-          color: C.teal2,
-          borderRadius: 999,
-          padding: '6px 13px',
-          fontSize: 13.5,
-          fontWeight: 700,
-          marginBottom: 18,
-        }}
-      >
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.green }} />
+      <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
+        <span className="h-2 w-2 rounded-full bg-[#0a8f5b]" />
         Live · monitoring the region
       </div>
 
       <div className="g-agent">
         {/* Chat */}
-        <section style={{ ...card, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '18px 20px',
-              borderBottom: `1px solid ${C.line}`,
-            }}
-          >
-            <span
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: C.teal,
-                color: C.tealInk,
-                display: 'grid',
-                placeItems: 'center',
-                flex: 'none',
-              }}
-            >
-              <Icon path={icons.agent} size={20} />
+        <Card className="flex flex-col overflow-hidden">
+          <div className="flex items-center gap-3 border-b border-border px-5 py-[18px]">
+            <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
+              <Sparkles className="h-5 w-5" aria-hidden />
             </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: C.disp, fontWeight: 700, fontSize: 16 }}>
-                CCN Capital Agent
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 13,
-                  color: C.dim,
-                }}
-              >
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.green }} />
+            <div className="min-w-0 flex-1">
+              <div className="font-display text-base font-bold">CCN Capital Agent</div>
+              <div className="flex items-center gap-1.5 text-[13px] text-dim">
+                <span className="h-[7px] w-[7px] rounded-full bg-[#0a8f5b]" />
                 Suitability-aware · acts on your approval
               </div>
             </div>
@@ -236,38 +195,12 @@ export default function AgentPage() {
               type="button"
               aria-pressed={voice}
               onClick={() => setVoice((v) => !v)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '8px 13px',
-                borderRadius: 10,
-                border: `1px solid ${C.line}`,
-                background: voice ? C.mint : C.card,
-                color: voice ? C.teal2 : C.dim,
-                fontFamily: C.body,
-                fontWeight: 700,
-                fontSize: 13.5,
-                cursor: 'pointer',
-                flex: 'none',
-              }}
+              className={cn(
+                'inline-flex flex-none items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[13.5px] font-bold',
+                voice ? 'bg-mint text-teal2' : 'bg-card text-dim',
+              )}
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                aria-hidden="true"
-              >
-                <path d="M11 5L6 9H2v6h4l5 4V5z" />
-                {voice ? (
-                  <path d="M15.5 8.5a5 5 0 010 7M19 5a9 9 0 010 14" />
-                ) : (
-                  <path d="M22 9l-6 6M16 9l6 6" />
-                )}
-              </svg>
+              {voice ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
               Voice {voice ? 'on' : 'off'}
             </button>
           </div>
@@ -276,47 +209,19 @@ export default function AgentPage() {
             ref={logRef}
             aria-live="polite"
             aria-label="Conversation with your agent"
-            style={{
-              padding: '18px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-              maxHeight: 440,
-              overflowY: 'auto',
-            }}
+            className="flex max-h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
             {chat.map((m, i) =>
               m.role === 'agent' ? (
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
                   key={i}
-                  style={{ display: 'flex', gap: 10, alignItems: 'flex-start', maxWidth: '88%' }}
+                  className="flex max-w-[88%] items-start gap-2.5"
                 >
-                  <span
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: '50%',
-                      background: C.mint,
-                      color: C.teal2,
-                      display: 'grid',
-                      placeItems: 'center',
-                      flex: 'none',
-                      marginTop: 2,
-                    }}
-                  >
-                    <Icon path={icons.agent} size={15} />
+                  <span className="mt-0.5 grid h-[26px] w-[26px] flex-none place-items-center rounded-full bg-mint text-teal2">
+                    <Sparkles className="h-[15px] w-[15px]" aria-hidden />
                   </span>
-                  <div
-                    style={{
-                      background: '#f4f0e7',
-                      borderRadius: '4px 14px 14px 14px',
-                      padding: '12px 15px',
-                      fontSize: 14.5,
-                      lineHeight: 1.55,
-                      color: '#2c2925',
-                    }}
-                  >
+                  <div className="rounded-[4px_14px_14px_14px] bg-[#f4f0e7] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925]">
                     {renderRich(m.text)}
                   </div>
                 </div>
@@ -324,18 +229,9 @@ export default function AgentPage() {
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
                   key={i}
-                  style={{ alignSelf: 'flex-end', maxWidth: '82%' }}
+                  className="max-w-[82%] self-end"
                 >
-                  <div
-                    style={{
-                      background: C.teal,
-                      color: '#fff',
-                      borderRadius: '14px 4px 14px 14px',
-                      padding: '12px 15px',
-                      fontSize: 14.5,
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  <div className="rounded-[14px_4px_14px_14px] bg-primary px-[15px] py-3 text-[14.5px] leading-normal text-white">
                     {renderRich(m.text)}
                   </div>
                 </div>
@@ -343,27 +239,18 @@ export default function AgentPage() {
             )}
           </div>
 
-          <div style={{ padding: '0 20px 18px' }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div className="px-5 pb-[18px]">
+            <div className="mb-3 flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (
-                <button
+                <Button
                   key={s.key}
-                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-[20px] font-semibold text-teal2"
                   onClick={() => send(s.label, s.key)}
-                  style={{
-                    fontSize: 14,
-                    padding: '8px 14px',
-                    borderRadius: 20,
-                    border: `1px solid ${C.line}`,
-                    background: C.card,
-                    color: C.teal2,
-                    fontFamily: C.body,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
                 >
                   {s.label}
-                </button>
+                </Button>
               ))}
             </div>
             <form
@@ -371,15 +258,7 @@ export default function AgentPage() {
                 e.preventDefault();
                 send(draft);
               }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                border: `1px solid ${C.line}`,
-                borderRadius: 14,
-                background: C.card,
-                padding: '6px 6px 6px 14px',
-              }}
+              className="flex items-center gap-2 rounded-[14px] border border-border bg-card py-1.5 pl-3.5 pr-1.5"
             >
               <label htmlFor={inputId} className="sr-only">
                 Ask your agent
@@ -389,232 +268,87 @@ export default function AgentPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Ask your agent about income, rebalancing, or a specific deal…"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  outline: 'none',
-                  fontFamily: C.body,
-                  fontSize: 15,
-                  color: C.ink,
-                }}
+                className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint"
               />
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="icon"
                 aria-label="Voice input"
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  border: 'none',
-                  background: C.mint,
-                  color: C.teal2,
-                  cursor: 'pointer',
-                  display: 'grid',
-                  placeItems: 'center',
-                  flex: 'none',
-                }}
+                className="h-[38px] w-[38px] flex-none rounded-[10px]"
               >
-                <Icon path={icons.mic} size={17} />
-              </button>
-              <button
+                <Mic className="h-[17px] w-[17px]" />
+              </Button>
+              <Button
                 type="submit"
+                size="icon"
                 aria-label="Send message"
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  border: 'none',
-                  background: C.teal,
-                  color: '#fff',
-                  cursor: 'pointer',
-                  display: 'grid',
-                  placeItems: 'center',
-                  flex: 'none',
-                }}
+                className="h-[38px] w-[38px] flex-none rounded-[10px]"
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </button>
+                <ArrowRight className="h-[18px] w-[18px]" />
+              </Button>
             </form>
           </div>
-        </section>
+        </Card>
 
         {/* Approvals + limits */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <section style={{ ...card, padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <span style={{ ...uppr, color: C.ink }}>Needs your approval</span>
-              <span
-                style={{
-                  minWidth: 22,
-                  textAlign: 'center',
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: C.terra,
-                  background: C.peachBg,
-                  padding: '1px 8px',
-                  borderRadius: 999,
-                }}
-              >
+        <div className="flex flex-col gap-[18px]">
+          <Card className="p-5">
+            <div className="mb-3.5 flex items-center gap-2.5">
+              <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
+              <span className="min-w-[22px] rounded-full bg-[#f9ede2] px-2 py-px text-center text-[12.5px] font-bold text-terra">
                 2
               </span>
             </div>
             {APPROVALS.map((a) => (
               <div
                 key={a.title}
-                style={{
-                  border: `1px solid ${C.line}`,
-                  borderLeft: `3px solid ${a.tagColor}`,
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 12,
-                }}
+                className="mb-3 rounded-xl border border-border p-4"
+                style={{ borderLeft: `3px solid ${a.accent}` }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: '.5px',
-                      textTransform: 'uppercase',
-                      color: a.tagColor,
-                      background: `${a.tagColor}14`,
-                      padding: '3px 9px',
-                      borderRadius: 6,
-                    }}
-                  >
-                    {a.tag}
-                  </span>
-                  <span style={{ fontSize: 12.5, color: C.faint }}>{a.when}</span>
+                <div className="mb-2 flex items-center justify-between">
+                  <Badge variant={a.variant}>{a.tag}</Badge>
+                  <span className="text-[12.5px] text-faint">{a.when}</span>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{a.title}</div>
-                <p style={{ margin: '0 0 12px', fontSize: 13.5, lineHeight: 1.5, color: C.dim }}>
-                  {a.body}
-                </p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    style={{
-                      flex: 1,
-                      padding: 10,
-                      borderRadius: 10,
-                      border: 'none',
-                      background: C.teal,
-                      color: '#fff',
-                      fontFamily: C.body,
-                      fontWeight: 700,
-                      fontSize: 14,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {a.cta}
-                  </button>
-                  <button
-                    type="button"
-                    style={{
-                      padding: '10px 16px',
-                      borderRadius: 10,
-                      border: `1px solid ${C.line}`,
-                      background: C.card,
-                      color: C.dim,
-                      fontFamily: C.body,
-                      fontWeight: 700,
-                      fontSize: 14,
-                      cursor: 'pointer',
-                    }}
-                  >
+                <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
+                <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
+                <div className="flex gap-2">
+                  <Button className="h-10 flex-1">{a.cta}</Button>
+                  <Button variant="outline" className="h-10 text-dim">
                     Dismiss
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
-          </section>
+          </Card>
 
-          <section style={{ ...card, padding: 20 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                gap: 10,
-                marginBottom: 14,
-              }}
-            >
-              <span style={{ ...uppr, color: C.ink }}>Your limits &amp; rules</span>
-              <span style={{ fontSize: 12.5, color: C.faint }}>what it may do alone</span>
+          <Card className="p-5">
+            <div className="mb-3.5 flex items-baseline justify-between gap-2.5">
+              <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
+              <span className="text-[12.5px] text-faint">what it may do alone</span>
             </div>
             {RULES.map((r, i) => (
               <div
                 key={r.label}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '12px 0',
-                  borderTop: i === 0 ? 'none' : `1px solid ${C.line}`,
-                }}
+                className={cn(
+                  'flex items-center gap-3 py-3',
+                  i === 0 ? '' : 'border-t border-border',
+                )}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700 }}>{r.label}</div>
-                  <div style={{ fontSize: 12.5, color: C.faint }}>{r.note}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14.5px] font-bold">{r.label}</div>
+                  <div className="text-[12.5px] text-faint">{r.note}</div>
                 </div>
-                <span
-                  style={{ fontFamily: C.mono, fontSize: 13.5, fontWeight: 700, color: C.teal2 }}
-                >
-                  {r.value}
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={rules[i]}
+                <span className="font-mono text-[13.5px] font-bold text-teal2">{r.value}</span>
+                <Switch
+                  checked={rules[i]}
+                  onCheckedChange={() => setRules((rs) => rs.map((v, j) => (j === i ? !v : v)))}
                   aria-label={`${r.label} — ${rules[i] ? 'on' : 'off'}`}
-                  onClick={() => setRules((rs) => rs.map((v, j) => (j === i ? !v : v)))}
-                  style={{
-                    width: 44,
-                    height: 26,
-                    borderRadius: 999,
-                    border: 'none',
-                    background: rules[i] ? C.teal : '#cfc8b8',
-                    position: 'relative',
-                    cursor: 'pointer',
-                    flex: 'none',
-                    transition: 'background .15s',
-                  }}
-                >
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 3,
-                      left: rules[i] ? 21 : 3,
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      background: '#fff',
-                      transition: 'left .15s',
-                    }}
-                  />
-                </button>
+                  className="flex-none"
+                />
               </div>
             ))}
-          </section>
+          </Card>
         </div>
       </div>
     </AppScreen>
