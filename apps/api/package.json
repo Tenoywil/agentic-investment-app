@@ -18,6 +18,7 @@
     "@ccn/limits-engine": "workspace:*",
     "@ccn/money": "workspace:*",
     "@ccn/partner-adapters": "workspace:*",
+    "@ccn/security": "workspace:*",
     "better-auth": "1.2.8",
     "drizzle-orm": "0.44.2",
     "hono": "4.6.14",

@@ -2,6 +2,7 @@ import { describe, loadServerConfig } from '@ccn/config';
 import { createDb } from '@ccn/db';
 import { createApp } from './app';
 import { createAuth } from './auth';
+import { createLogger } from './logger';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
 import { type Registration, WsHub } from './ws/hub';
@@ -15,8 +16,12 @@ import { type Registration, WsHub } from './ws/hub';
 const config = loadServerConfig();
 const { db, client } = createDb(config.DATABASE_URL);
 const auth = createAuth(db, config);
-const app = createApp({ db, auth, config });
-const deps = { db, auth, config };
+const logger = createLogger({
+  level: config.APP_ENV === 'development' ? 'debug' : 'info',
+  base: { service: 'ccn-api', env: config.APP_ENV },
+});
+const deps = { db, auth, config, logger };
+const app = createApp(deps);
 
 const hub = new WsHub();
 await startEventBridge(client, hub);

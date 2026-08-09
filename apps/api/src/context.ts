@@ -2,6 +2,7 @@ import type { ServerConfig } from '@ccn/config';
 import type { Database, Transaction } from '@ccn/db';
 import { withRls } from '@ccn/db';
 import type { Auth } from './auth';
+import type { Logger } from './logger';
 
 export interface SessionUser {
   id: string;
@@ -14,6 +15,7 @@ export interface AppDeps {
   db: Database;
   auth: Auth;
   config: ServerConfig;
+  logger: Logger;
 }
 
 /** The authenticated caller's resolved identity, roles, and tenant scope. */
@@ -28,6 +30,10 @@ export type AppEnv = {
   Variables: {
     user?: SessionUser;
     tenant?: TenantContext;
+    /** Correlation id for this request, echoed as `x-request-id`. */
+    requestId?: string;
+    /** Request-scoped logger, pre-stamped with requestId/method/route. */
+    log?: Logger;
   };
 };
 

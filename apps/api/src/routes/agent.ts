@@ -7,6 +7,7 @@ import { streamSSE } from 'hono/streaming';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
 import { requireAuth } from '../middleware';
+import { createOutboundGuard } from '../security';
 import { loadAgentSnapshot } from '../services/agent-snapshot';
 
 /**
@@ -21,6 +22,8 @@ import { loadAgentSnapshot } from '../services/agent-snapshot';
 export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   const cache = new ResponseCache<string>(256);
+  // Every outbound gateway call is allowlisted and checked for private addresses.
+  const outbound = createOutboundGuard(deps.config);
   app.use('*', requireAuth(deps));
 
   app.get('/history', async (c) => {
@@ -72,6 +75,8 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
         baseURL: deps.config.OPENAI_BASE_URL,
         apiKey: deps.config.OPENAI_API_KEY,
         model: deps.config.AI_MODEL,
+        // All gateway traffic goes through the SSRF allowlist (A10).
+        fetch: outbound.fetch,
       },
       ctx: buildContext(snapshot),
       history,
