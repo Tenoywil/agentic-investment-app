@@ -1,0 +1,10 @@
+# Verified false positives, ignored by exact fingerprint (commit:path:rule:line).
+# Never add a broad path or rule rule here — each entry must name one finding that
+# a human has confirmed is not a live credential.
+
+# A hand-built, non-functional JWT used as a fixture to prove the log redactor
+# masks JWT-shaped strings. It was never a real token and never authenticated
+# anything. The fixture is now assembled at runtime (see the commit that follows
+# 84a762e), so the current tree contains no such literal — but gitleaks scans the
+# full PR commit range, so the historical blob still matches.
+84a762ed7d9fef908727d62afa1871d4321e5004:packages/security/src/redact.test.ts:jwt:10
