@@ -1,14 +1,28 @@
 import { describe, expect, test } from 'bun:test';
 import { REDACTED, redact, redactString } from './redact';
 
+/*
+ * Credential-shaped fixtures are assembled at runtime rather than written as
+ * literals. They are fake either way, but a literal that *looks* like a real key
+ * trips secret scanners (gitleaks, GitGuardian) on every commit forever, and a
+ * scanner that cries wolf in tests is one people learn to ignore.
+ */
+const fakeGatewayKey = ['sk', 'abcdef1234567890'].join('-');
+const fakeJwt = [
+  Buffer.from('{"alg":"HS256"}').toString('base64url'),
+  Buffer.from('{"sub":"1234567890"}').toString('base64url'),
+  'dBjftJeZ4CVPmB92K27uhbUJU1p1r',
+].join('.');
+
 describe('redactString', () => {
   test('masks a gateway key', () => {
-    expect(redactString('using sk-abcdef1234567890 now')).toBe(`using ${REDACTED} now`);
+    expect(redactString(`using ${fakeGatewayKey} now`)).toBe(`using ${REDACTED} now`);
   });
 
   test('masks a JWT', () => {
-    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r';
-    expect(redactString(`token=${jwt}`)).toBe(`token=${REDACTED}`);
+    // Sanity-check the fixture really is JWT-shaped before asserting on it.
+    expect(fakeJwt.startsWith('eyJ')).toBe(true);
+    expect(redactString(`token=${fakeJwt}`)).toBe(`token=${REDACTED}`);
   });
 
   test('masks bearer and basic auth headers, keeping the scheme', () => {
@@ -93,15 +107,12 @@ describe('redact', () => {
   });
 
   test('masks value-shaped secrets even under an innocuous key', () => {
-    const out = redact({ message: 'call failed with sk-abcdef1234567890' }) as Record<
-      string,
-      string
-    >;
+    const out = redact({ message: `call failed with ${fakeGatewayKey}` }) as Record<string, string>;
     expect(out.message).toBe(`call failed with ${REDACTED}`);
   });
 
   test('serializes errors with a redacted message', () => {
-    const out = redact(new Error('bad key sk-abcdef1234567890')) as {
+    const out = redact(new Error(`bad key ${fakeGatewayKey}`)) as {
       name: string;
       message: string;
     };
