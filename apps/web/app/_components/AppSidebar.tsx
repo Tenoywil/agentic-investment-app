@@ -4,17 +4,29 @@ import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { cn } from '@/app/_lib/utils';
 import {
   Building2,
+  Compass,
+  HandHeart,
   LayoutGrid,
   LineChart,
   ShieldCheck,
   Sparkles,
+  Target,
   TrendingUp,
   UserPlus,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 
-type Key = 'home' | 'portfolio' | 'opportunities' | 'agent' | 'planning' | 'onboarding';
+type Key =
+  | 'home'
+  | 'portfolio'
+  | 'opportunities'
+  | 'agent'
+  | 'planning'
+  | 'onboarding'
+  | 'gatewayMandate'
+  | 'gatewayOpportunities'
+  | 'gatewayIntroductions';
 
 const GROUPS: {
   label: string;
@@ -45,6 +57,24 @@ const GROUPS: {
     items: [
       { key: 'planning', label: 'Planning', href: '/planning', Icon: ShieldCheck },
       { key: 'onboarding', label: 'Onboarding', href: '/onboarding', Icon: UserPlus },
+    ],
+  },
+  {
+    label: 'Gateway',
+    items: [
+      { key: 'gatewayMandate', label: 'Mandate', href: '/gateway/mandate', Icon: Target },
+      {
+        key: 'gatewayOpportunities',
+        label: 'Private deals',
+        href: '/gateway/opportunities',
+        Icon: Compass,
+      },
+      {
+        key: 'gatewayIntroductions',
+        label: 'Introductions',
+        href: '/gateway/introductions',
+        Icon: HandHeart,
+      },
     ],
   },
 ];

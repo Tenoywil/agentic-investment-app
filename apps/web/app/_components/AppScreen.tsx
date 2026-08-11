@@ -5,7 +5,16 @@ import { Mic } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
 
-type Key = 'home' | 'portfolio' | 'opportunities' | 'agent' | 'planning' | 'onboarding';
+type Key =
+  | 'home'
+  | 'portfolio'
+  | 'opportunities'
+  | 'agent'
+  | 'planning'
+  | 'onboarding'
+  | 'gatewayMandate'
+  | 'gatewayOpportunities'
+  | 'gatewayIntroductions';
 
 /** The investor app shell: warm sidebar + scrolling main + the Ask CCN button. */
 export function AppScreen({ active, children }: { active: Key; children: ReactNode }) {
