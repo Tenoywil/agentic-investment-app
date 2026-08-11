@@ -4,7 +4,7 @@ Cloud projects for CCN. Secrets flow **Doppler → everything** (never in source
 
 | Project | Purpose | Region | Notes |
 | --- | --- | --- | --- |
-| **Vercel** (`apps/web`) | Next.js customer + partner console + marketing | edge/global | Phase 1: `vercel.json` pins the static prototype at repo root. Phase 2 sets Root Directory = `apps/web`. |
+| **Vercel** (`apps/web`) | Next.js customer + partner console + marketing | edge/global | Real Next.js SSR — Root Directory is set to `apps/web` (dashboard setting) so Vercel's native Next.js + Turborepo detection builds and serves it directly; no `vercel.json` needed. Security headers live in `apps/web/next.config.mjs`'s `headers()`. |
 | **Render** (`apps/api`) | Bun + Hono API, agent runtime, WebSocket hub | Ohio/Virginia (near Supabase us-east) | Persistent Docker process for native WebSockets, flat-rate pricing. `apps/api/render.yaml` is the Blueprint (swapped from Fly.io — see its header comment for why). |
 | **Supabase** | Postgres 15 + pgvector + Storage | `us-east-1` | Managed Postgres + Storage only — no Realtime, no Edge Functions. Orchestration data only (partner-anchored residency). |
 | **Doppler** | Secrets source of truth | — | Syncs to Vercel + Render + GitHub Actions (OIDC). Configs: `dev`/`stg`/`prd`. |

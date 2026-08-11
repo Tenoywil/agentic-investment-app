@@ -81,20 +81,26 @@ masking credential-shaped values and direct identifiers by key and by shape —
 the only version of "no secrets in logs" that survives many call sites.
 `x-request-id` is generated per request; an inbound value is never trusted.
 
-### Web response headers — `vercel.json`
+### Web response headers — `apps/web/next.config.mjs`
 HSTS (2y, preload), `nosniff`, `X-Frame-Options: DENY` + `frame-ancestors 'none'`,
 `Referrer-Policy`, a deny-by-default `Permissions-Policy`, COOP, and a CSP with
-`base-uri 'none'`, `object-src 'none'`, `form-action 'self'`.
+`base-uri 'none'`, `object-src 'none'`, `form-action 'self'`. Set via Next's own
+`headers()` function (moved off `vercel.json` when `apps/web` switched to SSR —
+see below), so they apply identically regardless of hosting platform.
 
 ## Gaps
 
 ### CSP is not nonce-based — `script-src` allows `'unsafe-inline'`
-The plan called for a per-request nonce and no `unsafe-inline`. **That is not
-achievable on the current build:** `apps/web` is a static export
-(`output: 'export'`) with no server or middleware, so there is no per-request
-anything. Next also emits ~7 inline hydration blocks per page whose content
-changes every build, making a hash allowlist impractical to maintain in a static
-`vercel.json`.
+The plan called for a per-request nonce and no `unsafe-inline`. This was
+previously unachievable because `apps/web` was a static export with no server or
+middleware — that blocker is gone now that `apps/web` runs as real Next.js SSR
+(Vercel project Root Directory = `apps/web`), but the nonce itself is not yet
+wired: `headers()` in `next.config.mjs` is still a static string, and a
+`middleware.ts` generating a per-request nonce and threading it into both the
+response header and the page's script tags hasn't been built. Next also emits ~7
+inline hydration blocks per page whose content changes every render, making a
+hash allowlist impractical — a nonce, not a hash list, is still the right shape
+for this once it's built.
 
 What the current policy still buys: attacker-hosted scripts cannot load
 (`script-src 'self'`), no `<base>` hijacking, no object/embed, no cross-origin
@@ -105,9 +111,11 @@ plus the inline `<style>` element Radix injects for dialog scroll-lock. Verified
 empirically: without it the exec modal's styling breaks. CSS injection is a much
 smaller risk class than script execution.
 
-**To close:** move `apps/web` to SSR (drop `output: 'export'`, point the Vercel
-project root at `apps/web`) and set a nonce in middleware. Until then React's
-escaping and DOMPurify remain the primary XSS controls, not CSP.
+**To close:** add `middleware.ts` that generates a per-request nonce, forwards it
+to the response CSP header, and threads it to Next's script tags (`nonce` prop /
+`headers()` reading a per-request value isn't directly expressible — this needs
+the middleware + `next/headers` pattern). Until then React's escaping and
+DOMPurify remain the primary XSS controls, not CSP.
 
 ### `connect-src` is provider-scoped, not host-scoped
 Currently `'self' https://*.onrender.com https://*.supabase.co`, because the
@@ -129,7 +137,7 @@ decision log, partner DPA tracker, incident-response runbook, retention schedule
   bucket arithmetic under clock skew, AEAD tamper/context/rotation, redaction.
 - `bun test apps/api/test/app.test.ts` — request id, structured log line, and
   rate-limit refusal end to end.
-- CSP: serve `apps/web/out`, apply the `vercel.json` policy to HTML responses,
+- CSP: `bun run --filter @ccn/web build && bun run --filter @ccn/web start`,
   load every route and assert zero `Refused to` console messages **and** that a
   client-only control still responds (hydration proves the policy did not silently
   break React).
