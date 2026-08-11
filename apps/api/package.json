@@ -15,6 +15,7 @@
     "@ccn/config": "workspace:*",
     "@ccn/db": "workspace:*",
     "@ccn/domain": "workspace:*",
+    "@ccn/gateway-guardrail": "workspace:*",
     "@ccn/limits-engine": "workspace:*",
     "@ccn/money": "workspace:*",
     "@ccn/partner-adapters": "workspace:*",

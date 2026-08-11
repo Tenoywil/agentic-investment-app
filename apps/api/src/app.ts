@@ -10,6 +10,7 @@ import { rateLimit, requestLogger, requireAuth, sessionMiddleware } from './midd
 import { agentRoutes } from './routes/agent';
 import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
+import { gatewayRoutes } from './routes/gateway';
 import { ingestionRoutes } from './routes/ingestion';
 import { ordersRoutes } from './routes/orders';
 import { portfolioRoutes } from './routes/portfolio';
@@ -61,6 +62,9 @@ export function createApp(deps: AppDeps) {
   app.use('/api/ingestion/*', limit('orders'));
   app.use('/api/portfolio/*', limit('read'));
   app.use('/api/console/*', limit('read'));
+  // Gateway routes carry their own per-endpoint class (agent-heavy vs. mutating
+  // vs. read) since a single group would either starve the LLM passes or let
+  // mutations ride the generous read budget.
 
   // The authenticated caller, with profile + limits read under their RLS scope.
   app.get('/api/me', requireAuth(deps), async (c) => {
@@ -85,6 +89,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/console', consoleRoutes(deps));
   app.route('/api/agent', agentRoutes(deps));
   app.route('/api/ingestion', ingestionRoutes(deps));
+  app.route('/api/gateway', gatewayRoutes(deps, limit));
 
   return app;
 }
