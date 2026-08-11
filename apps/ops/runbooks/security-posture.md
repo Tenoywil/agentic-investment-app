@@ -15,7 +15,9 @@ covered in a compliance conversation.
   (including the `169.254.169.254` metadata endpoint) / CGNAT / reserved space,
   so an allowlisted name that resolves inward is still blocked.
 - Redirects are followed manually with the full check re-run per hop.
-- Applied to the AI gateway (`apps/api/src/routes/agent.ts`).
+- Applied to the AI gateway (`apps/api/src/routes/agent.ts` and, additively,
+  `apps/api/src/routes/gateway.ts`'s three agent passes — same
+  `createOutboundGuard(deps.config)` instance, not a second guard to keep in sync).
 
 **Residual:** DNS rebinding. Addresses are validated, then `fetch` opens the
 socket, so a name answering differently between the two is a TOCTOU window. The
@@ -26,11 +28,16 @@ custom dispatcher that connects to the pinned IP.
 ### Rate limiting (A04/A07) — `@ccn/security/rate-limit`
 Token buckets per route class (`RATE_LIMITS`), keyed by user id when
 authenticated and by client address otherwise. 429 + `Retry-After` on refusal.
+Every Gateway endpoint (`apps/api/src/routes/gateway.ts`) is classed
+individually rather than as one route-group default — `agent` for the three
+LLM passes, `orders` for mutations, `read` for lookups — using the same
+limiter map `app.ts` already builds, not a new one.
 
 **Client address:** a forwarding header is trusted **only** when the deployment
-sets `TRUSTED_CLIENT_IP_HEADER` (Fly sets `Fly-Client-IP`). Without it we use the
-socket address. An unvalidated `X-Forwarded-For` would let anyone mint a fresh
-bucket per request and silently disable IP limiting.
+sets `TRUSTED_CLIENT_IP_HEADER` (Render sets `X-Forwarded-For`; see
+`apps/api/render.yaml`). Without it we use the socket address. An unvalidated
+`X-Forwarded-For` would let anyone mint a fresh bucket per request and silently
+disable IP limiting.
 
 **Gap:** the store is in-memory, so budgets are per-instance. Correct for one
 machine; **before scaling the API past one instance**, implement the Postgres
@@ -53,6 +60,19 @@ a write-only producer appears.
    (comma-separated for several). Decryption keeps working throughout.
 3. Sweep: read each encrypted column, `needsRotation()` → re-encrypt → write.
 4. Once the sweep reports zero, drop the retired key from the env.
+
+### Gateway (investor mandate / opportunity / introduction) — additive, no new gaps
+`apps/api/src/routes/gateway.ts` reuses every control above rather than
+building parallel ones: RLS via the same `withTenant`/`SET LOCAL app.current_user_id`
+seam (`packages/db/migrations/0004_gateway_security.sql` — enabled and forced
+on all nine new tables, verified against a real Postgres including
+cross-tenant denial, not just typechecked); the immutable `audit_log` via
+`auditAppend` on every mandate save, opportunity submission, guardrail
+decision, and introduction decision; the SSRF guard and rate-limit classes
+above. The one new BigInt→JSON-serialization bug this surface exposed
+(`apps/api/src/middleware.ts`'s `bigintSafeJson`) was pre-existing risk in
+`orders`/`approvals`/the console's order list too — fixed once, globally,
+rather than only for the new routes.
 
 ### Logging (A09) — `apps/api/src/logger.ts`
 One structured JSON line per request (`requestId`, `method`, `route`, `status`,
@@ -90,7 +110,7 @@ project root at `apps/web`) and set a nonce in middleware. Until then React's
 escaping and DOMPurify remain the primary XSS controls, not CSP.
 
 ### `connect-src` is provider-scoped, not host-scoped
-Currently `'self' https://*.fly.dev https://*.supabase.co`, because the
+Currently `'self' https://*.onrender.com https://*.supabase.co`, because the
 production API hostname is not yet fixed. Those are shared-tenant providers, so
 the wildcard is weaker than it looks for exfiltration.
 **Go-live checklist item:** replace both wildcards with the exact API and
