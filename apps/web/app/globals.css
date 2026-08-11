@@ -157,6 +157,19 @@ button:focus-visible {
   outline-color: #0e5952;
 }
 
+/* Neutralize the browser's native autofill highlight (Safari's pale blue,
+   Chrome's pale yellow) so an autofilled field still matches the app's own
+   `bg-card`/`text-foreground` input styling instead of clashing with it. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  box-shadow: 0 0 0 1000px hsl(var(--card)) inset;
+  -webkit-text-fill-color: hsl(var(--foreground));
+  caret-color: hsl(var(--foreground));
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 /* Visually hidden, still exposed to assistive tech (for input labels etc). */
 .sr-only {
   position: absolute;
