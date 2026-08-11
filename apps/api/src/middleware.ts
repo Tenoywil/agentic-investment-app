@@ -3,6 +3,41 @@ import { createMiddleware } from 'hono/factory';
 import type { AppDeps, AppEnv, SessionUser } from './context';
 import { tenantFromUser } from './tenant';
 
+/**
+ * Drizzle's `bigint`-mode money columns (moneyMinor helper) come back as
+ * native JS `BigInt` so precision is never silently lost — but `JSON.stringify`
+ * throws on a BigInt, and Hono's `c.json()` calls it raw. Recursively stringify
+ * any BigInt before it reaches JSON.stringify, the same "bigint -> string over
+ * the wire" convention db-fns.ts already uses for the SECURITY DEFINER
+ * functions' raw-SQL results.
+ */
+function bigintSafe(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (Array.isArray(value)) return value.map(bigintSafe);
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, bigintSafe(v)]));
+  }
+  return value;
+}
+
+/**
+ * Every JSON response passes through bigintSafe first — a route handler can
+ * return a raw Drizzle row with a bigint money column without thinking about
+ * serialization, and it just works, rather than every handler needing to
+ * remember `.toString()` on every money field (easy to forget, a 500 when
+ * missed). Overrides `c.json` for this request only, before any handler runs.
+ */
+export function bigintSafeJson() {
+  return createMiddleware<AppEnv>(async (c, next) => {
+    const original = c.json.bind(c);
+    c.json = ((object: unknown, ...rest: unknown[]) =>
+      // biome-ignore lint/suspicious/noExplicitAny: matching c.json's own overloaded signature exactly isn't practical for a runtime wrapper; the cast is safe because the wrapped call always passes the caller's own arguments through unchanged.
+      (original as any)(bigintSafe(object), ...rest)) as typeof c.json;
+    await next();
+  });
+}
+
 /** Resolve the Better Auth session (if any) and attach the user to the context. */
 export function sessionMiddleware(deps: AppDeps) {
   return createMiddleware<AppEnv>(async (c, next) => {

@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { loadServerConfig } from '@ccn/config';
 import { createDb } from '@ccn/db';
+import { Hono } from 'hono';
 import { createApp } from '../src/app';
 import { createAuth } from '../src/auth';
 import { type LogRecord, createLogger } from '../src/logger';
+import { bigintSafeJson } from '../src/middleware';
 
 /**
  * App-surface tests that don't require a live database: the public probe, the
@@ -76,6 +78,46 @@ describe('request correlation', () => {
     expect(line?.method).toBe('GET');
     expect(typeof line?.requestId).toBe('string');
     expect(typeof line?.durationMs).toBe('number');
+  });
+});
+
+describe('bigintSafeJson', () => {
+  // A regression test for a real bug: Drizzle's bigint-mode money columns
+  // (moneyMinor) come back as native JS BigInt, and Hono's c.json() calls raw
+  // JSON.stringify, which throws on BigInt — confirmed by reproducing it
+  // against real gateway_opportunities rows before this fix existed. Every
+  // route that returns a raw money-bearing row (orders, approvals, the
+  // console's order list, every Gateway mandate/opportunity/match endpoint)
+  // depends on this middleware to not 500.
+  const app = new Hono();
+  app.use('*', bigintSafeJson());
+  app.get('/plain-bigint', (c) => c.json({ amountMinor: 123_456_789_012_345n }));
+  app.get('/nested', (c) =>
+    c.json({
+      opportunity: { capitalSoughtMinor: 25_000_00n, name: 'Solar Co-op' },
+      matches: [{ score: '0.87', opportunity: { valuationMinor: null } }],
+    }),
+  );
+  app.get('/no-bigint', (c) => c.json({ ok: true, count: 3, tag: 'x' }));
+
+  test('a top-level bigint is stringified, not thrown', async () => {
+    const res = await app.request('/plain-bigint');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ amountMinor: '123456789012345' });
+  });
+
+  test('bigints nested in objects and arrays are all stringified', async () => {
+    const res = await app.request('/nested');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      opportunity: { capitalSoughtMinor: '2500000', name: 'Solar Co-op' },
+      matches: [{ score: '0.87', opportunity: { valuationMinor: null } }],
+    });
+  });
+
+  test('a response with no bigints is unaffected', async () => {
+    const res = await app.request('/no-bigint');
+    expect(await res.json()).toEqual({ ok: true, count: 3, tag: 'x' });
   });
 });
 

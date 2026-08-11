@@ -6,7 +6,13 @@ import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import type { AppDeps, AppEnv } from './context';
 import { withTenant } from './context';
-import { rateLimit, requestLogger, requireAuth, sessionMiddleware } from './middleware';
+import {
+  bigintSafeJson,
+  rateLimit,
+  requestLogger,
+  requireAuth,
+  sessionMiddleware,
+} from './middleware';
 import { agentRoutes } from './routes/agent';
 import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
@@ -42,6 +48,7 @@ export function createApp(deps: AppDeps) {
 
   app.use('*', secureHeaders());
   app.use('*', cors({ origin: deps.config.APP_WEB_ORIGIN, credentials: true }));
+  app.use('*', bigintSafeJson());
   app.use('*', requestLogger(deps));
 
   // Better Auth (sign in with Google, OAuth callbacks, session, sign out).
