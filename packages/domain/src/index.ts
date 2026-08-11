@@ -6,3 +6,4 @@
 export * from './order';
 export * from './suitability';
 export * from './schemas';
+export * from './gateway';
