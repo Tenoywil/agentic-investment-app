@@ -22,6 +22,20 @@
       "when": 1785936700000,
       "tag": "0002_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786468921157,
+      "tag": "0003_gateway_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786468921158,
+      "tag": "0004_gateway_security",
+      "breakpoints": true
     }
   ]
 }

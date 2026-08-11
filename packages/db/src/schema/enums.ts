@@ -80,7 +80,13 @@ export const approvalStatus = pgEnum('approval_status', [
   'expired',
 ]);
 
-export const appRole = pgEnum('role', ['customer', 'partner_operator', 'compliance', 'admin']);
+export const appRole = pgEnum('role', [
+  'customer',
+  'partner_operator',
+  'compliance',
+  'admin',
+  'analyst', // Gateway introduction/opportunity review — see packages/db/src/schema/gateway.ts
+]);
 
 export const kycStep = pgEnum('kyc_step', ['identity', 'compliance', 'risk', 'funds']);
 

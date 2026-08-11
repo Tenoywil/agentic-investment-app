@@ -10,3 +10,4 @@ export * from './identity';
 export * from './market';
 export * from './activity';
 export * from './audit';
+export * from './gateway';
