@@ -18,7 +18,10 @@ import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
 import { gatewayRoutes } from './routes/gateway';
 import { ingestionRoutes } from './routes/ingestion';
+import { onboardingRoutes } from './routes/onboarding';
+import { opportunitiesRoutes } from './routes/opportunities';
 import { ordersRoutes } from './routes/orders';
+import { planningRoutes } from './routes/planning';
 import { portfolioRoutes } from './routes/portfolio';
 import { RATE_LIMITS, type RateLimitClass, createClientIpResolver } from './security';
 
@@ -69,6 +72,9 @@ export function createApp(deps: AppDeps) {
   app.use('/api/ingestion/*', limit('orders'));
   app.use('/api/portfolio/*', limit('read'));
   app.use('/api/console/*', limit('read'));
+  app.use('/api/opportunities/*', limit('read'));
+  app.use('/api/planning/*', limit('read'));
+  app.use('/api/onboarding/*', limit('orders'));
   // Gateway routes carry their own per-endpoint class (agent-heavy vs. mutating
   // vs. read) since a single group would either starve the LLM passes or let
   // mutations ride the generous read budget.
@@ -96,6 +102,9 @@ export function createApp(deps: AppDeps) {
   app.route('/api/console', consoleRoutes(deps));
   app.route('/api/agent', agentRoutes(deps));
   app.route('/api/ingestion', ingestionRoutes(deps));
+  app.route('/api/opportunities', opportunitiesRoutes(deps));
+  app.route('/api/planning', planningRoutes(deps));
+  app.route('/api/onboarding', onboardingRoutes(deps));
   app.route('/api/gateway', gatewayRoutes(deps, limit));
 
   return app;

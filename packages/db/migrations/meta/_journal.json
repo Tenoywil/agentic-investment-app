@@ -36,6 +36,13 @@
       "when": 1786468921158,
       "tag": "0004_gateway_security",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786480000000,
+      "tag": "0005_auth_grants",
+      "breakpoints": true
     }
   ]
 }

@@ -143,3 +143,55 @@ export const gatewayIntroductionDecisionSchema = z.object({
   reason: z.string().min(1).max(500).optional(),
 });
 export type GatewayIntroductionDecisionInput = z.infer<typeof gatewayIntroductionDecisionSchema>;
+
+/**
+ * Planning — goals + the products catalog (packages/db/src/schema/activity.ts
+ * `goals`, packages/db/src/schema/market.ts `planningProducts`).
+ */
+
+/** POST /api/planning/goals */
+export const createGoalSchema = z.object({
+  name: z.string().min(1).max(200),
+  targetMinor: positiveAmountMinorSchema,
+  fromLabel: z.string().max(200).optional(),
+  eta: z.string().max(100).optional(),
+  color: z.string().max(20).optional(),
+});
+export type CreateGoalInput = z.infer<typeof createGoalSchema>;
+
+/**
+ * Onboarding — one schema per wizard step (packages/db/src/schema/identity.ts).
+ * Each step is its own request so a partially-completed wizard is never an
+ * invalid intermediate state in the database.
+ */
+
+/** POST /api/onboarding/identity */
+export const onboardingIdentitySchema = z.object({
+  residencyCountry: z.string().min(1).max(100),
+  occupation: z.string().min(1).max(150),
+});
+export type OnboardingIdentityInput = z.infer<typeof onboardingIdentitySchema>;
+
+/** POST /api/onboarding/compliance — the three prototype declarations, all required. */
+export const onboardingComplianceSchema = z.object({
+  notPoliticallyExposed: z.literal(true),
+  taxResidencyDeclared: z.literal(true),
+  risksUnderstood: z.literal(true),
+});
+export type OnboardingComplianceInput = z.infer<typeof onboardingComplianceSchema>;
+
+/** POST /api/onboarding/risk — three fact-find answers, each scored 1-5. */
+export const onboardingRiskSchema = z.object({
+  scores: z.tuple([
+    z.number().int().min(1).max(5),
+    z.number().int().min(1).max(5),
+    z.number().int().min(1).max(5),
+  ]),
+});
+export type OnboardingRiskInput = z.infer<typeof onboardingRiskSchema>;
+
+/** POST /api/onboarding/funds — at least one declared source. */
+export const onboardingFundsSchema = z.object({
+  sources: z.array(z.enum(['investment', 'salary', 'business', 'other'])).min(1),
+});
+export type OnboardingFundsInput = z.infer<typeof onboardingFundsSchema>;

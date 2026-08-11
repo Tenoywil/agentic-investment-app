@@ -1,6 +1,12 @@
-import { orders as ordersTable, reconciliationItems } from '@ccn/db';
+import {
+  kycFunnelStages,
+  orders as ordersTable,
+  partnerKpis,
+  productListings,
+  reconciliationItems,
+} from '@ccn/db';
 import { rejectSchema } from '@ccn/domain';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import type { AppDeps, AppEnv, TenantContext } from '../context';
 import { withTenant } from '../context';
@@ -150,6 +156,55 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     } catch {
       return c.json({ error: 'item is not pending or not yours' }, 409);
     }
+  });
+
+  // ---- Overview / products / compliance tabs: partner-scoped reference data ----
+
+  app.get('/products', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select()
+        .from(productListings)
+        .where(eq(productListings.partnerId, scope.partnerId))
+        .orderBy(desc(productListings.createdAt)),
+    );
+    return c.json({
+      products: rows.map((p) => ({ ...p, aumMinor: p.aumMinor.toString() })),
+    });
+  });
+
+  app.get('/kpis', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select()
+        .from(partnerKpis)
+        .where(eq(partnerKpis.partnerId, scope.partnerId))
+        .orderBy(asc(partnerKpis.sortOrder)),
+    );
+    return c.json({ kpis: rows });
+  });
+
+  app.get('/funnel', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select()
+        .from(kycFunnelStages)
+        .where(eq(kycFunnelStages.partnerId, scope.partnerId))
+        .orderBy(asc(kycFunnelStages.sortOrder)),
+    );
+    return c.json({ stages: rows });
   });
 
   return app;
