@@ -63,6 +63,12 @@ const serverSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   AI_MODEL: z.string().min(1).default('MiniMax'),
   AI_EMBED_MODEL: z.string().default(''),
+  // Gateway tiered-model overrides (packages/agent/src/gateway). Empty means
+  // "use AI_MODEL" — resolved by packages/agent/src/gateway/provider.ts, so a
+  // deployment that only sets AI_MODEL keeps working unchanged.
+  GATEWAY_MODEL_HIGH: z.string().default(''),
+  GATEWAY_MODEL_GENERAL: z.string().default(''),
+  GATEWAY_MODEL_LOW: z.string().default(''),
 
   // Crypto
   FIELD_ENCRYPTION_KEY: z.string().min(1),

@@ -56,4 +56,16 @@ group('loadServerConfig', () => {
     expect(view.BETTER_AUTH_SECRET).toBe('***');
     expect(view.OPENAI_BASE_URL).toBe('https://ht.getimpala.ai/v1');
   });
+
+  test('gateway tier overrides default to empty (fall back to AI_MODEL downstream)', () => {
+    const cfg = loadServerConfig(valid);
+    expect(cfg.GATEWAY_MODEL_HIGH).toBe('');
+    expect(cfg.GATEWAY_MODEL_GENERAL).toBe('');
+    expect(cfg.GATEWAY_MODEL_LOW).toBe('');
+  });
+
+  test('gateway tier overrides are honored when set', () => {
+    const cfg = loadServerConfig({ ...valid, GATEWAY_MODEL_HIGH: 'big-model' });
+    expect(cfg.GATEWAY_MODEL_HIGH).toBe('big-model');
+  });
 });
