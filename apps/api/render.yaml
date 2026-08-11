@@ -18,9 +18,22 @@
 #
 # Deploy: connect this repo in the Render dashboard (or `render blueprint launch`),
 # root directory `.` so the Docker build context is the whole monorepo, Dockerfile
-# path `apps/api/Dockerfile`. Secrets (DATABASE_URL, BETTER_AUTH_SECRET, GOOGLE_*,
-# OPENAI_*, FIELD_ENCRYPTION_KEY, SENTRY_DSN) are set in the Render dashboard —
-# never committed here.
+# path `apps/api/Dockerfile`.
+#
+# `packages/config` fails fast on boot (before serving a single request) if any
+# required value below is missing — set ALL of these in the Render dashboard,
+# never committed here:
+#   Secrets:   DATABASE_URL, BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID,
+#              GOOGLE_CLIENT_SECRET, OPENAI_API_KEY, FIELD_ENCRYPTION_KEY
+#   Required, not secret (no default — easy to miss since they aren't secrets):
+#     SUPABASE_URL     the Supabase project URL (also SSRF-allowlisted, apps/api/src/security.ts)
+#     BETTER_AUTH_URL  this Render service's own public URL, e.g. https://ccn-api.onrender.com
+#   Defaults to http://localhost:3000 if unset — MUST be overridden in prod or
+#   CORS/Better-Auth's trustedOrigins (apps/api/src/app.ts, apps/api/src/auth.ts)
+#   silently reject every request from the deployed web app:
+#     APP_WEB_ORIGIN   the production web origin (the Vercel domain)
+#   Optional (safe defaults — OPENAI_BASE_URL, AI_MODEL, AI_EMBED_MODEL,
+#   SUPABASE_STORAGE_BUCKET, DB_APP_ROLE, SENTRY_DSN).
 services:
   - type: web
     name: ccn-api
