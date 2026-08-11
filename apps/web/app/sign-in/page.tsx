@@ -2,16 +2,21 @@
 
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
-import { Lock } from 'lucide-react';
+import { CircleAlert, Lock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { authClient } from '../../lib/auth-client';
 
 export default function SignInPage() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
   const google = () => {
+    setError(null);
     authClient.signIn
       .social({ provider: 'google', callbackURL: `${window.location.origin}/onboarding` })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Could not reach the sign-in service.');
+      });
   };
 
   return (
@@ -43,6 +48,12 @@ export default function SignInPage() {
             </span>
             Continue with Google
           </Button>
+          {error && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+              <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+              {error}
+            </p>
+          )}
           <div className="my-5 flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
             <span className="text-[13px] text-faint">or</span>

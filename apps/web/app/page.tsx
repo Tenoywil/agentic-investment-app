@@ -3,8 +3,16 @@
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
-import { LineChart, type LucideIcon, ShieldCheck, Target, TrendingUp } from 'lucide-react';
+import {
+  CircleAlert,
+  LineChart,
+  type LucideIcon,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { authClient } from '../lib/auth-client';
 
 function GoogleG() {
@@ -70,10 +78,14 @@ const PIPE = [
 
 export default function LandingPage() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
   const google = () => {
+    setError(null);
     authClient.signIn
       .social({ provider: 'google', callbackURL: `${window.location.origin}/onboarding` })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Could not reach the sign-in service.');
+      });
   };
   const demo = () => router.push('/home');
 
@@ -144,6 +156,12 @@ export default function LandingPage() {
               See a live demo →
             </Button>
           </div>
+          {error && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+              <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+              {error}
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap items-center gap-3.5 text-[13.5px] text-dim">
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
