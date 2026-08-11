@@ -6,67 +6,29 @@ import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { Switch } from '@/app/_components/ui/switch';
 import { cn } from '@/app/_lib/utils';
-import { ArrowRight, Mic, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { type ReactNode, useId, useRef, useState } from 'react';
+import {
+  AgentApiError,
+  type AgentMessage,
+  type Approval,
+  type ApprovalType,
+  approveApproval,
+  getAgentHistory,
+  getApprovals,
+  rejectApproval,
+  streamAgentMessage,
+} from '@/lib/agent-api';
+import { ArrowRight, CircleAlert, Mic, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
-type Msg = { role: 'agent' | 'user'; text: string };
+type ChatEntry = { role: 'agent' | 'user'; text: string };
 
-const SEED: Msg[] = [
-  {
-    role: 'agent',
-    text: "Welcome back, Marcus. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. Two things need your attention this week.",
-  },
-  {
-    role: 'agent',
-    text: 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?',
-  },
-  { role: 'user', text: 'What about the idle cash?' },
-  {
-    role: 'agent',
-    text: "Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. I've queued both for your approval.",
-  },
+const SUGGESTIONS: { label: string }[] = [
+  { label: 'Summarize my week' },
+  { label: 'Rebalance ideas' },
+  { label: 'Best income deal?' },
 ];
 
-const SUGGESTIONS: { label: string; key: string }[] = [
-  { label: 'Summarize my week', key: 'summary' },
-  { label: 'Rebalance ideas', key: 'rebalance' },
-  { label: 'Best income deal?', key: 'income' },
-];
-
-const REPLIES: Record<string, string> = {
-  summary:
-    "Here's your week: your GOJ 2026 coupon of US$412 settles Friday. I'd reinvest it into the Real Estate X Fund, which is projected to lift blended yield to about 6.9%. Your US$2,150 cash is idle; a money-market sweep is projected to add about US$110 a year. Both are queued for your approval.",
-  rebalance:
-    "You're overweight fixed income at 46% and light on equities at 14%. Shifting about US$3,000 from cash into the GraceKennedy offering moves you toward your balanced-income target while keeping risk in band. I can prepare it, and Barita would execute it.",
-  income:
-    'For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?',
-  idle: 'You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Rates move; the fund’s rate is variable. I can queue it now.',
-  whynot:
-    'The Beachfront Villas Development Note fails your suitability screen on four counts: it is a high-risk speculative note against your balanced-income profile, the US$25,000 minimum is about 80% of your portfolio versus your 15% single-position cap, five illiquid years conflict with your university-fund timeline, and it pays no income until exit. I keep it visible so you can see what I screen out, but I will not prepare or route it.',
-  safety:
-    "Here's the honest split: I research, screen and prepare. The licensed, FSC-regulated partners execute, custody and settle. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every action is written to an audit log you can read.",
-  fees: "CCN charges a flat platform fee; the partners' own product fees are shown on each deal card before you approve, and there are no hidden spreads from me. I always show the partner's fee line next to any projection.",
-  kyc: 'Your identity checks live with the licensed partners, not with me. NCB already verified you to Tier 2, and with your consent CCN reuses that status across partners, so there’s no new paperwork. Each partner remains the regulated entity responsible for KYC and AML on its own accounts.',
-};
-
-const FALLBACK =
-  'I research regional opportunities, screen them against your suitability profile, and prepare them for your approval. Execution, custody and settlement always stay with the licensed partner that holds the instrument. Ask me about income, rebalancing, idle cash, fees, or how your data and KYC are handled.';
-
-function classify(text: string): string {
-  const t = text.toLowerCase();
-  if (/villa|beachfront|development note|why not|reject|declin|flag|against/.test(t))
-    return 'whynot';
-  if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
-  if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
-  if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
-  if (/summar|week|overview/.test(t)) return 'summary';
-  if (/rebalanc|allocat|overweight|diversif/.test(t)) return 'rebalance';
-  if (/income|yield|best|deal|coupon|bond/.test(t)) return 'income';
-  if (/idle|cash|spare|sitting/.test(t)) return 'idle';
-  return '';
-}
-
-/** Render the seeded messages' <b>…</b> emphasis without dangerouslySetInnerHTML. */
+/** Render agent replies' <b>…</b> emphasis (if any) without dangerouslySetInnerHTML. */
 function renderRich(text: string): ReactNode {
   return text.split(/(<b>.*?<\/b>)/g).map((part, i) => {
     if (part.startsWith('<b>')) {
@@ -77,34 +39,49 @@ function renderRich(text: string): ReactNode {
   });
 }
 
-const APPROVALS: {
-  tag: string;
-  variant: BadgeProps['variant'];
-  accent: string;
-  when: string;
-  title: string;
-  body: string;
-  cta: string;
-}[] = [
-  {
-    tag: 'Reinvest',
-    variant: 'secondary',
-    accent: '#0e5952',
-    when: 'Today',
-    title: 'Put your GOJ coupon to work',
-    body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
-    cta: 'Review deal',
-  },
-  {
-    tag: 'Idle cash',
-    variant: 'terra',
-    accent: '#c56a3e',
-    when: '2d ago',
-    title: 'US$2,150 earning nothing',
-    body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
-    cta: 'Move cash',
-  },
-];
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1.5 rounded-[4px_14px_14px_14px] bg-[#f4f0e7] px-[15px] py-3.5 dark:bg-white/[0.05]">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-faint [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-faint [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-faint" />
+    </div>
+  );
+}
+
+function InlineError({ children }: { children: ReactNode }) {
+  return (
+    <p className="flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+      <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+      {children}
+    </p>
+  );
+}
+
+function formatMoney(minor: string, currency: string): string {
+  const n = Number(minor) / 100;
+  const prefix = currency === 'USD' ? 'US$' : `${currency} `;
+  return `${prefix}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+function formatWhen(iso: string): string {
+  const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  return `${diffDay}d ago`;
+}
+
+const APPROVAL_META: Record<
+  ApprovalType,
+  { label: string; variant: BadgeProps['variant']; accent: string }
+> = {
+  investment_rec: { label: 'Recommendation', variant: 'secondary', accent: '#0e5952' },
+  fund_transfer: { label: 'Fund transfer', variant: 'terra', accent: '#c56a3e' },
+  plan_enrollment: { label: 'Plan enrollment', variant: 'outline', accent: '#124e48' },
+};
 
 const RULES = [
   {
@@ -132,30 +109,143 @@ const STATS: { n: string; cls: string; t: string }[] = [
   { n: '11', cls: 'text-success', t: 'actions this month' },
 ];
 
+type HistoryState = 'loading' | 'ready' | 'error';
+type ApprovalsState = 'loading' | 'ready' | 'error';
+
+function fromHistory(messages: AgentMessage[]): ChatEntry[] {
+  return messages.map((m) => ({ role: m.role, text: m.content }));
+}
+
 export default function AgentPage() {
-  const [chat, setChat] = useState<Msg[]>(SEED);
+  const [chat, setChat] = useState<ChatEntry[]>([]);
+  const [historyState, setHistoryState] = useState<HistoryState>('loading');
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [voice, setVoice] = useState(false);
   const [rules, setRules] = useState(RULES.map((r) => r.on));
   const logRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
 
-  function reply(key: string) {
-    const text = REPLIES[key] ?? FALLBACK;
-    setChat((c) => [...c, { role: 'agent', text }]);
-    // keep the newest message in view
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [approvalsState, setApprovalsState] = useState<ApprovalsState>('loading');
+  const [approvalsError, setApprovalsError] = useState<string | null>(null);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const [blockedById, setBlockedById] = useState<
+    Record<string, { code: string; reasons: string[] }>
+  >({});
+  const [actionErrorById, setActionErrorById] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    getAgentHistory()
+      .then(({ messages }) => {
+        setChat(fromHistory(messages));
+        setHistoryState('ready');
+        scrollToBottom();
+      })
+      .catch((err) => {
+        setHistoryError(
+          err instanceof AgentApiError ? err.message : 'Could not load your conversation.',
+        );
+        setHistoryState('error');
+      });
+
+    getApprovals()
+      .then(({ approvals: rows }) => {
+        setApprovals(rows.filter((a) => a.status === 'pending'));
+        setApprovalsState('ready');
+      })
+      .catch((err) => {
+        setApprovalsError(
+          err instanceof AgentApiError ? err.message : 'Could not load your approvals.',
+        );
+        setApprovalsState('error');
+      });
+  }, []);
+
+  function scrollToBottom() {
     requestAnimationFrame(() => {
       const el = logRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     });
   }
 
-  function send(text: string, key?: string) {
+  function send(text: string) {
     const t = text.trim();
-    if (!t) return;
-    setChat((c) => [...c, { role: 'user', text: t }]);
+    if (!t || sending) return;
+    setStreamError(null);
     setDraft('');
-    setTimeout(() => reply(key ?? classify(t)), 500);
+    setSending(true);
+    setChat((c) => [...c, { role: 'user', text: t }, { role: 'agent', text: '' }]);
+    scrollToBottom();
+
+    streamAgentMessage(t, {
+      onDelta: (delta) => {
+        setChat((c) => {
+          const last = c[c.length - 1];
+          if (!last || last.role !== 'agent') return c;
+          const next = c.slice();
+          next[next.length - 1] = { role: 'agent', text: last.text + delta };
+          return next;
+        });
+        scrollToBottom();
+      },
+      onDone: () => {
+        setSending(false);
+      },
+      onError: (message) => {
+        setStreamError(message);
+        // Drop the empty placeholder bubble if nothing streamed in before the failure.
+        setChat((c) => {
+          const last = c[c.length - 1];
+          if (last && last.role === 'agent' && last.text === '') return c.slice(0, -1);
+          return c;
+        });
+      },
+    });
+  }
+
+  async function handleApprove(id: string) {
+    setActioningId(id);
+    setActionErrorById((e) => ({ ...e, [id]: '' }));
+    setBlockedById((b) => {
+      if (!(id in b)) return b;
+      const next = { ...b };
+      delete next[id];
+      return next;
+    });
+    try {
+      const result = await approveApproval(id);
+      if (result.decision === 'blocked') {
+        setBlockedById((b) => ({ ...b, [id]: { code: result.code, reasons: result.reasons } }));
+      } else {
+        setApprovals((list) => list.filter((a) => a.id !== id));
+      }
+    } catch (err) {
+      setActionErrorById((e) => ({
+        ...e,
+        [id]: err instanceof AgentApiError ? err.message : 'Could not approve this item.',
+      }));
+    } finally {
+      setActioningId(null);
+    }
+  }
+
+  async function handleReject(id: string) {
+    setActioningId(id);
+    setActionErrorById((e) => ({ ...e, [id]: '' }));
+    try {
+      await rejectApproval(id);
+      setApprovals((list) => list.filter((a) => a.id !== id));
+    } catch (err) {
+      setActionErrorById((e) => ({
+        ...e,
+        [id]: err instanceof AgentApiError ? err.message : 'Could not dismiss this item.',
+      }));
+    } finally {
+      setActioningId(null);
+    }
   }
 
   return (
@@ -209,10 +299,40 @@ export default function AgentPage() {
             ref={logRef}
             aria-live="polite"
             aria-label="Conversation with your agent"
-            className="flex max-h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            className="flex max-h-[440px] min-h-[220px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
-            {chat.map((m, i) =>
-              m.role === 'agent' ? (
+            {historyState === 'loading' && (
+              <div className="flex flex-1 items-center justify-center py-10 text-sm text-dim">
+                Loading your conversation…
+              </div>
+            )}
+
+            {historyState === 'error' && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
+                <InlineError>{historyError}</InlineError>
+                <p className="text-[13px] text-dim">
+                  You can still start a new conversation below.
+                </p>
+              </div>
+            )}
+
+            {historyState !== 'loading' && chat.length === 0 && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-mint text-teal2">
+                  <Sparkles className="h-6 w-6" aria-hidden />
+                </span>
+                <p className="text-[15px] font-bold">Say hello to your Capital Agent</p>
+                <p className="max-w-[320px] text-[13.5px] leading-relaxed text-dim">
+                  Ask about income opportunities, rebalancing, idle cash, or how approvals and
+                  custody work. It only prepares — you approve every action.
+                </p>
+              </div>
+            )}
+
+            {chat.map((m, i) => {
+              const isLast = i === chat.length - 1;
+              const isPending = sending && isLast && m.role === 'agent' && m.text === '';
+              return m.role === 'agent' ? (
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
                   key={i}
@@ -221,9 +341,13 @@ export default function AgentPage() {
                   <span className="mt-0.5 grid h-[26px] w-[26px] flex-none place-items-center rounded-full bg-mint text-teal2">
                     <Sparkles className="h-[15px] w-[15px]" aria-hidden />
                   </span>
-                  <div className="rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
-                    {renderRich(m.text)}
-                  </div>
+                  {isPending ? (
+                    <TypingIndicator />
+                  ) : (
+                    <div className="rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
+                      {renderRich(m.text)}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div
@@ -235,19 +359,25 @@ export default function AgentPage() {
                     {renderRich(m.text)}
                   </div>
                 </div>
-              ),
-            )}
+              );
+            })}
           </div>
 
           <div className="px-5 pb-[18px]">
+            {streamError && (
+              <div className="mb-3">
+                <InlineError>{streamError}</InlineError>
+              </div>
+            )}
             <div className="mb-3 flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (
                 <Button
-                  key={s.key}
+                  key={s.label}
                   variant="outline"
                   size="sm"
+                  disabled={sending}
                   className="rounded-[20px] font-semibold text-teal2"
-                  onClick={() => send(s.label, s.key)}
+                  onClick={() => send(s.label)}
                 >
                   {s.label}
                 </Button>
@@ -267,8 +397,9 @@ export default function AgentPage() {
                 id={inputId}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                disabled={sending}
                 placeholder="Ask your agent about income, rebalancing, or a specific deal…"
-                className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint"
+                className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint disabled:opacity-60"
               />
               <Button
                 type="button"
@@ -283,6 +414,7 @@ export default function AgentPage() {
                 type="submit"
                 size="icon"
                 aria-label="Send message"
+                disabled={sending || draft.trim().length === 0}
                 className="h-[38px] w-[38px] flex-none rounded-[10px]"
               >
                 <ArrowRight className="h-[18px] w-[18px]" />
@@ -296,30 +428,89 @@ export default function AgentPage() {
           <Card className="p-5">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
-                2
-              </span>
+              {approvalsState === 'ready' && approvals.length > 0 && (
+                <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
+                  {approvals.length}
+                </span>
+              )}
             </div>
-            {APPROVALS.map((a) => (
-              <div
-                key={a.title}
-                className="mb-3 rounded-xl border border-border p-4"
-                style={{ borderLeft: `3px solid ${a.accent}` }}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <Badge variant={a.variant}>{a.tag}</Badge>
-                  <span className="text-[12.5px] text-faint">{a.when}</span>
-                </div>
-                <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
-                <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
-                <div className="flex gap-2">
-                  <Button className="h-10 flex-1">{a.cta}</Button>
-                  <Button variant="outline" className="h-10 text-dim">
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-            ))}
+
+            {approvalsState === 'loading' && (
+              <p className="text-sm text-dim">Loading your approvals…</p>
+            )}
+
+            {approvalsState === 'error' && <InlineError>{approvalsError}</InlineError>}
+
+            {approvalsState === 'ready' && approvals.length === 0 && (
+              <p className="text-[13.5px] text-dim">Nothing needs your approval right now.</p>
+            )}
+
+            {approvalsState === 'ready' &&
+              approvals.map((a) => {
+                const meta = APPROVAL_META[a.type];
+                const blocked = blockedById[a.id];
+                const actionError = actionErrorById[a.id];
+                const busy = actioningId === a.id;
+                return (
+                  <div
+                    key={a.id}
+                    className="mb-3 rounded-xl border border-border p-4"
+                    style={{ borderLeft: `3px solid ${meta.accent}` }}
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                      <span className="text-[12.5px] text-faint">{formatWhen(a.createdAt)}</span>
+                    </div>
+                    <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
+                    {a.body && (
+                      <p className="mb-2 text-[13.5px] leading-normal text-dim">{a.body}</p>
+                    )}
+                    {a.amountMinor !== null && (
+                      <p className="mb-3 font-mono text-[13.5px] font-bold text-teal2">
+                        {formatMoney(a.amountMinor, a.currency)}
+                      </p>
+                    )}
+                    {actionError && (
+                      <div className="mb-3">
+                        <InlineError>{actionError}</InlineError>
+                      </div>
+                    )}
+                    {blocked && (
+                      <div className="mb-3 rounded-lg border border-[#ecd2c2] bg-[#fbeee7] px-3 py-2.5 text-[13px] leading-snug text-[#5c4636] dark:border-[#5a3f2e] dark:bg-[#2c1f17] dark:text-[#d3b8a4]">
+                        <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-[.4px]">
+                          <CircleAlert
+                            className="h-3.5 w-3.5 text-[#a44e20] dark:text-terra"
+                            aria-hidden
+                          />
+                          Can't approve this right now
+                        </div>
+                        <ul className="list-disc pl-[18px]">
+                          {blocked.reasons.map((r) => (
+                            <li key={r}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        className="h-10 flex-1"
+                        disabled={busy}
+                        onClick={() => handleApprove(a.id)}
+                      >
+                        {busy ? 'Working…' : 'Approve'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-10 text-dim"
+                        disabled={busy}
+                        onClick={() => handleReject(a.id)}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
           </Card>
 
           <Card className="p-5">
