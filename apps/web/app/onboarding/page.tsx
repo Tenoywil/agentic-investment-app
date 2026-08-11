@@ -32,8 +32,8 @@ import {
 const LAST = ONB_LABELS.length - 1; // index of the final input step (Funds)
 const DONE = ONB_LABELS.length; // the "all set" step
 
-const LEGEND = 'mb-2.5 p-0 text-[13px] font-bold text-[#2c2925]';
-const SWITCH_ROW = 'mb-3 flex cursor-pointer items-center gap-2.5 text-[14.5px] text-[#2c2925]';
+const LEGEND = 'mb-2.5 p-0 text-[13px] font-bold text-foreground';
+const SWITCH_ROW = 'mb-3 flex cursor-pointer items-center gap-2.5 text-[14.5px] text-foreground';
 const CHECK = 'h-[18px] w-[18px] accent-primary';
 
 /** Resume point once /status comes back: the Done step if funds are already

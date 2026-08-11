@@ -87,7 +87,7 @@ export default function LandingPage() {
         setError(err instanceof Error ? err.message : 'Could not reach the sign-in service.');
       });
   };
-  const demo = () => router.push('/home');
+  const demo = () => router.push('/demo/home');
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">

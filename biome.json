@@ -26,12 +26,13 @@
       "story.html",
       "investor.html",
       "support.js",
-      "demo",
+      "/demo",
       "design",
       "screenshots",
       "uploads",
       "packages/ui/preview.html",
-      "packages/db/migrations"
+      "packages/db/migrations",
+      "apps/web/next-env.d.ts"
     ]
   }
 }

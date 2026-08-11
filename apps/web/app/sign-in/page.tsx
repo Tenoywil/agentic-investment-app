@@ -61,7 +61,7 @@ export default function SignInPage() {
           </div>
           <Button
             variant="outline"
-            onClick={() => router.push('/onboarding')}
+            onClick={() => router.push('/demo/home')}
             className="w-full text-teal2"
           >
             Explore the demo instead

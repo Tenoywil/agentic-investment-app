@@ -16,11 +16,18 @@ type Key =
   | 'gatewayOpportunities'
   | 'gatewayIntroductions';
 
-/** The investor app shell: warm sidebar + scrolling main + the Ask CCN button. */
-export function AppScreen({ active, children }: { active: Key; children: ReactNode }) {
+/** The investor app shell: warm sidebar + scrolling main + the Ask CCN button.
+ *  `basePath="/demo"` renders the fixture-only preview shell — no auth, no
+ *  API calls, and the sidebar hides Gateway/Onboarding (neither has a demo
+ *  version). Omit it for the real, signed-in, live-data app. */
+export function AppScreen({
+  active,
+  basePath = '',
+  children,
+}: { active: Key; basePath?: string; children: ReactNode }) {
   return (
     <div className="app-shell bg-background font-sans text-foreground">
-      <AppSidebar active={active} />
+      <AppSidebar active={active} basePath={basePath} />
       <main className="relative min-w-0 flex-1 px-8 pb-24 pt-[26px]">{children}</main>
       <Button
         size="pill"
