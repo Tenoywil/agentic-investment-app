@@ -32,6 +32,18 @@ export function createAuth(db: Database, config: ServerConfig) {
       cookiePrefix: 'ccn',
       useSecureCookies: config.APP_ENV === 'production',
       database: { generateId: () => crypto.randomUUID() },
+      // Vercel (web) and Render (api) are different registrable domains, not
+      // subdomains of one parent, so the session cookie needs SameSite=None to
+      // survive a cross-site fetch — the SameSite=Lax default is only sent on
+      // top-level navigation, so every authenticated API call from the browser
+      // would silently look logged-out even right after a successful sign-in.
+      // `partitioned` opts into CHIPS so the cookie still works under browsers'
+      // third-party-cookie restrictions. Left at the Lax/insecure default in
+      // dev, where web and api both run on http://localhost (same-site, and
+      // SameSite=None without HTTPS is rejected by the browser outright).
+      ...(config.APP_ENV === 'production'
+        ? { defaultCookieAttributes: { sameSite: 'none', secure: true, partitioned: true } }
+        : {}),
     },
   });
 }
