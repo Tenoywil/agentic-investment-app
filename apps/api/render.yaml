@@ -3,11 +3,18 @@
 # idle connection, unlike a serverless/edge runtime), needed for the WS hub and
 # the single dedicated postgres.js LISTEN connection (apps/api/src/ws/bridge.ts).
 #
-# Chosen over Fly.io for this deadline: a flat, predictable monthly price (no
-# usage metering to misconfigure), a simpler first deploy (git-push / Blueprint,
-# no machine-lifecycle tuning), and first-class Cron Jobs for the nightly-sweep
-# work already deferred to a later phase. Region (Ohio) is comparable latency to
-# Supabase us-east-1 as Fly's `iad`. See the go-live plan's "Hosting" addendum.
+# Chosen over Fly.io for this deadline: a simpler first deploy (git-push /
+# Blueprint, no machine-lifecycle tuning) and first-class Cron Jobs for the
+# nightly-sweep work already deferred to a later phase. Region (Ohio) is
+# comparable latency to Supabase us-east-1 as Fly's `iad`. See the go-live
+# plan's "Hosting" addendum.
+#
+# Plan: `free`, by deliberate choice for the initial prod-testable pass — $0,
+# but the trade-off is real: the service spins down after ~15 min idle, so the
+# first request after a quiet period eats a ~30-60s cold start, and the
+# dedicated LISTEN/NOTIFY connection drops and has to reconnect on wake (the
+# WS hub's realtime push is not reliably always-on). Bump to `starter` ($7/mo,
+# no spin-down) once always-on realtime matters more than cost.
 #
 # Deploy: connect this repo in the Render dashboard (or `render blueprint launch`),
 # root directory `.` so the Docker build context is the whole monorepo, Dockerfile
@@ -18,7 +25,7 @@ services:
   - type: web
     name: ccn-api
     runtime: docker
-    plan: starter
+    plan: free
     region: ohio
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
