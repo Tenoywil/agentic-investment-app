@@ -20,6 +20,14 @@
 # root directory `.` so the Docker build context is the whole monorepo, Dockerfile
 # path `apps/api/Dockerfile`.
 #
+# Migrations run automatically via `preDeployCommand` below — Render runs it once
+# per deploy, after the build, before traffic is cut over to the new instance, in
+# the same environment (so DATABASE_URL etc. are already in scope). Deliberately
+# NOT `db:seed` here: seeding is a one-time/manual step, not something to rerun on
+# every deploy against real user data. Run `bun run db:seed` by hand (same
+# DATABASE_URL) after the first successful migration if the reference data
+# (partners, instruments, planning products, …) isn't loaded yet.
+#
 # `packages/config` fails fast on boot (before serving a single request) if any
 # required value below is missing — set ALL of these in the Render dashboard,
 # never committed here:
@@ -43,6 +51,7 @@ services:
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
     healthCheckPath: /health
+    preDeployCommand: cd packages/db && bun run db:migrate
     envVars:
       - key: APP_ENV
         value: production
