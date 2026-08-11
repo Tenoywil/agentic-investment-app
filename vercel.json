@@ -4,6 +4,8 @@
   "installCommand": "bun install --frozen-lockfile",
   "buildCommand": "bun run --filter @ccn/web build",
   "outputDirectory": "apps/web/out",
+  "cleanUrls": true,
+  "trailingSlash": false,
   "headers": [
     {
       "source": "/(.*)",
