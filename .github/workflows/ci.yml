@@ -111,4 +111,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Later phases add: Semgrep (SAST), Trivy (SCA), Playwright e2e,
-  # agent-eval gate, Vercel preview + Fly staging deploy.
+  # agent-eval gate, Vercel preview + Render staging deploy.

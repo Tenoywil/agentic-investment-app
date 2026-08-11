@@ -1,0 +1,35 @@
+# Render Blueprint for the CCN Bun + Hono API — a persistent Docker web service
+# with native WebSocket support (Render does not spin the process down on an
+# idle connection, unlike a serverless/edge runtime), needed for the WS hub and
+# the single dedicated postgres.js LISTEN connection (apps/api/src/ws/bridge.ts).
+#
+# Chosen over Fly.io for this deadline: a flat, predictable monthly price (no
+# usage metering to misconfigure), a simpler first deploy (git-push / Blueprint,
+# no machine-lifecycle tuning), and first-class Cron Jobs for the nightly-sweep
+# work already deferred to a later phase. Region (Ohio) is comparable latency to
+# Supabase us-east-1 as Fly's `iad`. See the go-live plan's "Hosting" addendum.
+#
+# Deploy: connect this repo in the Render dashboard (or `render blueprint launch`),
+# root directory `.` so the Docker build context is the whole monorepo, Dockerfile
+# path `apps/api/Dockerfile`. Secrets (DATABASE_URL, BETTER_AUTH_SECRET, GOOGLE_*,
+# OPENAI_*, FIELD_ENCRYPTION_KEY, SENTRY_DSN) are set in the Render dashboard —
+# never committed here.
+services:
+  - type: web
+    name: ccn-api
+    runtime: docker
+    plan: starter
+    region: ohio
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      # Render's reverse proxy sets the standard X-Forwarded-For header — the
+      # client-IP resolver (apps/api/src/security.ts) is provider-agnostic by
+      # design, so this is the only line that changes moving off Fly.
+      - key: TRUSTED_CLIENT_IP_HEADER
+        value: x-forwarded-for

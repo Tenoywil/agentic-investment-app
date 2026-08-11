@@ -93,9 +93,10 @@ export function createFieldCipherFrom(
  * Forwarding headers are attacker-controlled: anyone can send
  * `X-Forwarded-For: <random>` and mint a fresh bucket per request, which silently
  * disables IP rate limiting. So a header is trusted **only** when the deployment
- * declares which one its proxy sets (`TRUSTED_CLIENT_IP_HEADER`; Fly.io sets
- * `Fly-Client-IP`). With nothing declared we fall back to the socket address —
- * possibly coarse behind a proxy, but never forgeable.
+ * declares which one its proxy sets (`TRUSTED_CLIENT_IP_HEADER`; Render's
+ * reverse proxy sets the standard `X-Forwarded-For`, appending the real client
+ * as the last hop — see apps/api/render.yaml). With nothing declared we fall
+ * back to the socket address — possibly coarse behind a proxy, but never forgeable.
  */
 export function createClientIpResolver(
   trustedHeader = process.env.TRUSTED_CLIENT_IP_HEADER ?? '',
