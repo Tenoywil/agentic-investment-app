@@ -4,8 +4,19 @@ import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { Input } from '@/app/_components/ui/input';
 import { Label } from '@/app/_components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@/app/_components/ui/select';
 import { cn } from '@/app/_lib/utils';
 import { authClient } from '@/lib/auth-client';
+import { CORRIDOR_COUNTRIES, OTHER_COUNTRIES } from '@/lib/countries';
 import {
   type KycStatus,
   type SourceOfFunds,
@@ -108,7 +119,11 @@ export default function OnboardingPage() {
   const riskComplete = scores.length === RISK_QUESTIONS.length;
   const hasSource = Object.values(sources).some(Boolean);
 
+  const identityComplete =
+    fullName.trim() !== '' && country.trim() !== '' && occupation.trim() !== '';
+
   const canContinue = !(
+    (step === 0 && !identityComplete) ||
     (step === 1 && !allDeclared) ||
     (step === 2 && !riskComplete) ||
     (step === LAST && !hasSource)
@@ -119,15 +134,16 @@ export default function OnboardingPage() {
   async function handleContinue() {
     setError(null);
     if (step === 0) {
+      const name = fullName.trim();
       const residencyCountry = country.trim();
       const occ = occupation.trim();
-      if (!residencyCountry || !occ) {
-        setError('Enter your country of residence and occupation.');
+      if (!name || !residencyCountry || !occ) {
+        setError('Enter your full name, country of residence, and occupation.');
         return;
       }
       setBusy(true);
       try {
-        await submitIdentity({ residencyCountry, occupation: occ });
+        await submitIdentity({ fullName: name, residencyCountry, occupation: occ });
         setStep((s) => s + 1);
       } catch (err) {
         setError(errorMessage(err, 'Could not save your details.'));
@@ -213,6 +229,7 @@ export default function OnboardingPage() {
             {step === 0 ? (
               <IdentityStep
                 fullName={fullName}
+                onFullNameChange={setFullName}
                 country={country}
                 onCountryChange={setCountry}
                 occupation={occupation}
@@ -269,12 +286,14 @@ export default function OnboardingPage() {
 
 function IdentityStep({
   fullName,
+  onFullNameChange,
   country,
   onCountryChange,
   occupation,
   onOccupationChange,
 }: {
   fullName: string;
+  onFullNameChange: (v: string) => void;
   country: string;
   onCountryChange: (v: string) => void;
   occupation: string;
@@ -284,17 +303,41 @@ function IdentityStep({
     <div>
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="fullname">Full legal name</Label>
-        <Input id="fullname" type="text" value={fullName} readOnly autoComplete="name" />
+        <Input
+          id="fullname"
+          type="text"
+          value={fullName}
+          onChange={(e) => onFullNameChange(e.target.value)}
+          autoComplete="name"
+          placeholder="As it appears on your ID"
+        />
       </div>
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="country">Country of residence</Label>
-        <Input
-          id="country"
-          type="text"
-          value={country}
-          onChange={(e) => onCountryChange(e.target.value)}
-          autoComplete="country-name"
-        />
+        <Select value={country} onValueChange={onCountryChange}>
+          <SelectTrigger id="country" aria-label="Country of residence">
+            <SelectValue placeholder="Select a country" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Corridor countries</SelectLabel>
+              {CORRIDOR_COUNTRIES.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel>All countries</SelectLabel>
+              {OTHER_COUNTRIES.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </div>
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="occupation">Occupation</Label>
@@ -304,6 +347,7 @@ function IdentityStep({
           value={occupation}
           onChange={(e) => onOccupationChange(e.target.value)}
           autoComplete="organization-title"
+          placeholder="e.g. Software engineer"
         />
       </div>
       <p className="inline-block rounded-[22px] border border-[#cfe3d8] bg-[#e8f1ec] px-3.5 py-2 text-[13px] font-bold text-[#0e5952]">

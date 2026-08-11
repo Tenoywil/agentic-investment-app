@@ -167,6 +167,7 @@ export type CreateGoalInput = z.infer<typeof createGoalSchema>;
 
 /** POST /api/onboarding/identity */
 export const onboardingIdentitySchema = z.object({
+  fullName: z.string().min(1).max(200),
   residencyCountry: z.string().min(1).max(100),
   occupation: z.string().min(1).max(150),
 });

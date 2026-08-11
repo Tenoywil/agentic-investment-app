@@ -44,6 +44,7 @@ export interface OnboardingStatusResponse {
 }
 
 export interface SubmitIdentityInput {
+  fullName: string;
   residencyCountry: string;
   occupation: string;
 }

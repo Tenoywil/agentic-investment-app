@@ -1,4 +1,4 @@
-import { kycStatus, riskProfiles, userProfiles } from '@ccn/db';
+import { kycStatus, riskProfiles, user, userProfiles } from '@ccn/db';
 import {
   onboardingComplianceSchema,
   onboardingFundsSchema,
@@ -59,9 +59,13 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
     const parsed = onboardingIdentitySchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success)
       return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
-    const { residencyCountry, occupation } = parsed.data;
+    const { fullName, residencyCountry, occupation } = parsed.data;
 
     await withTenant(deps, tenant, async (tx) => {
+      await tx
+        .update(user)
+        .set({ name: fullName, updatedAt: new Date() })
+        .where(eq(user.id, tenant.user.id));
       await tx
         .insert(userProfiles)
         .values({ userId: tenant.user.id, residencyCountry, occupation })
