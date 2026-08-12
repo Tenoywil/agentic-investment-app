@@ -26,12 +26,30 @@
 -- unnecessary) from failing the deploy on a privilege error.
 -- ============================================================================
 
+-- This deliberately does NOT swallow a privilege error. An earlier revision
+-- caught insufficient_privilege and carried on with a NOTICE, which made the
+-- deploy succeed while the grant silently did not happen — the exact
+-- silent-failure shape this file exists to remove. If the grant cannot be made,
+-- the migration fails, the deploy fails, and the message says what to run by
+-- hand. A deploy that cannot serve an authenticated request should not be
+-- reported as a success.
 DO $$
 BEGIN
   EXECUTE format('GRANT ccn_app TO %I', current_user);
 EXCEPTION
   WHEN insufficient_privilege THEN
-    RAISE NOTICE 'could not grant ccn_app to %; SET ROLE will only work if it is a superuser', current_user;
-  WHEN duplicate_object THEN
-    NULL;
+    RAISE EXCEPTION
+      'cannot grant ccn_app to %. Every authenticated request begins with SET LOCAL ROLE ccn_app and will fail with "permission denied to set role" until this is granted. Run this once as a role with ADMIN OPTION on ccn_app (in Supabase, the SQL Editor runs as postgres): GRANT ccn_app TO %I;',
+      current_user, current_user;
+END $$;
+
+-- Prove it, in the same transaction. GRANT can succeed while membership is
+-- still not usable (NOINHERIT, or a grant made WITHOUT the right options), and
+-- the only thing that matters is whether the switch the API performs on every
+-- request actually works.
+DO $$
+BEGIN
+  IF NOT pg_has_role(current_user, 'ccn_app', 'MEMBER') THEN
+    RAISE EXCEPTION '% is still not a member of ccn_app after the grant', current_user;
+  END IF;
 END $$;

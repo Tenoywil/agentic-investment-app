@@ -1,5 +1,6 @@
 import { describe, loadServerConfig } from '@ccn/config';
 import { createDb } from '@ccn/db';
+import { sql } from 'drizzle-orm';
 import { createApp } from './app';
 import { createAuth, resolveAuthBaseUrl } from './auth';
 import { createLogger } from './logger';
@@ -44,6 +45,37 @@ const app = createApp(deps);
     logger.error(
       'BETTER_AUTH_URL does not match APP_WEB_ORIGIN; using APP_WEB_ORIGIN. The browser is always on the web origin because /api/* is proxied, so the callback and cookie must belong to it. Update BETTER_AUTH_URL, and make sure the Google OAuth client lists the redirect URI logged above.',
       { betterAuthUrl: config.BETTER_AUTH_URL, using: baseURL },
+    );
+  }
+}
+
+/**
+ * Prove, at boot, that the API can do the one thing every authenticated request
+ * begins with: drop into the application role.
+ *
+ * `withRls` opens each request transaction with `SET LOCAL ROLE`, which
+ * PostgreSQL refuses unless the connecting role is a MEMBER of the target. When
+ * it is refused the failure surfaces as a 500 on a real user's first request,
+ * with the cause buried in a driver stack trace — which is how it reached
+ * production. Checking here turns a mystery 500 into a startup line naming the
+ * role and the grant to run.
+ *
+ * It does not exit: a running API that can still serve /health and the auth
+ * routes is more useful than one that refuses to start, and the log says
+ * plainly what is broken.
+ */
+{
+  const role = config.DB_APP_ROLE;
+  try {
+    const [who] = (await db.execute('select current_user as who')) as unknown as [{ who: string }];
+    await db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
+    });
+    logger.info('database role check passed', { connectsAs: who.who, canSetRole: role });
+  } catch (error) {
+    logger.error(
+      `cannot SET ROLE ${role}; every authenticated request will fail with 500. Grant it once as a role with ADMIN OPTION (in Supabase, the SQL Editor runs as postgres): GRANT ${role} TO <the user in DATABASE_URL>;`,
+      { error, dbAppRole: role },
     );
   }
 }
