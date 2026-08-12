@@ -269,9 +269,7 @@ export default function HomePage() {
                 <span
                   className={cn(
                     'grid h-6 w-6 place-items-center rounded-[7px] font-mono text-[13px] font-bold',
-                    s.flag
-                      ? 'bg-[#f0d3bd] text-[#b4531f] dark:bg-[#4a3320] dark:text-[#e79b6f]'
-                      : 'bg-mint text-teal2',
+                    s.flag ? 'bg-[#f0d3bd] text-terra-ink dark:bg-[#4a3320]' : 'bg-mint text-teal2',
                   )}
                 >
                   {s.n}
@@ -318,7 +316,7 @@ export default function HomePage() {
         <Card className="p-[22px]">
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-            <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
+            <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
               2
             </span>
           </div>
@@ -387,7 +385,7 @@ export default function HomePage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-sm font-bold">{h.amt}</div>
-                <div className="text-[11.5px] text-success">· FSC-regulated</div>
+                <div className="text-[11.5px] text-success-ink">· FSC-regulated</div>
               </div>
             </div>
           ))}

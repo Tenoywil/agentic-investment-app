@@ -225,7 +225,7 @@ export function AppSidebar({
                 data-tour={basePath ? undefined : tour}
                 className={cn(
                   'mb-0.5 flex items-center gap-3 rounded-[11px] px-3 py-[11px] text-[15px] no-underline',
-                  on ? 'bg-mint font-bold text-primary' : 'font-semibold text-dim',
+                  on ? 'bg-mint font-bold text-primary dark:text-teal2' : 'font-semibold text-dim',
                 )}
               >
                 <Icon className="h-[21px] w-[21px]" aria-hidden />

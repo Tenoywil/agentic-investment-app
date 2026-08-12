@@ -84,7 +84,7 @@ export default function PortfolioPage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-[15px] font-bold">{inst.total}</div>
-                <div className="text-[11.5px] text-success">· FSC-regulated</div>
+                <div className="text-[11.5px] text-success-ink">· FSC-regulated</div>
               </div>
             </div>
             {inst.holdings.map((h) => (

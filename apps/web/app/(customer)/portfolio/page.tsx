@@ -207,7 +207,7 @@ export default function PortfolioPage() {
                         and an unverifiable claim for anyone else. Nothing is
                         rendered when the record names no regulator. */}
                     {inst.regulator && (
-                      <div className="text-[11.5px] text-success">
+                      <div className="text-[11.5px] text-success-ink">
                         {regulatorLabel(inst.regulator)}
                       </div>
                     )}
@@ -225,7 +225,7 @@ export default function PortfolioPage() {
                           statement carried none — nothing is printed, rather
                           than a dash that reads like a measured zero. */}
                       {h.ret !== null && (
-                        <span className="min-w-[42px] text-right text-[13px] text-success">
+                        <span className="min-w-[42px] text-right text-[13px] text-success-ink">
                           {h.ret}
                         </span>
                       )}

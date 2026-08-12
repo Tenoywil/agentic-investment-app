@@ -112,10 +112,29 @@ function partnerStyle(code: string, index: number): { tint: string; color: strin
   return PARTNER_STYLE[code] ?? FALLBACK_STYLES[index % FALLBACK_STYLES.length] ?? DEFAULT_STYLE;
 }
 
-const APPROVAL_TAG: Record<ApprovalType, { label: string; color: string }> = {
-  investment_rec: { label: 'Investment', color: '#124e48' },
-  fund_transfer: { label: 'Transfer', color: '#c56a3e' },
-  plan_enrollment: { label: 'Plan', color: '#9a6a1e' },
+/**
+ * Approval type badges. These were inline hex colours used for both the text
+ * and an 8%-alpha fill behind it, which meant the light-theme ink was painted
+ * on the dark theme's background — "Investment" measured 1.68:1 there, far
+ * under the 4.5:1 floor. Tailwind classes with a dark variant instead, so each
+ * theme gets ink tuned for its own surface.
+ */
+const APPROVAL_TAG: Record<ApprovalType, { label: string; className: string; rule: string }> = {
+  investment_rec: {
+    label: 'Investment',
+    className: 'bg-primary/10 text-primary dark:bg-teal2/15 dark:text-teal2',
+    rule: 'hsl(var(--primary))',
+  },
+  fund_transfer: {
+    label: 'Transfer',
+    className: 'bg-terra/10 text-terra-ink dark:bg-terra/15 dark:text-terra-ink',
+    rule: 'hsl(var(--terra))',
+  },
+  plan_enrollment: {
+    label: 'Plan',
+    className: 'bg-gold/15 text-[#7a5316] dark:bg-gold/15 dark:text-gold',
+    rule: 'hsl(var(--gold))',
+  },
 };
 
 /** Coarse relative-time label ("Today", "3d ago", "Last week", …) — matches
@@ -405,9 +424,7 @@ export default function HomePage() {
                 <span
                   className={cn(
                     'grid h-6 w-6 place-items-center rounded-[7px] font-mono text-[13px] font-bold',
-                    s.flag
-                      ? 'bg-[#f0d3bd] text-[#b4531f] dark:bg-[#4a3320] dark:text-[#e79b6f]'
-                      : 'bg-mint text-teal2',
+                    s.flag ? 'bg-[#f0d3bd] text-terra-ink dark:bg-[#4a3320]' : 'bg-mint text-teal2',
                   )}
                 >
                   {s.n}
@@ -464,7 +481,7 @@ export default function HomePage() {
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
             {pendingApprovals.length > 0 && (
-              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
+              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
                 {pendingApprovals.length}
               </span>
             )}
@@ -479,17 +496,19 @@ export default function HomePage() {
             />
           )}
           {pendingApprovals.map((a) => {
-            const tag = APPROVAL_TAG[a.type] ?? { label: a.type, color: '#124e48' };
+            const tag = APPROVAL_TAG[a.type] ?? APPROVAL_TAG.investment_rec;
             return (
               <div
                 key={a.id}
-                className="mb-3 rounded-xl border border-border p-4"
-                style={{ borderLeft: `3px solid ${tag.color}` }}
+                className="mb-3 rounded-xl border border-solid border-border p-4"
+                style={{ borderLeft: `3px solid ${tag.rule}` }}
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span
-                    className="rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]"
-                    style={{ color: tag.color, background: `${tag.color}14` }}
+                    className={cn(
+                      'rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]',
+                      tag.className,
+                    )}
                   >
                     {tag.label}
                   </span>
@@ -573,7 +592,9 @@ export default function HomePage() {
                       names none — claiming a regulator is not a detail to
                       guess at. */}
                   {h.regulator && (
-                    <div className="text-[11.5px] text-success">{regulatorLabel(h.regulator)}</div>
+                    <div className="text-[11.5px] text-success-ink">
+                      {regulatorLabel(h.regulator)}
+                    </div>
                   )}
                 </div>
               </div>

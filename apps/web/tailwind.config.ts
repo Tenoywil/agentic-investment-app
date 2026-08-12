@@ -52,9 +52,11 @@ const config: Config = {
         teal2: 'hsl(var(--teal2) / <alpha-value>)',
         mint: 'hsl(var(--mint) / <alpha-value>)',
         terra: 'hsl(var(--terra) / <alpha-value>)',
+        'terra-ink': 'hsl(var(--terra-ink) / <alpha-value>)',
         peach: 'hsl(var(--peach) / <alpha-value>)',
         gold: 'hsl(var(--gold) / <alpha-value>)',
         success: 'hsl(var(--success) / <alpha-value>)',
+        'success-ink': 'hsl(var(--success-ink) / <alpha-value>)',
         dim: 'hsl(var(--dim) / <alpha-value>)',
         faint: 'hsl(var(--faint) / <alpha-value>)',
         navy: {

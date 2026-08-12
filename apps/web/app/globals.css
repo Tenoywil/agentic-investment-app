@@ -33,9 +33,16 @@
   --teal2: 174.4 72.8% 20.2%;
   --mint: 146.7 24.3% 92.7%;
   --terra: 19.6 53.8% 50.8%;
+  /* Text-weight variants. --terra and --success are tuned for fills and large
+     numerals; at label sizes on their own tinted chips they measure 3.3-4.0:1,
+     under the 4.5:1 AA floor. These are the same hues darkened until small text
+     clears it. Use the -ink pair for anything under 24px that is not bold
+     display type; keep the base tokens for fills, dots and bars. */
+  --terra-ink: 21.5 77% 30.6%;
   --peach: 26.7 76.7% 74.7%;
   --gold: 40 75% 60.8%;
   --success: 156.5 86.9% 30%;
+  --success-ink: 155.7 90.6% 25.1%;
   --dim: 34.7 11.5% 32.4%;
   --faint: 36.9 14.4% 35.3%;
   --navy: 170.3 56.4% 10.8%;
@@ -72,9 +79,11 @@
   --teal2: 172 55% 58%;
   --mint: 165 20% 17%;
   --terra: 19.6 64% 60%;
+  --terra-ink: 22 71.4% 67.1%;
   --peach: 26.7 62% 64%;
   --gold: 40 72% 62%;
   --success: 156 58% 52%;
+  --success-ink: 156 58% 52%;
   --dim: 40 9% 66%;
   --faint: 40 7% 56%;
   --navy: 170 30% 9%;

@@ -207,7 +207,7 @@ export default function LandingPage() {
           </div>
           <div className="mt-2.5 flex items-center gap-3 rounded-[11px] border border-[#e7c3ab] bg-[#f9ede2] dark:border-[#5a3f2a] dark:bg-[#2e2118] px-3.5 py-[13px]">
             <div className="flex-1">
-              <div className="text-[11px] font-bold uppercase tracking-[.4px] text-[#b4531f]">
+              <div className="text-[11px] font-bold uppercase tracking-[.4px] text-terra-ink">
                 Needs your approval
               </div>
               <div className="mt-0.5 text-sm font-semibold text-foreground">
@@ -320,7 +320,7 @@ export default function LandingPage() {
               <div
                 className={
                   s.flag
-                    ? 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#f0d3bd] dark:bg-[#4a3320] font-mono text-[15px] font-bold text-[#b4531f] dark:text-[#e79b6f]'
+                    ? 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#f0d3bd] dark:bg-[#4a3320] font-mono text-[15px] font-bold text-terra-ink'
                     : 'mb-3 grid h-[30px] w-[30px] place-items-center rounded-lg bg-mint font-mono text-[15px] font-bold text-teal2'
                 }
               >
