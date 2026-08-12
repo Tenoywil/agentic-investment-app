@@ -409,7 +409,28 @@ async function main(): Promise<void> {
   const { db, close } = createDb(url as string, { max: 1 });
   try {
     // Reference / catalog (upsert on natural keys) ---------------------------
-    await db.insert(partners).values(PARTNERS).onConflictDoNothing({ target: partners.code });
+    // Partners are reference data whose only source is this array — nothing in
+    // the product writes `kind`, `regulator`, `residency` or `agreement_status`.
+    // `onConflictDoNothing` therefore froze whatever the FIRST seed contained:
+    // a database seeded before these columns were filled in kept them NULL
+    // forever, which on the console renders a partner with no line of business,
+    // no regulator and no agreement chip, and never raises the sandbox badge.
+    // Re-seeding must be able to correct reference data.
+    await db
+      .insert(partners)
+      .values(PARTNERS)
+      .onConflictDoUpdate({
+        target: partners.code,
+        set: {
+          name: sql`excluded.name`,
+          kind: sql`excluded.kind`,
+          regulator: sql`excluded.regulator`,
+          agreementStatus: sql`excluded.agreement_status`,
+          residency: sql`excluded.residency`,
+          color: sql`excluded.color`,
+          tint: sql`excluded.tint`,
+        },
+      });
     await db
       .insert(planningProducts)
       .values(PLANNING)
