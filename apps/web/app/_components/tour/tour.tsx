@@ -77,6 +77,21 @@ function surfaceForPath(pathname: string): Surface | null {
   return null;
 }
 
+/**
+ * The first target on screen, or null.
+ *
+ * `getClientRects()` is the check rather than a CSS lookup because it answers
+ * the question that matters — does this occupy space the viewer can see —
+ * whether the element is hidden by `display: none`, by an empty ancestor, or by
+ * never having been laid out.
+ */
+function visibleTarget(target: string): Element | null {
+  for (const el of document.querySelectorAll(`[data-tour="${target}"]`)) {
+    if (el.getClientRects().length > 0) return el;
+  }
+  return null;
+}
+
 function seen(surface: Surface): boolean {
   try {
     return localStorage.getItem(DISMISS_KEY(surface)) === 'done';
@@ -105,10 +120,17 @@ export function Tour() {
     // Only steps whose element is actually on the page. Resolved at start time,
     // not at module load, because the screens render their data asynchronously.
     const steps = stepsFor(surface)
-      .filter((s) => document.querySelector(`[data-tour="${s.target}"]`))
-      .map((s) => ({
-        element: `[data-tour="${s.target}"]`,
-        popover: { title: s.title, description: s.body },
+      .map((s) => ({ el: visibleTarget(s.target), step: s }))
+      .filter((x): x is { el: Element; step: (typeof x)['step'] } => x.el !== null)
+      .map(({ el, step }) => ({
+        // The resolved element, not the selector. Some targets now exist twice
+        // — the desktop rail and the phone drawer are two presentations of one
+        // navigation, and both are in the DOM at every width — so a selector
+        // string would hand driver.js whichever came first in document order,
+        // which on a phone is the hidden one. It would then dim the screen and
+        // highlight nothing.
+        element: el,
+        popover: { title: step.title, description: step.body },
       }));
     if (steps.length === 0) return;
 
@@ -146,9 +168,7 @@ export function Tour() {
     let tries = 0;
     const id = window.setInterval(() => {
       tries++;
-      const present = stepsFor(surface).some((s) =>
-        document.querySelector(`[data-tour="${s.target}"]`),
-      );
+      const present = stepsFor(surface).some((s) => visibleTarget(s.target) !== null);
       if (present && !cancelled) {
         window.clearInterval(id);
         publishAvailable(true);

@@ -37,10 +37,12 @@ type Key =
  * owned anything at all. The one count that is real (approvals awaiting you) is
  * fetched below and shown once, in the agent card.
  */
-const GROUPS: {
+export interface NavGroup {
   label: string;
   items: { key: Key; label: string; href: string; Icon: LucideIcon; tour?: string }[];
-}[] = [
+}
+
+const GROUPS: NavGroup[] = [
   {
     label: 'Overview',
     items: [
@@ -100,7 +102,7 @@ const CARD_BODY = 'mb-3 text-[13.5px] leading-snug opacity-80';
  * this week" on every screen for every user, including one who had just signed
  * up. Zero is a real answer here and is written as one.
  */
-function AgentCard() {
+export function AgentCard() {
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -159,7 +161,7 @@ function AgentCard() {
 
 /** The same card in the fixture-only preview shell, which has no session and
  *  must not call the API. It states what it is instead of inventing counts. */
-function DemoAgentCard({ basePath }: { basePath: string }) {
+export function DemoAgentCard({ basePath }: { basePath: string }) {
   return (
     <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5] dark:bg-[#124e48]">
       <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
@@ -178,18 +180,72 @@ function DemoAgentCard({ basePath }: { basePath: string }) {
   );
 }
 
+/**
+ * The destinations for a shell, given its base path.
+ *
+ * The demo shell (basePath="/demo") never links to auth-required, live-API
+ * screens — Gateway is live-only (no fixture version ever existed), and
+ * Onboarding *is* the real signup flow, not something to preview.
+ *
+ * Exported because the rail and the mobile drawer are two presentations of one
+ * navigation, and a second hand-written copy of this list is how the two would
+ * quietly stop agreeing about what the product contains.
+ */
+export function navGroupsFor(basePath: string): NavGroup[] {
+  if (!basePath) return GROUPS;
+  return GROUPS.filter((g) => g.label !== 'Gateway').map((g) =>
+    g.label === 'Plan' ? { ...g, items: g.items.filter((i) => i.key !== 'onboarding') } : g,
+  );
+}
+
+/** One group's links. Shared by the rail and the drawer. */
+export function NavLinks({
+  groups,
+  active,
+  basePath,
+  withTourTargets,
+}: {
+  groups: NavGroup[];
+  active: Key | 'institutions';
+  basePath: string;
+  withTourTargets: boolean;
+}) {
+  return (
+    <>
+      {groups.map((g) => (
+        <div key={g.label}>
+          <div className="px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
+            {g.label}
+          </div>
+          {g.items.map(({ key, label, href, Icon, tour }) => {
+            const on = key === active;
+            return (
+              <Link
+                key={key}
+                href={`${basePath}${href}`}
+                aria-current={on ? 'page' : undefined}
+                data-tour={withTourTargets ? tour : undefined}
+                className={cn(
+                  'mb-0.5 flex items-center gap-3 rounded-[11px] px-3 py-[11px] text-[15px] no-underline',
+                  on ? 'bg-mint font-bold text-primary dark:text-teal2' : 'font-semibold text-dim',
+                )}
+              >
+                <Icon className="h-[21px] w-[21px]" aria-hidden />
+                <span className="flex-1">{label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function AppSidebar({
   active,
   basePath = '',
 }: { active: Key | 'institutions'; basePath?: string }) {
-  // The demo shell (basePath="/demo") never links to auth-required, live-API
-  // screens — Gateway is live-only (no fixture version ever existed), and
-  // Onboarding *is* the real signup flow, not something to preview.
-  const groups = basePath
-    ? GROUPS.filter((g) => g.label !== 'Gateway').map((g) =>
-        g.label === 'Plan' ? { ...g, items: g.items.filter((i) => i.key !== 'onboarding') } : g,
-      )
-    : GROUPS;
+  const groups = navGroupsFor(basePath);
 
   return (
     <nav
@@ -219,33 +275,7 @@ export function AppSidebar({
           all. Confining the overflow to the links keeps everything that is not a
           link on screen at every viewport height. */}
       <div className="app-sidebar__scroll -mx-1 min-h-0 flex-1 overflow-y-auto px-1">
-        {groups.map((g) => (
-          <div key={g.label}>
-            <div className="px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
-              {g.label}
-            </div>
-            {g.items.map(({ key, label, href, Icon, tour }) => {
-              const on = key === active;
-              return (
-                <Link
-                  key={key}
-                  href={`${basePath}${href}`}
-                  aria-current={on ? 'page' : undefined}
-                  data-tour={basePath ? undefined : tour}
-                  className={cn(
-                    'mb-0.5 flex items-center gap-3 rounded-[11px] px-3 py-[11px] text-[15px] no-underline',
-                    on
-                      ? 'bg-mint font-bold text-primary dark:text-teal2'
-                      : 'font-semibold text-dim',
-                  )}
-                >
-                  <Icon className="h-[21px] w-[21px]" aria-hidden />
-                  <span className="flex-1">{label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        <NavLinks groups={groups} active={active} basePath={basePath} withTourTargets={!basePath} />
       </div>
 
       {basePath ? <DemoAgentCard basePath={basePath} /> : <AgentCard />}

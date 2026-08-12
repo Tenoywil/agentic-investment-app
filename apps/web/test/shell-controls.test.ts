@@ -102,6 +102,54 @@ describe('app shell controls', () => {
   });
 
   /**
+   * The rail and the drawer are two presentations of one navigation. The
+   * failure this prevents is them drifting: a destination added to the rail's
+   * list and forgotten on the phone, which is invisible on a desktop and is
+   * exactly the sort of thing found on stage.
+   */
+  test('the phone drawer renders the same nav definition as the rail', () => {
+    const mobile = code(join(SHELL, 'MobileNav.tsx'));
+    expect(mobile).toContain("from './AppSidebar'");
+    expect(mobile).toContain('navGroupsFor(basePath)');
+    expect(mobile).toContain('<NavLinks');
+
+    // One list, exported for both. A second literal array of destinations in
+    // MobileNav is the drift this is guarding against.
+    const sidebar = code(join(SHELL, 'AppSidebar.tsx'));
+    expect(sidebar).toContain('export function navGroupsFor');
+    expect(sidebar).toContain('export function NavLinks');
+    expect(mobile).not.toMatch(/href:\s*'\/(home|portfolio|opportunities)'/);
+  });
+
+  /**
+   * Built on <dialog>, so the browser owns the backdrop, Escape, the top layer
+   * and keeping focus inside. A hand-rolled div would put all four back in our
+   * hands, and the first three were already wrong once.
+   */
+  test('the phone drawer is a native dialog', () => {
+    const mobile = code(join(SHELL, 'MobileNav.tsx'));
+    expect(mobile).toContain('showModal()');
+    expect(mobile).toMatch(/<dialog/);
+    expect(mobile).not.toContain('role="dialog"');
+  });
+
+  /**
+   * A grid item's default min-width is auto, so one unshrinkable child widens
+   * its track and the card overflows the phone; the browser then scales the
+   * whole page down to fit. `minmax(0, 1fr)` is the usual spelling, but the
+   * build's CSS minifier rewrites it back to `1fr` — not the same thing — so
+   * the floor has to be zeroed on the items to survive to the browser.
+   */
+  test('dashboard grid items can shrink below their content', () => {
+    // Comments stripped: the rule is explained in the stylesheet in the same
+    // words it is banned in, and prose about a trap is not the trap.
+    const css = readFileSync(join(WEB, 'app/globals.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(css).toMatch(/\.g-held > \*[^{]*\{[^}]*min-width: 0/s);
+    // If this ever reappears in a declaration, the minifier silently drops it.
+    expect(css).not.toContain('minmax(0, 1fr)');
+  });
+
+  /**
    * The fixture-only preview has no session, so it cannot show an account menu
    * — and calling /api/me from it would break the rule that the demo track
    * makes no API calls at all. It keeps a bare theme toggle instead.

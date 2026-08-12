@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
+import { MobileNav } from './MobileNav';
 
 type Key =
   | 'home'
@@ -33,8 +34,15 @@ export function AppScreen({
 }: { active: Key; basePath?: string; children: ReactNode }) {
   return (
     <div className="app-shell bg-background font-sans text-foreground">
+      {/* Two presentations of one navigation, each shown at exactly one size
+          (globals.css). The rail is the desktop shell; below 900px it is hidden
+          and MobileNav's bar and drawer take over, because a 264px column of ten
+          destinations does not fold into a phone. */}
       <AppSidebar active={active} basePath={basePath} />
-      <main className="relative min-w-0 flex-1 px-8 pb-24 pt-[26px]">{children}</main>
+      <MobileNav active={active} basePath={basePath} />
+      <main className="relative min-w-0 flex-1 px-8 pb-24 pt-[26px] max-[900px]:px-4 max-[900px]:pt-5">
+        {children}
+      </main>
       {active === 'agent' ? null : (
         <Button
           size="pill"

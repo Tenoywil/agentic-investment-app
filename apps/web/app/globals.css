@@ -209,6 +209,52 @@ input:-webkit-autofill:active {
   display: flex;
   min-height: 100vh;
 }
+/* The phone bar and drawer. Hidden on the desktop, where the rail is the
+   navigation; the media query below hides the rail and reveals this instead.
+   Both are in the DOM at both sizes, so anything querying the document for a
+   nav element must not assume the one it finds is the visible one. */
+.app-mobilenav {
+  display: none;
+}
+/* The navigation drawer. A <dialog>, so the browser supplies the top layer,
+   the backdrop, Escape and focus containment; these rules only give it the
+   shape of a panel pinned to the left edge, since a dialog centres itself by
+   default. `100dvh` rather than `100vh` so the panel ends at the real bottom of
+   a mobile viewport instead of running under the browser's own chrome. */
+.app-drawer {
+  margin: 0 auto 0 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: min(86vw, 320px);
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid hsl(var(--border));
+  overflow: hidden;
+}
+.app-drawer::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+/* Grid items get min-width: auto by default, so a child that cannot shrink —
+   a partner's full name beside a right-aligned amount — pushes its track wider
+   than the grid, and the card overflows the phone. On /home that made two cards
+   454px wide inside a 390px viewport, and the browser scaled the whole page
+   down to fit.
+
+   The floor is zeroed on the items rather than written as minmax(0, 1fr) on the
+   tracks because the build's CSS minifier rewrites minmax(0, 1fr) back to 1fr.
+   Those two are not equivalent — 1fr means minmax(auto, 1fr) — so the tidier
+   spelling is silently undone on the way to the browser, and only the built
+   stylesheet shows it. */
+.g-hero > *,
+.g2 > *,
+.g3 > *,
+.g4 > *,
+.g5 > *,
+.g-held > *,
+.g-agent > * {
+  min-width: 0;
+}
 .g-hero {
   display: grid;
   grid-template-columns: 1.15fr 1fr;
@@ -274,36 +320,91 @@ input:-webkit-autofill:active {
   .app-shell {
     flex-direction: column;
   }
+  /* The rail is desktop-only. It used to be reshaped into a wrapping row here,
+     which put all ten destinations and their four group headings across the top
+     of the phone — most of the screen, above the page's own first word, with no
+     way to collapse it because it *was* the navigation. MobileNav replaces it
+     with a bar and a drawer. */
   .app-sidebar {
-    width: 100% !important;
-    height: auto !important;
-    position: static !important;
-    flex-direction: row !important;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    border-right: none !important;
-    border-bottom: 1px solid #e4e0d6;
-  }
-  .app-sidebar .app-sidebar__agentcard {
     display: none !important;
   }
-  /* The rail is a wrapping row here, not a column, so the nav's scroll box has
-     nothing to scroll against and would only trap the links inside a nested
-     scroller. `contents` dissolves it and lets the groups wrap as the direct
-     row items they were before the box existed. */
-  .app-sidebar .app-sidebar__scroll {
-    display: contents;
+  .app-mobilenav {
+    display: block;
   }
-  .app-sidebar .app-sidebar__footer {
-    border-top: none !important;
-    padding-top: 0 !important;
-    margin-left: auto;
-  }
+  /* The console rail becomes a compact header, not a stacked copy of itself.
+     Left as a full-width block it ran 461px down a 844px phone — the firm's
+     name, five stacked tabs, the agreement card and Sign out — before the first
+     figure of the order flow appeared. The identity and the way out share one
+     row, the sections become a strip that scrolls sideways, and the agreement
+     line stays, because a sandbox badge is exactly the sort of thing that must
+     not be the first casualty of a small screen. */
   .console-sidebar {
     width: 100% !important;
     height: auto !important;
     position: static !important;
+    display: grid !important;
+    /* Plain `1fr`, with the floor zeroed on the identity item below — see the
+       note on the dashboard grids above for why minmax(0, 1fr) does not
+       survive the build. */
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px 12px;
+    padding: 12px 14px !important;
+  }
+  /* Placed explicitly rather than left to auto-flow. Sign out is the last child
+     in source order, so after the two full-width rows below it the algorithm
+     put it on a fourth row of its own, full width — a phone screen led by a
+     giant Sign out button. */
+  .console-sidebar .console-sidebar__identity {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 0 !important;
+    min-width: 0;
+  }
+  .console-sidebar .console-sidebar__signout {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .console-sidebar .console-sidebar__grow {
+    display: none !important;
+  }
+  /* Both span the full width, under the identity row. */
+  .console-sidebar .console-sidebar__tabs,
+  .console-sidebar .console-sidebar__agreement {
+    grid-column: 1 / -1;
+    margin-bottom: 0 !important;
+  }
+  /* The sections wrap onto two rows rather than scrolling sideways. A scroller
+     looked right until it was used: the roving-focus tablist scrolls its active
+     tab into view on mount, so the strip opened part-scrolled with Overview
+     off the left edge and "Order flow" sliced down the middle. Wrapping costs
+     one row and shows every section at once, which is what a five-item tab set
+     on a phone should do anyway. */
+  .console-sidebar .console-sidebar__tabs {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 6px;
+    /* The primitive centres its items, which on wrapped rows leaves each row
+       indented by a different amount and reads as a mistake. */
+    justify-content: flex-start !important;
+  }
+  .console-sidebar .console-sidebar__tabs > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 8px 12px !important;
+    font-size: 14px;
+  }
+  /* The agreement keeps its headline — a sandbox badge is the last thing that
+     should be dropped for space — and loses the sentence under it, which the
+     console repeats in the page body. */
+  .console-sidebar .console-sidebar__agreement {
+    padding: 10px 12px !important;
+  }
+  .console-sidebar .console-sidebar__agreement > div:last-child {
+    display: none;
   }
 }
 @media (max-width: 560px) {

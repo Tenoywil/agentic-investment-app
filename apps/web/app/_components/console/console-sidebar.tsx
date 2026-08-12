@@ -34,7 +34,10 @@ export function ConsoleSidebar({
 
   return (
     <nav className="console-sidebar sticky top-0 flex h-screen w-[260px] flex-none flex-col bg-navy px-4 pb-[18px] pt-6 text-[#d3e0da]">
-      <div className="flex items-center gap-3 px-2 pb-5" data-tour="institution-identity">
+      <div
+        className="console-sidebar__identity flex items-center gap-3 px-2 pb-5"
+        data-tour="institution-identity"
+      >
         <Avatar className="h-[42px] w-[42px] rounded-xl">
           <AvatarFallback className="rounded-xl font-display text-[19px]">
             {partner ? partner.name.trim().charAt(0).toUpperCase() : ''}
@@ -52,7 +55,7 @@ export function ConsoleSidebar({
 
       <TabsList
         aria-label="Partner console sections"
-        className="flex flex-col items-stretch gap-[3px]"
+        className="console-sidebar__tabs flex flex-col items-stretch gap-[3px]"
         data-tour="institution-sections"
       >
         {TABS.map(({ key, label, Icon }) => {
@@ -76,13 +79,13 @@ export function ConsoleSidebar({
         })}
       </TabsList>
 
-      <div className="flex-1" />
+      <div className="console-sidebar__grow flex-1" />
 
       {/* Hidden entirely when the partner row carries no agreement status —
           asserting one for a firm that has not signed is the exact failure
           this panel used to commit. */}
       {agreement ? (
-        <div className="mb-3 rounded-2xl border border-solid border-white/15 bg-white/[0.06] p-3.5">
+        <div className="console-sidebar__agreement mb-3 rounded-2xl border border-solid border-white/15 bg-white/[0.06] p-3.5">
           <div className="mb-1 flex items-start gap-2 text-[13px] font-bold leading-snug">
             <span
               className="mt-1.5 h-[7px] w-[7px] flex-none rounded-full"
@@ -102,7 +105,7 @@ export function ConsoleSidebar({
 
       <Button
         variant="outline"
-        className="justify-center gap-2.5 border-solid border-white/25 bg-transparent text-[#d3e0da] hover:bg-white/10 hover:text-white"
+        className="console-sidebar__signout justify-center gap-2.5 border-solid border-white/25 bg-transparent text-[#d3e0da] hover:bg-white/10 hover:text-white"
         onClick={onSignOut}
         disabled={signingOut}
         data-tour="institution-signout"

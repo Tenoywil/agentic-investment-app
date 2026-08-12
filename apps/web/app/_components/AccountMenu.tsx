@@ -40,7 +40,12 @@ function initials(name: string): string {
 const ITEM =
   'flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[14px] font-semibold text-foreground no-underline transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none';
 
-export function AccountMenu() {
+/**
+ * `compact` is the phone header's presentation: the avatar alone, sized to a
+ * comfortable touch target, with the menu dropping below it. The rail's version
+ * shows the name beside the avatar and opens upward out of the footer.
+ */
+export function AccountMenu({ compact = false }: { compact?: boolean }) {
   const me = useMe();
   const tourAvailable = useTourAvailable();
   const [open, setOpen] = React.useState(false);
@@ -141,9 +146,12 @@ export function AccountMenu() {
           role="menu"
           aria-label="Account"
           onKeyDown={onMenuKeyDown}
-          // Opens upward out of the sidebar footer. Below 900px the rail is a
-          // row across the top of the page instead, where upward is off-screen.
-          className="absolute bottom-[calc(100%+8px)] left-0 z-50 w-[228px] rounded-[14px] border border-solid border-border bg-card p-1.5 shadow-[0_18px_44px_rgba(24,32,29,0.22)] max-[900px]:bottom-auto max-[900px]:left-auto max-[900px]:right-0 max-[900px]:top-[calc(100%+8px)]"
+          className={cn(
+            'absolute z-50 w-[240px] rounded-[14px] border border-solid border-border bg-card p-1.5 shadow-[0_18px_44px_rgba(24,32,29,0.22)]',
+            // In the phone header there is nothing above to open into, so it
+            // drops; out of the rail's footer there is nothing below, so it rises.
+            compact ? 'right-0 top-[calc(100%+8px)]' : 'bottom-[calc(100%+8px)] left-0',
+          )}
         >
           <div className="border-0 border-b border-solid border-border px-2.5 pb-2 pt-1.5">
             {name ? <div className="truncate text-[14px] font-bold">{name}</div> : null}
@@ -197,6 +205,8 @@ export function AccountMenu() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        // The avatar alone carries no text, so the name is the accessible name.
+        aria-label={compact ? `Account: ${name ?? 'signed in'}` : undefined}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => {
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -204,17 +214,24 @@ export function AccountMenu() {
             setOpen(true);
           }
         }}
-        className="flex w-full items-center gap-2.5 rounded-[12px] border border-solid border-transparent px-2 py-2 text-left transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring data-[open=true]:bg-muted"
+        className={cn(
+          'flex items-center rounded-[12px] border border-solid border-transparent transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring data-[open=true]:bg-muted',
+          compact ? 'h-11 w-11 flex-none justify-center' : 'w-full gap-2.5 px-2 py-2 text-left',
+        )}
         data-open={open}
       >
-        <Avatar className="h-9 w-9 flex-none">
+        <Avatar className={compact ? 'h-9 w-9 flex-none' : 'h-9 w-9 flex-none'}>
           <AvatarFallback className="text-[13px]">{initials(name ?? '')}</AvatarFallback>
         </Avatar>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] font-bold leading-tight">{name}</span>
-          <span className="block truncate text-[12px] leading-tight text-dim">Account</span>
-        </span>
-        <ChevronsUpDown className="h-4 w-4 flex-none text-faint" aria-hidden />
+        {compact ? null : (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[14px] font-bold leading-tight">{name}</span>
+              <span className="block truncate text-[12px] leading-tight text-dim">Account</span>
+            </span>
+            <ChevronsUpDown className="h-4 w-4 flex-none text-faint" aria-hidden />
+          </>
+        )}
       </button>
     </div>
   );
