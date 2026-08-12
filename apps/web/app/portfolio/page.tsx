@@ -3,7 +3,13 @@
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { Card } from '@/app/_components/ui/card';
 import { cn } from '@/app/_lib/utils';
-import { type Portfolio, PortfolioApiError, getPortfolio } from '@/lib/portfolio-api';
+import {
+  type AllocationSlice,
+  type Currency,
+  type Portfolio,
+  PortfolioApiError,
+  getPortfolio,
+} from '@/lib/portfolio-api';
 import { CircleAlert, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -27,6 +33,57 @@ const FALLBACK_STYLES = [
 ];
 const DEFAULT_STYLE = { tint: '#e7edf8', color: '#1a4aa0' };
 
+const CURRENCY_OPTIONS: Currency[] = ['USD', 'JMD', 'TTD'];
+
+// Slice colours per instrument_type; the percentages come from the API, which
+// derives them from real holdings joined to their instrument.
+const ASSET_COLOR: Record<string, string> = {
+  bond: '#17786e',
+  real_estate: '#f0b98d',
+  fund: '#7fb5ad',
+  equity: '#c56a3e',
+  private: '#9a6a1e',
+  other: '#e6dccb',
+};
+
+function assetColor(type: string): string {
+  return ASSET_COLOR[type] ?? '#e6dccb';
+}
+
+/** Horizontal share bar — the allocation the prototype's portfolio view had and
+ *  the live screen was missing entirely. Percentages may not total exactly 100
+ *  (server-side rounding), so no remainder slice is drawn. */
+function AllocationBreakdown({ slices }: { slices: AllocationSlice[] }) {
+  return (
+    <Card className="mb-4 p-[22px]">
+      <b className="font-display text-lg">Allocation</b>
+      <div className="mb-3 text-[13px] text-faint">By asset class</div>
+      <div className="mb-4 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+        {slices.map((a) => (
+          <span
+            key={a.type}
+            style={{ width: `${a.pct}%`, background: assetColor(a.type) }}
+            className="h-full"
+          />
+        ))}
+      </div>
+      <ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-2 p-0">
+        {slices.map((a) => (
+          <li key={a.type} className="flex items-center gap-2 text-[13.5px]">
+            <span
+              className="h-2.5 w-2.5 flex-none rounded-[3px]"
+              style={{ background: assetColor(a.type) }}
+            />
+            <span className="text-dim">{a.label}</span>
+            <b className="font-mono text-[13px] text-foreground">{a.pct}%</b>
+            <span className="text-faint">{a.value}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function partnerStyle(code: string, index: number): { tint: string; color: string } {
   return PARTNER_STYLE[code] ?? FALLBACK_STYLES[index % FALLBACK_STYLES.length] ?? DEFAULT_STYLE;
 }
@@ -35,12 +92,16 @@ export default function PortfolioPage() {
   const [data, setData] = useState<Portfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Display currency is a server concern: @ccn/money does the conversion so the
+  // client never re-implements FX. Changing it refetches rather than converting
+  // the numbers we already hold.
+  const [currency, setCurrency] = useState<Currency>('USD');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getPortfolio()
+    getPortfolio(currency)
       .then((portfolio) => {
         if (!cancelled) setData(portfolio);
       })
@@ -58,7 +119,7 @@ export default function PortfolioPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currency]);
 
   return (
     <AppScreen active="portfolio">
@@ -66,16 +127,37 @@ export default function PortfolioPage() {
         eyebrow="Every holding, unified · custodied by licensed partners"
         title="Your portfolio"
         right={
-          data ? (
-            <div className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5">
-              <b className="font-display text-xl">{data.netWorth}</b>
-              <span className="text-[12.5px] text-dim">
-                total
-                <br />
-                net worth
-              </span>
-            </div>
-          ) : undefined
+          <div className="flex items-center gap-3">
+            <fieldset className="m-0 flex min-w-0 items-center gap-1 rounded-xl border border-solid border-border bg-card p-1">
+              <legend className="sr-only">Display currency</legend>
+              {CURRENCY_OPTIONS.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setCurrency(code)}
+                  aria-pressed={currency === code}
+                  className={cn(
+                    'rounded-lg px-3 py-1.5 font-sans text-[13px] font-bold transition-colors',
+                    currency === code
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-dim hover:text-foreground',
+                  )}
+                >
+                  {code}
+                </button>
+              ))}
+            </fieldset>
+            {data ? (
+              <div className="flex items-baseline gap-2 rounded-xl border border-solid border-border bg-mint px-4 py-2.5">
+                <b className="font-display text-xl">{data.netWorth}</b>
+                <span className="text-[12.5px] text-dim">
+                  total
+                  <br />
+                  net worth
+                </span>
+              </div>
+            ) : null}
+          </div>
         }
       />
 
@@ -93,6 +175,8 @@ export default function PortfolioPage() {
           No holdings yet. Once your accounts are linked, your positions will appear here.
         </p>
       )}
+
+      {data && data.allocation.length > 0 && <AllocationBreakdown slices={data.allocation} />}
 
       {data && data.partners.length > 0 && (
         <div className="g2">

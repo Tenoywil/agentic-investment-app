@@ -26,10 +26,22 @@ export interface PortfolioPartner {
   holdings: Holding[];
 }
 
+/** Real allocation by asset class, derived server-side from each holding's
+ *  instrument type. `pct` values will not always sum to exactly 100 (rounding);
+ *  do not render the remainder as an "unallocated" slice. */
+export interface AllocationSlice {
+  type: string;
+  label: string;
+  value: string;
+  valueMinor: string;
+  pct: number;
+}
+
 export interface Portfolio {
   currency: Currency;
   netWorth: string;
   netWorthMinor: string;
+  allocation: AllocationSlice[];
   partners: PortfolioPartner[];
 }
 

@@ -6,8 +6,10 @@ import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { cn } from '@/app/_lib/utils';
+import { authClient } from '@/lib/auth-client';
 import {
   type AgentMessage,
+  type AllocationSlice,
   type Approval,
   type ApprovalType,
   type Portfolio,
@@ -24,24 +26,61 @@ import { useEffect, useState } from 'react';
 // of the pipeline every action goes through, not per-user data. There's no
 // backend record of "step 4 of 5" for a given action, so it stays hardcoded.
 const PIPE = [
-  { n: '1', t: 'Research', b: 'Scans 47 instruments across 8 partners', flag: false },
+  { n: '1', t: 'Research', b: 'Scans the network for instruments that fit', flag: false },
   { n: '2', t: 'Suitability', b: 'Matches your balanced-income risk band', flag: false },
   { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds checks', flag: false },
   { n: '4', t: 'Your approval', b: 'You confirm every move above your limits', flag: true },
   { n: '5', t: 'Execute', b: 'Routed to the licensed partner, then monitored', flag: false },
 ];
 
-// Allocation by asset class (fixed income / equities / cash / …) isn't a field
-// the portfolio API exposes — holdings only carry name/value/return, not an
-// asset-class category — so this breakdown can't be computed from live data
-// without inventing categories. Left as illustrative static content.
-const ALLOC = [
-  { label: 'Fixed income', pct: 46, color: '#17786e' },
-  { label: 'Real estate', pct: 18, color: '#f0b98d' },
-  { label: 'Money market', pct: 15, color: '#7fb5ad' },
-  { label: 'Equities', pct: 14, color: '#c56a3e' },
-  { label: 'Cash', pct: 7, color: '#e6dccb' },
-];
+// Slice colours per instrument_type, keeping the prototype's palette. The
+// percentages themselves come from the API (holdings joined to their
+// instrument), never from a constant — this used to be a hardcoded breakdown,
+// which on a live account meant showing a signed-in user invented figures for
+// their own money.
+const ASSET_COLOR: Record<string, string> = {
+  bond: '#17786e',
+  real_estate: '#f0b98d',
+  fund: '#7fb5ad',
+  equity: '#c56a3e',
+  private: '#9a6a1e',
+  other: '#e6dccb',
+};
+const ASSET_COLOR_FALLBACK = '#e6dccb';
+
+function assetColor(type: string): string {
+  return ASSET_COLOR[type] ?? ASSET_COLOR_FALLBACK;
+}
+
+/** Today, in the viewer's own locale and timezone. Was a hardcoded
+ *  "Saturday, July 18". */
+function todayLabel(): string {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/** Greet the signed-in user by their first name. Falls back to a name-less
+ *  greeting rather than a placeholder — addressing someone by the wrong name is
+ *  worse than not naming them. */
+function greeting(name: string | null): string {
+  const hour = new Date().getHours();
+  const part = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+  const first = name?.trim().split(/\s+/)[0];
+  return first ? `Good ${part}, ${first}` : `Good ${part}`;
+}
+
+/** Up to two initials from the signed-in user's name; '—' when unknown. */
+function initials(name: string | null): string {
+  const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
+  if (parts.length === 0) return '—';
+  const letters = [parts[0]?.[0], parts.length > 1 ? parts[parts.length - 1]?.[0] : undefined]
+    .filter(Boolean)
+    .join('');
+  return letters.toUpperCase() || '—';
+}
 
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
 
@@ -99,23 +138,23 @@ function ErrorLine({ message }: { message: string }) {
   );
 }
 
-function Donut() {
+function Donut({ slices }: { slices: AllocationSlice[] }) {
   const r = 52;
   const cir = 2 * Math.PI * r;
   let acc = 0;
   return (
     <svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
       <g transform="rotate(-90 66 66)">
-        {ALLOC.map((a) => {
+        {slices.map((a) => {
           const len = (a.pct / 100) * cir;
           const seg = (
             <circle
-              key={a.label}
+              key={a.type}
               cx="66"
               cy="66"
               r={r}
               fill="none"
-              stroke={a.color}
+              stroke={assetColor(a.type)}
               strokeWidth="20"
               strokeDasharray={`${len} ${cir - len}`}
               strokeDashoffset={-acc}
@@ -133,6 +172,7 @@ export default function HomePage() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
 
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
   const [approvalsLoading, setApprovalsLoading] = useState(true);
@@ -144,6 +184,16 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
+
+    authClient
+      .getSession()
+      .then((s) => {
+        if (!cancelled) setUserName(s.data?.user?.name ?? s.data?.user?.email ?? null);
+      })
+      .catch(() => {
+        // Non-fatal: the greeting falls back to a name-less form rather than
+        // blocking the dashboard or, worse, showing someone else's name.
+      });
 
     getPortfolio()
       .then((p) => {
@@ -184,6 +234,7 @@ export default function HomePage() {
   }, []);
 
   const partnersCount = portfolio?.partners.length ?? 0;
+  const allocation: AllocationSlice[] = portfolio?.allocation ?? [];
   const holdingsCount = portfolio
     ? portfolio.partners.reduce((sum, p) => sum + p.holdings.length, 0)
     : 0;
@@ -241,8 +292,8 @@ export default function HomePage() {
   return (
     <AppScreen active="home">
       <PageHead
-        eyebrow="Saturday, July 18"
-        title="Good afternoon, Marcus"
+        eyebrow={todayLabel()}
+        title={greeting(userName)}
         right={
           <div className="flex items-center gap-3">
             <Button
@@ -254,7 +305,7 @@ export default function HomePage() {
               <Bell />
             </Button>
             <Avatar className="h-[42px] w-[42px]">
-              <AvatarFallback>MB</AvatarFallback>
+              <AvatarFallback>{initials(userName)}</AvatarFallback>
             </Avatar>
           </div>
         }
@@ -514,22 +565,32 @@ export default function HomePage() {
 
         <Card className="p-[22px]">
           <b className="font-display text-lg">Allocation</b>
-          <div className="mb-2 text-[13px] text-faint">Blended across all 4 partners</div>
-          <div className="flex items-center gap-[18px]">
-            <Donut />
-            <div className="flex-1">
-              {ALLOC.map((a) => (
-                <div key={a.label} className="mb-[7px] flex items-center gap-2 text-[13.5px]">
-                  <span
-                    className="h-2.5 w-2.5 flex-none rounded-[3px]"
-                    style={{ background: a.color }}
-                  />
-                  <span className="flex-1 text-dim">{a.label}</span>
-                  <b className="font-mono text-[13px]">{a.pct}%</b>
-                </div>
-              ))}
-            </div>
+          <div className="mb-2 text-[13px] text-faint">
+            {partnersCount > 0
+              ? `Blended across ${partnersCount} ${partnersCount === 1 ? 'partner' : 'partners'}`
+              : 'By asset class'}
           </div>
+          {allocation.length === 0 ? (
+            <p className="text-[13.5px] text-dim">
+              Once you hold something, the breakdown by asset class appears here.
+            </p>
+          ) : (
+            <div className="flex items-center gap-[18px]">
+              <Donut slices={allocation} />
+              <div className="flex-1">
+                {allocation.map((a) => (
+                  <div key={a.type} className="mb-[7px] flex items-center gap-2 text-[13.5px]">
+                    <span
+                      className="h-2.5 w-2.5 flex-none rounded-[3px]"
+                      style={{ background: assetColor(a.type) }}
+                    />
+                    <span className="flex-1 text-dim">{a.label}</span>
+                    <b className="font-mono text-[13px]">{a.pct}%</b>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </AppScreen>

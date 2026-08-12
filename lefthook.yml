@@ -6,7 +6,12 @@ pre-commit:
       glob: '*.{js,jsx,ts,tsx,json,jsonc,css}'
       run: bunx biome check --no-errors-on-unmatched {staged_files}
     typecheck:
-      run: bun run typecheck
+      # --no-daemon: lefthook runs hooks with piped (non-TTY) stdio, and the
+      # turbo daemon intermittently blocks forever acquiring its lock in that
+      # context — a commit that should take under a second hangs for minutes.
+      # The daemon only caches the file-watcher; with the local task cache warm
+      # the run is ~150ms without it.
+      run: bunx turbo run typecheck --no-daemon
     gitleaks:
       # Soft-skip when gitleaks is not installed locally; CI runs it unconditionally.
       run: command -v gitleaks >/dev/null 2>&1 && gitleaks protect --staged --no-banner || true
