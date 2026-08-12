@@ -38,7 +38,17 @@ export function bigintSafeJson() {
   });
 }
 
-/** Resolve the Better Auth session (if any) and attach the user to the context. */
+/**
+ * Resolve the Better Auth session (if any) and attach the user to the context.
+ *
+ * When no session resolves, log which cookie NAMES arrived (never values — and
+ * the logger redacts on the way out regardless). A 401 on an authenticated
+ * route is otherwise indistinguishable between "browser sent no cookie at all",
+ * "sent one under an unexpected name" (the `__Secure-` prefix flips with
+ * useSecureCookies, so a stale cookie from a different config silently misses),
+ * and "sent a well-formed cookie whose session row is gone" — three very
+ * different bugs that look identical from the client side.
+ */
 export function sessionMiddleware(deps: AppDeps) {
   return createMiddleware<AppEnv>(async (c, next) => {
     const result = await deps.auth.api.getSession({ headers: c.req.raw.headers });
@@ -49,6 +59,16 @@ export function sessionMiddleware(deps: AppDeps) {
         name: result.user.name,
       };
       c.set('user', user);
+    } else {
+      const cookieNames = (c.req.header('cookie') ?? '')
+        .split(';')
+        .map((pair) => pair.split('=')[0]?.trim())
+        .filter((name): name is string => Boolean(name));
+      c.get('log')?.info('no session resolved', {
+        cookieNames,
+        hasCookieHeader: c.req.header('cookie') !== undefined,
+        origin: c.req.header('origin') ?? null,
+      });
     }
     await next();
   });
