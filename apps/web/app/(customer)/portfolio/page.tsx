@@ -221,14 +221,14 @@ export default function PortfolioPage() {
                     <span className="text-sm">{h.name}</span>
                     <span className="flex items-baseline gap-2.5">
                       <b className="font-mono text-[13.5px]">{h.value}</b>
-                      <span
-                        className={cn(
-                          'min-w-[42px] text-right text-[13px]',
-                          h.ret === null ? 'text-faint' : 'text-success',
-                        )}
-                      >
-                        {h.ret ?? '—'}
-                      </span>
+                      {/* No return label on this holding means the partner
+                          statement carried none — nothing is printed, rather
+                          than a dash that reads like a measured zero. */}
+                      {h.ret !== null && (
+                        <span className="min-w-[42px] text-right text-[13px] text-success">
+                          {h.ret}
+                        </span>
+                      )}
                     </span>
                   </div>
                 ))}

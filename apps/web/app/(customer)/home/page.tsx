@@ -37,7 +37,7 @@ import { useEffect, useState } from 'react';
 // backend record of "step 4 of 5" for a given action, so it stays hardcoded.
 const PIPE = [
   { n: '1', t: 'Research', b: 'Scans the network for instruments that fit', flag: false },
-  { n: '2', t: 'Suitability', b: 'Matches your balanced-income risk band', flag: false },
+  { n: '2', t: 'Suitability', b: 'Checks it against your own risk band', flag: false },
   { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds checks', flag: false },
   { n: '4', t: 'Your approval', b: 'You confirm every move above your limits', flag: true },
   { n: '5', t: 'Execute', b: 'Routed to the licensed partner, then monitored', flag: false },

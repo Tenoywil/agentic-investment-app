@@ -11,7 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/_components/ui/dialog';
+import { EmptyState } from '@/app/_components/ui/empty';
 import { Input } from '@/app/_components/ui/input';
+import { useMe } from '@/app/_lib/session';
 import { cn } from '@/app/_lib/utils';
 import {
   type Currency,
@@ -30,7 +32,8 @@ import {
   regulatorLabel,
   typeLabel,
 } from '@/lib/opportunities-api';
-import { Check, CircleAlert, ShieldCheck, Target } from 'lucide-react';
+import { Check, CircleAlert, Compass, ShieldCheck, Target, X } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useId, useState } from 'react';
 
 /* ---- type palette (warm), ported from the prototype tone() map. The text inks
