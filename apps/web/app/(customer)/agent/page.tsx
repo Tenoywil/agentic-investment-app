@@ -484,7 +484,7 @@ export default function AgentPage() {
 
       <div className="g-agent">
         {/* Chat */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className="flex flex-col overflow-hidden" data-tour="customer-agent">
           <div className="flex items-center gap-3 border-b border-border px-5 py-[18px]">
             <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
               <Sparkles className="h-5 w-5" aria-hidden />

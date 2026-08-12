@@ -89,14 +89,17 @@ export interface ConsoleReconciliationItem {
   updatedAt: string;
 }
 
+/**
+ * A listed product. No `clients`, `aumMinor` or `trend`: CCN measures none of
+ * them, the API no longer returns them, and the columns behind them held the
+ * prototype's invented figures. Adding them back means building the
+ * attribution first.
+ */
 export interface ConsoleProduct {
   id: string;
   partnerId: string;
   name: string;
   type: string | null;
-  clients: number;
-  aumMinor: string; // raw minor units, numeric string
-  trend: string | null;
   status: ConsoleProductStatus;
   createdAt: string;
   updatedAt: string;

@@ -79,14 +79,10 @@ export function fmtMinor(minor: string, currency: ConsoleCurrency): string {
   return `${CURRENCY_PREFIX[currency]}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
-/** Product AUM has no currency column (console listings are USD-denominated by
- *  convention); compact-formatted for the table, e.g. "US$14.2M". */
-export function fmtAumUSD(minor: string): string {
-  const n = Number(minor) / 100;
-  if (n >= 1_000_000) return `US$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `US$${(n / 1_000).toFixed(1)}K`;
-  return `US$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-}
+// `fmtAumUSD` was here, formatting product_listings.aum_minor into "US$14.2M".
+// Deleted along with the column it rendered: CCN runs no AUM roll-up, so the
+// number was invented. A formatter left lying around for a metric we do not
+// compute is an invitation to put the claim back.
 
 export function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();

@@ -4,11 +4,9 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Switch } from '@/app/_components/ui/switch';
 import type { ConsoleProduct } from '@/lib/console-api';
-import type { MePartner } from '@/lib/me-api';
 import { Boxes } from 'lucide-react';
-import { ROW_DIVIDER, SUCCESS_TEXT, fmtAumUSD, isSandbox, uppr } from './lib';
+import { ROW_DIVIDER, uppr } from './lib';
 import { ErrorNote } from './notice';
-import { SandboxBadge } from './sandbox-badge';
 
 /**
  * The partner's listed products.
@@ -20,14 +18,12 @@ import { SandboxBadge } from './sandbox-badge';
  * worse than no control.
  */
 export function ProductsTab({
-  partner,
   products,
   productsError,
   productBusyId,
   productActionError,
   onToggleLive,
 }: {
-  partner: MePartner | null;
   products: ConsoleProduct[];
   productsError: string | null;
   productBusyId: string | null;
@@ -44,7 +40,9 @@ export function ProductsTab({
             matching immediately.
           </div>
         </div>
-        {isSandbox(partner) && products.length > 0 ? <SandboxBadge /> : null}
+        {/* No sandbox badge here any more. It existed to caveat the invented
+            client/AUM/inflow figures; what is left — the product's name, type
+            and whether it is live — is real configuration the operator owns. */}
       </div>
 
       {productsError ? <ErrorNote message={productsError} className="px-6 pb-3.5" /> : null}
@@ -57,7 +55,7 @@ export function ProductsTab({
           <EmptyState
             icon={Boxes}
             title="No products listed yet"
-            body="Once your funds and notes are listed on CCN, they appear here with the clients and AUM they have attracted, and you can pause any of them."
+            body="Once your funds and notes are listed on CCN they appear here, and you can take any of them out of matching without delisting it."
           />
         </div>
       ) : null}
@@ -65,13 +63,10 @@ export function ProductsTab({
       {!productsError && products.length > 0 ? (
         <div className="overflow-x-auto">
           <div className="min-w-[560px]">
-            <div
-              className={`grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}
-            >
+            {/* Clients / AUM / Inflow columns removed: CCN computes none of
+                them, so the figures that used to fill them were invented. */}
+            <div className={`grid grid-cols-[3fr_1fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}>
               <span>Product</span>
-              <span className="text-right">Clients</span>
-              <span className="text-right">AUM via CCN</span>
-              <span className="text-right">Inflow</span>
               <span className="text-right">Status</span>
             </div>
             {products.map((p) => {
@@ -79,18 +74,11 @@ export function ProductsTab({
               return (
                 <div
                   key={p.id}
-                  className={`grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] items-center px-6 py-3.5 ${ROW_DIVIDER}`}
+                  className={`grid grid-cols-[3fr_1fr] items-center px-6 py-3.5 ${ROW_DIVIDER}`}
                 >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-bold">{p.name}</div>
                     {p.type ? <div className="text-xs text-faint">{p.type}</div> : null}
-                  </div>
-                  <div className="text-right text-sm text-dim">{p.clients}</div>
-                  <div className="text-right font-mono text-[13.5px] font-bold">
-                    {fmtAumUSD(p.aumMinor)}
-                  </div>
-                  <div className={`text-right text-[13.5px] font-bold ${SUCCESS_TEXT}`}>
-                    {p.trend}
                   </div>
                   <div className="flex items-center justify-end gap-2">
                     <span className="text-[13px] font-bold text-dim">

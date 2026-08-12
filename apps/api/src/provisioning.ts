@@ -1,5 +1,5 @@
 import { type AllowlistConfig, demoCustomerAllowlist, operatorAllowlist } from '@ccn/config';
-import { partners, seedDemoCustomer, userRoles } from '@ccn/db';
+import { partners, seedDemoCustomer, userRoles, withRls } from '@ccn/db';
 import { eq, sql } from 'drizzle-orm';
 import type { AppDeps, SessionUser } from './context';
 
@@ -35,7 +35,7 @@ function lockKey(userId: string) {
  */
 export interface ProvisioningDeps {
   db: AppDeps['db'];
-  config: AllowlistConfig;
+  config: AllowlistConfig & { DB_APP_ROLE: string };
   logger: AppDeps['logger'];
 }
 
@@ -51,7 +51,16 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
   const email = user.email.trim().toLowerCase();
   const grant = operatorAllowlist(deps.config).get(email);
 
-  await deps.db.transaction(async (tx) => {
+  // Runs inside the caller's RLS scope, not on a bare connection.
+  //
+  // `user_roles` is ENABLE + FORCE ROW LEVEL SECURITY with
+  // `user_id = app_current_user_id()`, and `app_current_user_id()` reads a GUC
+  // that a plain `db.transaction` never sets — so the policy evaluates to
+  // `user_id = NULL`, the existence check sees nothing and the INSERT fails its
+  // WITH CHECK. FORCE means even the table owner is subject to this; only a
+  // superuser bypasses it, which is exactly what the local test database
+  // connects as. That is why this passed every test and broke production sign-in.
+  await withRls(deps.db, { userId: user.id, dbRole: deps.config.DB_APP_ROLE }, async (tx) => {
     // Serialize concurrent first requests for this user; released at commit.
     await tx.execute(sql`select pg_advisory_xact_lock(${lockKey(user.id)})`);
 
@@ -97,7 +106,14 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
   // roll back the role grant and leave the user unable to sign in anywhere.
   if (demoCustomerAllowlist(deps.config).has(email)) {
     try {
-      await seedDemoCustomer(deps.db, user.id);
+      // Also inside the tenant GUC — every table it writes carries the same
+      // forced `user_id = app_current_user_id()` policy — but deliberately
+      // WITHOUT dropping to DB_APP_ROLE. The seed is reset-then-insert, and the
+      // application role is granted SELECT/INSERT/UPDATE and never DELETE
+      // (0001_security.sql), by design. This is an administrative operation, so
+      // it runs with the connection's own privileges; setting the GUC is what
+      // makes the row policies pass rather than bypassing them.
+      await withRls(deps.db, { userId: user.id }, (tx) => seedDemoCustomer(tx, user.id));
     } catch (error) {
       deps.logger.error('demo customer seeding failed; account will be empty', {
         error,

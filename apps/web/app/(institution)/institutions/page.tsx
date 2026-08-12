@@ -260,7 +260,6 @@ export default function InstitutionsPage() {
 
         <TabsContent value="products" className="mt-0">
           <ProductsTab
-            partner={partner}
             products={products}
             productsError={productsError}
             productBusyId={productBusyId}

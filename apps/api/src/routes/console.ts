@@ -290,16 +290,29 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
+    // `clients`, `aum_minor` and `trend` are deliberately not selected. CCN
+    // measures none of them — there is no attribution model, no AUM roll-up and
+    // no time series behind those columns; they held the prototype's invented
+    // figures. They are NOT NULL with a 0 default, so returning them would hand
+    // the UI a zero that reads as "this product has no clients" rather than
+    // "we do not compute this". Not selecting them means the console cannot
+    // render the claim at all, which is the point.
     const rows = await withTenant(deps, tenant, (tx) =>
       tx
-        .select()
+        .select({
+          id: productListings.id,
+          partnerId: productListings.partnerId,
+          name: productListings.name,
+          type: productListings.type,
+          status: productListings.status,
+          createdAt: productListings.createdAt,
+          updatedAt: productListings.updatedAt,
+        })
         .from(productListings)
         .where(eq(productListings.partnerId, scope.partnerId))
         .orderBy(desc(productListings.createdAt)),
     );
-    return c.json({
-      products: rows.map((p) => ({ ...p, aumMinor: p.aumMinor.toString() })),
-    });
+    return c.json({ products: rows });
   });
 
   /**

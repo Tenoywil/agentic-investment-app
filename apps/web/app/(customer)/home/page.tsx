@@ -305,14 +305,14 @@ export default function HomePage() {
       />
 
       {/* Hero card */}
-      <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">
+      <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5] dark:bg-[#124e48]">
         {/* Net worth is the only figure here. The "↑6.8% · +US$1,994 all-time ·
             yield 6.2%" line and the rising sparkline under it were drawn from
             constants: there is no valuation history in the schema, so no
             change, no all-time return and no trend can be computed for anyone.
             What replaces them is what the portfolio endpoint does know. */}
         <div>
-          <div className={cn(UPPR, 'text-[#eafaf5]/[.66]')}>Total net worth</div>
+          <div className={cn(UPPR, 'text-[#eafaf5]/[.78]')}>Total net worth</div>
           {portfolio ? (
             <div
               className="my-[10px] mb-3 font-display text-[52px] font-bold leading-none tracking-[-1.5px]"
@@ -321,7 +321,7 @@ export default function HomePage() {
               {portfolio.netWorth}
             </div>
           ) : portfolioLoading ? (
-            <p className="my-[10px] mb-3 text-[17px] text-[#eafaf5]/[.82]">
+            <p className="my-[10px] mb-3 text-[17px] text-[#eafaf5]/[.94]">
               Adding up your position…
             </p>
           ) : null}
@@ -332,7 +332,7 @@ export default function HomePage() {
             </p>
           )}
           {portfolio && (
-            <div className="text-sm text-[#eafaf5]/[.82]">
+            <div className="text-sm text-[#eafaf5]/[.94]">
               {holdingsCount === 0
                 ? `Nothing linked yet · shown in ${portfolio.currency}`
                 : `${holdingsCount} ${holdingsCount === 1 ? 'holding' : 'holdings'} · ${partnersCount} licensed ${
@@ -341,8 +341,8 @@ export default function HomePage() {
             </div>
           )}
         </div>
-        <div className="border-l border-[#eafaf5]/[.16] pl-[26px]">
-          <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.66]')}>
+        <div className="border-l border-[#eafaf5]/[.16] pl-[26px]" data-tour="customer-agent">
+          <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.78]')}>
             <span className="h-[7px] w-[7px] rounded-full bg-peach" />
             Your agent · acting within your limits
           </div>
@@ -358,7 +358,7 @@ export default function HomePage() {
                 ? latestAgentMessage.content
                 : 'Your agent is watching the region for you. Ask it anything to get started.'}
           </p>
-          <p className="mb-[18px] text-sm text-[#eafaf5]/[.82]">
+          <p className="mb-[18px] text-sm text-[#eafaf5]/[.94]">
             {latestAgentMessage && `${relativeTime(latestAgentMessage.createdAt)} · `}
             {pendingApprovals.length > 0
               ? `${pendingApprovals.length} ${pendingApprovals.length === 1 ? 'action is' : 'actions are'} waiting for your approval`

@@ -501,66 +501,37 @@ async function main(): Promise<void> {
     await db.delete(partnerKpis).where(eq(partnerKpis.partnerId, sag));
     await db.delete(kycFunnelStages).where(eq(kycFunnelStages.partnerId, sag));
 
+    // Which products the partner has listed — real configuration, and the
+    // subject of the live/paused toggle.
+    //
+    // Their per-product `clients`, `aum_minor` and `trend` are deliberately not
+    // seeded. CCN does not compute any of them: there is no attribution model
+    // behind "412 clients", no AUM roll-up behind "US$14.2M" and no series
+    // behind "+22%". They were the prototype's inventions sitting in a
+    // production table, which made them read as the most trustworthy figures on
+    // the console. The columns are NOT NULL with a 0 default (changing that
+    // needs a migration), so the API simply does not return them and the UI has
+    // no column to render — a zero standing in for unknown is the same lie in
+    // quieter clothing.
     await db.insert(productListings).values([
-      {
-        partnerId: sag,
-        name: 'GOJ USD Global Bond 2032',
-        type: 'Bond',
-        clients: 412,
-        aumMinor: usd(14_200_000),
-        trend: '+22%',
-      },
-      {
-        partnerId: sag,
-        name: 'Sagicor Real Estate X Fund',
-        type: 'Real Estate',
-        clients: 286,
-        aumMinor: usd(11_800_000),
-        trend: '+31%',
-      },
-      {
-        partnerId: sag,
-        name: 'Proven USD Income Fund',
-        type: 'Fund',
-        clients: 508,
-        aumMinor: usd(9_400_000),
-        trend: '+12%',
-      },
-      {
-        partnerId: sag,
-        name: 'NCB Money Market Fund',
-        type: 'Money Market',
-        clients: 640,
-        aumMinor: usd(7_100_000),
-        trend: '+8%',
-      },
-      {
-        partnerId: sag,
-        name: 'Sygnus Private Credit III',
-        type: 'Private',
-        clients: 74,
-        aumMinor: usd(5_700_000),
-        trend: '+44%',
-      },
+      { partnerId: sag, name: 'GOJ USD Global Bond 2032', type: 'Bond' },
+      { partnerId: sag, name: 'Sagicor Real Estate X Fund', type: 'Real Estate' },
+      { partnerId: sag, name: 'Proven USD Income Fund', type: 'Fund' },
+      { partnerId: sag, name: 'NCB Money Market Fund', type: 'Money Market' },
+      { partnerId: sag, name: 'Sygnus Private Credit III', type: 'Private' },
     ]);
-    await db.insert(partnerKpis).values([
-      { partnerId: sag, label: 'Referred AUM', value: 'US$48.2M', sub: '+18% QoQ', sortOrder: 0 },
-      { partnerId: sag, label: 'New clients (MTD)', value: '1,284', sub: '+9%', sortOrder: 1 },
-      { partnerId: sag, label: 'Onboarding conversion', value: '71%', sub: '+6 pts', sortOrder: 2 },
-      {
-        partnerId: sag,
-        label: 'CAC vs. direct',
-        value: '−41%',
-        sub: 'lower is better',
-        sortOrder: 3,
-      },
-    ]);
-    await db.insert(kycFunnelStages).values([
-      { partnerId: sag, label: 'Invited', count: 4120, pct: 100, sortOrder: 0 },
-      { partnerId: sag, label: 'KYC started', count: 3180, pct: 77, sortOrder: 1 },
-      { partnerId: sag, label: 'Verified', count: 2760, pct: 67, sortOrder: 2 },
-      { partnerId: sag, label: 'Funded', count: 1284, pct: 31, sortOrder: 3 },
-    ]);
+
+    // `partner_kpis` and `kyc_funnel_stages` are intentionally left empty.
+    //
+    // They used to carry "Referred AUM US$48.2M", "New clients (MTD) 1,284",
+    // "Onboarding conversion 71%", "CAC vs. direct −41%" and a 4,120 → 1,284
+    // funnel. Not one of those is measured anywhere in this system; they were
+    // invented for the prototype and then seeded into the real database, where
+    // being API-backed made them look like the most authoritative numbers on
+    // screen. The console renders its empty states for both panels instead, and
+    // its metrics row still shows real pending/settled order counts computed
+    // from the orders table. Both tables stay — the surface is right, the
+    // numbers just have to be earned.
 
     // Console orders (via the create_order choke point) + transitions --------
     const orderSpecs = [

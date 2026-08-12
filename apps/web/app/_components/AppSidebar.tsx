@@ -57,7 +57,10 @@ const GROUPS: {
         Icon: TrendingUp,
         tour: 'customer-opportunities',
       },
-      { key: 'agent', label: 'Agent', href: '/agent', Icon: Sparkles, tour: 'customer-agent' },
+      // `customer-agent` is not here: the tour highlights the agent panel
+      // itself (the hero's right column on /home, the chat card on /agent), not
+      // the link to it.
+      { key: 'agent', label: 'Agent', href: '/agent', Icon: Sparkles },
     ],
   },
   {
@@ -117,7 +120,7 @@ function AgentCard() {
   const pending = approvals?.filter((a) => a.status === 'pending').length ?? null;
 
   return (
-    <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5]">
+    <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5] dark:bg-[#124e48]">
       <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
         <span className="h-[7px] w-[7px] rounded-full bg-peach" />
         Your agent · live
@@ -157,7 +160,7 @@ function AgentCard() {
  *  must not call the API. It states what it is instead of inventing counts. */
 function DemoAgentCard({ basePath }: { basePath: string }) {
   return (
-    <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5]">
+    <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5] dark:bg-[#124e48]">
       <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
         <span className="h-[7px] w-[7px] rounded-full bg-peach" />
         Your agent · demo
@@ -191,6 +194,7 @@ export function AppSidebar({
     <nav
       className="app-sidebar sticky top-0 flex h-screen w-[264px] flex-none flex-col border-r border-border bg-card px-[18px] pb-5 pt-[26px]"
       aria-label="Primary"
+      data-tour={basePath ? undefined : 'customer-nav'}
     >
       <Link
         href={`${basePath}/home`}

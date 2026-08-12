@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { Database } from '../client';
+import type { Database, Transaction } from '../client';
 import {
   agentMessages,
   approvals,
@@ -31,8 +31,15 @@ const usd = (dollars: number): bigint => BigInt(Math.round(dollars * 100));
  * genuinely empty account — which is why every screen needs a real empty state.
  *
  * Idempotent: the owned rows are reset-then-inserted, scoped to this user.
+ *
+ * Accepts a transaction as well as a plain connection, because every table it
+ * writes is under FORCE ROW LEVEL SECURITY with a `user_id = app_current_user_id()`
+ * policy. Called on a bare connection with no tenant GUC set, every insert here
+ * fails its WITH CHECK — silently invisible in local tests, which connect as a
+ * superuser and bypass RLS entirely. The API therefore calls this inside
+ * `withRls` (see apps/api/src/provisioning.ts).
  */
-export async function seedDemoCustomer(db: Database, userId: string): Promise<void> {
+export async function seedDemoCustomer(db: Database | Transaction, userId: string): Promise<void> {
   // Reference data the block below joins against. Seeded separately by the CLI;
   // absent rows simply leave a holding unlinked rather than failing.
   const partnerRows = await db.select({ id: partners.id, code: partners.code }).from(partners);

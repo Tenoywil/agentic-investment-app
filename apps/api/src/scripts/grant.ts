@@ -30,10 +30,13 @@ async function main() {
   // valve fails in exactly the situation it exists for.
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
-  const config: AllowlistConfig = {
+  const config: AllowlistConfig & { DB_APP_ROLE: string } = {
     PARTNER_OPERATOR_EMAILS: process.env.PARTNER_OPERATOR_EMAILS ?? '',
     DEMO_CUSTOMER_EMAILS: process.env.DEMO_CUSTOMER_EMAILS ?? '',
     DEMO_PARTNER_CODE: process.env.DEMO_PARTNER_CODE ?? 'SAG',
+    // Provisioning drops to this role and sets the tenant GUC, so the grant CLI
+    // exercises the same RLS path a real sign-in does.
+    DB_APP_ROLE: process.env.DB_APP_ROLE ?? 'ccn_app',
   };
   const logger = createLogger({ level: 'info', base: { service: 'ccn-grant' } });
   const { db, client } = createDb(databaseUrl);
