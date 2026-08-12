@@ -1,4 +1,5 @@
 import './globals.css';
+import { Tour } from '@/app/_components/tour/tour';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
@@ -27,7 +28,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Mounted once for the whole app; it decides from the pathname whether
+            there is a tour to offer, and renders nothing anywhere else. */}
+        <Tour />
+      </body>
     </html>
   );
 }

@@ -291,3 +291,85 @@ input:-webkit-autofill:active {
     grid-template-columns: 1fr;
   }
 }
+
+/*
+ * Guided tour (driver.js) themed onto our tokens.
+ *
+ * driver.js ships hardcoded #fff/#2d2d2d, which on the dark theme paints a
+ * white card with dark text over a dark page — legible but plainly foreign.
+ * Everything below is a token, so the tour follows the theme the viewer chose.
+ * Scoped to .ccn-tour (the popoverClass) rather than .driver-popover, so a
+ * future driver.js usage can opt out.
+ */
+.driver-popover.ccn-tour {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--input));
+  border-radius: 14px;
+  padding: 18px;
+  max-width: 340px;
+  box-shadow: 0 24px 60px rgba(40, 34, 22, 0.22);
+}
+.driver-popover.ccn-tour .driver-popover-title {
+  font-family: var(--font-display, inherit);
+  font-size: 16.5px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+.driver-popover.ccn-tour .driver-popover-description {
+  margin-top: 7px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: hsl(var(--dim));
+}
+.driver-popover.ccn-tour .driver-popover-progress-text {
+  font-size: 12.5px;
+  color: hsl(var(--dim));
+}
+/* The arrow is drawn with border-color, so it needs the card colour per side. */
+.driver-popover.ccn-tour .driver-popover-arrow-side-left {
+  border-left-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-arrow-side-right {
+  border-right-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-arrow-side-top {
+  border-top-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-close-btn {
+  color: hsl(var(--dim));
+  width: 34px;
+  height: 30px;
+  font-size: 20px;
+}
+.driver-popover.ccn-tour .driver-popover-close-btn:hover,
+.driver-popover.ccn-tour .driver-popover-close-btn:focus-visible {
+  color: hsl(var(--foreground));
+}
+.driver-popover.ccn-tour .driver-popover-footer {
+  margin-top: 16px;
+}
+.driver-popover.ccn-tour .driver-popover-footer-btn {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  /* Preflight is off, so a border shorthand without a style renders nothing. */
+  border: 1px solid hsl(var(--input));
+  border-radius: 8px;
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 600;
+}
+/* The forward action is the primary one; keep it distinguishable by more than
+   position for anyone who cannot rely on colour. */
+.driver-popover.ccn-tour .driver-popover-next-btn {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+.driver-popover.ccn-tour .driver-popover-footer-btn:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
