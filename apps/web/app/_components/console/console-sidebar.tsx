@@ -105,6 +105,7 @@ export function ConsoleSidebar({
         className="justify-center gap-2.5 border-solid border-white/25 bg-transparent text-[#d3e0da] hover:bg-white/10 hover:text-white"
         onClick={onSignOut}
         disabled={signingOut}
+        data-tour="institution-signout"
       >
         <LogOut className="h-4 w-4" aria-hidden />
         {signingOut ? 'Signing out…' : 'Sign out'}

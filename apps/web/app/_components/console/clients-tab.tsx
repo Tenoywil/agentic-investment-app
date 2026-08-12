@@ -45,7 +45,7 @@ export function ClientsTab({
   return (
     <>
       <div className="g-held">
-        <Card className="p-6">
+        <Card className="p-6" data-tour="institution-funnel">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <b className="font-display text-lg">Onboarding pipeline</b>
