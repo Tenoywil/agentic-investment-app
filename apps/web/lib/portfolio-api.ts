@@ -22,6 +22,11 @@ export interface Holding {
 export interface PortfolioPartner {
   code: string;
   name: string;
+  /** What the institution is, e.g. "Bank · Capital Markets". Null when unknown. */
+  kind: string | null;
+  /** The regulator enum value, e.g. "FSC_JAMAICA". Null when the partner record
+   *  carries none — render nothing rather than claiming a regulator. */
+  regulator: string | null;
   total: string;
   holdings: Holding[];
 }
@@ -106,3 +111,7 @@ export function getApprovals(): Promise<{ approvals: Approval[] }> {
 export function getAgentHistory(): Promise<{ messages: AgentMessage[] }> {
   return apiFetch('/api/agent/history');
 }
+
+/** `FSC_JAMAICA` -> `FSC Jamaica`. One implementation, shared with the
+ *  marketplace, so a regulator never reads two different ways in one product. */
+export { regulatorLabel } from './opportunities-api';
