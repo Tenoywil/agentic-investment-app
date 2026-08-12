@@ -6,8 +6,8 @@ import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
+import { useMe } from '@/app/_lib/session';
 import { cn } from '@/app/_lib/utils';
-import { authClient } from '@/lib/auth-client';
 import {
   type AgentMessage,
   type AllocationSlice,
@@ -82,14 +82,14 @@ function greeting(name: string | null): string {
   return first ? `Good ${part}, ${first}` : `Good ${part}`;
 }
 
-/** Up to two initials from the signed-in user's name; '—' when unknown. */
-function initials(name: string | null): string {
-  const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
-  if (parts.length === 0) return '—';
+/** Up to two initials from the signed-in user's name. Only ever called with a
+ *  real name or email, so it never has to stand in for an unknown person. */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
   const letters = [parts[0]?.[0], parts.length > 1 ? parts[parts.length - 1]?.[0] : undefined]
     .filter(Boolean)
     .join('');
-  return letters.toUpperCase() || '—';
+  return letters.toUpperCase();
 }
 
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
@@ -179,10 +179,14 @@ function Donut({ slices }: { slices: AllocationSlice[] }) {
 }
 
 export default function HomePage() {
+  // Identity comes from the one session fetch the layout already made — this
+  // screen used to ask Better Auth for its own copy of the user.
+  const me = useMe();
+  const userName = me ? me.user.name.trim() || me.user.email : null;
+
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
 
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
   const [approvalsLoading, setApprovalsLoading] = useState(true);
@@ -194,16 +198,6 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
-
-    authClient
-      .getSession()
-      .then((s) => {
-        if (!cancelled) setUserName(s.data?.user?.name ?? s.data?.user?.email ?? null);
-      })
-      .catch(() => {
-        // Non-fatal: the greeting falls back to a name-less form rather than
-        // blocking the dashboard or, worse, showing someone else's name.
-      });
 
     getPortfolio()
       .then((p) => {
@@ -302,9 +296,11 @@ export default function HomePage() {
         // notifications behind it — there is no notification record anywhere in
         // the schema — so it is gone rather than decorative.
         right={
-          <Avatar className="h-[42px] w-[42px]">
-            <AvatarFallback>{initials(userName)}</AvatarFallback>
-          </Avatar>
+          userName ? (
+            <Avatar className="h-[42px] w-[42px]">
+              <AvatarFallback>{initials(userName)}</AvatarFallback>
+            </Avatar>
+          ) : undefined
         }
       />
 

@@ -37,26 +37,23 @@ export function ComplianceTab({
   audit: ConsoleAuditEntry[];
   auditError: string | null;
 }) {
-  const rows: { label: string; value: string; tone?: string }[] = [];
+  const rows: { label: string; value: string }[] = [];
   if (partner) {
     rows.push({ label: 'Partner code', value: partner.code });
     if (partner.kind) rows.push({ label: 'Business', value: partner.kind });
     const regulator = regulatorLabel(partner.regulator);
     if (regulator) rows.push({ label: 'Regulator', value: regulator });
     const agreement = agreementLabel(partner.agreementStatus);
-    if (agreement) {
-      rows.push({
-        label: 'Partner agreement',
-        value: agreement,
-        tone: partner.agreementStatus === 'live' ? 'text-[#8fe3c0]' : 'text-white',
-      });
-    }
+    if (agreement) rows.push({ label: 'Partner agreement', value: agreement });
     if (partner.residency) rows.push({ label: 'Data residency', value: partner.residency });
   }
 
   return (
     <div className="g-agent" style={{ gridTemplateColumns: '1fr 1.3fr' }}>
-      <Card className="h-fit border-none bg-primary p-6 text-[#eafaf5]">
+      {/* Pure white, not a softened off-white: in the dark theme --primary
+          resolves to a mid teal against which nothing dimmer than white clears
+          4.5:1 for 14px text. Label vs. value is carried by weight instead. */}
+      <Card className="h-fit border-none bg-primary p-6 text-white">
         <div className="mb-4 flex items-center gap-2.5">
           <ShieldCheck className="h-[18px] w-[18px] text-[#8fe3c0]" aria-hidden />
           <b className="font-display text-base">Agreement &amp; residency</b>
@@ -65,13 +62,13 @@ export function ComplianceTab({
           <dl className="m-0">
             {rows.map((r) => (
               <div key={r.label} className="flex justify-between gap-4 py-1.5 text-sm">
-                <dt className="opacity-[0.82]">{r.label}</dt>
-                <dd className={`m-0 text-right font-bold ${r.tone ?? 'text-white'}`}>{r.value}</dd>
+                <dt>{r.label}</dt>
+                <dd className="m-0 text-right font-bold">{r.value}</dd>
               </div>
             ))}
           </dl>
         ) : (
-          <p className="m-0 text-sm leading-relaxed text-[#eafaf5]/85">
+          <p className="m-0 text-sm leading-relaxed">
             No agreement details are recorded against this account yet.
           </p>
         )}

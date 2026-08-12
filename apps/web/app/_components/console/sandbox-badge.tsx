@@ -7,15 +7,9 @@
  * than a settled one. Saying so is the difference between a demo and a claim.
  * A partner with no rows at all gets an <EmptyState> instead, never this.
  */
-export function SandboxBadge({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
-  const skin =
-    tone === 'dark'
-      ? 'border-white/15 bg-white/10 text-[#eafaf5]/85'
-      : 'border-border bg-[#f4f0e7] text-faint dark:bg-white/[0.06]';
+export function SandboxBadge() {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border border-solid px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${skin}`}
-    >
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-solid border-border bg-[#f4f0e7] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-dim dark:bg-white/[0.06]">
       Illustrative · sandbox partner
     </span>
   );

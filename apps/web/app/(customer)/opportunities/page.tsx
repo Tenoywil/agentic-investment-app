@@ -15,6 +15,7 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import { Input } from '@/app/_components/ui/input';
 import { useMe } from '@/app/_lib/session';
 import { cn } from '@/app/_lib/utils';
+import type { MeOnboarding } from '@/lib/me-api';
 import {
   type Currency,
   type Kind,
@@ -204,8 +205,127 @@ function ScreenedOutNotice({
   );
 }
 
-function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) {
+/**
+ * Labels for the `risk_band` enum the onboarding fact-find assigns, worded from
+ * the policy table in @ccn/domain (BAND_MAX_RISK): the two "moderate" bands
+ * admit medium-risk instruments, the top two admit high.
+ */
+const BAND_LABEL: Record<string, string> = {
+  low: 'Low',
+  low_moderate: 'Low to moderate',
+  high_moderate: 'Moderate',
+  low_high: 'Moderate to high',
+  high: 'High',
+};
+
+const TIER_LABEL: Record<string, string> = { tier1: 'Tier 1', tier2: 'Tier 2' };
+
+/**
+ * The compliance checks, from GET /api/me.
+ *
+ * This panel used to assert three green ticks — identity verified at Tier 2,
+ * suitability matched, source of funds confirmed — for every viewer, including
+ * one who had completed none of them, immediately above the button that routes
+ * real money to a licensed partner. Each line now reports the actual state of
+ * that step, and an unsatisfied step blocks the instruction here rather than at
+ * the partner.
+ */
+function ComplianceChecks({ onboarding, band }: { onboarding: MeOnboarding; band: string | null }) {
+  const bandLabel = band ? (BAND_LABEL[band] ?? band) : null;
+  const tierLabel = TIER_LABEL[onboarding.tier];
+  const checks: { ok: boolean; label: string }[] = [
+    {
+      ok: onboarding.identityVerified,
+      label: onboarding.identityVerified
+        ? `Identity verified${tierLabel ? ` · KYC ${tierLabel}` : ''}`
+        : 'Identity not verified yet',
+    },
+    {
+      ok: onboarding.complianceConfirmed,
+      label: onboarding.complianceConfirmed
+        ? 'Compliance declarations signed'
+        : 'Compliance declarations outstanding',
+    },
+    {
+      ok: onboarding.riskCompleted,
+      label: onboarding.riskCompleted
+        ? `Suitability profile set${bandLabel ? ` · ${bandLabel} risk band` : ''}`
+        : 'Suitability profile not completed',
+    },
+    {
+      ok: onboarding.fundsConfirmed,
+      label: onboarding.fundsConfirmed
+        ? 'Source of funds confirmed'
+        : 'Source of funds not declared',
+    },
+  ];
+
+  return (
+    <div
+      className={cn(
+        'rounded-xl border px-4 py-3.5',
+        onboarding.complete
+          ? 'border-[#cde0d8] bg-mint dark:border-white/10'
+          : 'border-[#ecd2c2] bg-[#fbeee7] dark:border-[#5a3f2e] dark:bg-[#2c1f17]',
+      )}
+    >
+      <div className="mb-2 flex items-center gap-2">
+        {onboarding.complete ? (
+          <ShieldCheck className="h-[15px] w-[15px] flex-none text-success" aria-hidden />
+        ) : (
+          <CircleAlert
+            className="h-[15px] w-[15px] flex-none text-[#a44e20] dark:text-terra"
+            aria-hidden
+          />
+        )}
+        <span
+          className={cn(
+            'text-[13.5px] font-bold',
+            onboarding.complete ? 'text-teal2' : 'text-[#9a4a1c] dark:text-[#e79b6f]',
+          )}
+        >
+          {onboarding.complete
+            ? 'Your compliance checks are complete'
+            : 'Finish your compliance checks to invest'}
+        </span>
+      </div>
+      <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+        {checks.map((c) => (
+          <li
+            key={c.label}
+            className={cn(
+              'flex items-center gap-2 text-sm',
+              c.ok ? 'text-[#2c2925] dark:text-foreground' : 'text-[#5c4636] dark:text-[#d3b8a4]',
+            )}
+          >
+            {c.ok ? (
+              <Check className="h-4 w-4 flex-none text-success" aria-hidden />
+            ) : (
+              <X className="h-4 w-4 flex-none text-[#a44e20] dark:text-terra" aria-hidden />
+            )}
+            {c.label}
+          </li>
+        ))}
+      </ul>
+      {!onboarding.complete && (
+        <Link
+          href="/onboarding"
+          className="mt-3 inline-block text-sm font-bold text-teal2 underline-offset-4 hover:underline"
+        >
+          Finish onboarding →
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function ExecDialog({
+  opp,
+  band,
+  onClose,
+}: { opp: Opp | null; band: string | null; onClose: () => void }) {
   const titleId = useId();
+  const me = useMe();
   const [step, setStep] = useState(0);
   const [amt, setAmt] = useState('');
   const [placing, setPlacing] = useState(false);
@@ -227,6 +347,9 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
 
   if (!opp) return null;
   const t = TONE[opp.type];
+  // Only a caller whose KYC, compliance, suitability and source-of-funds steps
+  // are all satisfied may route an instruction from here.
+  const compliant = me?.onboarding.complete === true;
   const blocked = !!opp.blocked;
   const screenedOut = blocked || !!gateBlocked;
   const amtNum = Number.parseInt(amt.replace(/[^0-9]/g, ''), 10) || 0;
@@ -396,29 +519,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                   <span className="text-sm font-semibold">T+2 · {opp.currency} wallet</span>
                 </div>
               </div>
-              <div className="rounded-xl border border-[#cde0d8] dark:border-white/10 bg-mint px-4 py-3.5">
-                <div className="mb-2 flex items-center gap-2">
-                  <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
-                  <span className="text-[13.5px] font-bold text-teal2">
-                    Agent ran your compliance checks
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {[
-                    'Identity verified (KYC · Tier 2)',
-                    'Suitability: matches your balanced-income profile',
-                    'Source of funds confirmed',
-                  ].map((line) => (
-                    <div
-                      key={line}
-                      className="flex items-center gap-2 text-sm text-[#2c2925] dark:text-foreground"
-                    >
-                      <Check className="h-4 w-4 flex-none text-success" aria-hidden />
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {me && <ComplianceChecks onboarding={me.onboarding} band={band} />}
               {placeError && (
                 <p className="mt-3 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
                   <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
@@ -473,14 +574,25 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 Continue to authorize
               </Button>
             ) : step === 1 ? (
-              <Button
-                size="lg"
-                className="flex-1"
-                disabled={amtNum < minMajor(opp) || placing}
-                onClick={handleAuthorize}
-              >
-                {placing ? 'Routing…' : `Authorize & route ${amtFmt}`}
-              </Button>
+              <div className="flex flex-1 flex-col items-stretch gap-1.5">
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={amtNum < minMajor(opp) || placing || !compliant}
+                  onClick={handleAuthorize}
+                >
+                  {placing ? 'Routing…' : `Authorize & route ${amtFmt}`}
+                </Button>
+                {/* Say why it is disabled. An unexplained dead button is the
+                    same defect as a fabricated tick, one step later. */}
+                {!compliant && (
+                  <p className="text-center text-[12.5px] text-dim">
+                    {me
+                      ? 'Finish your compliance checks above before routing an instruction.'
+                      : 'Checking your compliance status…'}
+                  </p>
+                )}
+              </div>
             ) : (
               <Button size="lg" className="flex-1" onClick={onClose}>
                 Done
@@ -499,15 +611,17 @@ export default function OpportunitiesPage() {
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
   const [opportunities, setOpportunities] = useState<OpportunityListItem[]>([]);
+  const [band, setBand] = useState<string | null>(null);
   const [filter, setFilter] = useState<Kind | 'All'>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getOpportunities()
-      .then(({ opportunities }) => {
+      .then(({ opportunities, suitabilityBand }) => {
         if (cancelled) return;
         setOpportunities(opportunities);
+        setBand(suitabilityBand);
         setStatus('ready');
       })
       .catch((err) => {
@@ -532,14 +646,17 @@ export default function OpportunitiesPage() {
       <PageHead
         eyebrow="Regional investments across jurisdictions · executed by licensed partners"
         title="Opportunities"
+        // The count is of instruments your agent has not screened out — it was
+        // labelled "matched to your goals", which nothing in the catalogue or
+        // the API computes.
         right={
           status === 'ready' ? (
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-mint px-[15px] py-[9px]">
+            <div className="flex items-center gap-2 rounded-xl border border-solid border-border bg-mint px-[15px] py-[9px]">
               <b className="font-display text-xl">{TRADEABLE.length}</b>
               <span className="text-[12.5px] leading-tight text-dim">
-                matched to
+                open to
                 <br />
-                your goals
+                invest
               </span>
             </div>
           ) : undefined
@@ -577,11 +694,34 @@ export default function OpportunitiesPage() {
             ))}
           </div>
 
-          <div className="g2">
-            {shown.map((o) => (
-              <OppCard key={o.id} o={o} onOpen={setSelected} />
-            ))}
-          </div>
+          {shown.length === 0 ? (
+            <EmptyState
+              icon={Compass}
+              title={
+                TRADEABLE.length === 0
+                  ? 'No opportunities are open right now'
+                  : `Nothing under ${filter} right now`
+              }
+              body={
+                TRADEABLE.length === 0
+                  ? 'As partners list instruments across the region, the ones that pass your suitability screen appear here.'
+                  : 'Try another asset class, or view everything your agent has not screened out.'
+              }
+              action={
+                TRADEABLE.length === 0 ? undefined : (
+                  <Button variant="outline" onClick={() => setFilter('All')}>
+                    Show all
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <div className="g2">
+              {shown.map((o) => (
+                <OppCard key={o.id} o={o} onOpen={setSelected} />
+              ))}
+            </div>
+          )}
 
           {/* What your agent screens out — the guardrail the product is built around.
               Hidden entirely when nothing in the live catalog is currently flagged. */}
@@ -623,7 +763,7 @@ export default function OpportunitiesPage() {
             </>
           )}
 
-          <ExecDialog opp={selected} onClose={() => setSelected(null)} />
+          <ExecDialog opp={selected} band={band} onClose={() => setSelected(null)} />
         </>
       )}
     </AppScreen>

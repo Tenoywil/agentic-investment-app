@@ -41,8 +41,10 @@ export function ConsoleSidebar({
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <div className="truncate font-display text-base font-bold">{partner?.name}</div>
-          <div className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
+          {/* Wraps rather than truncates: a firm's own name is the one string
+              on this screen that must always be readable in full. */}
+          <div className="font-display text-[15px] font-bold leading-tight">{partner?.name}</div>
+          <div className="mt-0.5 font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
             Partner console
           </div>
         </div>
@@ -80,17 +82,14 @@ export function ConsoleSidebar({
           asserting one for a firm that has not signed is the exact failure
           this panel used to commit. */}
       {agreement ? (
-        <div
-          className="mb-3 rounded-2xl border border-solid border-white/15 bg-white/[0.06] p-3.5"
-          data-tour="institution-agreement"
-        >
-          <div className="mb-1 flex items-center gap-2 text-[13px] font-bold">
+        <div className="mb-3 rounded-2xl border border-solid border-white/15 bg-white/[0.06] p-3.5">
+          <div className="mb-1 flex items-start gap-2 text-[13px] font-bold leading-snug">
             <span
-              className="h-[7px] w-[7px] flex-none rounded-full"
+              className="mt-1.5 h-[7px] w-[7px] flex-none rounded-full"
               style={{ background: agreementDot(partner?.agreementStatus) }}
               aria-hidden
             />
-            <span className="min-w-0 truncate">
+            <span className="min-w-0">
               {agreement}
               {regulator ? ` · ${regulator}` : ''}
             </span>
@@ -106,7 +105,6 @@ export function ConsoleSidebar({
         className="justify-center gap-2.5 border-solid border-white/25 bg-transparent text-[#d3e0da] hover:bg-white/10 hover:text-white"
         onClick={onSignOut}
         disabled={signingOut}
-        data-tour="institution-signout"
       >
         <LogOut className="h-4 w-4" aria-hidden />
         {signingOut ? 'Signing out…' : 'Sign out'}

@@ -41,12 +41,30 @@ export const TAB_TITLES: Record<TabKey, string> = {
 /* ---- shared class fragments -------------------------------------------- */
 
 export const uppr = 'text-[11px] font-bold uppercase tracking-wider text-faint';
-export const errorText = 'flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra';
+/**
+ * Status text colours as explicit light/dark pairs rather than the --success /
+ * --terra tokens.
+ *
+ * Those tokens are tuned for fills and large numerals; at 13–14px on the card
+ * surface the light-theme values land at 3.8–4.0:1, under the 4.5:1 floor for
+ * body text. These pairs clear it in both themes.
+ */
+export const SUCCESS_TEXT = 'text-[#0a6e44] dark:text-[#5fce9e]';
+export const TERRA_TEXT = 'text-[#a44e20] dark:text-terra';
+export const errorText = `flex items-center gap-2 text-sm ${TERRA_TEXT}`;
 export const TERRA_GHOST_BTN =
   'text-[#a44e20] hover:bg-[#f5e7d9] hover:text-[#a44e20] dark:text-terra dark:hover:bg-[#3a281c] dark:hover:text-terra';
-/** Preflight is off, so `border-*` alone paints nothing — every rule that is
- *  meant to be seen has to name its style explicitly. */
-export const ROW_DIVIDER = 'border-b border-solid border-border';
+/**
+ * A single hairline under a table row.
+ *
+ * Preflight is off, which cuts both ways. `border-b border-border` alone paints
+ * nothing, because nothing sets `border-style`. Adding `border-solid` sets the
+ * style on all four sides — and with no preflight there is no
+ * `border-width: 0` reset either, so the other three inherit the CSS initial
+ * value of `medium` and every row grows a 3px box. Both other axes therefore
+ * have to be zeroed explicitly.
+ */
+export const ROW_DIVIDER = 'border-x-0 border-t-0 border-b border-solid border-border';
 
 /* ---- formatting --------------------------------------------------------- */
 

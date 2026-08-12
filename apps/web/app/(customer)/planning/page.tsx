@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/_components/ui/dialog';
+import { EmptyState } from '@/app/_components/ui/empty';
 import { Input } from '@/app/_components/ui/input';
 import { Label } from '@/app/_components/ui/label';
 import { cn } from '@/app/_lib/utils';
@@ -25,7 +26,8 @@ import {
   getGoals,
   getProducts,
 } from '@/lib/planning-api';
-import { CircleAlert, Plus } from 'lucide-react';
+import { CircleAlert, Plus, ShieldCheck, Target } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useEffect, useId, useState } from 'react';
 
 const STATUS_VARIANT: Record<PlanningProductStatus, BadgeProps['variant']> = {
@@ -43,27 +45,14 @@ const STATUS_LABEL: Record<PlanningProductStatus, string> = {
 /** Default ring/eta color when a product or goal carries none from the DB. */
 const FALLBACK_COLOR = '#17786e';
 
-/**
- * `STATS` (protection gap / est. legacy value) and the "Financial health
- * 72/100" tile below are illustrative-only for this pass — there's no backing
- * table for either yet (no protection-gap or legacy-projection model exists
- * server-side), so they stay hardcoded rather than being wired to a fake
- * endpoint. Everything else on this screen (products, goals) is live.
+/*
+ * This screen opened with three figures: "Financial health 72 / 100 · Good · on
+ * track", a "Protection gap" of US$120,000 and an "Est. legacy value" of
+ * US$310,000. There is no health score, no protection-gap model and no legacy
+ * projection anywhere in the product — not a table, not an endpoint, not a
+ * formula — so all three are gone. Products and goals, which are real, now open
+ * the screen.
  */
-const STATS: { label: string; val: string; valClass: string; sub: string }[] = [
-  {
-    label: 'Protection gap',
-    val: 'US$120,000',
-    valClass: 'text-terra',
-    sub: 'Recommended life cover',
-  },
-  {
-    label: 'Est. legacy value',
-    val: 'US$310,000',
-    valClass: 'text-foreground',
-    sub: 'Projected at retirement',
-  },
-];
 
 function Ring({ pct, color }: { pct: number; color: string }) {
   const r = 26;
@@ -275,22 +264,7 @@ export default function PlanningPage() {
         title="Planning"
       />
 
-      <div className="g3">
-        <div className="rounded-2xl bg-primary p-5 text-[#eafaf5]">
-          <div className="text-[13.5px] opacity-80">Financial health</div>
-          <div className="my-1 font-display text-3xl font-bold">72 / 100</div>
-          <div className="text-[13.5px] font-bold text-[#9fe6c6]">Good · on track</div>
-        </div>
-        {STATS.map((s) => (
-          <Card key={s.label} className="p-5">
-            <div className="text-[13.5px] text-dim">{s.label}</div>
-            <div className={cn('my-1 font-display text-3xl font-bold', s.valClass)}>{s.val}</div>
-            <div className="text-[13.5px] text-faint">{s.sub}</div>
-          </Card>
-        ))}
-      </div>
-
-      <h2 className="mb-3.5 mt-7 font-display text-[22px] font-bold">Recommended for you</h2>
+      <h2 className="mb-3.5 font-display text-[22px] font-bold">Recommended for you</h2>
       {productsError && (
         <div className="mb-3.5">
           <InlineError message={productsError} />
@@ -299,7 +273,11 @@ export default function PlanningPage() {
       {productsLoading ? (
         <p className="text-sm text-dim">Loading products…</p>
       ) : products.length === 0 && !productsError ? (
-        <p className="text-sm text-dim">No planning products available right now.</p>
+        <EmptyState
+          icon={ShieldCheck}
+          title="No planning products yet"
+          body="Cover, retirement and legacy products from partner institutions will be listed here as they come online."
+        />
       ) : (
         <div className="g2">
           {products.map((p) => (
@@ -310,15 +288,19 @@ export default function PlanningPage() {
                 </span>
                 <div className="flex-1">
                   <div className="text-base font-bold">{p.title}</div>
-                  <div className="text-[13px] text-faint">{p.provider ?? '—'}</div>
+                  {p.provider && <div className="text-[13px] text-faint">{p.provider}</div>}
                 </div>
                 <Badge variant={STATUS_VARIANT[p.status] ?? 'secondary'}>
                   {STATUS_LABEL[p.status] ?? p.status}
                 </Badge>
               </div>
-              <p className="mb-4 text-sm leading-relaxed text-dim">{p.description ?? ''}</p>
-              <Button variant="secondary" className="w-full">
-                Explore with agent
+              {p.description && (
+                <p className="mb-4 text-sm leading-relaxed text-dim">{p.description}</p>
+              )}
+              {/* Was a button with no handler on every card. The agent is where
+                  a question about a product actually goes. */}
+              <Button variant="secondary" className="mt-auto w-full" asChild>
+                <Link href="/agent">Explore with agent</Link>
               </Button>
             </Card>
           ))}
@@ -340,7 +322,17 @@ export default function PlanningPage() {
       {goalsLoading ? (
         <p className="text-sm text-dim">Loading your goals…</p>
       ) : goals.length === 0 && !goalsError ? (
-        <p className="text-sm text-dim">You haven't set any goals yet.</p>
+        <EmptyState
+          icon={Target}
+          title="No goals yet"
+          body="Set a target — a home, a university fund, a retirement date — and CCN tracks your progress toward it."
+          action={
+            <Button variant="outline" onClick={() => setNewGoalOpen(true)}>
+              <Plus className="h-4 w-4" aria-hidden />
+              Add your first goal
+            </Button>
+          }
+        />
       ) : (
         <div className="g3">
           {goals.map((g) => {
@@ -351,16 +343,19 @@ export default function PlanningPage() {
                   <Ring pct={g.pct} color={color} />
                   <div>
                     <div className="text-base font-bold">{g.name}</div>
-                    <div className="text-[13px] text-faint">{g.fromLabel ?? '—'}</div>
+                    {g.fromLabel && <div className="text-[13px] text-faint">{g.fromLabel}</div>}
                   </div>
                 </div>
                 <div className="border-t border-border pt-3">
                   <div className="font-mono text-sm">
                     {formatUSDMinor(g.currentMinor)} of {formatUSDMinor(g.targetMinor)}
                   </div>
-                  <div className="mt-1 text-[13.5px] font-bold" style={{ color }}>
-                    {g.eta ?? '—'}
-                  </div>
+                  {/* A goal with no timeline set simply shows none. */}
+                  {g.eta && (
+                    <div className="mt-1 text-[13.5px] font-bold" style={{ color }}>
+                      {g.eta}
+                    </div>
+                  )}
                 </div>
               </Card>
             );

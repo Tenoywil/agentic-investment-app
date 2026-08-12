@@ -2,7 +2,7 @@
 
 import { Button } from '@/app/_components/ui/button';
 import type { ConsoleOrder } from '@/lib/console-api';
-import { TERRA_GHOST_BTN } from './lib';
+import { SUCCESS_TEXT, TERRA_GHOST_BTN, TERRA_TEXT } from './lib';
 
 /**
  * The accept / settle / reject controls for one order, and the terminal-state
@@ -29,9 +29,9 @@ export function OrderAction({
   const label = order.instrumentName ?? 'this order';
 
   if (order.status === 'settled')
-    return <span className="text-sm font-bold text-success">Settled ✓</span>;
+    return <span className={`text-sm font-bold ${SUCCESS_TEXT}`}>Settled ✓</span>;
   if (order.status === 'rejected')
-    return <span className="text-sm font-bold text-[#a44e20] dark:text-terra">Rejected</span>;
+    return <span className={`text-sm font-bold ${TERRA_TEXT}`}>Rejected</span>;
   if (order.status === 'expired')
     return <span className="text-sm font-bold text-faint">Expired</span>;
 

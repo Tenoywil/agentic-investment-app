@@ -6,7 +6,7 @@ import { Switch } from '@/app/_components/ui/switch';
 import type { ConsoleProduct } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { Boxes } from 'lucide-react';
-import { ROW_DIVIDER, fmtAumUSD, isSandbox, uppr } from './lib';
+import { ROW_DIVIDER, SUCCESS_TEXT, fmtAumUSD, isSandbox, uppr } from './lib';
 import { ErrorNote } from './notice';
 import { SandboxBadge } from './sandbox-badge';
 
@@ -89,7 +89,9 @@ export function ProductsTab({
                   <div className="text-right font-mono text-[13.5px] font-bold">
                     {fmtAumUSD(p.aumMinor)}
                   </div>
-                  <div className="text-right text-[13.5px] font-bold text-success">{p.trend}</div>
+                  <div className={`text-right text-[13.5px] font-bold ${SUCCESS_TEXT}`}>
+                    {p.trend}
+                  </div>
                   <div className="flex items-center justify-end gap-2">
                     <span className="text-[13px] font-bold text-dim">
                       {live ? 'Live' : 'Paused'}

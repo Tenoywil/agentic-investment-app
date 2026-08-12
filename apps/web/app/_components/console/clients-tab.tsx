@@ -9,6 +9,7 @@ import { ArrowRightLeft, Users } from 'lucide-react';
 import {
   ROW_DIVIDER,
   TERRA_GHOST_BTN,
+  TERRA_TEXT,
   fmtMinor,
   guessParsedHolding,
   isSandbox,
@@ -44,7 +45,7 @@ export function ClientsTab({
   return (
     <>
       <div className="g-held">
-        <Card className="p-6" data-tour="institution-funnel">
+        <Card className="p-6">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <b className="font-display text-lg">Onboarding pipeline</b>
@@ -107,7 +108,9 @@ export function ClientsTab({
         <div className="mb-1 flex items-center justify-between gap-3">
           <b className="font-display text-lg">Pending reconciliation</b>
           {reconciliation.length > 0 ? (
-            <span className="text-sm font-bold text-terra">{reconciliation.length} to review</span>
+            <span className={`text-sm font-bold ${TERRA_TEXT}`}>
+              {reconciliation.length} to review
+            </span>
           ) : null}
         </div>
         <div className="mb-4 text-[13px] text-faint">

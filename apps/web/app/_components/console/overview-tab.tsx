@@ -5,7 +5,7 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleKpi, ConsoleOrder } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { ArrowRightLeft, LayoutGrid } from 'lucide-react';
-import { ROW_DIVIDER, fmtMinor, isSandbox, timeAgo, uppr } from './lib';
+import { ROW_DIVIDER, SUCCESS_TEXT, fmtMinor, isSandbox, timeAgo, uppr } from './lib';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
 import { SandboxBadge } from './sandbox-badge';
@@ -85,7 +85,7 @@ export function OverviewTab({
               <Card className="p-5">
                 <div className="mb-2 text-[13.5px] text-dim">Orders settled</div>
                 <div
-                  className={`font-display text-[28px] font-bold tracking-tight ${settled ? 'text-success' : 'text-foreground'}`}
+                  className={`font-display text-[28px] font-bold tracking-tight ${settled ? SUCCESS_TEXT : 'text-foreground'}`}
                 >
                   {settled}
                 </div>
@@ -166,18 +166,21 @@ export function OverviewTab({
         </Card>
 
         <div className="flex flex-col gap-[18px]">
-          <Card className="border-none bg-primary p-[22px] text-[#eafaf5]">
-            <div className={`mb-3.5 font-mono ${uppr} text-[#eafaf5]/80`}>
-              Why this flow matters
-            </div>
-            {WHY.map((w) => (
-              <div key={w} className="mb-3 flex gap-2.5 text-[14.5px] leading-normal">
-                <span aria-hidden className="flex-none font-bold text-peach">
-                  +
-                </span>
-                <span className="text-white">{w}</span>
-              </div>
-            ))}
+          {/* text-white throughout: see compliance-tab — in the dark theme
+              --primary is a mid teal that nothing dimmer than white clears
+              4.5:1 against. */}
+          <Card className="border-none bg-primary p-[22px] text-white">
+            <div className={`mb-3.5 font-mono ${uppr} text-white`}>Why this flow matters</div>
+            <ul className="m-0 list-none p-0">
+              {WHY.map((w) => (
+                <li key={w} className="mb-3 flex gap-2.5 text-[14.5px] leading-normal">
+                  <span aria-hidden className="flex-none font-bold">
+                    +
+                  </span>
+                  <span>{w}</span>
+                </li>
+              ))}
+            </ul>
           </Card>
           <Card className="p-[22px]">
             <b className="font-display text-[17px]">The line CCN never crosses</b>
