@@ -11,6 +11,7 @@ import {
   limits,
   partners,
   riskProfiles,
+  user,
   userProfiles,
 } from '../schema';
 
@@ -37,9 +38,12 @@ export async function seedDemoCustomer(db: Database, userId: string): Promise<vo
   const partnerRows = await db.select({ id: partners.id, code: partners.code }).from(partners);
   const partnerIdByCode = new Map(partnerRows.map((p) => [p.code as string, p.id]));
   const instrumentRows = await db
-    .select({ id: instruments.id, slug: instruments.slug })
+    .select({ id: instruments.id, slug: instruments.slug, metric: instruments.metric })
     .from(instruments);
   const instrumentIdBySlug = new Map(instrumentRows.map((i) => [i.slug, i.id]));
+  // The recommendation copy quotes the catalogue's own yield rather than a
+  // second copy of the number, so the two cannot disagree.
+  const metricBySlug = new Map(instrumentRows.map((i) => [i.slug, i.metric]));
 
   // Demo profile / compliance / limits (keyed by user_id → upsert) ---------
   await db
@@ -89,7 +93,7 @@ export async function seedDemoCustomer(db: Database, userId: string): Promise<vo
       label: 'GOJ Bond 2029 · Chequing',
       holdings: [
         { name: 'GOJ USD Global Bond 2029', value: 12400, ret: '+6.8%', slug: 'goj32' },
-        { name: 'USD Chequing', value: 1000, ret: '—', slug: null },
+        { name: 'USD Chequing', value: 1000, ret: '—', slug: null, cash: true },
       ],
     },
     {
@@ -107,7 +111,7 @@ export async function seedDemoCustomer(db: Database, userId: string): Promise<vo
       label: 'Money Market Fund · Savings',
       holdings: [
         { name: 'JMMB Money Market Fund', value: 3000, ret: '+2.0%', slug: null },
-        { name: 'USD Savings', value: 1150, ret: '—', slug: null },
+        { name: 'USD Savings', value: 1150, ret: '—', slug: null, cash: true },
       ],
     },
   ];
@@ -130,6 +134,12 @@ export async function seedDemoCustomer(db: Database, userId: string): Promise<vo
       })),
     );
   }
+
+  // Figures the approvals and the opening conversation quote, derived from the
+  // holdings just inserted rather than written out by hand — so a change to the
+  // portfolio above cannot leave the narrative describing a different account.
+  const idle = accounts.flatMap((a) => a.holdings).filter((h) => 'cash' in h && h.cash === true);
+  const idleTotal = idle.reduce((sum, h) => sum + h.value, 0);
 
   await db.insert(goals).values([
     {
@@ -164,48 +174,95 @@ export async function seedDemoCustomer(db: Database, userId: string): Promise<vo
     },
   ]);
 
+  // Both pending approvals describe something true about the account above.
+  //
+  // The first used to read "US$412 settles Friday. Reinvesting … is projected to
+  // lift blended yield to about 6.9%" — there is no coupon schedule in the
+  // schema and no blended-yield figure to lift, so both numbers were invented.
+  // What IS derivable is a concentration breach: the GOJ bond is a larger share
+  // of this portfolio than the single-position cap in the user's own limits
+  // allows, which is a better beat anyway — the guardrail catching a real thing.
+  const totalValue = accounts.flatMap((a) => a.holdings).reduce((s, h) => s + h.value, 0);
+  const goj = 12_400;
+  const gojPct = Math.round((goj / totalValue) * 1000) / 10;
+  const capPct = 25; // matches the single-position default in the limits table
+  const trimTo = Math.round((goj - totalValue * (capPct / 100)) / 50) * 50;
+
+  // The projected annual figure follows the catalogue's quoted yield. If the
+  // instrument is missing (reference data not seeded) the sentence drops the
+  // number rather than inventing one.
+  const ncbYield = metricBySlug.get('ncbmm') ?? null;
+  const ncbRate = ncbYield ? Number.parseFloat(ncbYield) / 100 : null;
+  const idleYearly = ncbRate ? Math.round((idleTotal * ncbRate) / 5) * 5 : null;
+
   await db.insert(approvals).values([
     {
       userId,
       type: 'investment_rec',
       status: 'pending',
       instrumentId: instrumentIdBySlug.get('sagrex') ?? null,
-      title: 'Put your GOJ coupon to work',
-      body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund is projected to lift blended yield to about 6.9%. Sagicor executes.',
-      amountMinor: usd(412),
-      snapshot: { rec: 'reinvest', opp: 'sagrex' },
+      title: `Your GOJ bond is ${gojPct}% of your portfolio`,
+      body: `That is above the ${capPct}% single-position cap in your limits. Moving about US$${trimTo.toLocaleString('en-US')} into the Sagicor Real Estate X Fund brings it back inside. Sagicor executes; nothing moves until you approve.`,
+      amountMinor: usd(trimTo),
+      snapshot: { rec: 'rebalance', opp: 'sagrex' },
     },
     {
       userId,
       type: 'fund_transfer',
       status: 'pending',
       instrumentId: instrumentIdBySlug.get('ncbmm') ?? null,
-      title: 'US$2,150 earning nothing',
-      body: 'Sweep your USD cash into the NCB Money Market Fund, projected ~US$110/yr at the current rate, same-day access. NCB executes.',
-      amountMinor: usd(2150),
+      title: `US$${idleTotal.toLocaleString('en-US')} earning nothing`,
+      body: `Your USD chequing and savings are idle. The NCB USD Money Market Fund offers same-day access${
+        ncbYield && idleYearly
+          ? ` and quotes ${ncbYield} — roughly US$${idleYearly}/yr on this balance`
+          : ''
+      }. NCB executes; nothing moves until you approve.`,
+      amountMinor: usd(idleTotal),
       snapshot: { rec: 'idle', opp: 'ncbmm' },
     },
   ]);
+
+  // The opening conversation.
+  //
+  // This used to greet "Marcus" — the prototype's persona — and claim the
+  // portfolio was "up 6.8% this year". Both shipped to production: a signed-in
+  // user saw their own real name in the page header and someone else's in the
+  // agent's first line, next to a return figure nothing in the schema supports
+  // (6.8% is one bond's return label, not the portfolio's, and there is no
+  // valuation history to compute a portfolio return from). Message rows are
+  // data, so no component-level check can catch this — it has to be right here.
+  //
+  // Every figure below is computed from the holdings inserted above, so the
+  // conversation cannot drift from the account it describes.
+  const [account] = await db
+    .select({ name: user.name })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  // "Amara Clarke" -> "Amara". A single-word or empty name degrades to a
+  // greeting with no name rather than a wrong one.
+  const given = (account?.name ?? '').trim().split(/\s+/)[0] ?? '';
+  const hello = given ? `Good afternoon, ${given}.` : 'Good afternoon.';
+
+  const partnerCount = accounts.length;
+  const money = (dollars: number) => `US$${dollars.toLocaleString('en-US')}`;
 
   await db.insert(agentMessages).values([
     {
       userId,
       role: 'agent',
-      content:
-        'Good afternoon, Marcus. Your portfolio is up 6.8% this year and everything is within your limits.',
+      content: `${hello} I'm watching ${partnerCount} licensed partners for you, and everything is inside the limits you set.`,
     },
     {
       userId,
       role: 'agent',
-      content:
-        'Two things could use a look: a GOJ coupon settling Friday, and US$2,150 sitting idle.',
+      content: `One thing worth a look: ${money(idleTotal)} is sitting in cash across your chequing and savings, earning nothing.`,
     },
     { userId, role: 'user', content: 'What about the idle cash?' },
     {
       userId,
       role: 'agent',
-      content:
-        'Your US$2,150 is earning nothing. Moving it to the NCB Money Market Fund adds about US$110/yr with same-day access. Want me to prepare it?',
+      content: `The JMMB Money Market Fund you already hold returns 2.0% with same-day access. Moving the ${money(idleTotal)} there would put it to work without locking it up. I can prepare it for your approval — I can't move it myself.`,
     },
   ]);
 }
