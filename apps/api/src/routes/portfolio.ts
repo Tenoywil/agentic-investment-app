@@ -45,6 +45,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         .select({
           partnerCode: partners.code,
           partnerName: partners.name,
+          partnerKind: partners.kind,
+          partnerRegulator: partners.regulator,
           holdingName: holdings.name,
           valueMinor: holdings.valueMinor,
           ret: holdings.returnLabel,
@@ -57,10 +59,21 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         .where(eq(holdings.userId, tenant.user.id)),
     );
 
-    // Group by partner; base amounts are USD minor units.
+    // Group by partner; base amounts are USD minor units. `kind` and
+    // `regulator` ride along because the screens were printing "· FSC-regulated"
+    // under every institution as static text — true for the seeded Jamaican
+    // partners, an unverifiable claim for anyone else. Both are nullable, and
+    // the UI omits the line rather than guessing.
     const groups = new Map<
       string,
-      { code: string; name: string; totalMinor: bigint; holdings: unknown[] }
+      {
+        code: string;
+        name: string;
+        kind: string | null;
+        regulator: string | null;
+        totalMinor: bigint;
+        holdings: unknown[];
+      }
     >();
     // Allocation by asset class, derived from each holding's instrument type.
     // `holdings.instrumentId` is nullable (an ingested statement line may not
@@ -76,6 +89,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
       const group = groups.get(key) ?? {
         code: key,
         name: r.partnerName ?? 'Unlinked',
+        kind: r.partnerKind ?? null,
+        regulator: r.partnerRegulator ?? null,
         totalMinor: 0n,
         holdings: [],
       };
@@ -114,6 +129,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
       partners: [...groups.values()].map((g) => ({
         code: g.code,
         name: g.name,
+        kind: g.kind,
+        regulator: g.regulator,
         total: formatMoney(convert(money(g.totalMinor, 'USD'), display)),
         holdings: g.holdings,
       })),

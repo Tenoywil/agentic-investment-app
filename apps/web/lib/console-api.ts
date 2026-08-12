@@ -9,9 +9,10 @@ import { API_URL } from './config';
  * Every route requires the caller to hold the `partner_operator` role bound
  * to a partner (see apps/api/src/routes/console.ts's `partnerScope()`); a
  * signed-in `customer` gets a 403 `{ error: 'partner operator role
- * required' }` from all of them. Callers should check `status === 403` on
- * ConsoleApiError to render a dedicated "access required" state rather than
- * treating it as a generic failure.
+ * required' }` from all of them. The console screen no longer infers access
+ * from a 403 — `(institution)/layout.tsx` guards the surface and redirects
+ * before any of this runs — so a 403 here is a genuine failure to report,
+ * not a state to render.
  *
  * Money fields: `orders.amountMinor` and `products.aumMinor` cross the wire
  * as numeric STRINGS (raw minor units) — the API's bigintSafeJson middleware
@@ -26,11 +27,40 @@ export type ConsoleActorType = 'user' | 'agent' | 'compliance' | 'system';
 export type ConsoleProductStatus = 'live' | 'paused';
 export type ConsoleReconciliationStatus = 'pending' | 'matched' | 'rejected';
 
+export type ConsoleAgreementStatus = 'prospect' | 'dpa_pending' | 'sandbox' | 'live' | 'suspended';
+
+/** The caller's own partner row. Same shape as `me.partner`, from the
+ *  console's own partner-scoped route. */
+export interface ConsolePartner {
+  id: string;
+  code: string;
+  name: string;
+  kind: string | null;
+  regulator: string | null;
+  agreementStatus: ConsoleAgreementStatus | null;
+  residency: string | null;
+}
+
+/** One row of the immutable, hash-chained audit log, scoped to this partner.
+ *  `seq` is a bigserial and arrives as a numeric string. */
+export interface ConsoleAuditEntry {
+  id: string;
+  seq: string;
+  action: string;
+  entityType: string | null;
+  actorType: ConsoleActorType;
+  detail: unknown;
+  createdAt: string;
+}
+
 export interface ConsoleOrder {
   id: string;
   userId: string;
   partnerId: string;
   instrumentId: string | null;
+  /** From a LEFT JOIN on `instruments`; null when the order has no instrument. */
+  instrumentName: string | null;
+  instrumentAbbr: string | null;
   approvalId: string | null;
   status: ConsoleOrderStatus;
   amountMinor: string; // raw minor units, numeric string
@@ -115,6 +145,24 @@ async function consoleFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// ---- Identity & audit ----
+
+/**
+ * The caller's own partner. The console screen itself reads `me.partner` from
+ * the session context (one fetch per surface, and the branding then cannot
+ * disagree with the surface guard that let the operator in); this is the
+ * console-scoped route behind the same data, and what
+ * apps/api/test/console-surface.test.ts asserts against.
+ */
+export function getPartner(): Promise<{ partner: ConsolePartner }> {
+  return consoleFetch('/partner');
+}
+
+/** Real audit rows for this partner, newest first. Server clamps limit to 200. */
+export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> {
+  return consoleFetch(`/audit?limit=${limit}`);
+}
+
 // ---- Orders ----
 
 export function getOrders(): Promise<{ orders: ConsoleOrder[] }> {
@@ -157,6 +205,15 @@ export function rejectReconciliation(id: string, reason?: string): Promise<{ ok:
 
 export function getProducts(): Promise<{ products: ConsoleProduct[] }> {
   return consoleFetch('/products');
+}
+
+/**
+ * Flip one listing between `live` and `paused`. The server does the flip in a
+ * single guarded UPDATE and returns the resulting status, so the caller
+ * reconciles to that value rather than assuming its optimistic guess held.
+ */
+export function toggleProductLive(id: string): Promise<{ status: ConsoleProductStatus }> {
+  return consoleFetch(`/products/${id}/live`, { method: 'POST' });
 }
 
 export function getKpis(): Promise<{ kpis: ConsoleKpi[] }> {
