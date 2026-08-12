@@ -9,9 +9,37 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
  * sessions and accounts persist in the same Postgres as the domain data via the
  * Drizzle adapter. Ids are UUIDs so they satisfy the `::uuid` RLS predicate.
  */
+/**
+ * The origin Better Auth builds its OAuth callback and cookie against.
+ *
+ * In production the browser is ALWAYS on the web origin — apps/web proxies
+ * /api/* server-side, so the API's own hostname never appears in the address
+ * bar. `baseURL` must therefore be the web origin. Pointed at the API's own
+ * hostname instead, Google redirects the browser to the API domain, the session
+ * cookie is set for THAT domain, and the web app can never see it: sign-in
+ * completes, and every request after it is anonymous.
+ *
+ * That made BETTER_AUTH_URL and APP_WEB_ORIGIN two variables that must agree,
+ * with silent total failure when they don't. In production they are now one:
+ * the web origin wins, and a disagreement is logged rather than obeyed.
+ *
+ * Development is left alone — running `bun --filter web dev` talks to the API
+ * directly on another port, with no proxy, so the two legitimately differ.
+ */
+export function resolveAuthBaseUrl(config: ServerConfig): {
+  baseURL: string;
+  overridden: boolean;
+} {
+  const isProd = config.APP_ENV === 'production';
+  const disagrees = config.BETTER_AUTH_URL !== config.APP_WEB_ORIGIN;
+  if (isProd && disagrees) return { baseURL: config.APP_WEB_ORIGIN, overridden: true };
+  return { baseURL: config.BETTER_AUTH_URL, overridden: false };
+}
+
 export function createAuth(db: Database, config: ServerConfig) {
+  const { baseURL } = resolveAuthBaseUrl(config);
   return betterAuth({
-    baseURL: config.BETTER_AUTH_URL,
+    baseURL,
     secret: config.BETTER_AUTH_SECRET,
     trustedOrigins: [config.APP_WEB_ORIGIN],
     database: drizzleAdapter(db, {

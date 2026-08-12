@@ -1,7 +1,7 @@
 import { describe, loadServerConfig } from '@ccn/config';
 import { createDb } from '@ccn/db';
 import { createApp } from './app';
-import { createAuth } from './auth';
+import { createAuth, resolveAuthBaseUrl } from './auth';
 import { createLogger } from './logger';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
@@ -22,6 +22,31 @@ const logger = createLogger({
 });
 const deps = { db, auth, config, logger };
 const app = createApp(deps);
+
+/**
+ * State the effective auth wiring once, at boot.
+ *
+ * Every auth failure this project has had was a configuration mismatch producing a
+ * correct-looking 401 and no clue which of four values was wrong. These are
+ * public origins — they are visible in the browser already — so logging them
+ * costs nothing and turns "sign-in is broken" into one readable line.
+ */
+{
+  const { baseURL, overridden } = resolveAuthBaseUrl(config);
+  logger.info('auth configuration', {
+    baseURL,
+    webOrigin: config.APP_WEB_ORIGIN,
+    googleRedirectUri: `${baseURL}/api/auth/callback/google`,
+    betterAuthUrlEnv: config.BETTER_AUTH_URL,
+    overriddenToWebOrigin: overridden,
+  });
+  if (overridden) {
+    logger.error(
+      'BETTER_AUTH_URL does not match APP_WEB_ORIGIN; using APP_WEB_ORIGIN. The browser is always on the web origin because /api/* is proxied, so the callback and cookie must belong to it. Update BETTER_AUTH_URL, and make sure the Google OAuth client lists the redirect URI logged above.',
+      { betterAuthUrl: config.BETTER_AUTH_URL, using: baseURL },
+    );
+  }
+}
 
 const hub = new WsHub();
 await startEventBridge(client, hub);

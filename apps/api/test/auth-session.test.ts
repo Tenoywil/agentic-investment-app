@@ -3,7 +3,7 @@ import { loadServerConfig } from '@ccn/config';
 import { createDb, session, user } from '@ccn/db';
 import { eq } from 'drizzle-orm';
 import { createApp } from '../src/app';
-import { createAuth } from '../src/auth';
+import { createAuth, resolveAuthBaseUrl } from '../src/auth';
 import { createLogger } from '../src/logger';
 
 /**
@@ -149,5 +149,44 @@ suite('authenticated session', () => {
 
     const res = await app.request('/api/me', { headers: { cookie } });
     expect(res.status).toBe(401);
+  });
+});
+
+/**
+ * The baseURL invariant, tested without a database.
+ *
+ * `baseURL` decides where Google sends the browser back and therefore which
+ * domain the session cookie belongs to. In production the browser is always on
+ * the web origin, because /api/* is proxied there — so pointing it at the API's
+ * own hostname sets the cookie on a domain the web app cannot read, and every
+ * request after a successful sign-in is anonymous. That is not a hypothetical:
+ * it is the shape of the outage this test exists to prevent.
+ */
+describe('auth baseURL resolution', () => {
+  const base = {
+    APP_WEB_ORIGIN: 'https://app.example.com',
+    BETTER_AUTH_URL: 'https://api.example.com',
+  } as unknown as Parameters<typeof resolveAuthBaseUrl>[0];
+
+  test('production ignores a BETTER_AUTH_URL that is not the web origin', () => {
+    const r = resolveAuthBaseUrl({ ...base, APP_ENV: 'production' });
+    expect(r.baseURL).toBe('https://app.example.com');
+    expect(r.overridden).toBe(true);
+  });
+
+  test('production leaves a matching value alone', () => {
+    const r = resolveAuthBaseUrl({
+      ...base,
+      APP_ENV: 'production',
+      BETTER_AUTH_URL: 'https://app.example.com',
+    });
+    expect(r.baseURL).toBe('https://app.example.com');
+    expect(r.overridden).toBe(false);
+  });
+
+  test('development keeps them separate — dev talks to the API directly, unproxied', () => {
+    const r = resolveAuthBaseUrl({ ...base, APP_ENV: 'development' });
+    expect(r.baseURL).toBe('https://api.example.com');
+    expect(r.overridden).toBe(false);
   });
 });
