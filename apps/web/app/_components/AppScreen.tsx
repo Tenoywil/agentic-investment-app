@@ -44,14 +44,20 @@ export function AppScreen({
         {children}
       </main>
       {active === 'agent' ? null : (
+        // On a phone it is a circular icon button. As a labelled pill it is wide
+        // enough to sit across two lines of body copy while scrolling, which on
+        // a 390px screen reads as a control dropped on top of the page rather
+        // than floating above it. The label stays in the accessible name — it is
+        // hidden visually, not removed — so the control is still "Ask CCN" to a
+        // screen reader and to voice control.
         <Button
           size="pill"
           asChild
-          className="fixed bottom-[26px] right-[30px] shadow-[0_12px_30px_rgba(18,78,72,0.4)]"
+          className="fixed bottom-[26px] right-[30px] shadow-[0_12px_30px_rgba(18,78,72,0.4)] max-[900px]:bottom-4 max-[900px]:right-4 max-[900px]:h-14 max-[900px]:w-14 max-[900px]:justify-center max-[900px]:rounded-full max-[900px]:p-0"
         >
           <Link href={`${basePath}/agent`}>
-            <Sparkles className="h-[18px] w-[18px]" aria-hidden />
-            Ask CCN
+            <Sparkles className="h-[18px] w-[18px] max-[900px]:h-6 max-[900px]:w-6" aria-hidden />
+            <span className="max-[900px]:sr-only">Ask CCN</span>
           </Link>
         </Button>
       )}
