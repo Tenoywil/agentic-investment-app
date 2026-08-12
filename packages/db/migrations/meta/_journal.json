@@ -43,6 +43,13 @@
       "when": 1786480000000,
       "tag": "0005_auth_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786490000000,
+      "tag": "0006_app_role_membership",
+      "breakpoints": true
     }
   ]
 }

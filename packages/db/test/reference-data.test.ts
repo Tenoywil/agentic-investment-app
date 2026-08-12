@@ -170,4 +170,21 @@ suite('reference data and demo attachment', () => {
       expect(l.trend).toBeNull();
     }
   }, 60_000);
+  /**
+   * `SET LOCAL ROLE ccn_app` is the first statement of every RLS-scoped
+   * transaction, and it requires the connecting role to be a MEMBER of ccn_app
+   * (or a superuser). ccn_app is NOLOGIN, so it can never be the connection
+   * role itself — the API always switches into it.
+   *
+   * Nothing granted that membership until 0006. It went unnoticed because dev
+   * and CI connect as `postgres`, a superuser, which may SET ROLE to anything;
+   * managed Postgres deliberately gives you no true superuser, so production is
+   * the first place it bites — and it bites every authenticated request.
+   */
+  test('the connecting role can switch into the application role', async () => {
+    const [row] = (await db.execute(
+      "select pg_has_role(current_user, 'ccn_app', 'MEMBER') as ok",
+    )) as unknown as [{ ok: boolean }];
+    expect(row.ok).toBe(true);
+  });
 });
