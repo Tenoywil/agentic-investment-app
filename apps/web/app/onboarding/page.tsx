@@ -27,8 +27,9 @@ import {
   submitIdentity,
   submitRisk,
 } from '@/lib/onboarding-api';
-import { Check, CircleAlert } from 'lucide-react';
+import { ArrowRight, Check, CircleAlert, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import type * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   DECLARATIONS,
@@ -43,9 +44,18 @@ import {
 const LAST = ONB_LABELS.length - 1; // index of the final input step (Funds)
 const DONE = ONB_LABELS.length; // the "all set" step
 
-const LEGEND = 'mb-2.5 p-0 text-[13px] font-bold text-foreground';
-const SWITCH_ROW = 'mb-3 flex cursor-pointer items-center gap-2.5 text-[14.5px] text-foreground';
-const CHECK = 'h-[18px] w-[18px] accent-primary';
+/**
+ * Per-step lead-in copy from the prototype, kept only where it says something
+ * the step's own subtitle (ONB_SUBS) doesn't. The prototype repeated its
+ * subtitle verbatim inside the card on the risk step — a duplicate heading for
+ * a screen reader and dead weight for everyone else.
+ */
+const STEP_INTROS: (string | null)[] = [
+  'Verification is performed by the licensed partners, who already carry the regulatory duty. CCN links your verified status and shares your details only with the partner executing each trade, with your consent.',
+  'Cross-border rules require a few declarations. Your agent screens these automatically against every opportunity.',
+  null,
+  'Regulators require your occupation and the origin of the capital you invest.',
+];
 
 /** Resume point once /status comes back: the Done step if funds are already
  *  confirmed, otherwise the first step that hasn't been saved yet. */
@@ -77,6 +87,10 @@ export default function OnboardingPage() {
   // Source of truth for the Done step — set from /status on resume, or from
   // submitRisk()'s response when the step is completed live in this session.
   const [serverBand, setServerBand] = useState<string | null>(null);
+  // Whether identity is ALREADY verified server-side. The prototype showed the
+  // "documents verified" badge unconditionally; live it has to reflect real
+  // state rather than assert a verification that hasn't happened yet.
+  const [identityVerified, setIdentityVerified] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +108,7 @@ export default function OnboardingPage() {
         if (status?.sources && status.sources.length > 0) {
           setSources(Object.fromEntries(status.sources.map((id) => [id, true])));
         }
+        if (status?.identityVerified) setIdentityVerified(true);
         if (savedBand) setServerBand(formatRiskBand(savedBand));
         setStep(resumeStep(status));
       } catch (err) {
@@ -114,11 +129,11 @@ export default function OnboardingPage() {
     [answers],
   );
   const band = riskBand(scores);
+  const riskTotal = scores.reduce((a, b) => a + b, 0);
 
   const allDeclared = declared.every(Boolean);
   const riskComplete = scores.length === RISK_QUESTIONS.length;
   const hasSource = Object.values(sources).some(Boolean);
-
   const identityComplete =
     fullName.trim() !== '' && country.trim() !== '' && occupation.trim() !== '';
 
@@ -196,91 +211,158 @@ export default function OnboardingPage() {
     }
   }
 
+  const intro = step < DONE ? STEP_INTROS[step] : null;
+
   return (
     <section className="min-h-screen bg-background font-sans text-foreground">
-      <Card className="mx-auto my-10 max-w-[480px] p-8 shadow-[0_12px_44px_rgba(40,34,22,0.09)]">
+      <div className="mx-auto w-full max-w-[720px] px-5 py-10">
+        <BrandHeader showSkip={step < DONE} />
+
         {initializing ? (
-          <p className="text-[15px] text-dim">Loading your progress…</p>
+          <Card className="rounded-[22px] p-7">
+            <p className="text-[15px] text-dim">Loading your progress…</p>
+          </Card>
         ) : step < DONE ? (
           <>
-            <ol className="mb-[22px] flex list-none flex-wrap gap-2 p-0">
-              {ONB_LABELS.map((label, i) => {
-                const state = i < step ? 'done' : i === step ? 'current' : 'todo';
-                return (
-                  <li
-                    key={label}
-                    className={cn(
-                      'flex-[1_1_6rem] border-t-[3px] pt-2 text-[12.5px] font-bold',
-                      state === 'todo'
-                        ? 'border-border text-faint'
-                        : 'border-primary text-foreground',
-                    )}
-                  >
-                    {label}
-                  </li>
-                );
-              })}
-            </ol>
-            <h1 className="mb-2 font-display text-[26px] font-bold tracking-tight">
-              {ONB_TITLES[step]}
-            </h1>
-            <p className="mb-6 text-[15px] leading-relaxed text-dim">{ONB_SUBS[step]}</p>
-
-            {step === 0 ? (
-              <IdentityStep
-                fullName={fullName}
-                onFullNameChange={setFullName}
-                country={country}
-                onCountryChange={setCountry}
-                occupation={occupation}
-                onOccupationChange={setOccupation}
-              />
-            ) : null}
-            {step === 1 ? (
-              <ComplianceStep
-                declared={declared}
-                onToggle={(i, v) => setDeclared((d) => d.map((x, j) => (j === i ? v : x)))}
-              />
-            ) : null}
-            {step === 2 ? (
-              <RiskStep
-                answers={answers}
-                onPick={(q, s) => setAnswers((a) => ({ ...a, [q]: s }))}
-                band={band}
-              />
-            ) : null}
-            {step === LAST ? (
-              <FundsStep
-                sources={sources}
-                onToggle={(id, v) => setSources((s) => ({ ...s, [id]: v }))}
-              />
-            ) : null}
-
-            {error && (
-              <p className="mt-4 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
-                <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
-                {error}
+            <div className="mb-[22px] text-center">
+              <p className="mb-3.5 inline-flex items-center gap-2 rounded-[20px] bg-mint px-[15px] py-[7px] text-sm font-bold text-primary dark:text-teal2">
+                <ShieldCheck className="h-3.5 w-3.5 flex-none" aria-hidden />
+                Regulated onboarding · your agent handles the screening
               </p>
-            )}
-
-            <div className="mt-6 flex justify-between gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setStep((s) => Math.max(0, s - 1))}
-                disabled={step === 0 || busy}
-              >
-                Back
-              </Button>
-              <Button onClick={handleContinue} disabled={!canContinue || busy}>
-                {busy ? 'Saving…' : continueLabel}
-              </Button>
+              <h1 className="font-display text-[30px] font-bold leading-tight tracking-[-0.3px]">
+                {ONB_TITLES[step]}
+              </h1>
+              <p className="mt-2 text-base leading-relaxed text-dim">{ONB_SUBS[step]}</p>
             </div>
+
+            <StepBars step={step} />
+
+            <Card className="rounded-[22px] p-7">
+              {intro ? (
+                <p className="mb-5 text-[14.5px] leading-relaxed text-dim">{intro}</p>
+              ) : null}
+
+              {step === 0 ? (
+                <IdentityStep
+                  fullName={fullName}
+                  onFullNameChange={setFullName}
+                  country={country}
+                  onCountryChange={setCountry}
+                  occupation={occupation}
+                  onOccupationChange={setOccupation}
+                  verified={identityVerified}
+                />
+              ) : null}
+              {step === 1 ? (
+                <ComplianceStep
+                  declared={declared}
+                  onToggle={(i, v) => setDeclared((d) => d.map((x, j) => (j === i ? v : x)))}
+                />
+              ) : null}
+              {step === 2 ? (
+                <RiskStep
+                  answers={answers}
+                  onPick={(q, s) => setAnswers((a) => ({ ...a, [q]: s }))}
+                  band={band}
+                  total={riskTotal}
+                  complete={riskComplete}
+                />
+              ) : null}
+              {step === LAST ? (
+                <FundsStep
+                  sources={sources}
+                  onToggle={(id, v) => setSources((s) => ({ ...s, [id]: v }))}
+                />
+              ) : null}
+
+              {error && (
+                <p className="mt-4 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+                  <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+                  {error}
+                </p>
+              )}
+
+              <div className="mt-[22px] flex gap-2.5">
+                {step > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep((s) => s - 1)}
+                    disabled={busy}
+                    className="h-[52px] px-[18px]"
+                  >
+                    Back
+                  </Button>
+                )}
+                <Button
+                  onClick={handleContinue}
+                  disabled={!canContinue || busy}
+                  className="h-[52px] flex-1 text-[17px]"
+                >
+                  {busy ? 'Saving…' : continueLabel}
+                </Button>
+              </div>
+            </Card>
           </>
         ) : (
-          <DoneStep band={serverBand ?? band} />
+          <Card className="rounded-[22px] p-7">
+            <DoneStep band={serverBand ?? band} />
+          </Card>
         )}
-      </Card>
+      </div>
     </section>
+  );
+}
+
+/** `showSkip` is false on the final step — "Skip for now" is meaningless once
+ *  verification is already complete. */
+function BrandHeader({ showSkip }: { showSkip: boolean }) {
+  return (
+    <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="flex items-center gap-2.5">
+        <span
+          className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-primary font-display text-[17px] font-bold text-primary-foreground"
+          aria-hidden
+        >
+          C
+        </span>
+        <span className="font-display text-base font-bold">Caribbean Capital</span>
+      </div>
+      {showSkip ? (
+        <Button variant="outline" asChild className="h-auto gap-1.5 px-[15px] py-[9px] text-sm">
+          <Link href="/home">
+            Skip for now
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Segmented progress: a filled bar per step — teal behind you, peach for where
+ *  you are, muted ahead — with the step name under it. */
+function StepBars({ step }: { step: number }) {
+  return (
+    <ol className="mb-6 flex list-none gap-2 p-0">
+      {ONB_LABELS.map((label, i) => (
+        <li key={label} className="flex-1" aria-current={i === step ? 'step' : undefined}>
+          <div
+            className={cn(
+              'h-1.5 rounded-full',
+              i < step ? 'bg-primary' : i === step ? 'bg-peach' : 'bg-border',
+            )}
+          />
+          <div
+            className={cn(
+              'mt-[7px] text-center text-[13px] font-semibold',
+              i <= step ? 'text-foreground' : 'text-faint',
+            )}
+          >
+            {label}
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -291,6 +373,7 @@ function IdentityStep({
   onCountryChange,
   occupation,
   onOccupationChange,
+  verified,
 }: {
   fullName: string;
   onFullNameChange: (v: string) => void;
@@ -298,6 +381,7 @@ function IdentityStep({
   onCountryChange: (v: string) => void;
   occupation: string;
   onOccupationChange: (v: string) => void;
+  verified: boolean;
 }) {
   return (
     <div>
@@ -312,51 +396,66 @@ function IdentityStep({
           placeholder="As it appears on your ID"
         />
       </div>
-      <div className="mb-4 flex flex-col gap-1.5">
-        <Label htmlFor="country">Country of residence</Label>
-        <Select value={country} onValueChange={onCountryChange}>
-          <SelectTrigger id="country" aria-label="Country of residence">
-            <SelectValue placeholder="Select a country" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectLabel>Corridor countries</SelectLabel>
-              {CORRIDOR_COUNTRIES.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-            <SelectSeparator />
-            <SelectGroup>
-              <SelectLabel>All countries</SelectLabel>
-              {OTHER_COUNTRIES.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="country">Country of residence</Label>
+          <Select value={country} onValueChange={onCountryChange}>
+            <SelectTrigger id="country" aria-label="Country of residence">
+              <SelectValue placeholder="Select a country" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Corridor countries</SelectLabel>
+                {CORRIDOR_COUNTRIES.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>All countries</SelectLabel>
+                {OTHER_COUNTRIES.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="occupation">Occupation</Label>
+          <Input
+            id="occupation"
+            type="text"
+            value={occupation}
+            onChange={(e) => onOccupationChange(e.target.value)}
+            autoComplete="organization-title"
+            placeholder="e.g. Software engineer"
+          />
+        </div>
       </div>
-      <div className="mb-4 flex flex-col gap-1.5">
-        <Label htmlFor="occupation">Occupation</Label>
-        <Input
-          id="occupation"
-          type="text"
-          value={occupation}
-          onChange={(e) => onOccupationChange(e.target.value)}
-          autoComplete="organization-title"
-          placeholder="e.g. Software engineer"
-        />
-      </div>
-      <p className="inline-block rounded-[22px] border border-[#cfe3d8] bg-[#e8f1ec] px-3.5 py-2 text-[13px] font-bold text-[#0e5952]">
-        ✓ Identity documents verified · KYC Tier 2 unlocked
-      </p>
+      {verified ? <Callout>Identity documents verified · KYC Tier 2 unlocked</Callout> : null}
     </div>
   );
 }
 
+function Callout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-4 flex items-center gap-[11px] rounded-xl border border-solid border-border bg-mint px-[15px] py-[13px]">
+      <Check className="h-[18px] w-[18px] flex-none text-success" aria-hidden />
+      <span className="text-sm leading-snug text-foreground">{children}</span>
+    </div>
+  );
+}
+
+/**
+ * Declarations as bordered rows. The visible control is the styled box; the real
+ * checkbox is present but visually hidden, so keyboard operation, form semantics
+ * and screen-reader state all come from the native element instead of being
+ * re-implemented with ARIA.
+ */
 function ComplianceStep({
   declared,
   onToggle,
@@ -366,60 +465,18 @@ function ComplianceStep({
 }) {
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0">
-      <legend className={LEGEND}>Declarations</legend>
-      {DECLARATIONS.map((text, i) => (
-        <label key={text} className={SWITCH_ROW}>
-          <input
-            type="checkbox"
-            className={CHECK}
+      <legend className="sr-only">Declarations</legend>
+      <div className="flex flex-col gap-[11px]">
+        {DECLARATIONS.map((text, i) => (
+          <ToggleRow
+            key={text}
             checked={declared[i] ?? false}
-            onChange={(e) => onToggle(i, e.target.checked)}
+            onChange={(v) => onToggle(i, v)}
+            label={text}
           />
-          <span>{text}</span>
-        </label>
-      ))}
+        ))}
+      </div>
     </fieldset>
-  );
-}
-
-function RiskStep({
-  answers,
-  onPick,
-  band,
-}: {
-  answers: Record<number, number>;
-  onPick: (q: number, score: number) => void;
-  band: string;
-}) {
-  return (
-    <div>
-      {RISK_QUESTIONS.map((question, qi) => (
-        <fieldset className="m-0 mb-6 min-w-0 border-0 p-0" key={question.q}>
-          <legend className={LEGEND}>{question.q}</legend>
-          {question.opts.map((opt) => (
-            <label key={opt.key} className={cn(SWITCH_ROW, 'mb-2')}>
-              <input
-                type="radio"
-                className={CHECK}
-                name={`q${qi}`}
-                checked={answers[qi] === opt.score}
-                onChange={() => onPick(qi, opt.score)}
-              />
-              <span>{opt.label}</span>
-            </label>
-          ))}
-        </fieldset>
-      ))}
-      <output aria-live="polite" className="block text-[14.5px] text-dim">
-        {band ? (
-          <>
-            Your risk profile: <strong className="text-foreground">{band}</strong>
-          </>
-        ) : (
-          'Answer all three to see your risk profile.'
-        )}
-      </output>
-    </div>
   );
 }
 
@@ -432,41 +489,178 @@ function FundsStep({
 }) {
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0">
-      <legend className={LEGEND}>Source of funds (select all that apply)</legend>
-      {SOURCES.map((s) => (
-        <label key={s.id} className={SWITCH_ROW}>
-          <input
-            type="checkbox"
-            className={CHECK}
+      <legend className="mb-2.5 p-0 text-[13.5px] font-semibold text-foreground">
+        Source of funds (select all that apply)
+      </legend>
+      <div className="flex flex-col gap-2.5">
+        {SOURCES.map((s) => (
+          <ToggleRow
+            key={s.id}
             checked={sources[s.id] ?? false}
-            onChange={(e) => onToggle(s.id, e.target.checked)}
+            onChange={(v) => onToggle(s.id, v)}
+            label={s.label}
           />
-          <span>{s.label}</span>
-        </label>
-      ))}
+        ))}
+      </div>
     </fieldset>
+  );
+}
+
+function ToggleRow({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="block cursor-pointer">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer sr-only"
+      />
+      <span
+        className={cn(
+          'flex items-center gap-3 rounded-[13px] border border-solid px-4 py-3.5 text-[15px] leading-snug transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2',
+          checked ? 'border-primary bg-mint' : 'border-border bg-card hover:border-primary/50',
+        )}
+      >
+        <span
+          className={cn(
+            // Explicit 6px radius, not `rounded-md`: the theme maps that to
+            // ~10px (var(--radius) - 4px), which fully rounds a 22px box and
+            // makes the checkbox read as a dot. Border is `dim`, not `input` —
+            // `input` is barely 1.3:1 on the card, so an unchecked box was
+            // invisible, well under the 3:1 WCAG 1.4.11 asks for a control
+            // boundary that identifies the control.
+            'grid h-[22px] w-[22px] flex-none place-items-center rounded-[6px] border-2 border-solid transition-colors',
+            checked ? 'border-primary bg-primary' : 'border-dim bg-background',
+          )}
+          aria-hidden
+        >
+          {checked ? <Check className="h-3.5 w-3.5 text-primary-foreground" /> : null}
+        </span>
+        <span className="flex-1 text-foreground">{label}</span>
+      </span>
+    </label>
+  );
+}
+
+/**
+ * The fact-find. Options are lettered A-E as in the prototype, but each is a
+ * real radio input behind the styling, so a keyboard user gets arrow-key
+ * navigation within a question and a screen reader hears a grouped choice
+ * rather than a row of unrelated buttons.
+ */
+function RiskStep({
+  answers,
+  onPick,
+  band,
+  total,
+  complete,
+}: {
+  answers: Record<number, number>;
+  onPick: (q: number, score: number) => void;
+  band: string;
+  total: number;
+  complete: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      {RISK_QUESTIONS.map((question, qi) => (
+        <fieldset className="m-0 min-w-0 border-0 p-0" key={question.q}>
+          <legend className="mb-2.5 p-0 text-[15.5px] font-semibold text-foreground">
+            {question.q}
+          </legend>
+          <div className="flex flex-col gap-2">
+            {question.opts.map((opt) => {
+              const selected = answers[qi] === opt.score;
+              return (
+                <label key={opt.key} className="block cursor-pointer">
+                  <input
+                    type="radio"
+                    name={`q${qi}`}
+                    checked={selected}
+                    onChange={() => onPick(qi, opt.score)}
+                    className="peer sr-only"
+                  />
+                  <span
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl border border-solid px-3.5 py-3 text-[15px] leading-snug transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2',
+                      selected
+                        ? 'border-primary bg-mint'
+                        : 'border-input bg-card hover:border-primary/50',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'grid h-7 w-7 flex-none place-items-center rounded-lg text-[13px] font-bold transition-colors',
+                        selected
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                      aria-hidden
+                    >
+                      {opt.key}
+                    </span>
+                    <span className="flex-1 text-foreground">{opt.label}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      ))}
+      <output
+        aria-live="polite"
+        className="flex items-center justify-between gap-3 rounded-xl border border-solid border-border bg-muted px-4 py-3.5"
+      >
+        <span className="text-[13.5px] font-bold uppercase tracking-wide text-dim">
+          Derived risk profile
+        </span>
+        {complete ? (
+          <span className="font-display text-[17px] font-bold text-foreground">
+            {band} · score {total}
+          </span>
+        ) : (
+          <span className="text-sm font-semibold text-dim">Answer all three</span>
+        )}
+      </output>
+    </div>
   );
 }
 
 function DoneStep({ band }: { band: string }) {
   return (
-    <div>
-      <span className="mb-3 inline-grid h-[34px] w-[34px] place-items-center rounded-full bg-primary text-white">
-        <Check className="h-[18px] w-[18px]" aria-hidden />
+    <div className="py-3.5 text-center">
+      <span className="mx-auto mb-[18px] grid h-[72px] w-[72px] place-items-center rounded-full bg-mint">
+        <Check className="h-[38px] w-[38px] text-success" aria-hidden />
       </span>
-      <h1 className="mb-2 font-display text-[26px] font-bold tracking-tight">
+      <h1 className="font-display text-[23px] font-bold tracking-tight">
         You're verified · Tier 2
       </h1>
-      <p className="text-[15px] leading-relaxed text-dim">
-        Your agent can now act within the limits you set.
+      <p className="mx-auto mt-2.5 max-w-[400px] text-[15px] leading-relaxed text-dim">
+        Your agent can now discover, screen and coordinate execution across every licensed partner
+        in the network, always on your approval.
       </p>
-      <ul className="my-4 list-disc pl-5 leading-loose">
-        <li>Identity — KYC Tier 2</li>
-        <li>Suitability — {band || 'High Moderate'} profile</li>
-        <li>Source of funds — confirmed</li>
+      <ul className="mx-auto mt-5 flex max-w-[360px] list-none flex-col gap-2 p-0 text-left">
+        {[
+          'Identity verified (KYC · Tier 2)',
+          `Suitability: ${band || 'High Moderate'} profile`,
+          'Source of funds confirmed',
+        ].map((item) => (
+          <li key={item} className="flex items-center gap-2.5 text-[14.5px] text-foreground">
+            <Check className="h-4 w-4 flex-none text-success" aria-hidden />
+            {item}
+          </li>
+        ))}
       </ul>
-      <Button asChild>
-        <Link href="/">Explore opportunities</Link>
+      <Button asChild className="mt-6">
+        <Link href="/home">Explore opportunities</Link>
       </Button>
     </div>
   );
