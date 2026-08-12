@@ -1,4 +1,4 @@
-import { demoCustomerAllowlist, operatorAllowlist } from '@ccn/config';
+import { type AllowlistConfig, demoCustomerAllowlist, operatorAllowlist } from '@ccn/config';
 import { partners, seedDemoCustomer, userRoles } from '@ccn/db';
 import { eq, sql } from 'drizzle-orm';
 import type { AppDeps, SessionUser } from './context';
@@ -26,6 +26,20 @@ function lockKey(userId: string) {
 }
 
 /**
+ * The subset of AppDeps this needs. Narrowed so the `grant` CLI can call the
+ * exact same function without standing up Better Auth or supplying the OAuth and
+ * LLM secrets it never reads — pre-provisioning a demo identity must produce
+ * byte-identical state to the lazy path, and the only way to guarantee that is
+ * for both to be one implementation. `AppDeps` satisfies this structurally, so
+ * request handlers pass their deps unchanged.
+ */
+export interface ProvisioningDeps {
+  db: AppDeps['db'];
+  config: AllowlistConfig;
+  logger: AppDeps['logger'];
+}
+
+/**
  * Grant the caller their initial role. No-op when they already hold one.
  *
  * Fails closed everywhere: an email absent from the operator allowlist, or one
@@ -33,7 +47,7 @@ function lockKey(userId: string) {
  * than an unbound operator. `surfaceFor()` also treats an operator without a
  * `partnerId` as a customer, so even a partial write cannot open the console.
  */
-export async function ensureProvisioned(deps: AppDeps, user: SessionUser): Promise<void> {
+export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUser): Promise<void> {
   const email = user.email.trim().toLowerCase();
   const grant = operatorAllowlist(deps.config).get(email);
 

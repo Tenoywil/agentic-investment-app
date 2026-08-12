@@ -101,6 +101,19 @@ export interface OperatorGrant {
   partnerCode: string;
 }
 
+/**
+ * The three fields the allowlist helpers actually read. Declared separately from
+ * `ServerConfig` so a DB-only tool (the `grant` CLI) can resolve the same
+ * allowlists without also having to supply OAuth secrets and an LLM key it will
+ * never use. `ServerConfig` structurally satisfies this, so callers holding a
+ * full config pass it unchanged.
+ */
+export interface AllowlistConfig {
+  PARTNER_OPERATOR_EMAILS: string;
+  DEMO_CUSTOMER_EMAILS: string;
+  DEMO_PARTNER_CODE: string;
+}
+
 function splitList(raw: string): string[] {
   return raw
     .split(',')
@@ -113,7 +126,7 @@ function splitList(raw: string): string[] {
  * `email` (falling back to DEMO_PARTNER_CODE) or `email:CODE`. Emails are
  * lowercased so the lookup matches whatever casing the provider returns.
  */
-export function operatorAllowlist(config: ServerConfig): Map<string, OperatorGrant> {
+export function operatorAllowlist(config: AllowlistConfig): Map<string, OperatorGrant> {
   const out = new Map<string, OperatorGrant>();
   for (const entry of splitList(config.PARTNER_OPERATOR_EMAILS)) {
     const [rawEmail, rawCode] = entry.split(':');
@@ -128,7 +141,7 @@ export function operatorAllowlist(config: ServerConfig): Map<string, OperatorGra
 }
 
 /** Emails that receive the seeded Caribbean demo portfolio on first sign-in. */
-export function demoCustomerAllowlist(config: ServerConfig): Set<string> {
+export function demoCustomerAllowlist(config: AllowlistConfig): Set<string> {
   return new Set(splitList(config.DEMO_CUSTOMER_EMAILS).map((e) => e.toLowerCase()));
 }
 
@@ -137,7 +150,7 @@ export function demoCustomerAllowlist(config: ServerConfig): Set<string> {
  * customer account silently becomes an operator and lands on the wrong surface.
  * Reject it at startup rather than debugging it on stage.
  */
-function assertAllowlistsDisjoint(config: ServerConfig): void {
+function assertAllowlistsDisjoint(config: AllowlistConfig): void {
   const operators = operatorAllowlist(config);
   const overlap = [...demoCustomerAllowlist(config)].filter((e) => operators.has(e));
   if (overlap.length > 0) {
