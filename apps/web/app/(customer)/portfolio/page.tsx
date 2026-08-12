@@ -2,6 +2,7 @@
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { Card } from '@/app/_components/ui/card';
+import { EmptyState } from '@/app/_components/ui/empty';
 import { cn } from '@/app/_lib/utils';
 import {
   type AllocationSlice,
@@ -9,8 +10,9 @@ import {
   type Portfolio,
   PortfolioApiError,
   getPortfolio,
+  regulatorLabel,
 } from '@/lib/portfolio-api';
-import { CircleAlert, ShieldCheck } from 'lucide-react';
+import { CircleAlert, ShieldCheck, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 /**
@@ -171,9 +173,11 @@ export default function PortfolioPage() {
       )}
 
       {data && data.partners.length === 0 && !error && (
-        <p className="text-sm text-dim">
-          No holdings yet. Once your accounts are linked, your positions will appear here.
-        </p>
+        <EmptyState
+          icon={Wallet}
+          title="No holdings yet"
+          body="Once your accounts are linked, every position you hold appears here, grouped by the institution that custodies it."
+        />
       )}
 
       {data && data.allocation.length > 0 && <AllocationBreakdown slices={data.allocation} />}
@@ -193,10 +197,20 @@ export default function PortfolioPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="text-[15px] font-bold">{inst.name}</div>
+                    {inst.kind && <div className="text-[12.5px] text-faint">{inst.kind}</div>}
                   </div>
                   <div className="text-right">
                     <div className="font-mono text-[15px] font-bold">{inst.total}</div>
-                    <div className="text-[11.5px] text-success">· FSC-regulated</div>
+                    {/* This partner's regulator, from the partners table.
+                        Previously every institution carried a static
+                        "· FSC-regulated", true of the seeded Jamaican partners
+                        and an unverifiable claim for anyone else. Nothing is
+                        rendered when the record names no regulator. */}
+                    {inst.regulator && (
+                      <div className="text-[11.5px] text-success">
+                        {regulatorLabel(inst.regulator)}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {inst.holdings.map((h) => (
@@ -227,9 +241,9 @@ export default function PortfolioPage() {
       <div className="mt-[18px] flex items-start gap-3.5 rounded-2xl border border-border bg-mint px-[22px] py-[18px]">
         <ShieldCheck className="mt-0.5 h-[22px] w-[22px] flex-none text-teal2" aria-hidden />
         <p className="m-0 text-[14.5px] leading-relaxed text-dim">
-          <b className="text-foreground">Held at licensed, FSC-regulated partners.</b> Every
-          instrument is custodied and executed by a regulated institution. Your agent coordinates
-          and monitors; you approve every move.
+          <b className="text-foreground">Held at licensed, regulated partners.</b> Every instrument
+          is custodied and executed by a regulated institution. Your agent coordinates and monitors;
+          you approve every move.
         </p>
       </div>
     </AppScreen>

@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import { EmptyState } from '@/app/_components/ui/empty';
 import { cn } from '@/app/_lib/utils';
 import { authClient } from '@/lib/auth-client';
 import {
@@ -17,8 +18,17 @@ import {
   getAgentHistory,
   getApprovals,
   getPortfolio,
+  regulatorLabel,
 } from '@/lib/portfolio-api';
-import { Bell, CircleAlert, LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
+import {
+  CheckCheck,
+  CircleAlert,
+  LineChart,
+  type LucideIcon,
+  PieChart,
+  Sparkles,
+  Wallet,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -244,131 +254,119 @@ export default function HomePage() {
     .slice(-3)
     .reverse();
 
+  const latestAgentMessage = recentAgentActivity[0] ?? null;
+  const largestSlice = allocation[0] ?? null;
+
+  /**
+   * Two cards, both from GET /api/portfolio. There were three: a "Blended
+   * yield" of 6.2% and a "Matched to your goals" count of 6, each documented in
+   * this file as invented because nothing served them. They are gone rather
+   * than approximated — a number on a customer's own dashboard has to be their
+   * number.
+   */
   const stats: {
     label: string;
     Icon: LucideIcon;
     val: string;
     valClass: string;
     sub: string;
-    subClass: string;
-  }[] = [
-    {
-      label: 'Tracked across partners',
-      Icon: LineChart,
-      val: portfolio?.netWorth ?? (portfolioLoading ? '···' : '—'),
-      valClass: 'text-foreground',
-      sub: portfolio
-        ? `${holdingsCount} holdings · ${partnersCount} institutions · live`
-        : portfolioLoading
-          ? 'Loading…'
-          : 'Unavailable',
-      subClass: 'text-faint',
-    },
-    {
-      // Blended yield needs a value-weighted return across holdings, but the
-      // portfolio API only returns pre-formatted display strings (no raw
-      // minor-unit values per holding), so it can't be computed client-side.
-      // Illustrative static figure.
-      label: 'Blended yield',
-      Icon: TrendingUp,
-      val: '6.2%',
-      valClass: 'text-success',
-      sub: '≈ US$1,940 income / year',
-      subClass: 'text-faint',
-    },
-    {
-      // Gateway match count is out of scope here — it's owned by the
-      // opportunities-screen wiring, not the portfolio/approvals/agent
-      // endpoints this page draws from. Left static.
-      label: 'Matched to your goals',
-      Icon: Sparkles,
-      val: '6',
-      valClass: 'text-foreground',
-      sub: '2 ready for your approval →',
-      subClass: 'font-bold text-terra',
-    },
-  ];
+  }[] = portfolio
+    ? [
+        {
+          label: 'Tracked across partners',
+          Icon: LineChart,
+          val: portfolio.netWorth,
+          valClass: 'text-foreground',
+          sub: `${holdingsCount} ${holdingsCount === 1 ? 'holding' : 'holdings'} · ${partnersCount} ${
+            partnersCount === 1 ? 'institution' : 'institutions'
+          }`,
+        },
+        {
+          label: 'Asset classes held',
+          Icon: PieChart,
+          val: String(allocation.length),
+          valClass: 'text-foreground',
+          sub: largestSlice
+            ? `${largestSlice.label} leads at ${largestSlice.pct}%`
+            : 'By allocation',
+        },
+      ]
+    : [];
 
   return (
     <AppScreen active="home">
       <PageHead
         eyebrow={todayLabel()}
         title={greeting(userName)}
+        // The notification bell that stood here had no handler and no
+        // notifications behind it — there is no notification record anywhere in
+        // the schema — so it is gone rather than decorative.
         right={
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Notifications"
-              className="h-[42px] w-[42px] rounded-full text-dim [&_svg]:size-[18px]"
-            >
-              <Bell />
-            </Button>
-            <Avatar className="h-[42px] w-[42px]">
-              <AvatarFallback>{initials(userName)}</AvatarFallback>
-            </Avatar>
-          </div>
+          <Avatar className="h-[42px] w-[42px]">
+            <AvatarFallback>{initials(userName)}</AvatarFallback>
+          </Avatar>
         }
       />
 
       {/* Hero card */}
       <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">
+        {/* Net worth is the only figure here. The "↑6.8% · +US$1,994 all-time ·
+            yield 6.2%" line and the rising sparkline under it were drawn from
+            constants: there is no valuation history in the schema, so no
+            change, no all-time return and no trend can be computed for anyone.
+            What replaces them is what the portfolio endpoint does know. */}
         <div>
-          <div className={cn(UPPR, 'text-[#eafaf5]/[.66]')}>
-            Total net worth
-            {portfolio && ` · ${partnersCount} licensed partner${partnersCount === 1 ? '' : 's'}`}
-          </div>
-          <div className="my-[10px] mb-3 font-display text-[52px] font-bold leading-none tracking-[-1.5px]">
-            {portfolio?.netWorth ?? (portfolioLoading ? '···' : '—')}
-          </div>
+          <div className={cn(UPPR, 'text-[#eafaf5]/[.66]')}>Total net worth</div>
+          {portfolio ? (
+            <div
+              className="my-[10px] mb-3 font-display text-[52px] font-bold leading-none tracking-[-1.5px]"
+              data-tour="customer-net-worth"
+            >
+              {portfolio.netWorth}
+            </div>
+          ) : portfolioLoading ? (
+            <p className="my-[10px] mb-3 text-[17px] text-[#eafaf5]/[.82]">
+              Adding up your position…
+            </p>
+          ) : null}
           {portfolioError && (
             <p className="mb-3 flex items-center gap-2 text-sm text-[#f6d9c9]">
               <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
               {portfolioError}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2.5 text-sm text-[#eafaf5]/[.82]">
-            <span className="rounded-[7px] bg-white/[.12] px-[9px] py-[3px] font-mono font-bold text-[#9fe6c6]">
-              ↑ 6.8%
-            </span>
-            +US$1,994 all-time · {portfolio ? `${holdingsCount} holdings` : '… holdings'} · yield
-            6.2%
-          </div>
-          <svg
-            width="100%"
-            height="64"
-            viewBox="0 0 420 64"
-            preserveAspectRatio="none"
-            className="mt-4"
-            aria-hidden="true"
-          >
-            <polyline
-              points="0,52 40,48 80,50 120,40 160,44 200,32 240,36 280,24 320,26 360,16 420,10"
-              fill="none"
-              stroke="rgba(159,230,198,.75)"
-              strokeWidth="2.5"
-            />
-          </svg>
+          {portfolio && (
+            <div className="text-sm text-[#eafaf5]/[.82]">
+              {holdingsCount === 0
+                ? `Nothing linked yet · shown in ${portfolio.currency}`
+                : `${holdingsCount} ${holdingsCount === 1 ? 'holding' : 'holdings'} · ${partnersCount} licensed ${
+                    partnersCount === 1 ? 'partner' : 'partners'
+                  } · shown in ${portfolio.currency}`}
+            </div>
+          )}
         </div>
         <div className="border-l border-[#eafaf5]/[.16] pl-[26px]">
           <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.66]')}>
             <span className="h-[7px] w-[7px] rounded-full bg-peach" />
             Your agent · acting within your limits
           </div>
-          <p className="my-3 mb-[18px] text-[17px] font-medium leading-relaxed text-white">
-            This week I matched <b className="text-gold">6 opportunities</b>, swept{' '}
-            <b className="text-gold">US$400</b> of idle cash inside your limit, and{' '}
-            {pendingApprovals.length > 0 ? (
-              <>
-                prepared{' '}
-                <b className="text-gold">
-                  {pendingApprovals.length} action{pendingApprovals.length === 1 ? '' : 's'}
-                </b>{' '}
-                for your approval.
-              </>
-            ) : (
-              "there's nothing waiting on your approval right now."
-            )}
+          {/* Was: "This week I matched 6 opportunities, swept US$400 of idle
+              cash inside your limit" — a sentence in the first person about
+              work that never happened, on every account. What the agent has
+              actually done is its last message and the approvals it is waiting
+              on, both of which are records. */}
+          <p className="my-3 mb-2 line-clamp-3 text-[17px] font-medium leading-relaxed text-white">
+            {agentLoading
+              ? 'Catching up with your agent…'
+              : latestAgentMessage
+                ? latestAgentMessage.content
+                : 'Your agent is watching the region for you. Ask it anything to get started.'}
+          </p>
+          <p className="mb-[18px] text-sm text-[#eafaf5]/[.82]">
+            {latestAgentMessage && `${relativeTime(latestAgentMessage.createdAt)} · `}
+            {pendingApprovals.length > 0
+              ? `${pendingApprovals.length} ${pendingApprovals.length === 1 ? 'action is' : 'actions are'} waiting for your approval`
+              : 'Nothing is waiting on your approval'}
           </p>
           <div className="flex flex-wrap gap-2.5">
             <Button variant="peach" asChild>
@@ -443,7 +441,12 @@ export default function HomePage() {
           {agentLoading && <p className="mb-[15px] text-sm text-dim">Loading recent activity…</p>}
           {agentError && !agentLoading && <ErrorLine message={agentError} />}
           {!agentLoading && !agentError && recentAgentActivity.length === 0 && (
-            <p className="mb-[15px] text-sm text-dim">No recent agent activity yet.</p>
+            <EmptyState
+              className="mb-[15px]"
+              icon={Sparkles}
+              title="Your agent hasn't acted yet"
+              body="Everything it does inside your limits is recorded here, newest first."
+            />
           )}
           {recentAgentActivity.map((m, i) => (
             <div key={`${m.createdAt}-${i}`} className="mb-[15px] flex gap-2.5">
@@ -461,17 +464,23 @@ export default function HomePage() {
           </Button>
         </Card>
 
-        <Card className="p-[22px]">
+        <Card className="p-[22px]" data-tour="customer-approvals">
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-            <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
-              {pendingApprovals.length}
-            </span>
+            {pendingApprovals.length > 0 && (
+              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra">
+                {pendingApprovals.length}
+              </span>
+            )}
           </div>
           {approvalsLoading && <p className="text-sm text-dim">Loading…</p>}
           {approvalsError && !approvalsLoading && <ErrorLine message={approvalsError} />}
           {!approvalsLoading && !approvalsError && pendingApprovals.length === 0 && (
-            <p className="text-sm text-dim">Nothing needs your approval right now.</p>
+            <EmptyState
+              icon={CheckCheck}
+              title="Nothing needs your approval"
+              body="Moves outside your limits wait here for a decision from you."
+            />
           )}
           {pendingApprovals.map((a) => {
             const tag = APPROVAL_TAG[a.type] ?? { label: a.type, color: '#124e48' };
@@ -500,23 +509,25 @@ export default function HomePage() {
         </Card>
       </div>
 
-      {/* Stat cards */}
-      <div className="g3 mt-[18px]">
-        {stats.map((s) => (
-          <Card key={s.label} className="p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm text-dim">{s.label}</span>
-              <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-mint text-teal2">
-                <s.Icon className="h-[18px] w-[18px]" aria-hidden />
-              </span>
-            </div>
-            <div className={cn('font-display text-3xl font-bold tracking-[-.5px]', s.valClass)}>
-              {s.val}
-            </div>
-            <div className={cn('mt-1 text-[13.5px]', s.subClass)}>{s.sub}</div>
-          </Card>
-        ))}
-      </div>
+      {/* Stat cards — two, both served by /api/portfolio */}
+      {stats.length > 0 && (
+        <div className="g2 mt-[18px]">
+          {stats.map((s) => (
+            <Card key={s.label} className="p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm text-dim">{s.label}</span>
+                <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-mint text-teal2">
+                  <s.Icon className="h-[18px] w-[18px]" aria-hidden />
+                </span>
+              </div>
+              <div className={cn('font-display text-3xl font-bold tracking-[-.5px]', s.valClass)}>
+                {s.val}
+              </div>
+              <div className="mt-1 text-[13.5px] text-faint">{s.sub}</div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Held / Allocation */}
       <div className="g-held mt-[18px]">
@@ -534,7 +545,11 @@ export default function HomePage() {
             </div>
           )}
           {portfolio && portfolio.partners.length === 0 && (
-            <p className="py-[11px] text-sm text-dim">No holdings yet.</p>
+            <EmptyState
+              icon={Wallet}
+              title="No holdings yet"
+              body="Link an account or invest through an opportunity, and every position appears here, grouped by institution."
+            />
           )}
           {portfolio?.partners.map((h, index) => {
             const style = partnerStyle(h.code, index);
@@ -556,7 +571,14 @@ export default function HomePage() {
                 </div>
                 <div className="text-right">
                   <div className="font-mono text-sm font-bold">{h.total}</div>
-                  <div className="text-[11.5px] text-success">· FSC-regulated</div>
+                  {/* The partner's own regulator, not the blanket
+                      "· FSC-regulated" this used to print under every
+                      institution. Omitted entirely when the partner record
+                      names none — claiming a regulator is not a detail to
+                      guess at. */}
+                  {h.regulator && (
+                    <div className="text-[11.5px] text-success">{regulatorLabel(h.regulator)}</div>
+                  )}
                 </div>
               </div>
             );
@@ -571,9 +593,11 @@ export default function HomePage() {
               : 'By asset class'}
           </div>
           {allocation.length === 0 ? (
-            <p className="text-[13.5px] text-dim">
-              Once you hold something, the breakdown by asset class appears here.
-            </p>
+            <EmptyState
+              icon={PieChart}
+              title="Nothing to break down yet"
+              body="Once you hold something, your split by asset class appears here."
+            />
           ) : (
             <div className="flex items-center gap-[18px]">
               <Donut slices={allocation} />

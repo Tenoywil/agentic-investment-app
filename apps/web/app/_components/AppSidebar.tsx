@@ -2,8 +2,8 @@
 
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { cn } from '@/app/_lib/utils';
+import { type Approval, getApprovals } from '@/lib/portfolio-api';
 import {
-  Building2,
   Compass,
   HandHeart,
   LayoutGrid,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 type Key =
   | 'home'
@@ -28,15 +29,22 @@ type Key =
   | 'gatewayOpportunities'
   | 'gatewayIntroductions';
 
+/**
+ * Nav items carry no counts. Each one used to ship a hardcoded badge (4, 8, 2)
+ * that matched nothing in the database — on a brand-new account the sidebar
+ * would announce eight opportunities and two pending actions before the user
+ * owned anything at all. The one count that is real (approvals awaiting you) is
+ * fetched below and shown once, in the agent card.
+ */
 const GROUPS: {
   label: string;
-  items: { key: Key; label: string; href: string; Icon: LucideIcon; badge?: number }[];
+  items: { key: Key; label: string; href: string; Icon: LucideIcon; tour?: string }[];
 }[] = [
   {
     label: 'Overview',
     items: [
       { key: 'home', label: 'Home', href: '/home', Icon: LayoutGrid },
-      { key: 'portfolio', label: 'Portfolio', href: '/portfolio', Icon: LineChart, badge: 4 },
+      { key: 'portfolio', label: 'Portfolio', href: '/portfolio', Icon: LineChart },
     ],
   },
   {
@@ -47,9 +55,9 @@ const GROUPS: {
         label: 'Opportunities',
         href: '/opportunities',
         Icon: TrendingUp,
-        badge: 8,
+        tour: 'customer-opportunities',
       },
-      { key: 'agent', label: 'Agent', href: '/agent', Icon: Sparkles, badge: 2 },
+      { key: 'agent', label: 'Agent', href: '/agent', Icon: Sparkles, tour: 'customer-agent' },
     ],
   },
   {
@@ -78,6 +86,93 @@ const GROUPS: {
     ],
   },
 ];
+
+const CARD_TITLE = 'mb-1 font-display text-base font-semibold';
+const CARD_BODY = 'mb-3 text-[13.5px] leading-snug opacity-80';
+
+/**
+ * The agent card, live surface: how many approvals are actually waiting on you.
+ * It used to read "6 opportunities matched / 2 actions ready for your approval
+ * this week" on every screen for every user, including one who had just signed
+ * up. Zero is a real answer here and is written as one.
+ */
+function AgentCard() {
+  const [approvals, setApprovals] = useState<Approval[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getApprovals()
+      .then(({ approvals: rows }) => {
+        if (!cancelled) setApprovals(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const pending = approvals?.filter((a) => a.status === 'pending').length ?? null;
+
+  return (
+    <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5]">
+      <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
+        <span className="h-[7px] w-[7px] rounded-full bg-peach" />
+        Your agent · live
+      </div>
+      {pending === null ? (
+        <>
+          <div className={CARD_TITLE}>{failed ? 'Your agent' : 'Checking with your agent…'}</div>
+          <div className={CARD_BODY}>
+            {failed
+              ? 'Open the agent to see what needs a decision.'
+              : 'Looking for anything waiting on your decision.'}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={CARD_TITLE}>
+            {pending === 0 ? 'Nothing waiting on you' : `${pending} waiting on you`}
+          </div>
+          <div className={CARD_BODY}>
+            {pending === 0
+              ? 'Anything needing your approval will appear here.'
+              : `${pending === 1 ? 'One action is' : `${pending} actions are`} ready for your approval.`}
+          </div>
+        </>
+      )}
+      <Link
+        href="/agent"
+        className="block rounded-[11px] bg-peach py-[11px] text-center text-[15px] font-bold text-[#3a2415] no-underline"
+      >
+        {pending !== null && pending > 0 ? 'Review with agent' : 'Open your agent'}
+      </Link>
+    </div>
+  );
+}
+
+/** The same card in the fixture-only preview shell, which has no session and
+ *  must not call the API. It states what it is instead of inventing counts. */
+function DemoAgentCard({ basePath }: { basePath: string }) {
+  return (
+    <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5]">
+      <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
+        <span className="h-[7px] w-[7px] rounded-full bg-peach" />
+        Your agent · demo
+      </div>
+      <div className={CARD_TITLE}>A preview of the investor app</div>
+      <div className={CARD_BODY}>Sample data. Sign in to see your own position.</div>
+      <Link
+        href={`${basePath}/agent`}
+        className="block rounded-[11px] bg-peach py-[11px] text-center text-[15px] font-bold text-[#3a2415] no-underline"
+      >
+        See the agent
+      </Link>
+    </div>
+  );
+}
 
 export function AppSidebar({
   active,
@@ -116,13 +211,14 @@ export function AppSidebar({
           <div className="px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
             {g.label}
           </div>
-          {g.items.map(({ key, label, href, Icon, badge }) => {
+          {g.items.map(({ key, label, href, Icon, tour }) => {
             const on = key === active;
             return (
               <Link
                 key={key}
                 href={`${basePath}${href}`}
                 aria-current={on ? 'page' : undefined}
+                data-tour={basePath ? undefined : tour}
                 className={cn(
                   'mb-0.5 flex items-center gap-3 rounded-[11px] px-3 py-[11px] text-[15px] no-underline',
                   on ? 'bg-mint font-bold text-primary' : 'font-semibold text-dim',
@@ -130,16 +226,6 @@ export function AppSidebar({
               >
                 <Icon className="h-[21px] w-[21px]" aria-hidden />
                 <span className="flex-1">{label}</span>
-                {badge ? (
-                  <span
-                    className={cn(
-                      'min-w-[22px] rounded-full px-1.5 py-px text-center text-[12.5px] font-bold',
-                      on ? 'bg-primary text-white' : 'bg-border text-dim',
-                    )}
-                  >
-                    {badge}
-                  </span>
-                ) : null}
               </Link>
             );
           })}
@@ -148,31 +234,24 @@ export function AppSidebar({
 
       <div className="app-sidebar__grow flex-1" />
 
-      <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5]">
-        <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
-          <span className="h-[7px] w-[7px] rounded-full bg-peach" />
-          Your agent · {basePath ? 'demo' : 'live'}
-        </div>
-        <div className="mb-1 font-display text-base font-semibold">6 opportunities matched</div>
-        <div className="mb-3 text-[13.5px] leading-snug opacity-80">
-          2 actions ready for your approval this week.
-        </div>
-        <Link
-          href={`${basePath}/agent`}
-          className="block rounded-[11px] bg-peach py-[11px] text-center text-[15px] font-bold text-[#3a2415] no-underline"
-        >
-          Review with agent
-        </Link>
-      </div>
+      {basePath ? <DemoAgentCard basePath={basePath} /> : <AgentCard />}
 
+      {/* No console link on the customer surface: the institution console is a
+          different product for a different account, and /api/console answers a
+          customer with 403 — a visible route into it is a dead end at best. The
+          demo shell keeps its link because that preview has both shells and no
+          sign-in at all. */}
       <div className="flex items-center justify-between">
-        <Link
-          href={`${basePath}/institutions`}
-          className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
-        >
-          <Building2 className="h-5 w-5" aria-hidden />
-          For institutions
-        </Link>
+        {basePath ? (
+          <Link
+            href={`${basePath}/institutions`}
+            className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
+          >
+            For institutions
+          </Link>
+        ) : (
+          <span />
+        )}
         <ThemeToggle />
       </div>
     </nav>

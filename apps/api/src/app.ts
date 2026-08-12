@@ -19,6 +19,7 @@ import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
 import { gatewayRoutes } from './routes/gateway';
 import { ingestionRoutes } from './routes/ingestion';
+import { limitsRoutes } from './routes/limits';
 import { onboardingRoutes } from './routes/onboarding';
 import { opportunitiesRoutes } from './routes/opportunities';
 import { ordersRoutes } from './routes/orders';
@@ -92,6 +93,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/opportunities/*', requireCustomer(deps));
   app.use('/api/planning/*', requireCustomer(deps));
   app.use('/api/onboarding/*', requireCustomer(deps));
+  app.use('/api/limits/*', requireCustomer(deps));
   // The gateway is the investor-facing private-deal product, so it belongs to
   // the customer surface. Its analyst/compliance review endpoints still work:
   // requireCustomer turns away partner operators only, and analysts hold no
@@ -168,6 +170,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/opportunities', opportunitiesRoutes(deps));
   app.route('/api/planning', planningRoutes(deps));
   app.route('/api/onboarding', onboardingRoutes(deps));
+  app.route('/api/limits', limitsRoutes(deps));
   app.route('/api/gateway', gatewayRoutes(deps, limit));
 
   return app;
