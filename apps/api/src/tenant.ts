@@ -1,6 +1,7 @@
 import { userRoles } from '@ccn/db';
 import { eq } from 'drizzle-orm';
 import type { AppDeps, SessionUser, TenantContext } from './context';
+import { ensureProvisioned } from './provisioning';
 
 /**
  * Resolve a user's roles and tenant scope. The roles lookup is an auth bootstrap,
@@ -9,10 +10,21 @@ import type { AppDeps, SessionUser, TenantContext } from './context';
  * identity identically.
  */
 export async function tenantFromUser(deps: AppDeps, user: SessionUser): Promise<TenantContext> {
-  const roleRows = await deps.db
+  let roleRows = await deps.db
     .select({ role: userRoles.role, partnerId: userRoles.partnerId })
     .from(userRoles)
     .where(eq(userRoles.userId, user.id));
+
+  // A user with no roles has never been provisioned — grant their initial role
+  // now and re-read. Nothing else in the product assigns roles, so this is the
+  // only path by which a real Google identity ever gets one.
+  if (roleRows.length === 0) {
+    await ensureProvisioned(deps, user);
+    roleRows = await deps.db
+      .select({ role: userRoles.role, partnerId: userRoles.partnerId })
+      .from(userRoles)
+      .where(eq(userRoles.userId, user.id));
+  }
 
   const roles = roleRows.map((r) => r.role);
   const partnerId = roleRows.find((r) => r.role === 'partner_operator')?.partnerId ?? undefined;

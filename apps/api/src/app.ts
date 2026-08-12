@@ -1,4 +1,4 @@
-import { limits, userProfiles } from '@ccn/db';
+import { kycStatus, limits, partners, userProfiles } from '@ccn/db';
 import { createMemoryStore, createRateLimiter } from '@ccn/security';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -13,6 +13,7 @@ import {
   requireAuth,
   sessionMiddleware,
 } from './middleware';
+import { requireCustomer, requirePartnerOperator, surfaceFor } from './roles';
 import { agentRoutes } from './routes/agent';
 import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
@@ -79,7 +80,33 @@ export function createApp(deps: AppDeps) {
   // vs. read) since a single group would either starve the LLM passes or let
   // mutations ride the generous read budget.
 
-  // The authenticated caller, with profile + limits read under their RLS scope.
+  // Surface separation. Mounted per group rather than per handler so a route
+  // added later cannot silently ship without a guard — the customer routes
+  // previously had none at all, which let a partner operator read the entire
+  // customer product. `requireCustomer` rejects operators specifically, so
+  // compliance and admin users still reach the gateway review queue.
+  app.use('/api/portfolio/*', requireCustomer(deps));
+  app.use('/api/orders/*', requireCustomer(deps));
+  app.use('/api/approvals/*', requireCustomer(deps));
+  app.use('/api/agent/*', requireCustomer(deps));
+  app.use('/api/opportunities/*', requireCustomer(deps));
+  app.use('/api/planning/*', requireCustomer(deps));
+  app.use('/api/onboarding/*', requireCustomer(deps));
+  // The gateway is the investor-facing private-deal product, so it belongs to
+  // the customer surface. Its analyst/compliance review endpoints still work:
+  // requireCustomer turns away partner operators only, and analysts hold no
+  // partner binding.
+  app.use('/api/gateway/*', requireCustomer(deps));
+  app.use('/api/console/*', requirePartnerOperator(deps));
+
+  /**
+   * The authenticated caller: identity, which surface they belong to, their
+   * partner (operators only), profile, limits and onboarding progress.
+   *
+   * Deliberately one call. The web app derives its post-sign-in redirect, its
+   * surface guard, the console's partner branding and the execute dialog's KYC
+   * checks from this — each of which was previously a hardcoded constant.
+   */
   app.get('/api/me', requireAuth(deps), async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
@@ -89,9 +116,45 @@ export function createApp(deps: AppDeps) {
         .from(userProfiles)
         .where(eq(userProfiles.userId, tenant.user.id));
       const [limit] = await tx.select().from(limits).where(eq(limits.userId, tenant.user.id));
-      return { profile: profile ?? null, limits: limit ?? null };
+      const [kyc] = await tx.select().from(kycStatus).where(eq(kycStatus.userId, tenant.user.id));
+      const [partner] = tenant.partnerId
+        ? await tx
+            .select({
+              id: partners.id,
+              code: partners.code,
+              name: partners.name,
+              kind: partners.kind,
+              regulator: partners.regulator,
+              agreementStatus: partners.agreementStatus,
+              residency: partners.residency,
+            })
+            .from(partners)
+            .where(eq(partners.id, tenant.partnerId))
+        : [];
+      return { profile: profile ?? null, limits: limit ?? null, kyc: kyc ?? null, partner };
     });
-    return c.json({ user: tenant.user, roles: tenant.roles, ...data });
+
+    const { kyc, partner, ...rest } = data;
+    return c.json({
+      user: tenant.user,
+      surface: surfaceFor(tenant),
+      roles: tenant.roles,
+      partner: partner ?? null,
+      ...rest,
+      onboarding: {
+        tier: kyc?.tier ?? 'none',
+        identityVerified: kyc?.identityVerified ?? false,
+        complianceConfirmed: kyc?.complianceConfirmed ?? false,
+        riskCompleted: kyc?.riskCompleted ?? false,
+        fundsConfirmed: kyc?.fundsConfirmed ?? false,
+        complete: Boolean(
+          kyc?.identityVerified &&
+            kyc?.complianceConfirmed &&
+            kyc?.riskCompleted &&
+            kyc?.fundsConfirmed,
+        ),
+      },
+    });
   });
 
   // Trading surface: the Limits-Engine-gated order path, approval cards, the

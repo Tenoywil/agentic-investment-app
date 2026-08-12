@@ -53,18 +53,22 @@ suite('portfolio allocation', () => {
   let userId = '';
   let cookie = '';
 
-  const config = loadServerConfig({
-    APP_ENV: 'development',
-    DATABASE_URL: DATABASE_URL ?? '',
-    SUPABASE_URL: 'https://example.supabase.co',
-    BETTER_AUTH_URL: 'http://localhost:3001',
-    APP_WEB_ORIGIN: 'http://localhost:3000',
-    BETTER_AUTH_SECRET: SECRET,
-    GOOGLE_CLIENT_ID: 'client-id',
-    GOOGLE_CLIENT_SECRET: 'client-secret',
-    OPENAI_API_KEY: 'sk-test',
-    FIELD_ENCRYPTION_KEY: 'base64:key',
-  });
+  // Built lazily, not at describe-body scope: `describe.skip` still evaluates
+  // its callback, so an eager loadServerConfig would throw on the empty
+  // DATABASE_URL in the no-database CI job and error the whole suite.
+  const configFor = () =>
+    loadServerConfig({
+      APP_ENV: 'development',
+      DATABASE_URL: DATABASE_URL ?? '',
+      SUPABASE_URL: 'https://example.supabase.co',
+      BETTER_AUTH_URL: 'http://localhost:3001',
+      APP_WEB_ORIGIN: 'http://localhost:3000',
+      BETTER_AUTH_SECRET: SECRET,
+      GOOGLE_CLIENT_ID: 'client-id',
+      GOOGLE_CLIENT_SECRET: 'client-secret',
+      OPENAI_API_KEY: 'sk-test',
+      FIELD_ENCRYPTION_KEY: 'base64:key',
+    });
 
   beforeAll(async () => {
     const [u] = await db
@@ -146,6 +150,7 @@ suite('portfolio allocation', () => {
   });
 
   function app() {
+    const config = configFor();
     return createApp({
       db,
       auth: createAuth(db, config),
