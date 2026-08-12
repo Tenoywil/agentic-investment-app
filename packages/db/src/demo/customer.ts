@@ -249,16 +249,21 @@ export async function seedDemoCustomer(db: Database | Transaction, userId: strin
   // "Amara Clarke" -> "Amara". A single-word or empty name degrades to a
   // greeting with no name rather than a wrong one.
   const given = (account?.name ?? '').trim().split(/\s+/)[0] ?? '';
-  const hello = given ? `Good afternoon, ${given}.` : 'Good afternoon.';
-
   const partnerCount = accounts.length;
   const money = (dollars: number) => `US$${dollars.toLocaleString('en-US')}`;
+
+  // Time-neutral on purpose. This message sits directly beside the screen's own
+  // greeting, which is computed from the viewer's clock — so a seeded "Good
+  // afternoon" lands under a live "Good evening" whenever the demo runs outside
+  // one particular window. A row written at seed time cannot know when it will
+  // be read, so it does not pretend to.
+  const opening = `I'm watching ${partnerCount} licensed partners for you, and everything is inside the limits you set.`;
 
   await db.insert(agentMessages).values([
     {
       userId,
       role: 'agent',
-      content: `${hello} I'm watching ${partnerCount} licensed partners for you, and everything is inside the limits you set.`,
+      content: given ? `${given}, ${opening}` : opening,
     },
     {
       userId,

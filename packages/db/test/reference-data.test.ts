@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { createDb } from '../src/client';
 import { seedDemoCustomer } from '../src/demo/customer';
 import {
@@ -133,9 +133,43 @@ suite('reference data and demo attachment', () => {
       'up 6.8%', // a portfolio return with no valuation history behind it
       'settles Friday', // a coupon schedule that does not exist in the schema
       'blended yield', // a figure nothing computes
+      // A row written at seed time cannot know what time it is read. The home
+      // screen's own greeting is computed from the viewer's clock and sits
+      // directly beside this message, so a baked-in one is wrong for most of
+      // the day — "Good afternoon, Amara" under a live "Good evening, Amara".
+      'Good morning',
+      'Good afternoon',
+      'Good evening',
     ]) {
       expect(text).not.toContain(banned);
     }
+  }, 30_000);
+
+  /**
+   * Google supplies a display name for every account, so the nameless branch
+   * will not be hit by a real sign-in — which is exactly why it needs a test.
+   * It is the branch that would ship a message opening on a stray comma and
+   * nobody would see it until an identity arrived without a name.
+   */
+  test('the seeded greeting stays grammatical when the account has no name', async () => {
+    const [anon] = await db
+      .insert(user)
+      .values({ name: '', email: `anon-${Date.now()}@example.test` })
+      .returning({ id: user.id });
+    if (!anon) throw new Error('insert returned no row');
+    made.push(anon.id);
+    await seedDemoCustomer(db, anon.id);
+
+    const [first] = await db
+      .select({ content: agentMessages.content })
+      .from(agentMessages)
+      .where(eq(agentMessages.userId, anon.id))
+      .orderBy(asc(agentMessages.createdAt))
+      .limit(1);
+
+    expect(first?.content).toBe(
+      "I'm watching 4 licensed partners for you, and everything is inside the limits you set.",
+    );
   }, 30_000);
 
   /**
