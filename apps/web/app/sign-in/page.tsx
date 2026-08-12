@@ -13,7 +13,7 @@ export default function SignInPage() {
   const google = () => {
     setError(null);
     authClient.signIn
-      .social({ provider: 'google', callbackURL: `${window.location.origin}/onboarding` })
+      .social({ provider: 'google', callbackURL: `${window.location.origin}/after-sign-in` })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not reach the sign-in service.');
       });
