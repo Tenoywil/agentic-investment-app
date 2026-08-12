@@ -54,6 +54,10 @@ export const TERRA_TEXT = 'text-[#a44e20] dark:text-terra';
 export const errorText = `flex items-center gap-2 text-sm ${TERRA_TEXT}`;
 export const TERRA_GHOST_BTN =
   'text-[#a44e20] hover:bg-[#f5e7d9] hover:text-[#a44e20] dark:text-terra dark:hover:bg-[#3a281c] dark:hover:text-terra';
+/** Outlined Settle button. The --terra token itself is only 3.7:1 on the light
+ *  card, so the light half is darkened; the border clears 3:1 either way. */
+export const TERRA_OUTLINE_BTN =
+  'border-solid border-[#a44e20] text-[#a44e20] hover:bg-transparent hover:text-[#a44e20] dark:border-terra dark:text-terra dark:hover:text-terra';
 /**
  * A single hairline under a table row.
  *

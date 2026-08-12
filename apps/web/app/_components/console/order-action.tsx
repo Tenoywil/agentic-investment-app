@@ -2,7 +2,7 @@
 
 import { Button } from '@/app/_components/ui/button';
 import type { ConsoleOrder } from '@/lib/console-api';
-import { SUCCESS_TEXT, TERRA_GHOST_BTN, TERRA_TEXT } from './lib';
+import { SUCCESS_TEXT, TERRA_GHOST_BTN, TERRA_OUTLINE_BTN, TERRA_TEXT } from './lib';
 
 /**
  * The accept / settle / reject controls for one order, and the terminal-state
@@ -66,7 +66,7 @@ export function OrderAction({
       <Button
         size="sm"
         variant="outline"
-        className="border-solid border-terra text-terra hover:bg-transparent hover:text-terra"
+        className={TERRA_OUTLINE_BTN}
         disabled={busy}
         onClick={() => onSettle(order.id)}
       >
