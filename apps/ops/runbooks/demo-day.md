@@ -52,6 +52,14 @@ This is the demo. Everything above can be rehearsed; this cannot.
    standing in for unknown, not a spinner that never resolves, not a `NaN`.
 5. **Check:** zero invented numbers. A new account owns nothing, and the screens
    must say so deliberately.
+6. **Check:** the tour opens by itself on the first customer screen, and the
+   "Take the tour" button at bottom-right replays it. Steps whose panel is empty
+   are skipped, so a new account gets a shorter tour, not a broken one.
+
+This flow was swept in a headless browser against an all-empty API — every
+customer screen, both themes — with no page errors, no `NaN`/`undefined`, and no
+placeholder glyphs. That is not a substitute for walking it on production, but it
+means a failure here is an environment problem, not a UI one.
 
 ## If something breaks on stage
 
@@ -62,6 +70,8 @@ This is the demo. Everything above can be rehearsed; this cannot.
 | Console returns 403 to the operator | Their role never provisioned — check `PARTNER_OPERATOR_EMAILS` spelling and that `db:grant` ran. Sign out and back in; provisioning is lazy and self-healing. |
 | Agent chat produces nothing | `runAgent` has one path to text and no fallback; the response cache is per-process and cold after a deploy. Move to another screen. **Known gap, not a fixable-on-stage issue.** |
 | A screen shows a number that looks wrong | It came from the API. `bun test apps/web` enforces that no component carries a hardcoded figure. |
+| "This screen didn't load" | The route's error boundary caught a render failure — most likely a payload whose shape drifted because the web app deployed ahead of the API. Press **Try again**; if it repeats, move on and redeploy the API. Nothing was written. |
+| The tour is in the way | Press Escape, or click outside it. It remembers being dismissed per surface per browser. |
 
 ## What is deliberately not covered
 
