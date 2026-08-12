@@ -285,9 +285,20 @@ input:-webkit-autofill:active {
     border-right: none !important;
     border-bottom: 1px solid #e4e0d6;
   }
-  .app-sidebar .app-sidebar__grow,
   .app-sidebar .app-sidebar__agentcard {
     display: none !important;
+  }
+  /* The rail is a wrapping row here, not a column, so the nav's scroll box has
+     nothing to scroll against and would only trap the links inside a nested
+     scroller. `contents` dissolves it and lets the groups wrap as the direct
+     row items they were before the box existed. */
+  .app-sidebar .app-sidebar__scroll {
+    display: contents;
+  }
+  .app-sidebar .app-sidebar__footer {
+    border-top: none !important;
+    padding-top: 0 !important;
+    margin-left: auto;
   }
   .console-sidebar {
     width: 100% !important;

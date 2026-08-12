@@ -1,5 +1,6 @@
 'use client';
 
+import { AccountMenu } from '@/app/_components/AccountMenu';
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { cn } from '@/app/_lib/utils';
 import { type Approval, getApprovals } from '@/lib/portfolio-api';
@@ -210,33 +211,42 @@ export function AppSidebar({
         </span>
       </Link>
 
-      {groups.map((g) => (
-        <div key={g.label}>
-          <div className="px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
-            {g.label}
+      {/* The nav scrolls, the footer below it does not.
+          The whole rail used to be one column taller than the screen, so at a
+          laptop height the agent card, the theme toggle and the account control
+          sat below the fold — the way out of the product was reachable only by
+          scrolling the page, and on a screen short enough it never appeared at
+          all. Confining the overflow to the links keeps everything that is not a
+          link on screen at every viewport height. */}
+      <div className="app-sidebar__scroll -mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        {groups.map((g) => (
+          <div key={g.label}>
+            <div className="px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
+              {g.label}
+            </div>
+            {g.items.map(({ key, label, href, Icon, tour }) => {
+              const on = key === active;
+              return (
+                <Link
+                  key={key}
+                  href={`${basePath}${href}`}
+                  aria-current={on ? 'page' : undefined}
+                  data-tour={basePath ? undefined : tour}
+                  className={cn(
+                    'mb-0.5 flex items-center gap-3 rounded-[11px] px-3 py-[11px] text-[15px] no-underline',
+                    on
+                      ? 'bg-mint font-bold text-primary dark:text-teal2'
+                      : 'font-semibold text-dim',
+                  )}
+                >
+                  <Icon className="h-[21px] w-[21px]" aria-hidden />
+                  <span className="flex-1">{label}</span>
+                </Link>
+              );
+            })}
           </div>
-          {g.items.map(({ key, label, href, Icon, tour }) => {
-            const on = key === active;
-            return (
-              <Link
-                key={key}
-                href={`${basePath}${href}`}
-                aria-current={on ? 'page' : undefined}
-                data-tour={basePath ? undefined : tour}
-                className={cn(
-                  'mb-0.5 flex items-center gap-3 rounded-[11px] px-3 py-[11px] text-[15px] no-underline',
-                  on ? 'bg-mint font-bold text-primary dark:text-teal2' : 'font-semibold text-dim',
-                )}
-              >
-                <Icon className="h-[21px] w-[21px]" aria-hidden />
-                <span className="flex-1">{label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ))}
-
-      <div className="app-sidebar__grow flex-1" />
+        ))}
+      </div>
 
       {basePath ? <DemoAgentCard basePath={basePath} /> : <AgentCard />}
 
@@ -244,20 +254,27 @@ export function AppSidebar({
           different product for a different account, and /api/console answers a
           customer with 403 — a visible route into it is a dead end at best. The
           demo shell keeps its link because that preview has both shells and no
-          sign-in at all. */}
-      <div className="flex items-center justify-between">
-        {basePath ? (
+          sign-in at all.
+
+          The demo shell also keeps a bare theme toggle instead of the account
+          menu: it has no session to name, nothing to sign out of, and calling
+          /api/me from it would break the rule that the preview makes no API
+          calls at all. */}
+      {basePath ? (
+        <div className="app-sidebar__footer flex items-center justify-between">
           <Link
             href={`${basePath}/institutions`}
             className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
           >
             For institutions
           </Link>
-        ) : (
-          <span />
-        )}
-        <ThemeToggle />
-      </div>
+          <ThemeToggle />
+        </div>
+      ) : (
+        <div className="app-sidebar__footer border-0 border-t border-solid border-border pt-2">
+          <AccountMenu />
+        </div>
+      )}
     </nav>
   );
 }

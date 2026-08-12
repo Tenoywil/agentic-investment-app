@@ -1,7 +1,6 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
-import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -80,16 +79,6 @@ function greeting(name: string | null): string {
   const part = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
   const first = name?.trim().split(/\s+/)[0];
   return first ? `Good ${part}, ${first}` : `Good ${part}`;
-}
-
-/** Up to two initials from the signed-in user's name. Only ever called with a
- *  real name or email, so it never has to stand in for an unknown person. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const letters = [parts[0]?.[0], parts.length > 1 ? parts[parts.length - 1]?.[0] : undefined]
-    .filter(Boolean)
-    .join('');
-  return letters.toUpperCase();
 }
 
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
@@ -308,20 +297,13 @@ export default function HomePage() {
 
   return (
     <AppScreen active="home">
-      <PageHead
-        eyebrow={todayLabel()}
-        title={greeting(userName)}
-        // The notification bell that stood here had no handler and no
-        // notifications behind it — there is no notification record anywhere in
-        // the schema — so it is gone rather than decorative.
-        right={
-          userName ? (
-            <Avatar className="h-[42px] w-[42px]">
-              <AvatarFallback>{initials(userName)}</AvatarFallback>
-            </Avatar>
-          ) : undefined
-        }
-      />
+      {/* No right-hand slot. A notification bell stood here with no handler and
+          no notifications behind it — there is no notification record anywhere
+          in the schema. The avatar that replaced it was no better: an icon
+          shaped exactly like an account menu that opened nothing, on the one
+          screen that had it. The real account menu now lives in the sidebar
+          footer, where it is on every screen and always in view. */}
+      <PageHead eyebrow={todayLabel()} title={greeting(userName)} />
 
       {/* Hero card */}
       <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5] dark:bg-[#124e48]">
