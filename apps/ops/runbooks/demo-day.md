@@ -82,3 +82,17 @@ means a failure here is an environment problem, not a UI one.
   that reason, and there is no substitute.
 - **Load.** One Render instance, in-memory rate limiter. Fine for a demo, not a
   claim to make about capacity.
+- **The API suite running as a non-superuser.** Local dev and CI both connect as
+  `postgres`, a superuser with BYPASSRLS, so neither can see a privilege or
+  row-policy defect. Four reached production in one evening because of it:
+  provisioning writing outside the tenant GUC, seeding doing the same, missing
+  grants on Better Auth's tables, and no membership of `ccn_app` so
+  `SET LOCAL ROLE` was refused. Running the whole suite as a restricted role was
+  tried and is not viable as-is — the tests build their fixtures by inserting
+  partners and orders directly, which production never does, and they verify by
+  reading tables the policies would hide. Making that gate real means reworking
+  every fixture to set up and assert through a separate privileged connection.
+  Worth doing; not done. In the meantime `packages/db/test/reference-data.test.ts`
+  asserts the `ccn_app` membership directly, which is the specific invariant that
+  broke, and the API can be exercised by hand against a restricted role by
+  creating one, granting it `ccn_app`, and pointing `DATABASE_URL` at it.
