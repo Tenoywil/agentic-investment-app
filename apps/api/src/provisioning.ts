@@ -1,5 +1,5 @@
-import { operatorAllowlist } from '@ccn/config';
-import { partners, userRoles } from '@ccn/db';
+import { demoCustomerAllowlist, operatorAllowlist } from '@ccn/config';
+import { partners, seedDemoCustomer, userRoles } from '@ccn/db';
 import { eq, sql } from 'drizzle-orm';
 import type { AppDeps, SessionUser } from './context';
 
@@ -77,4 +77,18 @@ export async function ensureProvisioned(deps: AppDeps, user: SessionUser): Promi
 
     await tx.insert(userRoles).values({ userId: user.id, role: 'customer' }).onConflictDoNothing();
   });
+
+  // Demo accounts get the seeded Caribbean portfolio; everyone else starts
+  // genuinely empty. Outside the role transaction so a seeding failure cannot
+  // roll back the role grant and leave the user unable to sign in anywhere.
+  if (demoCustomerAllowlist(deps.config).has(email)) {
+    try {
+      await seedDemoCustomer(deps.db, user.id);
+    } catch (error) {
+      deps.logger.error('demo customer seeding failed; account will be empty', {
+        error,
+        userId: user.id,
+      });
+    }
+  }
 }
