@@ -14,7 +14,8 @@
     "test": "bun test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/migrate.ts",
-    "db:seed": "bun run src/seed.ts"
+    "db:seed": "bun run src/seed.ts",
+    "db:seed:reference": "bun run src/seed.ts --reference-only"
   },
   "dependencies": {
     "drizzle-orm": "0.44.2",

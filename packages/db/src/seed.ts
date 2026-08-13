@@ -28,6 +28,20 @@ import {
  * the anchor console's rows are reset-then-inserted so re-running is safe. Runs
  * as the privileged migration role (bypasses RLS). The append-only audit trail is
  * seeded only when the log is empty, since it cannot be deleted by design.
+ *
+ * **Two scopes, because production needs the first half and must not have the
+ * second.** `--reference-only` (or SEED_SCOPE=reference) stops after the catalog:
+ * partners, planning products, FX rates and instruments. Those are not demo data
+ * — they are the licensed institutions CCN routes to and the things it lists, and
+ * without them a real deployment has an empty opportunities screen, an empty
+ * planning screen, and no partner for an operator to be bound to. The full run
+ * additionally creates `marcus.bailey@ccn.demo`, four `@ccn.internal` client
+ * placeholders and the anchor console's orders, which belong on a development
+ * database and nowhere near a live one.
+ *
+ * Deliberately not wired into `preDeployCommand`: a deploy step that writes rows
+ * on every push is a different kind of hazard. Run it by hand, once, against a
+ * new database.
  */
 
 const url = process.env.DATABASE_URL;
@@ -35,6 +49,10 @@ if (!url) {
   console.error('DATABASE_URL is required to seed.');
   process.exit(1);
 }
+
+/** Catalog only — no invented people, no invented orders. */
+const REFERENCE_ONLY =
+  process.argv.includes('--reference-only') || process.env.SEED_SCOPE === 'reference';
 
 /** Dollars → integer minor units (USD cents). */
 const usd = (dollars: number): bigint => BigInt(Math.round(dollars * 100));
@@ -466,6 +484,18 @@ async function main(): Promise<void> {
         })),
       )
       .onConflictDoNothing({ target: instruments.slug });
+
+    // Everything above is the catalog a real deployment needs. Everything below
+    // is a development fixture — named people who never signed up, and orders
+    // nobody placed. On production that is exactly the fabricated data this
+    // product has already had to remove from its screens once.
+    if (REFERENCE_ONLY) {
+      const [{ partners: partnerCount } = { partners: '0' }] = (await db.execute(
+        sql`select count(*)::text as partners from partners`,
+      )) as unknown as [{ partners: string }];
+      console.log(`✓ reference data seeded (${partnerCount} partners) — no demo accounts created`);
+      return;
+    }
 
     const instrumentRows = await db
       .select({ id: instruments.id, slug: instruments.slug })
