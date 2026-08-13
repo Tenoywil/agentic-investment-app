@@ -40,7 +40,7 @@ export function AppScreen({
           destinations does not fold into a phone. */}
       <AppSidebar active={active} basePath={basePath} />
       <MobileNav active={active} basePath={basePath} />
-      <main className="relative min-w-0 flex-1 px-8 pb-24 pt-[26px] max-[900px]:px-4 max-[900px]:pt-5">
+      <main className="relative min-w-0 flex-1 px-8 pb-24 pt-[26px] max-[900px]:px-4 max-[900px]:pt-5 min-[561px]:max-[900px]:px-6">
         {children}
       </main>
       {active === 'agent' ? null : (

@@ -93,8 +93,13 @@ const GROUPS: NavGroup[] = [
   },
 ];
 
-const CARD_TITLE = 'mb-1 font-display text-base font-semibold';
-const CARD_BODY = 'mb-3 text-[13.5px] leading-snug opacity-80';
+// Both states of this card must occupy one box. It sits in the rail on every
+// screen, and its height changed when the approval count arrived — measured as
+// the largest single layout-shift source in the app (197px to 173px), shifting
+// every screen rather than one. The heights below hold one line of title and
+// two of body whichever state is showing.
+const CARD_TITLE = 'mb-1 min-h-[24px] font-display text-base font-semibold';
+const CARD_BODY = 'mb-3 min-h-[38px] text-[13.5px] leading-snug opacity-80';
 
 /**
  * The agent card, live surface: how many approvals are actually waiting on you.

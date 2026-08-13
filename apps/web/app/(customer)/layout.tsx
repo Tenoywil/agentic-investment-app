@@ -2,6 +2,7 @@
 
 import { RequireSurface, SessionProvider } from '@/app/_lib/session';
 import type * as React from 'react';
+import { CustomerShellSkeleton } from './shell-skeleton';
 
 /**
  * Every customer screen sits behind one session fetch and one surface guard, so
@@ -12,7 +13,9 @@ import type * as React from 'react';
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <RequireSurface surface="customer">{children}</RequireSurface>
+      <RequireSurface surface="customer" fallback={<CustomerShellSkeleton />}>
+        {children}
+      </RequireSurface>
     </SessionProvider>
   );
 }

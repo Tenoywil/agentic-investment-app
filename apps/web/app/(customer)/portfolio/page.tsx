@@ -3,6 +3,7 @@
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
+import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { cn } from '@/app/_lib/utils';
 import {
   type AllocationSlice,
@@ -163,7 +164,27 @@ export default function PortfolioPage() {
         }
       />
 
-      {loading && <p className="text-sm text-dim">Loading your portfolio…</p>}
+      {loading && (
+        // Mirrors the real shape: the allocation bar, then one row per partner.
+        <SkeletonRegion label="Loading your portfolio">
+          <SkeletonCard lines={2} className="mb-4" />
+          <div className="flex flex-col gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-lg border border-solid border-border bg-card p-[18px]"
+              >
+                <Skeleton className="h-10 w-10 flex-none rounded-[10px]" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="mb-1.5 h-3.5 w-2/5" />
+                  <Skeleton className="h-3 w-3/5" />
+                </div>
+                <Skeleton className="h-4 w-20 flex-none" />
+              </div>
+            ))}
+          </div>
+        </SkeletonRegion>
+      )}
 
       {error && (
         <p className="mb-4 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">

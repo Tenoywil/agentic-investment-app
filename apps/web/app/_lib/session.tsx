@@ -69,9 +69,18 @@ export function useMe(): Me | null {
  */
 export function RequireSurface({
   surface,
+  fallback,
   children,
 }: {
   surface: Surface;
+  /**
+   * Rendered while the session resolves, and while a wrong-surface viewer is
+   * being redirected. Supply the shell of the surface being guarded: replacing
+   * the whole page with a splash for the length of one fetch is what made every
+   * screen arrive at once, and a shell that draws placeholders instead of data
+   * gives away nothing to someone who is about to be sent elsewhere.
+   */
+  fallback?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { state } = useSession();
@@ -88,6 +97,7 @@ export function RequireSurface({
   }, [state, surface, router]);
 
   if (state.status !== 'authenticated' || state.me.surface !== surface) {
+    if (fallback) return <>{fallback}</>;
     return (
       <div className="grid min-h-screen place-items-center bg-background">
         <div className="flex items-center gap-2.5">
