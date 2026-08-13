@@ -1,4 +1,4 @@
-import { describe, loadServerConfig } from '@ccn/config';
+import { demoCustomerAllowlist, describe, loadServerConfig, operatorAllowlist } from '@ccn/config';
 import { createDb } from '@ccn/db';
 import { sql } from 'drizzle-orm';
 import { createApp } from './app';
@@ -78,6 +78,39 @@ const app = createApp(deps);
       `cannot SET ROLE ${role}; every authenticated request will fail with 500. Grant it once as a role with ADMIN OPTION (in Supabase, the SQL Editor runs as postgres): GRANT ${role} TO <the user in DATABASE_URL>;`,
       { error, dbAppRole: role },
     );
+  }
+}
+
+/**
+ * Say, at boot, whether anyone can reach the institution console.
+ *
+ * `PARTNER_OPERATOR_EMAILS` is the only path to the `partner_operator` role —
+ * provisioning fails closed, so an address absent from it is granted `customer`
+ * and lands on the investor dashboard. With the variable unset that is *every*
+ * address, and the console is unreachable by anyone alive.
+ *
+ * Nothing said so. Signing in with the firm's account and arriving at the
+ * customer screens looks like a broken redirect or a broken console, and both
+ * were investigated as such before the cause — an unset environment variable —
+ * was found. One line at boot names it.
+ *
+ * Like the checks around it, it does not exit: a deployment with no operators
+ * is a perfectly valid customer-only deployment.
+ */
+{
+  const operators = operatorAllowlist(config);
+  const demoCustomers = demoCustomerAllowlist(config);
+  if (operators.size === 0) {
+    logger.warn(
+      'PARTNER_OPERATOR_EMAILS is empty, so no account can reach the institution console. Every sign-in resolves to the customer surface. Set it to a comma-separated list of email or email:PARTNERCODE (e.g. ops@firm.com:SAG), then run `bun run grant` in apps/api to apply it to identities that have already signed in — provisioning only fires for a user who holds no role yet.',
+      { demoCustomers: demoCustomers.size },
+    );
+  } else {
+    logger.info('operator allowlist loaded', {
+      operators: operators.size,
+      partners: [...new Set([...operators.values()].map((g) => g.partnerCode ?? 'default'))],
+      demoCustomers: demoCustomers.size,
+    });
   }
 }
 

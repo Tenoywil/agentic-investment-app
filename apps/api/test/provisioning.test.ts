@@ -3,6 +3,7 @@ import { createDb, partners, user, userRoles } from '@ccn/db';
 import { eq, inArray } from 'drizzle-orm';
 import { createLogger } from '../src/logger';
 import { type ProvisioningDeps, ensureProvisioned } from '../src/provisioning';
+import { surfaceFor } from '../src/roles';
 
 /**
  * First-sign-in provisioning, run as the application role rather than as a
@@ -59,6 +60,13 @@ suite('first-sign-in provisioning under RLS', () => {
     return row;
   }
 
+  /** The tenant shape the surface resolver actually takes, from role rows. */
+  const surfaceOf = (rows: { role: string; partnerId: string | null }[]) =>
+    surfaceFor({
+      roles: rows.map((r) => r.role),
+      partnerId: rows.find((r) => r.role === 'partner_operator')?.partnerId ?? null,
+    } as Parameters<typeof surfaceFor>[0]);
+
   const rolesOf = (userId: string) =>
     db
       .select({ role: userRoles.role, partnerId: userRoles.partnerId })
@@ -90,6 +98,56 @@ suite('first-sign-in provisioning under RLS', () => {
     const u = await makeUser('badcode');
     await ensureProvisioned(deps({ PARTNER_OPERATOR_EMAILS: `${u.email}:NOSUCH` }), u);
     expect(await rolesOf(u.id)).toEqual([{ role: 'customer', partnerId: null }]);
+  });
+
+  /**
+   * The allowlist has to be able to correct an account it did not cover yet.
+   *
+   * Provisioning is lazy, so an identity that signed in before
+   * PARTNER_OPERATOR_EMAILS was set got `customer` on that first request. This
+   * function then returned early for anyone holding any role, so adding the
+   * address afterwards did nothing — on that request or any later one — and the
+   * account was a customer permanently. `bun run grant` calls this function, so
+   * the documented safety valve could not fix it either. Reported as the console
+   * being broken with the variable plainly set, which is exactly how it looks.
+   */
+  test('an account already granted customer is promoted when the allowlist names it', async () => {
+    const u = await makeUser('promoted');
+    await ensureProvisioned(deps(), u);
+    expect(await rolesOf(u.id)).toEqual([{ role: 'customer', partnerId: null }]);
+
+    await ensureProvisioned(deps({ PARTNER_OPERATOR_EMAILS: `${u.email}:SAG` }), u);
+    const [sag] = await db
+      .select({ id: partners.id })
+      .from(partners)
+      .where(eq(partners.code, 'SAG'));
+    const roles = await rolesOf(u.id);
+    expect(roles).toContainEqual({ role: 'partner_operator', partnerId: sag?.id ?? null });
+    // surfaceFor() resolves an account holding both to the institution, so the
+    // stale customer row is harmless and is left rather than deleted.
+    expect(surfaceOf(roles)).toBe('institution');
+  });
+
+  test('promoting twice does not add a second operator row', async () => {
+    const u = await makeUser('promoted-twice');
+    await ensureProvisioned(deps(), u);
+    const withList = deps({ PARTNER_OPERATOR_EMAILS: `${u.email}:SAG` });
+    await ensureProvisioned(withList, u);
+    const after = await rolesOf(u.id);
+    await ensureProvisioned(withList, u);
+    expect(await rolesOf(u.id)).toEqual(after);
+  });
+
+  /**
+   * Upward only. An operator granted directly in SQL is legitimate, and
+   * silently stripping a console mid-demo is a worse failure than a stale grant,
+   * so absence from the allowlist is logged rather than acted on.
+   */
+  test('an existing operator is not demoted by an empty allowlist', async () => {
+    const u = await makeUser('keeps-operator');
+    await ensureProvisioned(deps({ PARTNER_OPERATOR_EMAILS: `${u.email}:SAG` }), u);
+    await ensureProvisioned(deps({ PARTNER_OPERATOR_EMAILS: '' }), u);
+    expect(surfaceOf(await rolesOf(u.id))).toBe('institution');
   });
 
   test('running twice writes one row', async () => {

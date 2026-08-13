@@ -511,20 +511,28 @@ export default function AgentPage() {
 
   return (
     <AppScreen active="agent">
-      <PageHead
-        eyebrow="Discovers, screens and coordinates execution, always on your approval"
-        title="Your Capital Agent"
-      />
+      {/* On a phone this screen is a chat app, so everything above the
+          conversation folds away (globals.css, .agent-preamble): a heading, a
+          strapline, four counters and a status pill pushed the composer to the
+          bottom of a 844px screen with three lines of conversation visible
+          above it. The heading stays in the accessible tree — it is hidden, not
+          removed — so the page keeps its h1 and its landmark structure. */}
+      <div className="agent-preamble">
+        <PageHead
+          eyebrow="Discovers, screens and coordinates execution, always on your approval"
+          title="Your Capital Agent"
+        />
 
-      <AgentStats />
-      <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
-        <span className="h-2 w-2 rounded-full bg-success" />
-        Live · monitoring the region
+        <AgentStats />
+        <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
+          <span className="h-2 w-2 rounded-full bg-success" />
+          Live · monitoring the region
+        </div>
       </div>
 
       <div className="g-agent">
         {/* Chat */}
-        <Card className="flex flex-col overflow-hidden" data-tour="customer-agent">
+        <Card className="agent-chat flex flex-col overflow-hidden" data-tour="customer-agent">
           <div className="flex items-center gap-3 border-b border-border px-5 py-[18px]">
             <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
               <Sparkles className="h-5 w-5" aria-hidden />
@@ -569,7 +577,7 @@ export default function AgentPage() {
             // every message: the card got taller as the agent streamed, pushing the
             // composer down under the cursor and resizing the whole two-column row
             // around it. The conversation scrolls inside a box that does not move.
-            className="flex h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px] max-[900px]:h-[58vh]"
+            className="agent-chat__log flex h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
             {historyState === 'loading' && (
               <SkeletonRegion label="Loading your conversation" className="flex flex-col gap-3.5">
@@ -641,14 +649,17 @@ export default function AgentPage() {
                 <InlineError>{streamError}</InlineError>
               </div>
             )}
-            <div className="mb-3 flex flex-wrap gap-2">
+            {/* On a phone these wrap to one per line and cost three rows above
+                the composer. A single strip that scrolls sideways keeps them
+                reachable without pushing the input down the screen. */}
+            <div className="mb-3 flex flex-wrap gap-2 max-[900px]:flex-nowrap max-[900px]:overflow-x-auto max-[900px]:pb-1">
               {SUGGESTIONS.map((s) => (
                 <Button
                   key={s.label}
                   variant="outline"
                   size="sm"
                   disabled={sending}
-                  className="rounded-[20px] font-semibold text-teal2"
+                  className="rounded-[20px] font-semibold text-teal2 max-[900px]:flex-none"
                   onClick={() => send(s.label)}
                 >
                   {s.label}

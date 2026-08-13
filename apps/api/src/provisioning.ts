@@ -70,30 +70,79 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
 
     // Re-check inside the lock — the request that lost the race must not insert.
     const existing = await tx
-      .select({ role: userRoles.role })
+      .select({ role: userRoles.role, partnerId: userRoles.partnerId })
       .from(userRoles)
       .where(eq(userRoles.userId, user.id));
-    if (existing.length > 0) return;
 
     // `partners.code` is an enum column, so an allowlist entry naming a code
     // outside it is rejected here rather than reaching the query.
     const knownCodes = partners.code.enumValues as readonly string[];
     const partnerCode = grant && knownCodes.includes(grant.partnerCode) ? grant.partnerCode : null;
 
-    if (grant && partnerCode) {
-      const [partner] = await tx
-        .select({ id: partners.id })
-        .from(partners)
-        .where(eq(partners.code, partnerCode as (typeof partners.code.enumValues)[number]));
+    const [partner] = partnerCode
+      ? await tx
+          .select({ id: partners.id })
+          .from(partners)
+          .where(eq(partners.code, partnerCode as (typeof partners.code.enumValues)[number]))
+      : [];
 
-      if (partner) {
-        await tx
-          .insert(userRoles)
-          .values({ userId: user.id, role: 'partner_operator', partnerId: partner.id })
-          .onConflictDoNothing();
-        operatorPartnerId = partner.id;
+    /**
+     * An account that already holds a role is reconciled against the allowlist,
+     * not skipped.
+     *
+     * This used to return early the moment any role existed, and that made the
+     * allowlist unable to correct itself. Provisioning is lazy, so an identity
+     * that signed in before `PARTNER_OPERATOR_EMAILS` was set was granted
+     * `customer` on that first request — and adding the address afterwards then
+     * did nothing, on that request or any later one. The account was a customer
+     * permanently. `bun run grant`, the documented safety valve, calls this
+     * function and so could not fix it either. From the outside it reads as the
+     * console being broken: the firm's own address signs in and lands on the
+     * investor dashboard, with the environment variable plainly set.
+     *
+     * Upward only. Being absent from the allowlist while holding
+     * `partner_operator` is logged, not revoked — an operator granted directly
+     * in SQL is legitimate, and silently stripping a console mid-demo is a worse
+     * failure than a stale grant. Revocation stays a deliberate act.
+     */
+    if (existing.length > 0) {
+      if (!partner) {
+        if (grant) {
+          deps.logger.error(
+            'operator allowlist names an unknown partner; leaving roles as they are',
+            {
+              partnerCode: grant.partnerCode,
+              userId: user.id,
+            },
+          );
+        }
         return;
       }
+      const already = existing.some(
+        (r) => r.role === 'partner_operator' && r.partnerId === partner.id,
+      );
+      if (already) return;
+
+      await tx
+        .insert(userRoles)
+        .values({ userId: user.id, role: 'partner_operator', partnerId: partner.id })
+        .onConflictDoNothing();
+      operatorPartnerId = partner.id;
+      deps.logger.info('promoted an existing account to partner operator from the allowlist', {
+        userId: user.id,
+        partnerCode,
+        heldBefore: existing.map((r) => r.role),
+      });
+      return;
+    }
+
+    if (grant && partner) {
+      await tx
+        .insert(userRoles)
+        .values({ userId: user.id, role: 'partner_operator', partnerId: partner.id })
+        .onConflictDoNothing();
+      operatorPartnerId = partner.id;
+      return;
     }
 
     if (grant) {
