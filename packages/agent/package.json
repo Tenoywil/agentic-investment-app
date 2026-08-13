@@ -1,0 +1,27 @@
+{
+  "name": "@ccn/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.23",
+    "@ccn/domain": "workspace:*",
+    "@ccn/limits-engine": "workspace:*",
+    "@ccn/money": "workspace:*",
+    "ai": "7.0.52",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "bun-types": "1.3.11",
+    "typescript": "5.6.3"
+  }
+}

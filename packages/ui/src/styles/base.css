@@ -1,0 +1,128 @@
+/* Base element styling on top of tokens.css. All sizes in rem so they scale with the
+   root font-size (browser zoom, OS setting, and the in-app text-size control). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.1px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  line-height: var(--lh-heading);
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--sp-4);
+  color: var(--text);
+}
+h1 {
+  font-size: var(--fs-display);
+}
+h2 {
+  font-size: var(--fs-heading);
+}
+h3 {
+  font-size: var(--fs-title);
+}
+h4 {
+  font-size: var(--fs-body-lg);
+}
+
+p {
+  margin: 0 0 var(--sp-4);
+  max-width: var(--measure);
+}
+.prose {
+  line-height: var(--lh-long);
+}
+
+a {
+  color: var(--primary);
+  text-underline-offset: 2px;
+}
+
+/* Focus is never removed without a visible replacement (>=3:1, survives forced-colors). */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid CanvasText;
+  }
+}
+
+/* Age-inclusive target sizing on real controls (not inline links — 2.5.8 inline exception). */
+button,
+select,
+[role="button"],
+.btn {
+  min-height: var(--target-min);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-width: var(--target-min);
+  padding: 0 var(--sp-5);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+input,
+textarea {
+  min-height: var(--target-min);
+  font-size: var(--fs-body);
+  font-family: var(--font-body);
+}
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* Respect reduced motion: replace, don't just delete. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

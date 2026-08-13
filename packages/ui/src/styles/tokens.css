@@ -1,0 +1,143 @@
+/*
+ * CCN design tokens — rem-based, so browser/OS zoom AND the in-app text-size control
+ * scale the whole interface together. Built for a 35+ primary audience: larger base
+ * type, generous targets, high-contrast defaults, optional AAA high-contrast theme.
+ * Source of truth: ../../tokens/tokens.json (W3C DTCG). Consumed as CSS custom props.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---------- Primitives (brand palette) ---------- */
+  --brand-teal-900: #0b201d;
+  --brand-teal-800: #0e2c28;
+  --brand-teal-700: #124e48;
+  --brand-teal-600: #0e5952;
+  --brand-green-500: #0a8f5b;
+  --brand-green-100: #e8f1ec;
+  --brand-cream-50: #fdfcfa;
+  --brand-cream-100: #f4f0e7;
+  --brand-cream-200: #e4e0d6;
+  --brand-terra-500: #c56a3e;
+  --brand-gold-500: #d9a441;
+  --ink-900: #12332e;
+  --ink-700: #33475b;
+  --ink-500: #5c5449;
+  --ink-300: #8a8172;
+  --white: #ffffff;
+
+  /* ---------- Typography (rem; scale everything from root) ---------- */
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Bricolage Grotesque", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-caption: 0.875rem;
+  --fs-body: 1rem; /* = 18px at Comfortable base; never smaller */
+  --fs-body-lg: 1.125rem;
+  --fs-title: 1.5rem;
+  --fs-heading: 1.875rem;
+  --fs-display: 2.75rem;
+
+  --lh-body: 1.55;
+  --lh-long: 1.65;
+  --lh-heading: 1.15;
+  --measure: 40rem; /* ~66ch at body size */
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* ---------- Spacing (8pt grid) & radii ---------- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  --sp-8: 4rem;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* ---------- Age-inclusive targets ---------- */
+  --target-min: 3rem; /* 48px at Comfortable; scales with root font-size */
+
+  /* ---------- Semantic roles (LIGHT) ---------- */
+  --bg: var(--brand-cream-100);
+  --surface: var(--brand-cream-50);
+  --surface-2: #ffffff;
+  --text: var(--ink-900); /* ~13:1 on --bg (AAA) */
+  --text-muted: var(--ink-500); /* ~6:1 on --bg (AA+) */
+  --primary: var(--brand-teal-700);
+  --primary-contrast: #ffffff; /* ~8:1 on --primary (AAA) */
+  --accent: var(--brand-terra-500);
+  --success: #0a7c53;
+  --warning: #8a5a10;
+  --danger: #b3341f;
+  --border: var(--brand-cream-200);
+  --focus: var(--brand-teal-600); /* ~6:1 on light surfaces (>3:1) */
+}
+
+/* ---------- Text-size steps: root font-size = factor * browser default ----------
+   Comfortable is the default (no attribute). The control sets data-ui-scale. Using
+   a multiplier of the browser's own default keeps user zoom/OS settings compounding. */
+:root {
+  --ui-scale: 1.125;
+} /* Comfortable = 18px */
+:root[data-ui-scale="lg"] {
+  --ui-scale: 1.25;
+} /* Large    = 20px */
+:root[data-ui-scale="xl"] {
+  --ui-scale: 1.375;
+} /* Larger   = 22px */
+:root[data-ui-scale="xxl"] {
+  --ui-scale: 1.5;
+} /* Largest  = 24px */
+
+html {
+  font-size: calc(var(--ui-scale) * 100%);
+}
+
+/* ---------- Dark theme ---------- */
+:root[data-theme="dark"] {
+  --bg: var(--brand-teal-900);
+  --surface: var(--brand-teal-800);
+  --surface-2: #12403a;
+  --text: #eaf3ef;
+  --text-muted: #a9c4bc;
+  --primary: #5fd0a8;
+  --primary-contrast: #08231e;
+  --accent: #e69567;
+  --success: #6fe3b0;
+  --warning: #e6c15a;
+  --danger: #ff8a73;
+  --border: rgba(233, 243, 239, 0.16);
+  --focus: #ffd24d;
+}
+
+/* ---------- High contrast (AAA target) ---------- */
+:root[data-contrast="high"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #ffffff;
+  --text: #0a0a0a;
+  --text-muted: #262626;
+  --primary: #0a3d38;
+  --primary-contrast: #ffffff;
+  --border: #0a0a0a;
+  --focus: #7a3d00;
+}
+:root[data-theme="dark"][data-contrast="high"] {
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #101010;
+  --text: #ffffff;
+  --text-muted: #e8e8e8;
+  --primary: #7fe9c4;
+  --primary-contrast: #000000;
+  --border: #ffffff;
+  --focus: #ffd24d;
+}

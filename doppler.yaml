@@ -1,0 +1,6 @@
+# Doppler is the single source of truth for secrets; it syncs to Vercel, Fly, and
+# GitHub Actions (via OIDC). No secret ever lives in source.
+# Setup: `doppler setup` then map configs: dev -> local, stg -> staging, prd -> production.
+setup:
+  project: ccn
+  config: dev

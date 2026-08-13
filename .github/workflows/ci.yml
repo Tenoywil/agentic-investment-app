@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Lint & format (Biome)
+        run: bunx biome ci .
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+  db:
+    # Applies migrations and runs the RLS + immutable-audit suite AND the
+    # trading integration suite (gate → order → accept → settle + realtime NOTIFY)
+    # against a real Postgres with pgvector — the tests SET LOCAL ROLE to a
+    # non-superuser so Row-Level Security is actually exercised.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          # Ephemeral CI-only container on localhost — no password (trust auth),
+          # so there is no credential literal to leak.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: ccn_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres@localhost:5432/ccn_test
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Migrate (tables + RLS + immutable audit + pgvector)
+        working-directory: packages/db
+        run: bun run db:migrate
+      - name: Seed (prototype dataset)
+        working-directory: packages/db
+        run: bun run db:seed
+      - name: RLS + audit + trading integration tests
+        run: bun test packages/db apps/api
+
+  agent-eval:
+    # The agent-eval gate: deterministic golden sets (suitability, blocked-deal
+    # detection, propose-only tool contract) and prompt-injection resistance
+    # (no state-mutating tool exists; untrusted data cannot break out of its
+    # block). Blocks merge on regression. Live-model rationale evals attach here
+    # when the gateway key is configured; they are skipped otherwise, so the gate
+    # never flakes on the network.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Agent eval (golden sets + prompt-injection)
+        run: bun test packages/agent
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    # gitleaks-action enumerates the PR's commits via the API on pull_request
+    # events, which needs pull-requests:read on top of the workflow default.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Later phases add: Semgrep (SAST), Trivy (SCA), Playwright e2e,
+  # agent-eval gate, Vercel preview + Render staging deploy.

@@ -1,0 +1,70 @@
+import { API_URL } from './config';
+
+/**
+ * The authenticated caller. One request answers four questions the UI used to
+ * hardcode: which surface this user belongs to, which partner an operator works
+ * for (the console showed "Sagicor Group" to everyone), how far through
+ * onboarding they are (the execute dialog asserted three green KYC ticks
+ * regardless), and their real guardrail limits.
+ */
+
+export type Surface = 'customer' | 'institution';
+export type KycTier = 'none' | 'tier1' | 'tier2';
+
+export interface MePartner {
+  id: string;
+  code: string;
+  name: string;
+  kind: string | null;
+  regulator: string | null;
+  agreementStatus: string | null;
+  residency: string | null;
+}
+
+export interface MeOnboarding {
+  tier: KycTier;
+  identityVerified: boolean;
+  complianceConfirmed: boolean;
+  riskCompleted: boolean;
+  fundsConfirmed: boolean;
+  complete: boolean;
+}
+
+export interface Me {
+  user: { id: string; email: string; name: string };
+  surface: Surface;
+  roles: string[];
+  /** Non-null only for partner operators. */
+  partner: MePartner | null;
+  profile: Record<string, unknown> | null;
+  limits: Record<string, unknown> | null;
+  onboarding: MeOnboarding;
+}
+
+export class MeApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'MeApiError';
+    this.status = status;
+  }
+}
+
+export async function getMe(): Promise<Me> {
+  const res = await fetch(`${API_URL}/api/me`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = typeof body?.error === 'string' ? body.error : `request failed (${res.status})`;
+    throw new MeApiError(message, res.status);
+  }
+  return body as Me;
+}
+
+/** Where a signed-in user belongs. The only place this mapping exists. */
+export function landingPathFor(me: Me): string {
+  if (me.surface === 'institution') return '/institutions';
+  return me.onboarding.complete ? '/home' : '/onboarding';
+}

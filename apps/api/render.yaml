@@ -1,0 +1,73 @@
+# Render Blueprint for the CCN Bun + Hono API — a persistent Docker web service
+# with native WebSocket support (Render does not spin the process down on an
+# idle connection, unlike a serverless/edge runtime), needed for the WS hub and
+# the single dedicated postgres.js LISTEN connection (apps/api/src/ws/bridge.ts).
+#
+# Chosen over Fly.io for this deadline: a simpler first deploy (git-push /
+# Blueprint, no machine-lifecycle tuning) and first-class Cron Jobs for the
+# nightly-sweep work already deferred to a later phase. Region (Ohio) is
+# comparable latency to Supabase us-east-1 as Fly's `iad`. See the go-live
+# plan's "Hosting" addendum.
+#
+# Plan: `free`, by deliberate choice for the initial prod-testable pass — $0,
+# but the trade-off is real: the service spins down after ~15 min idle, so the
+# first request after a quiet period eats a ~30-60s cold start, and the
+# dedicated LISTEN/NOTIFY connection drops and has to reconnect on wake (the
+# WS hub's realtime push is not reliably always-on). Bump to `starter` ($7/mo,
+# no spin-down) once always-on realtime matters more than cost.
+#
+# Deploy: connect this repo in the Render dashboard (or `render blueprint launch`),
+# root directory `.` so the Docker build context is the whole monorepo, Dockerfile
+# path `apps/api/Dockerfile`.
+#
+# Migrations run automatically via `preDeployCommand` below — Render runs it once
+# per deploy, after the build, before traffic is cut over to the new instance, in
+# the same environment (so DATABASE_URL etc. are already in scope). Deliberately
+# NOT `db:seed` here: seeding is a one-time/manual step, not something to rerun on
+# every deploy against real user data. Run `bun run db:seed` by hand (same
+# DATABASE_URL) after the first successful migration if the reference data
+# (partners, instruments, planning products, …) isn't loaded yet.
+#
+# `packages/config` fails fast on boot (before serving a single request) if any
+# required value below is missing — set ALL of these in the Render dashboard,
+# never committed here:
+#   Secrets:   DATABASE_URL, BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID,
+#              GOOGLE_CLIENT_SECRET, OPENAI_API_KEY, FIELD_ENCRYPTION_KEY
+#   Required, not secret (no default — easy to miss since they aren't secrets):
+#     SUPABASE_URL     the Supabase project URL (also SSRF-allowlisted, apps/api/src/security.ts)
+#     BETTER_AUTH_URL  the WEB app's public origin, e.g.
+#                      https://caribbean-capital-network-platform.vercel.app — NOT this
+#                      Render service's own URL. apps/web/next.config.mjs proxies /api/*
+#                      to this service so the session cookie stays same-origin from the
+#                      browser's point of view; Better Auth derives the OAuth callback URL
+#                      and the cookie's implicit domain from BETTER_AUTH_URL, so it has to
+#                      match wherever the browser actually is, not where this service runs.
+#                      The Google Cloud Console OAuth client's Authorized redirect URI must
+#                      match too: `${BETTER_AUTH_URL}/api/auth/callback/google`.
+#   Defaults to http://localhost:3000 if unset — MUST be overridden in prod or
+#   CORS/Better-Auth's trustedOrigins (apps/api/src/app.ts, apps/api/src/auth.ts)
+#   silently reject every request from the deployed web app:
+#     APP_WEB_ORIGIN   the production web origin (the Vercel domain) — used for CORS only,
+#                      still the actual web app's own origin (unlike BETTER_AUTH_URL above)
+#   Optional (safe defaults — OPENAI_BASE_URL, AI_MODEL, AI_EMBED_MODEL,
+#   SUPABASE_STORAGE_BUCKET, DB_APP_ROLE, SENTRY_DSN).
+services:
+  - type: web
+    name: ccn-api
+    runtime: docker
+    plan: free
+    region: ohio
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    preDeployCommand: cd packages/db && bun run db:migrate
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      # Render's reverse proxy sets the standard X-Forwarded-For header — the
+      # client-IP resolver (apps/api/src/security.ts) is provider-agnostic by
+      # design, so this is the only line that changes moving off Fly.
+      - key: TRUSTED_CLIENT_IP_HEADER
+        value: x-forwarded-for

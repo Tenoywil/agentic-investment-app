@@ -1,0 +1,496 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * CCN "Warm" theme as shadcn CSS variables (HSL triplets). shadcn primitives read
+ * these via hsl(var(--token)); the Tailwind config maps them to semantic colors.
+ * Screens migrated to shadcn speak in these tokens; the not-yet-migrated screens
+ * keep their inline styles (Tailwind preflight is off, so they are untouched).
+ */
+:root {
+  --background: 43.6 25.6% 91.6%;
+  --foreground: 36 9.1% 10.8%;
+  --card: 40 42.9% 98.6%;
+  --card-foreground: 36 9.1% 10.8%;
+  --popover: 40 42.9% 98.6%;
+  --popover-foreground: 36 9.1% 10.8%;
+  --primary: 174 62.5% 18.8%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 146.7 24.3% 92.7%;
+  --secondary-foreground: 174.4 72.8% 20.2%;
+  --muted: 146.7 24.3% 92.7%;
+  --muted-foreground: 36.9 14.4% 35.3%;
+  --accent: 26.7 76.7% 74.7%;
+  --accent-foreground: 36 9.1% 10.8%;
+  --destructive: 19.6 53.8% 50.8%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 42.9 20.6% 86.7%;
+  --input: 42 22.2% 82.4%;
+  --ring: 174.4 72.8% 20.2%;
+  --radius: 0.9rem;
+  /* Warm extras */
+  --teal2: 174.4 72.8% 20.2%;
+  --mint: 146.7 24.3% 92.7%;
+  --terra: 19.6 53.8% 50.8%;
+  /* Text-weight variants. --terra and --success are tuned for fills and large
+     numerals; at label sizes on their own tinted chips they measure 3.3-4.0:1,
+     under the 4.5:1 AA floor. These are the same hues darkened until small text
+     clears it. Use the -ink pair for anything under 24px that is not bold
+     display type; keep the base tokens for fills, dots and bars. */
+  --terra-ink: 21.5 77% 30.6%;
+  --peach: 26.7 76.7% 74.7%;
+  --gold: 40 75% 60.8%;
+  --success: 156.5 86.9% 30%;
+  --success-ink: 155.7 90.6% 25.1%;
+  --dim: 34.7 11.5% 32.4%;
+  --faint: 36.9 14.4% 35.3%;
+  --navy: 170.3 56.4% 10.8%;
+  --navy-active: 171.4 59.6% 18.4%;
+}
+
+/*
+ * Warm dark theme — a real second token set, not an inversion (per the design
+ * system). Deep warm charcoals for ground/surface, brightened teal/terra/gold
+ * accents so links, badges and status colors keep ≥ 4.5:1 on the dark surface.
+ * Activated by the `dark` class on <html> (Tailwind darkMode: ['class']).
+ */
+.dark {
+  --background: 40 8% 8.5%;
+  --foreground: 40 18% 90%;
+  --card: 36 8% 12%;
+  --card-foreground: 40 18% 90%;
+  --popover: 36 8% 12%;
+  --popover-foreground: 40 18% 90%;
+  --primary: 173 45% 34%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 165 18% 17%;
+  --secondary-foreground: 172 52% 68%;
+  --muted: 165 18% 17%;
+  --muted-foreground: 40 8% 64%;
+  --accent: 26.7 62% 64%;
+  --accent-foreground: 36 12% 10%;
+  --destructive: 19.6 62% 56%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 36 6% 24%;
+  --input: 36 6% 28%;
+  --ring: 172 52% 50%;
+  /* Warm extras */
+  --teal2: 172 55% 58%;
+  --mint: 165 20% 17%;
+  --terra: 19.6 64% 60%;
+  --terra-ink: 22 71.4% 67.1%;
+  --peach: 26.7 62% 64%;
+  --gold: 40 72% 62%;
+  --success: 156 58% 52%;
+  --success-ink: 156 58% 52%;
+  --dim: 40 9% 66%;
+  --faint: 40 7% 56%;
+  --navy: 170 30% 9%;
+  --navy-active: 171 34% 15%;
+}
+
+@layer base {
+  /* Preflight is off; give shadcn's `border` utilities the theme border color. */
+  *,
+  ::before,
+  ::after {
+    border-color: hsl(var(--border));
+  }
+  /* Neutralize the user-agent chrome on form controls (preflight would do this),
+     so shadcn primitives render cleanly. The not-yet-migrated screens set their
+     own inline styles, which win over these base rules — so they are untouched.
+     Tailwind's `border`/`bg-*` utilities (a later layer) re-add what components ask for. */
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"] {
+    border: 0;
+    background-color: transparent;
+    background-image: none;
+    cursor: pointer;
+  }
+  button,
+  input,
+  optgroup,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+    margin: 0;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d8d2c4;
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ============================================================
+ * Accessibility + responsive layer (WCAG 2.2 AA)
+ * ============================================================ */
+
+/* Visible keyboard focus on every interactive element (2.4.7).
+   outline (not box-shadow) so it survives forced-colors mode. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #0e5952;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+:root[style] a:focus-visible,
+button:focus-visible {
+  outline-color: #0e5952;
+}
+
+/* Neutralize the browser's native autofill highlight (Safari's pale blue,
+   Chrome's pale yellow) so an autofilled field still matches the app's own
+   `bg-card`/`text-foreground` input styling instead of clashing with it. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  box-shadow: 0 0 0 1000px hsl(var(--card)) inset;
+  -webkit-text-fill-color: hsl(var(--foreground));
+  caret-color: hsl(var(--foreground));
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Visually hidden, still exposed to assistive tech (for input labels etc). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Reduced motion (2.3.3 / prefers-reduced-motion). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- App shell + dashboard grids: reflow to a single column (1.4.10) ---- */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+/* The phone bar and drawer. Hidden on the desktop, where the rail is the
+   navigation; the media query below hides the rail and reveals this instead.
+   Both are in the DOM at both sizes, so anything querying the document for a
+   nav element must not assume the one it finds is the visible one. */
+.app-mobilenav {
+  display: none;
+}
+/* The navigation drawer. A <dialog>, so the browser supplies the top layer,
+   the backdrop, Escape and focus containment; these rules only give it the
+   shape of a panel pinned to the left edge, since a dialog centres itself by
+   default. `100dvh` rather than `100vh` so the panel ends at the real bottom of
+   a mobile viewport instead of running under the browser's own chrome. */
+.app-drawer {
+  margin: 0 auto 0 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: min(86vw, 320px);
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid hsl(var(--border));
+  overflow: hidden;
+}
+.app-drawer::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+/* Grid items get min-width: auto by default, so a child that cannot shrink —
+   a partner's full name beside a right-aligned amount — pushes its track wider
+   than the grid, and the card overflows the phone. On /home that made two cards
+   454px wide inside a 390px viewport, and the browser scaled the whole page
+   down to fit.
+
+   The floor is zeroed on the items rather than written as minmax(0, 1fr) on the
+   tracks because the build's CSS minifier rewrites minmax(0, 1fr) back to 1fr.
+   Those two are not equivalent — 1fr means minmax(auto, 1fr) — so the tidier
+   spelling is silently undone on the way to the browser, and only the built
+   stylesheet shows it. */
+.g-hero > *,
+.g2 > *,
+.g3 > *,
+.g4 > *,
+.g5 > *,
+.g-held > *,
+.g-agent > * {
+  min-width: 0;
+}
+.g-hero {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 28px;
+}
+.g2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.g3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.g5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.g-held {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 18px;
+}
+.g-agent {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.g4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+@media (max-width: 1100px) {
+  .g4 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .g4 {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 1000px) {
+  .g5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .g-hero,
+  .g2,
+  .g3,
+  .g-held,
+  .g-agent {
+    grid-template-columns: 1fr;
+  }
+  .g5 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .app-shell {
+    flex-direction: column;
+  }
+  /* The rail is desktop-only. It used to be reshaped into a wrapping row here,
+     which put all ten destinations and their four group headings across the top
+     of the phone — most of the screen, above the page's own first word, with no
+     way to collapse it because it *was* the navigation. MobileNav replaces it
+     with a bar and a drawer. */
+  .app-sidebar {
+    display: none !important;
+  }
+  .app-mobilenav {
+    display: block;
+  }
+  /* The console rail becomes a compact header, not a stacked copy of itself.
+     Left as a full-width block it ran 461px down a 844px phone — the firm's
+     name, five stacked tabs, the agreement card and Sign out — before the first
+     figure of the order flow appeared. The identity and the way out share one
+     row, the sections become a strip that scrolls sideways, and the agreement
+     line stays, because a sandbox badge is exactly the sort of thing that must
+     not be the first casualty of a small screen. */
+  .console-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+    display: grid !important;
+    /* Plain `1fr`, with the floor zeroed on the identity item below — see the
+       note on the dashboard grids above for why minmax(0, 1fr) does not
+       survive the build. */
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px 12px;
+    padding: 12px 14px !important;
+  }
+  /* Placed explicitly rather than left to auto-flow. Sign out is the last child
+     in source order, so after the two full-width rows below it the algorithm
+     put it on a fourth row of its own, full width — a phone screen led by a
+     giant Sign out button. */
+  .console-sidebar .console-sidebar__identity {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 0 !important;
+    min-width: 0;
+  }
+  .console-sidebar .console-sidebar__signout {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .console-sidebar .console-sidebar__grow {
+    display: none !important;
+  }
+  /* Both span the full width, under the identity row. */
+  .console-sidebar .console-sidebar__tabs,
+  .console-sidebar .console-sidebar__agreement {
+    grid-column: 1 / -1;
+    margin-bottom: 0 !important;
+  }
+  /* The sections wrap onto two rows rather than scrolling sideways. A scroller
+     looked right until it was used: the roving-focus tablist scrolls its active
+     tab into view on mount, so the strip opened part-scrolled with Overview
+     off the left edge and "Order flow" sliced down the middle. Wrapping costs
+     one row and shows every section at once, which is what a five-item tab set
+     on a phone should do anyway. */
+  .console-sidebar .console-sidebar__tabs {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 6px;
+    /* The primitive centres its items, which on wrapped rows leaves each row
+       indented by a different amount and reads as a mistake. */
+    justify-content: flex-start !important;
+  }
+  .console-sidebar .console-sidebar__tabs > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 8px 12px !important;
+    font-size: 14px;
+  }
+  /* The agreement keeps its headline — a sandbox badge is the last thing that
+     should be dropped for space — and loses the sentence under it, which the
+     console repeats in the page body. */
+  .console-sidebar .console-sidebar__agreement {
+    padding: 10px 12px !important;
+  }
+  .console-sidebar .console-sidebar__agreement > div:last-child {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  .g5 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * Guided tour (driver.js) themed onto our tokens.
+ *
+ * driver.js ships hardcoded #fff/#2d2d2d, which on the dark theme paints a
+ * white card with dark text over a dark page — legible but plainly foreign.
+ * Everything below is a token, so the tour follows the theme the viewer chose.
+ * Scoped to .ccn-tour (the popoverClass) rather than .driver-popover, so a
+ * future driver.js usage can opt out.
+ */
+.driver-popover.ccn-tour {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--input));
+  border-radius: 14px;
+  padding: 18px;
+  max-width: 340px;
+  box-shadow: 0 24px 60px rgba(40, 34, 22, 0.22);
+}
+.driver-popover.ccn-tour .driver-popover-title {
+  font-family: var(--font-display, inherit);
+  font-size: 16.5px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+.driver-popover.ccn-tour .driver-popover-description {
+  margin-top: 7px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: hsl(var(--dim));
+}
+.driver-popover.ccn-tour .driver-popover-progress-text {
+  font-size: 12.5px;
+  color: hsl(var(--dim));
+}
+/* The arrow is drawn with border-color, so it needs the card colour per side. */
+.driver-popover.ccn-tour .driver-popover-arrow-side-left {
+  border-left-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-arrow-side-right {
+  border-right-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-arrow-side-top {
+  border-top-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: hsl(var(--card));
+}
+.driver-popover.ccn-tour .driver-popover-close-btn {
+  color: hsl(var(--dim));
+  width: 34px;
+  height: 30px;
+  font-size: 20px;
+}
+.driver-popover.ccn-tour .driver-popover-close-btn:hover,
+.driver-popover.ccn-tour .driver-popover-close-btn:focus-visible {
+  color: hsl(var(--foreground));
+}
+.driver-popover.ccn-tour .driver-popover-footer {
+  margin-top: 16px;
+}
+.driver-popover.ccn-tour .driver-popover-footer-btn {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  /* Preflight is off, so a border shorthand without a style renders nothing. */
+  border: 1px solid hsl(var(--input));
+  border-radius: 8px;
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 600;
+}
+/* The forward action is the primary one; keep it distinguishable by more than
+   position for anyone who cannot rely on colour. */
+.driver-popover.ccn-tour .driver-popover-next-btn {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+.driver-popover.ccn-tour .driver-popover-footer-btn:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
