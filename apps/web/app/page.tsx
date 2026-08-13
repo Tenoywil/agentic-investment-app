@@ -3,6 +3,7 @@
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
 import {
   CircleAlert,
   LineChart,
@@ -12,8 +13,6 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { authClient } from '../lib/auth-client';
 
 function GoogleG() {
   return (
@@ -78,15 +77,7 @@ const PIPE = [
 
 export default function LandingPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const google = () => {
-    setError(null);
-    authClient.signIn
-      .social({ provider: 'google', callbackURL: `${window.location.origin}/after-sign-in` })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Could not reach the sign-in service.');
-      });
-  };
+  const { start: google, pending, slow, error } = useGoogleSignIn();
   const demo = () => router.push('/demo/home');
 
   return (
@@ -147,21 +138,31 @@ export default function LandingPage() {
               variant="outline"
               size="lg"
               onClick={google}
+              disabled={pending}
+              aria-busy={pending}
               className="gap-[11px] text-base shadow-[0_1px_2px_rgba(30,20,10,0.05)]"
             >
               <GoogleG />
-              Continue with Google
+              {pending ? 'Connecting to Google…' : 'Continue with Google'}
             </Button>
             <Button size="lg" onClick={demo} className="text-base">
               See a live demo →
             </Button>
           </div>
-          {error && (
-            <p className="mt-3 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
-              <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
-              {error}
-            </p>
-          )}
+          {/* Fixed height whichever state shows, so the hero does not resize
+              under the button that was just pressed. */}
+          <div className="min-h-[30px] pt-3">
+            {error ? (
+              <p className="flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+                <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+                {error}
+              </p>
+            ) : slow ? (
+              <output className="block text-sm text-dim">
+                Waking the server — this can take up to a minute the first time.
+              </output>
+            ) : null}
+          </div>
           <div className="mt-6 flex flex-wrap items-center gap-3.5 text-[13.5px] text-dim">
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
@@ -340,8 +341,14 @@ export default function LandingPage() {
           ))}
         </div>
         <div className="mt-[34px] flex flex-wrap gap-3">
-          <Button size="lg" onClick={google} className="text-base">
-            Get started with Google
+          <Button
+            size="lg"
+            onClick={google}
+            disabled={pending}
+            aria-busy={pending}
+            className="text-base"
+          >
+            {pending ? 'Connecting to Google…' : 'Get started with Google'}
           </Button>
           <Button variant="outline" size="lg" onClick={demo} className="text-base">
             See a live demo →
