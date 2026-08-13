@@ -34,10 +34,10 @@ cd packages/db && DATABASE_URL='<production url>' bun run db:migrate
 
 **after every merge that adds a migration.** Nothing else does it.
 
-To make it automatic, change `plan: free` to `plan: starter` in
-`apps/api/render.yaml` and restore the `preDeployCommand` line documented there.
-That is the only combination Render allows, and it also retires the free plan's
-30–60s cold start.
+This is a property of the instance type, not an oversight: Render accepts
+`preDeployCommand` only on a paid one. So if automatic migrations are ever
+wanted, the plan changes first — and until someone decides that, the manual step
+above is the deploy procedure, not a workaround for one.
 
 **Drizzle decides what to apply by `created_at`, not by hash-matching each file.**
 It takes the newest `created_at` in the journal and applies every migration whose
