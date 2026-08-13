@@ -60,6 +60,21 @@ services:
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
     healthCheckPath: /health
+    # The branch this service deploys.
+    #
+    # Stated here rather than left implicit, because "which branch is actually
+    # live" was a real source of confusion: the API was deploying from a feature
+    # branch while the repository's default branch was main, nothing in the
+    # repository said so, and a fix that looked shipped was not. A deploy source
+    # that only exists in a dashboard is a fact about the system that no one
+    # reading the code can check.
+    #
+    # For a service Render created from this blueprint, this is authoritative on
+    # the next sync. For one created in the dashboard, the dashboard setting
+    # wins and this documents the intent until they are reconciled — so changing
+    # this line is not on its own proof that the deploy source moved. Confirm in
+    # Render → ccn-api → Settings → Build & Deploy → Branch.
+    branch: main
     preDeployCommand: cd packages/db && bun run db:migrate
     envVars:
       - key: APP_ENV
