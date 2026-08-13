@@ -6,6 +6,7 @@ import { ConsoleHeader } from '@/app/_components/console/console-header';
 import { ConsoleSidebar } from '@/app/_components/console/console-sidebar';
 import type { TabKey } from '@/app/_components/console/lib';
 import { errorMessage } from '@/app/_components/console/lib';
+import { ListProductDialog } from '@/app/_components/console/list-product';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
@@ -160,6 +161,14 @@ export default function InstitutionsPage() {
    * is; on failure put the previous value back rather than leaving the switch
    * showing a change that never happened.
    */
+  /**
+   * Listing a product. The created row is put straight into the catalogue
+   * rather than triggering a refetch — the server has just returned the
+   * authoritative row, and a reload here would blank the tab for a beat on a
+   * cold API.
+   */
+  const [listingOpen, setListingOpen] = useState(false);
+
   async function handleToggleProductLive(id: string) {
     const previous = products.find((p) => p.id === id)?.status;
     if (!previous) return;
@@ -258,8 +267,21 @@ export default function InstitutionsPage() {
           />
         </TabsContent>
 
+        {listingOpen ? (
+          <ListProductDialog
+            onClose={() => setListingOpen(false)}
+            onListed={(product) => {
+              setProducts((ps) => [product, ...ps]);
+              void getAudit(50)
+                .then((r) => setAudit(r.entries))
+                .catch(() => {});
+            }}
+          />
+        ) : null}
+
         <TabsContent value="products" className="mt-0">
           <ProductsTab
+            onList={() => setListingOpen(true)}
             products={products}
             productsError={productsError}
             productBusyId={productBusyId}

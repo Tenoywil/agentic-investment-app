@@ -215,6 +215,33 @@ export function getProducts(): Promise<{ products: ConsoleProduct[] }> {
  * single guarded UPDATE and returns the resulting status, so the caller
  * reconciles to that value rather than assuming its optimistic guess held.
  */
+/**
+ * List a product.
+ *
+ * The console could read its catalogue and pause a listing and never create
+ * one, so a newly onboarded partner signed in to an empty screen. `partnerId`
+ * is deliberately absent: the server takes it from the caller's own scope, so
+ * an operator lists for their firm or not at all.
+ */
+export async function createProduct(input: {
+  name: string;
+  type?: string;
+}): Promise<{ product: ConsoleProduct }> {
+  const res = await fetch(`${API_URL}/api/console/products`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.error === 'string' ? body.error : `request failed (${res.status})`,
+    );
+  }
+  return body;
+}
+
 export function toggleProductLive(id: string): Promise<{ status: ConsoleProductStatus }> {
   return consoleFetch(`/products/${id}/live`, { method: 'POST' });
 }

@@ -295,4 +295,60 @@ suite('partner console data surface', () => {
       .where(eq(productListings.id, listingId));
     expect(row?.status).toBe('live');
   });
+
+  /**
+   * Listing a product. The console could read its catalogue and pause a
+   * listing and never create one, so every product on the network came from
+   * the seed — a partner onboarded onto a live network had no way to put
+   * anything on it.
+   *
+   * The property worth pinning is that `partner_id` comes from the caller's
+   * scope and never from the body: an operator lists for their own firm or not
+   * at all, whatever they send.
+   */
+  test('an operator lists a product, for their own partner only', async () => {
+    // 201, so this cannot go through the 200-asserting `json` helper.
+    const list = (body: unknown, who = 'sagOperator') =>
+      app().request('/api/console/products', {
+        method: 'POST',
+        headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const res = await list({ name: 'A New Fund', type: 'Fund' });
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as {
+      product: { id: string; partnerId: string; status: string };
+    };
+    expect(created.product.status).toBe('live');
+
+    // It is in this partner's catalogue, and not in the other partner's.
+    const mine = await json<{ products: { id: string }[] }>('/api/console/products', 'sagOperator');
+    expect(mine.products.some((p) => p.id === created.product.id)).toBe(true);
+    const theirs = await json<{ products: { id: string }[] }>(
+      '/api/console/products',
+      'ncbOperator',
+    );
+    expect(theirs.products.some((p) => p.id === created.product.id)).toBe(false);
+
+    // A partnerId in the body is ignored — the scope decides.
+    const forgedRes = await list({
+      name: 'Forged',
+      partnerId: '00000000-0000-0000-0000-000000000000',
+    });
+    expect(forgedRes.status).toBe(201);
+    const forged = (await forgedRes.json()) as { product: { partnerId: string } };
+    expect(forged.product.partnerId).toBe(created.product.partnerId);
+  });
+
+  test('a product needs a name', async () => {
+    for (const body of [{}, { name: '' }, { name: 'x' }]) {
+      const res = await app().request('/api/console/products', {
+        method: 'POST',
+        headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect(res.status).toBe(400);
+    }
+  });
 });
