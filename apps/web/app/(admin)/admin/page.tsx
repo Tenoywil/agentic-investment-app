@@ -245,9 +245,9 @@ export default function AdminPage() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate font-display text-[15px] font-bold tracking-tight">
-              {/* Two lines of wrapped title on a phone, for a word every reader
-                  can already see from the badge beside it. */}
-              <span className="max-[680px]:hidden">Caribbean Capital · </span>Administration
+              {/* The full name on a desktop; on a phone it wrapped to two
+                  lines above a badge that already says whose product this is. */}
+              <span className="max-[680px]:hidden">Caribbean Capital Network · </span>Administration
             </div>
             <div className="truncate text-[13px] text-dim">{me?.user.email ?? ''}</div>
           </div>

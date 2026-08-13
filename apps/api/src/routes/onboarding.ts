@@ -5,7 +5,7 @@ import {
   onboardingIdentitySchema,
   onboardingRiskSchema,
 } from '@ccn/domain';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
@@ -44,10 +44,13 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         .select()
         .from(userProfiles)
         .where(eq(userProfiles.userId, tenant.user.id));
+      // Newest assessment wins; earlier ones are kept for the audit trail.
       const [risk] = await tx
         .select({ band: riskProfiles.band })
         .from(riskProfiles)
-        .where(eq(riskProfiles.userId, tenant.user.id));
+        .where(eq(riskProfiles.userId, tenant.user.id))
+        .orderBy(desc(riskProfiles.createdAt))
+        .limit(1);
       return { status: status ?? null, profile: profile ?? null, riskBand: risk?.band ?? null };
     });
     return c.json(data);
@@ -144,7 +147,22 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
     const score = scores.reduce((a, b) => a + b, 0);
 
     await withTenant(deps, tenant, async (tx) => {
-      await tx.delete(riskProfiles).where(eq(riskProfiles.userId, tenant.user.id));
+      /**
+       * Appended, not replaced.
+       *
+       * This used to delete the previous assessment first, which meant the risk
+       * step returned 500 to every investor who ever reached it: the app role
+       * has no DELETE on `risk_profiles` and never had — deletes are granted
+       * exactly once in this system, on `user_roles`, and that is deliberate.
+       * So onboarding could not complete on any database, which is what made
+       * `/api/me` report `complete: false` forever.
+       *
+       * Appending is also the right answer independently. A fact-find is a
+       * point-in-time record of what someone said about their tolerance on a
+       * date, and a firm that has to justify a suitability decision needs the
+       * assessment that was current when the order was placed — not whatever
+       * the client answered most recently. Every reader takes the newest row.
+       */
       await tx.insert(riskProfiles).values({
         userId: tenant.user.id,
         answers: { q1: scores[0], q2: scores[1], q3: scores[2] },

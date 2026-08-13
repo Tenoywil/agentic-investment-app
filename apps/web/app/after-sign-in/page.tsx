@@ -75,7 +75,7 @@ export default function AfterSignInPage() {
             C
           </span>
           <span className="font-display text-base font-bold text-foreground">
-            Caribbean Capital
+            Caribbean Capital Network
           </span>
         </div>
         {failed ? (

@@ -21,7 +21,7 @@ export default function SignInPage() {
           <span className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-primary font-display text-[17px] font-bold text-white">
             C
           </span>
-          <span className="font-display text-[17px] font-bold">Caribbean Capital</span>
+          <span className="font-display text-[17px] font-bold">Caribbean Capital Network</span>
         </button>
       </div>
 
