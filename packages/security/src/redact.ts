@@ -70,7 +70,9 @@ const VALUE_PATTERNS: { pattern: RegExp; replacement: string }[] = [
     pattern: /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/g,
     replacement: REDACTED,
   },
-  // OpenAI-compatible gateway keys (the Impala team key is `sk-…`).
+  // OpenAI-compatible gateway keys shaped `sk-…`. MiniMax issues JWTs, which the
+  // rule above already covers, but the base URL is configuration and the next
+  // provider behind it may well use this shape.
   { pattern: /\bsk-[A-Za-z0-9_-]{8,}\b/g, replacement: REDACTED },
   // `key=<value>` and friends, anywhere in a string.
   //

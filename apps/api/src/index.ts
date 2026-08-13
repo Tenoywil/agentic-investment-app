@@ -114,13 +114,12 @@ const app = createApp(deps);
       // sitting between this process and the internet that refuses the host —
       // which is what a locked-down build environment looks like, and why this
       // does not assert the key is wrong.
-      // The key has to belong to whoever is answering at OPENAI_BASE_URL. That
-      // is worth spelling out because MINIMAX_SECRET, the accepted alias, names
-      // the model Impala routes to rather than the credential's issuer — so a
-      // real MiniMax key lands in it and the gateway rejects a token it has
-      // never seen. It reads like a configuration error and is one, but not the
-      // one the name suggests.
-      const mismatch = `The key must have been issued by whoever answers at ${base}, not by the model provider behind it — MINIMAX_SECRET names the model, not the key's issuer. To talk to a provider directly, point OPENAI_BASE_URL at its own OpenAI-compatible endpoint and set AI_MODEL to one of its model ids.`;
+      // The key has to belong to whoever is answering at OPENAI_BASE_URL, and
+      // the model id has to be one that host actually serves. Both have been
+      // wrong here before — first a MiniMax key against a gateway that had
+      // never issued it, then a family name where an exact id was required —
+      // and each reads like the other from the status code alone.
+      const mismatch = `The key must have been issued by whoever answers at ${base}. For MiniMax, that is a key from platform.minimax.io and the international endpoint https://api.minimax.io/v1 — a China-platform key will not authenticate here. AI_MODEL must be an exact id from GET ${base}/models (e.g. MiniMax-M2), not a family name.`;
       const hint =
         res.status === 401
           ? `The key is being rejected. ${mismatch}`
