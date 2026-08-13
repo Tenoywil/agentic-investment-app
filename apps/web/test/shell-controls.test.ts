@@ -45,23 +45,52 @@ function code(file: string): string {
 
 describe('app shell controls', () => {
   /**
-   * Only one thing may be pinned to the bottom-right corner. A second one does
-   * not sit beside the first — it sits on top of it, and whichever has the
-   * higher stacking order wins the clicks meant for the other.
+   * One component owns the bottom-right corner. A second one does not sit
+   * beside the first — it sits on top of it, and whichever has the higher
+   * stacking order wins the clicks meant for the other. That already happened
+   * once: the tour launcher was a pill in that corner, and so is Ask CCN.
+   *
+   * Any string literal carrying `fixed` + a `bottom-*` + a `right-*` counts,
+   * not just an inline `className`. The corner classes live in a const now, and
+   * a rule that only read `className="…"` would have gone quietly blind at the
+   * moment the control moved.
    */
-  test('exactly one control is fixed to the bottom-right corner', () => {
-    const offenders: string[] = [];
+  test('one component owns the bottom-right corner', () => {
+    const owners = new Set<string>();
     for (const file of [...tsxFiles(SHELL), ...tsxFiles(join(WEB, 'app/(customer)'))]) {
-      const src = code(file);
-      // Tailwind: `fixed` plus a bottom-* and a right-* on the same className.
-      for (const cls of src.match(/className=(?:"[^"]*"|\{`[^`]*`\}|\{cn\([^)]*\))/g) ?? []) {
-        if (/\bfixed\b/.test(cls) && /\bbottom-[[\w.]/.test(cls) && /\bright-[[\w.]/.test(cls)) {
-          offenders.push(relative(WEB, file));
+      for (const lit of code(file).match(/(?:"[^"\n]*"|`[^`]*`)/g) ?? []) {
+        if (/\bfixed\b/.test(lit) && /\bbottom-[[\w.]/.test(lit) && /\bright-[[\w.]/.test(lit)) {
+          owners.add(relative(WEB, file));
         }
       }
     }
-    // The Ask CCN link in AppScreen.tsx, and nothing else.
-    expect(offenders).toEqual(['app/_components/AppScreen.tsx']);
+    expect([...owners]).toEqual(['app/_components/VoiceAsk.tsx']);
+  });
+
+  /**
+   * That component pins two things there — the button, and the line that says
+   * what it is hearing — so they must be at different heights. Stacked at the
+   * same offset the notice would cover the control that raised it.
+   */
+  test('the corner control and its transcript notice do not overlap', () => {
+    const src = code(join(SHELL, 'VoiceAsk.tsx'));
+    const bottoms = [...src.matchAll(/\bbottom-\[(\d+)px\]/g)].map((m) => Number(m[1]));
+    expect(bottoms.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(bottoms).size).toBe(bottoms.length);
+  });
+
+  /**
+   * A microphone must be able to hear. This control shipped once as a mic with
+   * no handler and no speech capture behind it anywhere in the product, and was
+   * deleted for it. It may only wear the microphone where the browser actually
+   * supports recognition; everywhere else it is the link it used to be.
+   */
+  test('the voice control is gated on speech support', () => {
+    const src = code(join(SHELL, 'VoiceAsk.tsx'));
+    expect(src).toContain('useDictation');
+    expect(src).toMatch(/!dictation\.supported/);
+    // The fallback keeps a real destination rather than a disabled button.
+    expect(src).toMatch(/<Link href=\{`\$\{basePath\}\/agent`\}>/);
   });
 
   /** A signed-in customer must be able to leave. */

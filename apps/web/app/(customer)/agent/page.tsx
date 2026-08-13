@@ -1,6 +1,7 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { PENDING_QUESTION_KEY } from '@/app/_components/VoiceAsk';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -389,6 +390,30 @@ export default function AgentPage() {
     Record<string, { code: string; reasons: string[] }>
   >({});
   const [actionErrorById, setActionErrorById] = useState<Record<string, string>>({});
+
+  /**
+   * A question asked by voice from another screen, handed over in
+   * sessionStorage by the corner control (VoiceAsk).
+   *
+   * It is read once and cleared immediately, so a refresh does not re-ask it
+   * and a later visit does not replay it. It waits for the history to load
+   * rather than firing on mount: sending into an empty chat that is about to be
+   * replaced would drop the new turn when the fetch lands.
+   */
+  const askedRef = useRef(false);
+  useEffect(() => {
+    if (historyState !== 'ready' || askedRef.current) return;
+    let pending: string | null = null;
+    try {
+      pending = sessionStorage.getItem(PENDING_QUESTION_KEY);
+      if (pending) sessionStorage.removeItem(PENDING_QUESTION_KEY);
+    } catch {
+      // Storage blocked; nothing was handed over.
+    }
+    if (!pending) return;
+    askedRef.current = true;
+    send(pending);
+  }, [historyState]);
 
   useEffect(() => {
     getAgentHistory()
