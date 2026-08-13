@@ -8,7 +8,7 @@ import { API_URL } from './config';
  * regardless), and their real guardrail limits.
  */
 
-export type Surface = 'customer' | 'institution';
+export type Surface = 'customer' | 'institution' | 'admin';
 export type KycTier = 'none' | 'tier1' | 'tier2';
 
 export interface MePartner {
@@ -65,6 +65,9 @@ export async function getMe(): Promise<Me> {
 
 /** Where a signed-in user belongs. The only place this mapping exists. */
 export function landingPathFor(me: Me): string {
+  // Administration outranks the rest, and skips onboarding entirely: an
+  // administrator has no portfolio to open and nothing to verify.
+  if (me.surface === 'admin') return '/admin';
   if (me.surface === 'institution') return '/institutions';
   return me.onboarding.complete ? '/home' : '/onboarding';
 }

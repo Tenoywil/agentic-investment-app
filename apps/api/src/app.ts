@@ -13,7 +13,8 @@ import {
   requireAuth,
   sessionMiddleware,
 } from './middleware';
-import { requireCustomer, requirePartnerOperator, surfaceFor } from './roles';
+import { requireAdmin, requireCustomer, requirePartnerOperator, surfaceFor } from './roles';
+import { adminRoutes } from './routes/admin';
 import { agentRoutes } from './routes/agent';
 import { approvalsRoutes } from './routes/approvals';
 import { consoleRoutes } from './routes/console';
@@ -100,6 +101,9 @@ export function createApp(deps: AppDeps) {
   // partner binding.
   app.use('/api/gateway/*', requireCustomer(deps));
   app.use('/api/console/*', requirePartnerOperator(deps));
+  // Administration reads across every tenant, so the guard is mounted at the
+  // group rather than per handler: a route added here later cannot forget it.
+  app.use('/api/admin/*', requireAdmin(deps));
 
   /**
    * The authenticated caller: identity, which surface they belong to, their
@@ -165,6 +169,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/approvals', approvalsRoutes(deps));
   app.route('/api/portfolio', portfolioRoutes(deps));
   app.route('/api/console', consoleRoutes(deps));
+  app.route('/api/admin', adminRoutes(deps));
   app.route('/api/agent', agentRoutes(deps));
   app.route('/api/ingestion', ingestionRoutes(deps));
   app.route('/api/opportunities', opportunitiesRoutes(deps));

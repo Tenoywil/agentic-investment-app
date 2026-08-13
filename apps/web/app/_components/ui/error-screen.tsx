@@ -25,7 +25,7 @@ export function ErrorScreen({
 }: {
   error: Error & { digest?: string };
   reset: () => void;
-  surface: 'customer' | 'institution';
+  surface: 'customer' | 'institution' | 'admin';
 }) {
   const heading = React.useRef<HTMLHeadingElement>(null);
 
@@ -36,7 +36,8 @@ export function ErrorScreen({
     console.error('route error boundary', error);
   }, [error]);
 
-  const home = surface === 'institution' ? '/institutions' : '/home';
+  const home =
+    surface === 'admin' ? '/admin' : surface === 'institution' ? '/institutions' : '/home';
 
   return (
     <div className="grid min-h-screen place-items-center bg-background px-6">

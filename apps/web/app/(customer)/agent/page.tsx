@@ -1,12 +1,14 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { PENDING_QUESTION_KEY } from '@/app/_components/VoiceAsk';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { Switch } from '@/app/_components/ui/switch';
+import { useSheetDismiss } from '@/app/_lib/sheet';
 import { useDictation, useNarration } from '@/app/_lib/speech';
 import { cn } from '@/app/_lib/utils';
 import {
@@ -37,12 +39,13 @@ import {
   CheckCheck,
   CircleAlert,
   Mic,
+  SlidersHorizontal,
   Sparkles,
   Square,
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 type ChatEntry = { role: 'agent' | 'user'; text: string };
 
@@ -378,6 +381,30 @@ export default function AgentPage() {
   );
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  /**
+   * Approvals and limits, as a sheet on a phone.
+   *
+   * They are a second column on a desktop and were stacked under the
+   * conversation on a phone, which is what made the screen scroll on past the
+   * chat: the composer went off the bottom the moment you moved, and coming
+   * back meant scrolling up through the whole log. As a sheet the chat keeps
+   * the screen and these stay one tap away.
+   *
+   * A <dialog>, so the browser supplies the top layer, the backdrop, Escape and
+   * focus containment. On a desktop CSS puts the display back and it renders in
+   * the flow as the column it always was — the same trick the phone nav drawer
+   * uses, and the reason the cards exist in exactly one place in the DOM rather
+   * than being rendered twice and drifting.
+   */
+  const panelsRef = useRef<HTMLDialogElement>(null);
+  const [panelsOpen, setPanelsOpen] = useState(false);
+  const openPanels = () => {
+    if (!panelsRef.current?.open) panelsRef.current?.showModal();
+    setPanelsOpen(true);
+  };
+  const closePanels = useCallback(() => panelsRef.current?.close(), []);
+  // Same swipe-down the navigation sheet takes, so the two behave alike.
+  useSheetDismiss(panelsRef, closePanels);
   const logRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
 
@@ -389,6 +416,30 @@ export default function AgentPage() {
     Record<string, { code: string; reasons: string[] }>
   >({});
   const [actionErrorById, setActionErrorById] = useState<Record<string, string>>({});
+
+  /**
+   * A question asked by voice from another screen, handed over in
+   * sessionStorage by the corner control (VoiceAsk).
+   *
+   * It is read once and cleared immediately, so a refresh does not re-ask it
+   * and a later visit does not replay it. It waits for the history to load
+   * rather than firing on mount: sending into an empty chat that is about to be
+   * replaced would drop the new turn when the fetch lands.
+   */
+  const askedRef = useRef(false);
+  useEffect(() => {
+    if (historyState !== 'ready' || askedRef.current) return;
+    let pending: string | null = null;
+    try {
+      pending = sessionStorage.getItem(PENDING_QUESTION_KEY);
+      if (pending) sessionStorage.removeItem(PENDING_QUESTION_KEY);
+    } catch {
+      // Storage blocked; nothing was handed over.
+    }
+    if (!pending) return;
+    askedRef.current = true;
+    send(pending);
+  }, [historyState]);
 
   useEffect(() => {
     getAgentHistory()
@@ -511,31 +562,68 @@ export default function AgentPage() {
 
   return (
     <AppScreen active="agent">
-      <PageHead
-        eyebrow="Discovers, screens and coordinates execution, always on your approval"
-        title="Your Capital Agent"
-      />
+      {/* On a phone this screen is a chat app, so everything above the
+          conversation folds away (globals.css, .agent-preamble): a heading, a
+          strapline, four counters and a status pill pushed the composer to the
+          bottom of a 844px screen with three lines of conversation visible
+          above it. The heading stays in the accessible tree — it is hidden, not
+          removed — so the page keeps its h1 and its landmark structure. */}
+      <div className="agent-preamble">
+        <PageHead
+          eyebrow="Discovers, screens and coordinates execution, always on your approval"
+          title="Your Capital Agent"
+        />
 
-      <AgentStats />
-      <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
-        <span className="h-2 w-2 rounded-full bg-success" />
-        Live · monitoring the region
+        <AgentStats />
+        <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
+          <span className="h-2 w-2 rounded-full bg-success" />
+          Live · monitoring the region
+        </div>
       </div>
 
       <div className="g-agent">
         {/* Chat */}
-        <Card className="flex flex-col overflow-hidden" data-tour="customer-agent">
+        <Card className="agent-chat flex flex-col overflow-hidden" data-tour="customer-agent">
           <div className="flex items-center gap-3 border-b border-border px-5 py-[18px]">
             <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
               <Sparkles className="h-5 w-5" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
               <div className="font-display text-base font-bold">CCN Capital Agent</div>
-              <div className="flex items-center gap-1.5 text-[13px] text-dim">
+              {/* Reassurance, and it wraps to three lines beside the two
+                  controls on a 390px header. The claim it makes is enforced by
+                  the Limits Engine and stated on the limits card, so a phone
+                  spends the space on conversation instead. */}
+              <div className="flex items-center gap-1.5 text-[13px] text-dim max-[900px]:hidden">
                 <span className="h-[7px] w-[7px] rounded-full bg-success" />
                 Suitability-aware · acts on your approval
               </div>
             </div>
+            {/* Phone only: the way back to approvals and limits, which are a
+                column on a desktop. The count is on the button because the
+                thing people come here to do is act on a waiting approval, and
+                a sheet you have to open to discover it is empty is a worse
+                trade than a number in the header. */}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="agent-panels__open h-9 flex-none gap-1.5 px-2.5 font-semibold text-teal2"
+              aria-haspopup="dialog"
+              aria-expanded={panelsOpen}
+              onClick={openPanels}
+            >
+              <SlidersHorizontal className="h-[18px] w-[18px]" aria-hidden />
+              <span className="sr-only">Approvals and limits</span>
+              {approvalsState === 'ready' && approvals.length > 0 ? (
+                <span
+                  className="min-w-[20px] rounded-full bg-[#f9ede2] px-1.5 text-center text-[12px] font-bold text-terra-ink dark:bg-[#2e2118]"
+                  aria-hidden
+                >
+                  {approvals.length}
+                </span>
+              ) : null}
+            </Button>
             {/* Only where the browser can actually speak. The toggle doubles as
                 the stop control while it is talking, so audio is never running
                 without something on screen to end it. */}
@@ -569,7 +657,7 @@ export default function AgentPage() {
             // every message: the card got taller as the agent streamed, pushing the
             // composer down under the cursor and resizing the whole two-column row
             // around it. The conversation scrolls inside a box that does not move.
-            className="flex h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px] max-[900px]:h-[58vh]"
+            className="agent-chat__log flex h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
             {historyState === 'loading' && (
               <SkeletonRegion label="Loading your conversation" className="flex flex-col gap-3.5">
@@ -641,14 +729,17 @@ export default function AgentPage() {
                 <InlineError>{streamError}</InlineError>
               </div>
             )}
-            <div className="mb-3 flex flex-wrap gap-2">
+            {/* On a phone these wrap to one per line and cost three rows above
+                the composer. A single strip that scrolls sideways keeps them
+                reachable without pushing the input down the screen. */}
+            <div className="mb-3 flex flex-wrap gap-2 max-[900px]:flex-nowrap max-[900px]:overflow-x-auto max-[900px]:pb-1">
               {SUGGESTIONS.map((s) => (
                 <Button
                   key={s.label}
                   variant="outline"
                   size="sm"
                   disabled={sending}
-                  className="rounded-[20px] font-semibold text-teal2"
+                  className="rounded-[20px] font-semibold text-teal2 max-[900px]:flex-none"
                   onClick={() => send(s.label)}
                 >
                   {s.label}
@@ -704,8 +795,30 @@ export default function AgentPage() {
           </div>
         </Card>
 
-        {/* Approvals + limits */}
-        <div className="flex flex-col gap-[18px]">
+        {/* Approvals + limits. A column on a desktop, a sheet on a phone. */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: the click closes on backdrop only; Escape is the dialog's own. */}
+        <dialog
+          ref={panelsRef}
+          className="agent-panels flex flex-col gap-[18px] bg-transparent text-foreground"
+          aria-label="Approvals and limits"
+          onClose={() => setPanelsOpen(false)}
+          onClick={(e) => {
+            if (e.target === panelsRef.current) closePanels();
+          }}
+        >
+          <button
+            type="button"
+            data-sheet-handle
+            onClick={closePanels}
+            aria-label="Close approvals and limits"
+            className="app-sheet__handle agent-panels__handle"
+          />
+          <div className="agent-panels__bar">
+            <span className="font-display text-base font-bold">Approvals and limits</span>
+            <Button type="button" size="sm" variant="ghost" onClick={closePanels}>
+              Done
+            </Button>
+          </div>
           <Card className="p-5" data-tour="customer-approvals">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
@@ -805,7 +918,7 @@ export default function AgentPage() {
           </Card>
 
           <LimitsCard />
-        </div>
+        </dialog>
       </div>
     </AppScreen>
   );

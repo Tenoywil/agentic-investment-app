@@ -1,4 +1,9 @@
-import { type AllowlistConfig, demoCustomerAllowlist, operatorAllowlist } from '@ccn/config';
+import {
+  type AllowlistConfig,
+  adminAllowlist,
+  demoCustomerAllowlist,
+  operatorAllowlist,
+} from '@ccn/config';
 import { partners, seedDemoCustomer, seedPartnerConsole, userRoles, withRls } from '@ccn/db';
 import { eq, sql } from 'drizzle-orm';
 import type { AppDeps, SessionUser } from './context';
@@ -26,6 +31,28 @@ function lockKey(userId: string) {
 }
 
 /**
+ * Whether this account is named as an operator but is not one yet.
+ *
+ * `tenantFromUser` only called `ensureProvisioned` when a user held no roles at
+ * all, which meant the allowlist could never correct an account that had
+ * already signed in once — the reconciliation inside `ensureProvisioned` was
+ * unreachable for exactly the accounts that needed it. This is the cheap test
+ * that lets the caller ask the question on every request without paying for the
+ * provisioning transaction: a Map lookup and a scan of at most a handful of role
+ * rows, and it stops answering true the moment the promotion lands.
+ */
+export function needsOperatorGrant(
+  config: AllowlistConfig,
+  email: string,
+  roles: readonly { role: string }[],
+): boolean {
+  const at = email.trim().toLowerCase();
+  if (adminAllowlist(config).has(at) && !roles.some((r) => r.role === 'admin')) return true;
+  if (!operatorAllowlist(config).has(at)) return false;
+  return !roles.some((r) => r.role === 'partner_operator');
+}
+
+/**
  * The subset of AppDeps this needs. Narrowed so the `grant` CLI can call the
  * exact same function without standing up Better Auth or supplying the OAuth and
  * LLM secrets it never reads — pre-provisioning a demo identity must produce
@@ -50,6 +77,7 @@ export interface ProvisioningDeps {
 export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUser): Promise<void> {
   const email = user.email.trim().toLowerCase();
   const grant = operatorAllowlist(deps.config).get(email);
+  const isAdmin = adminAllowlist(deps.config).has(email);
 
   // Runs inside the caller's RLS scope, not on a bare connection.
   //
@@ -70,30 +98,94 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
 
     // Re-check inside the lock — the request that lost the race must not insert.
     const existing = await tx
-      .select({ role: userRoles.role })
+      .select({ role: userRoles.role, partnerId: userRoles.partnerId })
       .from(userRoles)
       .where(eq(userRoles.userId, user.id));
-    if (existing.length > 0) return;
 
     // `partners.code` is an enum column, so an allowlist entry naming a code
     // outside it is rejected here rather than reaching the query.
     const knownCodes = partners.code.enumValues as readonly string[];
     const partnerCode = grant && knownCodes.includes(grant.partnerCode) ? grant.partnerCode : null;
 
-    if (grant && partnerCode) {
-      const [partner] = await tx
-        .select({ id: partners.id })
-        .from(partners)
-        .where(eq(partners.code, partnerCode as (typeof partners.code.enumValues)[number]));
+    const [partner] = partnerCode
+      ? await tx
+          .select({ id: partners.id })
+          .from(partners)
+          .where(eq(partners.code, partnerCode as (typeof partners.code.enumValues)[number]))
+      : [];
 
-      if (partner) {
-        await tx
-          .insert(userRoles)
-          .values({ userId: user.id, role: 'partner_operator', partnerId: partner.id })
-          .onConflictDoNothing();
-        operatorPartnerId = partner.id;
+    /**
+     * An account that already holds a role is reconciled against the allowlist,
+     * not skipped.
+     *
+     * This used to return early the moment any role existed, and that made the
+     * allowlist unable to correct itself. Provisioning is lazy, so an identity
+     * that signed in before `PARTNER_OPERATOR_EMAILS` was set was granted
+     * `customer` on that first request — and adding the address afterwards then
+     * did nothing, on that request or any later one. The account was a customer
+     * permanently. `bun run grant`, the documented safety valve, calls this
+     * function and so could not fix it either. From the outside it reads as the
+     * console being broken: the firm's own address signs in and lands on the
+     * investor dashboard, with the environment variable plainly set.
+     *
+     * Upward only. Being absent from the allowlist while holding
+     * `partner_operator` is logged, not revoked — an operator granted directly
+     * in SQL is legitimate, and silently stripping a console mid-demo is a worse
+     * failure than a stale grant. Revocation stays a deliberate act.
+     */
+    // Administration outranks everything else and is bound to no partner. It is
+    // handled before the operator branches so an address on both lists resolves
+    // one way, always — and it is granted on the reconcile path too, because an
+    // administrator is exactly the sort of account that existed long before
+    // anyone thought to write ADMIN_EMAILS.
+    if (isAdmin) {
+      if (existing.some((r) => r.role === 'admin')) return;
+      await tx.insert(userRoles).values({ userId: user.id, role: 'admin' }).onConflictDoNothing();
+      deps.logger.info('granted administrator from the allowlist', {
+        userId: user.id,
+        heldBefore: existing.map((r) => r.role),
+      });
+      return;
+    }
+
+    if (existing.length > 0) {
+      if (!partner) {
+        if (grant) {
+          deps.logger.error(
+            'operator allowlist names an unknown partner; leaving roles as they are',
+            {
+              partnerCode: grant.partnerCode,
+              userId: user.id,
+            },
+          );
+        }
         return;
       }
+      const already = existing.some(
+        (r) => r.role === 'partner_operator' && r.partnerId === partner.id,
+      );
+      if (already) return;
+
+      await tx
+        .insert(userRoles)
+        .values({ userId: user.id, role: 'partner_operator', partnerId: partner.id })
+        .onConflictDoNothing();
+      operatorPartnerId = partner.id;
+      deps.logger.info('promoted an existing account to partner operator from the allowlist', {
+        userId: user.id,
+        partnerCode,
+        heldBefore: existing.map((r) => r.role),
+      });
+      return;
+    }
+
+    if (grant && partner) {
+      await tx
+        .insert(userRoles)
+        .values({ userId: user.id, role: 'partner_operator', partnerId: partner.id })
+        .onConflictDoNothing();
+      operatorPartnerId = partner.id;
+      return;
     }
 
     if (grant) {

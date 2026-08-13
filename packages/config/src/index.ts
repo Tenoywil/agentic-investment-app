@@ -98,9 +98,11 @@ const serverSchema = z.object({
   // an ordinary customer with an empty account.
   //   PARTNER_OPERATOR_EMAILS  "ops@x.com:SAG, other@y.com"  (code optional)
   //   DEMO_CUSTOMER_EMAILS     "me@gmail.com"                (gets the seeded portfolio)
+  //   ADMIN_EMAILS             "ops@ccn.com"                 (reads across tenants)
   PARTNER_OPERATOR_EMAILS: z.string().default(''),
   DEMO_CUSTOMER_EMAILS: z.string().default(''),
   DEMO_PARTNER_CODE: z.string().min(2).default('SAG'),
+  ADMIN_EMAILS: z.string().default(''),
 });
 
 const clientSchema = z.object({
@@ -128,6 +130,7 @@ export interface AllowlistConfig {
   PARTNER_OPERATOR_EMAILS: string;
   DEMO_CUSTOMER_EMAILS: string;
   DEMO_PARTNER_CODE: string;
+  ADMIN_EMAILS: string;
 }
 
 function splitList(raw: string): string[] {
@@ -154,6 +157,19 @@ export function operatorAllowlist(config: AllowlistConfig): Map<string, Operator
     });
   }
   return out;
+}
+
+/**
+ * Emails that administer the network.
+ *
+ * `admin` is the only role that reads across tenants (0008_admin_read.sql), and
+ * it is read-only there — everything that changes state still goes through the
+ * product's own choke points. Like the operator list it is deliberately an
+ * environment variable rather than a screen: there is no in-product way to make
+ * someone an administrator, so a compromised account cannot promote itself.
+ */
+export function adminAllowlist(config: AllowlistConfig): Set<string> {
+  return new Set(splitList(config.ADMIN_EMAILS).map((e) => e.toLowerCase()));
 }
 
 /** Emails that receive the seeded Caribbean demo portfolio on first sign-in. */

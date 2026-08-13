@@ -10,9 +10,10 @@ import { requireAuth } from './middleware';
  * from this single function so the customer app, the partner console and the
  * tests can never disagree about who someone is.
  */
-export type Surface = 'customer' | 'institution';
+export type Surface = 'customer' | 'institution' | 'admin';
 
 export const PARTNER_OPERATOR = 'partner_operator';
+export const ADMIN = 'admin';
 
 /**
  * Total over every role combination — there is deliberately no "undecided" case
@@ -20,14 +21,42 @@ export const PARTNER_OPERATOR = 'partner_operator';
  *
  * | roles                                    | surface     | why                                    |
  * |------------------------------------------|-------------|----------------------------------------|
+ * | admin                                    | admin       | runs the network; outranks the rest     |
  * | partner_operator WITH a partnerId        | institution | the operator's own book                |
  * | partner_operator WITHOUT a partnerId     | customer    | fail closed: unbound operator, no console |
  * | both operator and customer               | institution | one documented winner, never a prompt  |
  * | customer only                            | customer    |                                        |
  * | no rows at all                           | customer    | least privilege — absent data never grants console |
+ *
+ * `admin` is checked first and needs no second column to be bound to, because
+ * it is not bound to anything: it is the one role that reads across every
+ * tenant (0008_admin_read.sql). It is granted only from ADMIN_EMAILS, so it
+ * cannot be reached by any sequence of actions inside the product.
  */
 export function surfaceFor(tenant: TenantContext): Surface {
+  if (tenant.roles.includes(ADMIN)) return 'admin';
   return tenant.roles.includes(PARTNER_OPERATOR) && tenant.partnerId ? 'institution' : 'customer';
+}
+
+/**
+ * Administration routes. Read-only by construction: the migration grants admin
+ * SELECT and nothing else, so a handler that tried to write across tenants
+ * would be refused by the database rather than by a code review.
+ */
+export function requireAdmin(deps: AppDeps) {
+  const auth = requireAuth(deps);
+  return createMiddleware<AppEnv>(async (c, next) => {
+    let denied: Response | undefined;
+    const res = await auth(c, async () => {
+      const tenant = c.get('tenant');
+      if (!tenant || surfaceFor(tenant) !== 'admin') {
+        denied = c.json({ error: 'administrators only' }, 403);
+        return;
+      }
+      await next();
+    });
+    return denied ?? res;
+  });
 }
 
 /**

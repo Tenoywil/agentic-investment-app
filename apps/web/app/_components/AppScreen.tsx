@@ -1,11 +1,9 @@
 'use client';
 
-import { Button } from '@/app/_components/ui/button';
-import { Sparkles } from 'lucide-react';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { MobileNav } from './MobileNav';
+import { VoiceAsk } from './VoiceAsk';
 
 type Key =
   | 'home'
@@ -23,10 +21,8 @@ type Key =
  *  API calls, and the sidebar hides Gateway/Onboarding (neither has a demo
  *  version). Omit it for the real, signed-in, live-data app.
  *
- *  The Ask CCN pill is a link to the agent, not a voice button: it carried a
- *  microphone and no handler at all, and there is no speech capture anywhere in
- *  the product to wire it to. It hides on the agent screen itself rather than
- *  floating over the page it would navigate to. */
+ *  The corner control is voice — see VoiceAsk. It hides on the agent screen
+ *  itself, where the composer's own microphone is the right affordance. */
 export function AppScreen({
   active,
   basePath = '',
@@ -43,24 +39,14 @@ export function AppScreen({
       <main className="relative min-w-0 flex-1 px-8 pb-24 pt-[26px] max-[900px]:px-4 max-[900px]:pt-5 min-[561px]:max-[900px]:px-6">
         {children}
       </main>
-      {active === 'agent' ? null : (
-        // On a phone it is a circular icon button. As a labelled pill it is wide
-        // enough to sit across two lines of body copy while scrolling, which on
-        // a 390px screen reads as a control dropped on top of the page rather
-        // than floating above it. The label stays in the accessible name — it is
-        // hidden visually, not removed — so the control is still "Ask CCN" to a
-        // screen reader and to voice control.
-        <Button
-          size="pill"
-          asChild
-          className="fixed bottom-[26px] right-[30px] shadow-[0_12px_30px_rgba(18,78,72,0.4)] max-[900px]:bottom-4 max-[900px]:right-4 max-[900px]:h-14 max-[900px]:w-14 max-[900px]:justify-center max-[900px]:rounded-full max-[900px]:p-0"
-        >
-          <Link href={`${basePath}/agent`}>
-            <Sparkles className="h-[18px] w-[18px] max-[900px]:h-6 max-[900px]:w-6" aria-hidden />
-            <span className="max-[900px]:sr-only">Ask CCN</span>
-          </Link>
-        </Button>
-      )}
+      {/* On a phone it is a circular icon button. As a labelled pill it is wide
+          enough to sit across two lines of body copy while scrolling, which on a
+          390px screen reads as a control dropped on top of the page rather than
+          floating above it. The label stays in the accessible name — hidden
+          visually, not removed — so it is still "Ask CCN" to a screen reader and
+          to voice control. Hidden on /agent itself, where the composer's own
+          microphone is the right affordance. */}
+      {active === 'agent' ? null : <VoiceAsk basePath={basePath} />}
     </div>
   );
 }

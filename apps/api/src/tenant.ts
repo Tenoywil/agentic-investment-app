@@ -1,7 +1,7 @@
 import { userRoles, withRls } from '@ccn/db';
 import { eq } from 'drizzle-orm';
 import type { AppDeps, SessionUser, TenantContext } from './context';
-import { ensureProvisioned } from './provisioning';
+import { ensureProvisioned, needsOperatorGrant } from './provisioning';
 
 /**
  * Resolve a user's roles and tenant scope. Shared by the HTTP auth middleware
@@ -29,7 +29,16 @@ export async function tenantFromUser(deps: AppDeps, user: SessionUser): Promise<
   // A user with no roles has never been provisioned — grant their initial role
   // now and re-read. Nothing else in the product assigns roles, so this is the
   // only path by which a real Google identity ever gets one.
-  if (roleRows.length === 0) {
+  //
+  // The second condition is what lets the operator allowlist correct itself.
+  // Provisioning is lazy, so an identity that signed in before
+  // PARTNER_OPERATOR_EMAILS was set holds `customer` — and with the check being
+  // only `length === 0`, it would never be reconsidered, on this request or any
+  // later one. Adding the address to the allowlist did nothing, permanently.
+  // `needsOperatorGrant` is a Map lookup and a scan of a few rows, it is false
+  // for everyone not named in the allowlist, and it stops being true the moment
+  // the grant lands — so the ordinary request pays nothing for it.
+  if (roleRows.length === 0 || needsOperatorGrant(deps.config, user.email, roleRows)) {
     await ensureProvisioned(deps, user);
     roleRows = await readRoles();
   }

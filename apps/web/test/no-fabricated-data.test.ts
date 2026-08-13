@@ -20,7 +20,9 @@ import { join, relative, resolve } from 'node:path';
 /** Resolved against this file, not the cwd — the suite runs both from the repo
  *  root (`bun test`) and from apps/web (`turbo run test`). */
 const WEB = resolve(import.meta.dir, '..');
-const ROOTS = ['app/(customer)', 'app/(institution)', 'app/_components'].map((r) => join(WEB, r));
+const ROOTS = ['app/(customer)', 'app/(institution)', 'app/(admin)', 'app/_components'].map((r) =>
+  join(WEB, r),
+);
 
 /** Literals lifted from the prototype during the audit. Each one shipped to a
  *  live screen at some point, so each one earns a permanent test. */

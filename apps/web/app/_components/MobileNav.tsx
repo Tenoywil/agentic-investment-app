@@ -2,6 +2,7 @@
 
 import { AccountMenu } from '@/app/_components/AccountMenu';
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
+import { useSheetDismiss } from '@/app/_lib/sheet';
 import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -19,11 +20,18 @@ import type { NavGroup } from './AppSidebar';
  * the net worth figure was barely on it. There was no way to collapse it,
  * because it *was* the navigation.
  *
- * A drawer suits this product better than a bottom tab bar: there are ten
+ * A sheet suits this product better than a bottom tab bar: there are ten
  * destinations across four named groups, and the grouping is the information
  * architecture — Overview, Invest, Plan, Gateway. A five-slot tab bar would have
  * to bury Gateway behind a "More", and that is the part of the product least
  * likely to be guessed at and most likely to be shown.
+ *
+ * It rises from the bottom rather than sliding in from the left. The left-edge
+ * panel was a desktop drawer scaled down, and read as one; the bottom sheet is
+ * the native idiom on both phone platforms and the reachable one, opening and
+ * dismissing where the thumb already is instead of at the far top corner. It
+ * carries a grab handle and takes a downward swipe, alongside the backdrop tap
+ * and Escape — a gesture is an addition to the ways out, never the only one.
  *
  * The links come from AppSidebar, so the two presentations cannot drift.
  *
@@ -48,6 +56,8 @@ export function MobileNav({
   const close = React.useCallback(() => {
     dialogRef.current?.close();
   }, []);
+
+  useSheetDismiss(dialogRef, close);
 
   // Navigating closes it. Without this the drawer stays open over the screen it
   // just took you to, which reads as a link that did nothing.
@@ -97,7 +107,7 @@ export function MobileNav({
           way to dismiss, which is what this rule exists to prevent. */}
       <dialog
         ref={dialogRef}
-        className="app-drawer bg-card text-foreground"
+        className="app-sheet"
         aria-label="Navigation"
         // Fires for Escape and for close(), so focus returns by either route.
         onClose={() => {
@@ -111,7 +121,17 @@ export function MobileNav({
           if (e.target === dialogRef.current) close();
         }}
       >
-        <div className="flex h-full flex-col px-4 pb-5 pt-3">
+        {/* The handle is a button, not decoration: the swipe it advertises is
+            unavailable to anyone not using touch, and a control that only some
+            people can operate needs a click target too. */}
+        <button
+          type="button"
+          data-sheet-handle
+          onClick={close}
+          aria-label="Close navigation"
+          className="app-sheet__handle"
+        />
+        <div className="flex max-h-[calc(88dvh-24px)] flex-col px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-1">
           <div className="flex items-center justify-between pb-1">
             <span className="font-display text-[15px] font-bold tracking-tight">Menu</span>
             <button

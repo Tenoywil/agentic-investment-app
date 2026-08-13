@@ -20,8 +20,16 @@ import { cn } from '@/app/_lib/utils';
  * animation to nothing under `prefers-reduced-motion`, so it needs no guard of
  * its own.
  */
-export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cn('animate-pulse rounded-md bg-muted', className)} />;
+export function Skeleton({
+  className,
+  ...rest
+}: { className?: string } & React.HTMLAttributes<HTMLDivElement>) {
+  // `style` and data-* pass through because some reserved heights are measured
+  // numbers rather than points on the spacing scale, and Tailwind cannot express
+  // a value it has no class for.
+  return (
+    <div aria-hidden className={cn('animate-pulse rounded-md bg-muted', className)} {...rest} />
+  );
 }
 
 /**
