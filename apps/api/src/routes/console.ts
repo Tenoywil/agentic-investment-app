@@ -326,6 +326,62 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
    * back means the listing is not this partner's, which is a 404 rather than a
    * 403: an operator must not be able to probe another firm's listing ids.
    */
+  /**
+   * List a product.
+   *
+   * The console could read its catalogue and pause a listing, and never create
+   * one — the only products on the network came from `db:seed`, which writes
+   * five for the anchor partner and nothing for anyone else. A partner who had
+   * just been onboarded signed in to an empty catalogue with no control that
+   * could change it, which is the missing half of the institution side.
+   *
+   * `partner_id` comes from the caller's scope and is never read from the body:
+   * an operator lists for their own firm or not at all, and the RLS policy
+   * enforces the same thing underneath.
+   *
+   * A new listing starts `live`, the column's default — the operator is
+   * deliberately listing it, and the pause switch beside it is one click away.
+   * `clients`, `aum_minor` and `trend` are left at their defaults and are not
+   * accepted here: CCN measures none of them, and a figure an operator typed
+   * about their own product is not a measurement.
+   */
+  app.post('/products', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    const type = typeof body?.type === 'string' ? body.type.trim() : '';
+    if (name.length < 2) return c.json({ error: 'a product needs a name' }, 400);
+    if (name.length > 140) return c.json({ error: 'that name is too long' }, 400);
+    if (type.length > 60) return c.json({ error: 'that type is too long' }, 400);
+
+    const product = await withTenant(deps, tenant, async (tx) => {
+      const [row] = await tx
+        .insert(productListings)
+        .values({ partnerId: scope.partnerId, name, type: type || null })
+        .returning();
+      if (!row) return null;
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: scope.partnerId,
+        action: 'product_listing.created',
+        entityType: 'product_listings',
+        entityId: row.id,
+        detail: { name: row.name, type: row.type, status: row.status },
+      });
+      return row;
+    });
+
+    if (!product) return c.json({ error: 'the product was not listed' }, 400);
+    deps.logger.info('partner listed a product', { partner: scope.partnerId, product: product.id });
+    return c.json({ product }, 201);
+  });
+
   app.post('/products/:id/live', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);

@@ -1,10 +1,11 @@
 'use client';
 
+import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Switch } from '@/app/_components/ui/switch';
 import type { ConsoleProduct } from '@/lib/console-api';
-import { Boxes } from 'lucide-react';
+import { Boxes, Plus } from 'lucide-react';
 import { ROW_DIVIDER, uppr } from './lib';
 import { ErrorNote } from './notice';
 
@@ -13,9 +14,12 @@ import { ErrorNote } from './notice';
  *
  * The live/paused switch is a real write to POST /api/console/products/:id/live
  * — it used to be permanently `disabled` with a tooltip apologising that no
- * write endpoint existed. The header's "List a product" button is gone: it had
- * no handler and no endpoint behind it, and a control that does nothing is
- * worse than no control.
+ * write endpoint existed.
+ *
+ * "List a product" is back, and now it is real. It was removed for having no
+ * handler and no endpoint behind it, which was right at the time; a partner
+ * onboarded onto a live network then had no way to put anything on it, and an
+ * empty catalogue with no control is a worse answer than a control that works.
  */
 export function ProductsTab({
   products,
@@ -23,12 +27,14 @@ export function ProductsTab({
   productBusyId,
   productActionError,
   onToggleLive,
+  onList,
 }: {
   products: ConsoleProduct[];
   productsError: string | null;
   productBusyId: string | null;
   productActionError: string | null;
   onToggleLive: (id: string) => void;
+  onList: () => void;
 }) {
   return (
     <Card className="overflow-hidden" data-tour="institution-products">
@@ -43,6 +49,10 @@ export function ProductsTab({
         {/* No sandbox badge here any more. It existed to caveat the invented
             client/AUM/inflow figures; what is left — the product's name, type
             and whether it is live — is real configuration the operator owns. */}
+        <Button type="button" size="sm" onClick={onList}>
+          <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+          List a product
+        </Button>
       </div>
 
       {productsError ? <ErrorNote message={productsError} className="px-6 pb-3.5" /> : null}
@@ -55,7 +65,13 @@ export function ProductsTab({
           <EmptyState
             icon={Boxes}
             title="No products listed yet"
-            body="Once your funds and notes are listed on CCN they appear here, and you can take any of them out of matching without delisting it."
+            body="List your funds and notes here and the agent can match them to suitable clients. You can pause any of them later without delisting it."
+            action={
+              <Button type="button" size="sm" onClick={onList}>
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+                List a product
+              </Button>
+            }
           />
         </div>
       ) : null}

@@ -1,0 +1,25 @@
+-- ---------------------------------------------------------------------------
+-- A partner can list a product.
+--
+-- The console could read its listings and pause them, and never create one. The
+-- only way a product reached the network was `db:seed`, which writes five for
+-- the anchor partner and nothing for anybody else — so a real partner, freshly
+-- onboarded and signed in, saw an empty catalogue and no control that could
+-- change it. For a network whose entire proposition is routing investors to
+-- partner products, that is the missing half of the institution side.
+--
+-- One grant is all this needs, and that is worth noticing rather than glossing:
+-- `product_listings_partner` (0001_security.sql) is already FOR ALL with
+-- `USING (partner_id = app_current_partner_id())` and the same WITH CHECK, so
+-- the policy has always permitted an operator to write their own partner's
+-- rows. What refused the insert was the privilege — 0001 granted SELECT and
+-- UPDATE only.
+--
+-- So an operator may now insert, under the policy that already scopes them to
+-- their own firm. No DELETE: a listing that has been matched or ordered
+-- against is not something to remove, and `status = 'paused'` is the honest
+-- representation of "not offered any more" — it keeps the row that orders point
+-- at. Nothing here widens what an operator can see.
+-- ---------------------------------------------------------------------------
+
+GRANT INSERT ON TABLE "product_listings" TO ccn_app;
