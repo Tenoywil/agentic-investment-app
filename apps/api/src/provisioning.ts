@@ -26,6 +26,26 @@ function lockKey(userId: string) {
 }
 
 /**
+ * Whether this account is named as an operator but is not one yet.
+ *
+ * `tenantFromUser` only called `ensureProvisioned` when a user held no roles at
+ * all, which meant the allowlist could never correct an account that had
+ * already signed in once — the reconciliation inside `ensureProvisioned` was
+ * unreachable for exactly the accounts that needed it. This is the cheap test
+ * that lets the caller ask the question on every request without paying for the
+ * provisioning transaction: a Map lookup and a scan of at most a handful of role
+ * rows, and it stops answering true the moment the promotion lands.
+ */
+export function needsOperatorGrant(
+  config: AllowlistConfig,
+  email: string,
+  roles: readonly { role: string }[],
+): boolean {
+  if (!operatorAllowlist(config).has(email.trim().toLowerCase())) return false;
+  return !roles.some((r) => r.role === 'partner_operator');
+}
+
+/**
  * The subset of AppDeps this needs. Narrowed so the `grant` CLI can call the
  * exact same function without standing up Better Auth or supplying the OAuth and
  * LLM secrets it never reads — pre-provisioning a demo identity must produce

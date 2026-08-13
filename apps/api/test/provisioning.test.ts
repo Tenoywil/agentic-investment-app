@@ -2,8 +2,9 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { createDb, partners, user, userRoles } from '@ccn/db';
 import { eq, inArray } from 'drizzle-orm';
 import { createLogger } from '../src/logger';
-import { type ProvisioningDeps, ensureProvisioned } from '../src/provisioning';
+import { type ProvisioningDeps, ensureProvisioned, needsOperatorGrant } from '../src/provisioning';
 import { surfaceFor } from '../src/roles';
+import { tenantFromUser } from '../src/tenant';
 
 /**
  * First-sign-in provisioning, run as the application role rather than as a
@@ -143,6 +144,45 @@ suite('first-sign-in provisioning under RLS', () => {
    * silently stripping a console mid-demo is a worse failure than a stale grant,
    * so absence from the allowlist is logged rather than acted on.
    */
+  /**
+   * The promotion has to be reachable from a real request, not just callable.
+   *
+   * `tenantFromUser` only called `ensureProvisioned` when a user held no roles
+   * at all — so the reconciliation above was unreachable for exactly the
+   * accounts that needed it, and fixing `ensureProvisioned` alone left the
+   * whole thing inert. This drives the function the request path actually
+   * calls, which is the only version of this test that would have caught it.
+   */
+  test('the request path promotes an allowlisted account that already holds customer', async () => {
+    const u = await makeUser('via-tenant');
+    await ensureProvisioned(deps(), u);
+    expect(surfaceOf(await rolesOf(u.id))).toBe('customer');
+
+    const withList = {
+      ...deps({ PARTNER_OPERATOR_EMAILS: `${u.email}:SAG` }),
+      auth: {} as never,
+    };
+    const tenant = await tenantFromUser(withList as never, u);
+    expect(tenant.roles).toContain('partner_operator');
+    expect(tenant.partnerId).toBeTruthy();
+    expect(surfaceFor(tenant)).toBe('institution');
+  });
+
+  /** And it must not fire for anyone the allowlist does not name. */
+  test('needsOperatorGrant is false for an ordinary account and for a settled operator', () => {
+    const cfg = {
+      PARTNER_OPERATOR_EMAILS: 'ops@firm.test:SAG',
+      DEMO_CUSTOMER_EMAILS: '',
+      DEMO_PARTNER_CODE: 'SAG',
+    };
+    expect(needsOperatorGrant(cfg, 'someone@else.test', [{ role: 'customer' }])).toBe(false);
+    expect(needsOperatorGrant(cfg, 'ops@firm.test', [{ role: 'customer' }])).toBe(true);
+    // Casing follows whatever the provider returns.
+    expect(needsOperatorGrant(cfg, 'OPS@Firm.test', [{ role: 'customer' }])).toBe(true);
+    // Already granted: stops asking.
+    expect(needsOperatorGrant(cfg, 'ops@firm.test', [{ role: 'partner_operator' }])).toBe(false);
+  });
+
   test('an existing operator is not demoted by an empty allowlist', async () => {
     const u = await makeUser('keeps-operator');
     await ensureProvisioned(deps({ PARTNER_OPERATOR_EMAILS: `${u.email}:SAG` }), u);
