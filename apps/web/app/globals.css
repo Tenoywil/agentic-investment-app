@@ -221,19 +221,69 @@ input:-webkit-autofill:active {
    shape of a panel pinned to the left edge, since a dialog centres itself by
    default. `100dvh` rather than `100vh` so the panel ends at the real bottom of
    a mobile viewport instead of running under the browser's own chrome. */
-.app-drawer {
-  margin: 0 auto 0 0;
-  height: 100dvh;
-  max-height: 100dvh;
-  width: min(86vw, 320px);
+/* Bottom sheets.
+   
+   The navigation was a panel pinned to the left edge — a desktop drawer scaled
+   down — and it read as one. On a phone the sheet that rises from the bottom is
+   the native idiom on both platforms, and it is the reachable one: it opens and
+   dismisses where the thumb already is, instead of at the far top corner.
+
+   `auto 0 0` for the margin is what pins a <dialog> to the bottom; it centres
+   itself otherwise. 100dvh rather than 100vh throughout, so the panel ends at
+   the real bottom of a mobile viewport and not under the browser's own chrome. */
+.app-sheet {
+  margin: auto 0 0;
+  width: 100%;
   max-width: none;
+  max-height: 88dvh;
   padding: 0;
   border: 0;
-  border-right: 1px solid hsl(var(--border));
+  border-radius: 20px 20px 0 0;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
   overflow: hidden;
+  box-shadow: 0 -12px 40px rgba(20, 14, 8, 0.28);
 }
-.app-drawer::backdrop {
-  background: rgba(0, 0, 0, 0.55);
+.app-sheet[open] {
+  animation: sheet-rise 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.app-sheet::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  animation: sheet-fade 260ms ease;
+}
+@keyframes sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+/* The grab handle. It is a real button as well as a target for the drag, so the
+   gesture is never the only way out. `touch-action: none` stops the browser
+   claiming the drag as a scroll before the sheet sees it. */
+.app-sheet__handle {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 10px 0 6px;
+  background: none;
+  border: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.app-sheet__handle::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: hsl(var(--border));
+}
+.app-sheet__handle:active {
+  cursor: grabbing;
 }
 /* Grid items get min-width: auto by default, so a child that cannot shrink —
    a partner's full name beside a right-aligned amount — pushes its track wider
@@ -330,6 +380,7 @@ input:-webkit-autofill:active {
 }
 /* The sheet's own chrome, and the button that raises it, are phone-only. */
 .agent-panels__bar,
+.agent-panels__handle,
 .agent-panels__open {
   display: none;
 }
@@ -398,6 +449,17 @@ input:-webkit-autofill:active {
   }
   .agent-panels__open {
     display: inline-flex;
+  }
+  .agent-panels__handle {
+    display: grid;
+  }
+  /* The sheet rises like the navigation one, and its rounded top and backdrop
+     come from the same rules rather than a second set that could drift. */
+  .agent-panels[open] {
+    animation: sheet-rise 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .agent-panels::backdrop {
+    animation: sheet-fade 260ms ease;
   }
   /* The conversation owns the viewport, so the page behind it must not scroll:
      a fixed-height chat inside a scrolling page is what let the screen move on

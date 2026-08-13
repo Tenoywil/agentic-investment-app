@@ -8,6 +8,7 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { Switch } from '@/app/_components/ui/switch';
+import { useSheetDismiss } from '@/app/_lib/sheet';
 import { useDictation, useNarration } from '@/app/_lib/speech';
 import { cn } from '@/app/_lib/utils';
 import {
@@ -44,7 +45,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 type ChatEntry = { role: 'agent' | 'user'; text: string };
 
@@ -401,7 +402,9 @@ export default function AgentPage() {
     if (!panelsRef.current?.open) panelsRef.current?.showModal();
     setPanelsOpen(true);
   };
-  const closePanels = () => panelsRef.current?.close();
+  const closePanels = useCallback(() => panelsRef.current?.close(), []);
+  // Same swipe-down the navigation sheet takes, so the two behave alike.
+  useSheetDismiss(panelsRef, closePanels);
   const logRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
 
@@ -803,6 +806,13 @@ export default function AgentPage() {
             if (e.target === panelsRef.current) closePanels();
           }}
         >
+          <button
+            type="button"
+            data-sheet-handle
+            onClick={closePanels}
+            aria-label="Close approvals and limits"
+            className="app-sheet__handle agent-panels__handle"
+          />
           <div className="agent-panels__bar">
             <span className="font-display text-base font-bold">Approvals and limits</span>
             <Button type="button" size="sm" variant="ghost" onClick={closePanels}>
