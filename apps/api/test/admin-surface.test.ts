@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { loadServerConfig } from '@ccn/config';
 import { createDb, holdings, partners, session, user, userRoles, withRls } from '@ccn/db';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { createApp } from '../src/app';
 import { createAuth } from '../src/auth';
 import { createLogger } from '../src/logger';
@@ -363,6 +363,35 @@ suite('administration surface', () => {
 
   test.each([['customer'], ['operator']])('a %s cannot onboard a partner', async (who) => {
     expect((await onboard({ code: 'ZZTOP', name: 'Test' }, who)).status).toBe(403);
+  });
+
+  /**
+   * New code against a database that never got the migration.
+   *
+   * This is not hypothetical: production ran the onboarding form against a
+   * database missing 0010's grant and answered a 500 with a stack trace, which
+   * tells an administrator standing in front of the screen nothing. Postgres
+   * knows exactly what is wrong; the surface should say it.
+   *
+   * The grant is revoked and restored around the assertion, so the rest of the
+   * suite sees the database it expects either way.
+   */
+  test('a missing grant is reported as a pending migration, not a 500', async () => {
+    // Unique per run: a code left behind by an earlier run would be refused as
+    // a duplicate before the write is ever attempted, and the test would pass
+    // or fail for a reason that has nothing to do with grants.
+    const code = `M${String(Date.now()).slice(-6)}`;
+    await db.execute(sql`REVOKE INSERT ON TABLE partners FROM ccn_app`);
+    try {
+      const res = await onboard({ code, name: 'Test' });
+      expect(res.status).toBe(503);
+      expect((await res.json()).error).toContain('missing a migration');
+    } finally {
+      await db.execute(sql`GRANT INSERT ON TABLE partners TO ccn_app`);
+    }
+    // And the same request succeeds once the grant is back, so the check is
+    // reading the grant rather than anything about the request itself.
+    expect((await onboard({ code, name: 'Test' })).status).toBe(201);
   });
 
   test('an administrator corrects a partner, and the agreement change is audited', async () => {

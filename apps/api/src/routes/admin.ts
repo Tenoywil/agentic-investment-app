@@ -49,8 +49,56 @@ import { auditAppend } from '../db-fns';
  * where it would be read as the authoritative one — is the exact failure this
  * product has already had once.
  */
+/**
+ * A write refused because the database is behind the code.
+ *
+ * This surface's writes each depend on a grant added by a migration, and a
+ * deployment can be running new code against a database that never received
+ * one — `preDeployCommand` is declared in a Blueprint, and a service created
+ * from the dashboard instead does not have it, so migrations only run when a
+ * person runs them. Nothing in the deploy log says so: the build is green, the
+ * code ships, and the first request that needs the grant is where it surfaces.
+ *
+ * It surfaced as a 500 and a stack trace, which tells an administrator standing
+ * in front of the screen nothing at all. Postgres already knows exactly what is
+ * wrong, so it is worth saying.
+ *
+ * `42501` covers both a missing grant and a row-level security refusal, and
+ * they mean opposite things — the second is the system working. Only the first
+ * says "permission denied for table"; an RLS refusal says the row violates a
+ * policy. Matching on the message keeps a correctly refused write reported as
+ * one.
+ */
+const MIGRATION_PENDING =
+  'this database is missing a migration that the administration surface needs. Apply it with `bun run db:migrate` against this database, or run packages/db/scripts/apply-admin-migrations.sql from the SQL editor, then try again.';
+
+function isMissingGrant(err: unknown): boolean {
+  const seen = new Set<unknown>();
+  let e: unknown = err;
+  while (e && typeof e === 'object' && !seen.has(e)) {
+    seen.add(e);
+    const { code, message } = e as { code?: string; message?: string };
+    if (code === '42501' && /permission denied for/i.test(message ?? '')) return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+
+  /** Run a write, and turn "the database is behind" into a sentence. */
+  async function attempt<T>(work: () => Promise<T>): Promise<{ ok: T } | { pending: true }> {
+    try {
+      return { ok: await work() };
+    } catch (err) {
+      if (!isMissingGrant(err)) throw err;
+      deps.logger.error('an administration write was refused by a missing grant', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { pending: true };
+    }
+  }
 
   /** The shape of the network in one request. */
   app.get('/overview', async (c) => {
@@ -285,32 +333,36 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     if ('bad' in parsed) return c.json({ error: parsed.bad }, 400);
     const { code, ...fields } = parsed as { code: string } & PartnerFields;
 
-    const result = await withTenant(deps, tenant, async (tx) => {
-      const [clash] = await tx
-        .select({ id: partners.id, name: partners.name })
-        .from(partners)
-        .where(eq(partners.code, code))
-        .limit(1);
-      if (clash) return { error: `${code} is already ${clash.name}` as const };
+    const attempted = await attempt(() =>
+      withTenant(deps, tenant, async (tx) => {
+        const [clash] = await tx
+          .select({ id: partners.id, name: partners.name })
+          .from(partners)
+          .where(eq(partners.code, code))
+          .limit(1);
+        if (clash) return { error: `${code} is already ${clash.name}` as const };
 
-      const [row] = await tx
-        .insert(partners)
-        .values({ code, ...fields })
-        .returning();
-      if (!row) return { error: 'the partner was not created' as const };
+        const [row] = await tx
+          .insert(partners)
+          .values({ code, ...fields })
+          .returning();
+        if (!row) return { error: 'the partner was not created' as const };
 
-      await auditAppend(tx, {
-        actorType: 'user',
-        actorId: tenant.user.id,
-        userId: tenant.user.id,
-        partnerId: row.id,
-        action: 'partner.onboarded',
-        entityType: 'partners',
-        entityId: row.id,
-        detail: { code, ...fields, by: tenant.user.email },
-      });
-      return { partner: row };
-    });
+        await auditAppend(tx, {
+          actorType: 'user',
+          actorId: tenant.user.id,
+          userId: tenant.user.id,
+          partnerId: row.id,
+          action: 'partner.onboarded',
+          entityType: 'partners',
+          entityId: row.id,
+          detail: { code, ...fields, by: tenant.user.email },
+        });
+        return { partner: row };
+      }),
+    );
+    if ('pending' in attempted) return c.json({ error: MIGRATION_PENDING }, 503);
+    const result = attempted.ok;
 
     if ('error' in result) return c.json({ error: result.error }, 400);
     deps.logger.info('administrator onboarded a partner', { actor: tenant.user.id, code });
@@ -327,32 +379,36 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     if ('bad' in parsed) return c.json({ error: parsed.bad }, 400);
     const fields = parsed as PartnerFields;
 
-    const result = await withTenant(deps, tenant, async (tx) => {
-      const [before] = await tx.select().from(partners).where(eq(partners.id, id)).limit(1);
-      if (!before) return { error: 'not found' as const, status: 404 as const };
+    const attempted = await attempt(() =>
+      withTenant(deps, tenant, async (tx) => {
+        const [before] = await tx.select().from(partners).where(eq(partners.id, id)).limit(1);
+        if (!before) return { error: 'not found' as const, status: 404 as const };
 
-      const [row] = await tx.update(partners).set(fields).where(eq(partners.id, id)).returning();
-      if (!row) return { error: 'the partner was not updated' as const, status: 400 as const };
+        const [row] = await tx.update(partners).set(fields).where(eq(partners.id, id)).returning();
+        if (!row) return { error: 'the partner was not updated' as const, status: 400 as const };
 
-      await auditAppend(tx, {
-        actorType: 'user',
-        actorId: tenant.user.id,
-        userId: tenant.user.id,
-        partnerId: row.id,
-        action: 'partner.changed',
-        entityType: 'partners',
-        entityId: row.id,
-        detail: {
-          code: row.code,
-          // The agreement gates live order routing, so a change to it is the
-          // one thing someone reading this trail will be looking for.
-          agreementStatus: { from: before.agreementStatus, to: row.agreementStatus },
-          name: { from: before.name, to: row.name },
-          by: tenant.user.email,
-        },
-      });
-      return { partner: row };
-    });
+        await auditAppend(tx, {
+          actorType: 'user',
+          actorId: tenant.user.id,
+          userId: tenant.user.id,
+          partnerId: row.id,
+          action: 'partner.changed',
+          entityType: 'partners',
+          entityId: row.id,
+          detail: {
+            code: row.code,
+            // The agreement gates live order routing, so a change to it is the
+            // one thing someone reading this trail will be looking for.
+            agreementStatus: { from: before.agreementStatus, to: row.agreementStatus },
+            name: { from: before.name, to: row.name },
+            by: tenant.user.email,
+          },
+        });
+        return { partner: row };
+      }),
+    );
+    if ('pending' in attempted) return c.json({ error: MIGRATION_PENDING }, 503);
+    const result = attempted.ok;
 
     if ('error' in result) return c.json({ error: result.error }, result.status);
     return c.json({ partner: result.partner });
@@ -533,86 +589,91 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     const wanted = parsed.roles;
     const needsPartner = wanted.includes('partner_operator');
 
-    const result = await withTenant(deps, tenant, async (tx) => {
-      const [target] = await tx
-        .select({ id: user.id, email: user.email })
-        .from(user)
-        .where(eq(user.id, targetId))
-        .limit(1);
-      if (!target) return { error: 'not found' as const, status: 404 as const };
-
-      let partnerId: string | null = null;
-      if (needsPartner) {
-        const code = parsed.partnerCode?.toUpperCase();
-        if (!code)
-          return { error: 'partner_operator needs a partnerCode' as const, status: 400 as const };
-        const [p] = await tx
-          .select({ id: partners.id })
-          .from(partners)
-          .where(eq(partners.code, code))
+    const attempted = await attempt(() =>
+      withTenant(deps, tenant, async (tx) => {
+        const [target] = await tx
+          .select({ id: user.id, email: user.email })
+          .from(user)
+          .where(eq(user.id, targetId))
           .limit(1);
-        if (!p) return { error: `no partner with code ${code}` as const, status: 400 as const };
-        partnerId = p.id;
-      }
+        if (!target) return { error: 'not found' as const, status: 404 as const };
 
-      const before = await tx
-        .select({ role: userRoles.role, partnerId: userRoles.partnerId })
-        .from(userRoles)
-        .where(eq(userRoles.userId, targetId));
+        let partnerId: string | null = null;
+        if (needsPartner) {
+          const code = parsed.partnerCode?.toUpperCase();
+          if (!code)
+            return { error: 'partner_operator needs a partnerCode' as const, status: 400 as const };
+          const [p] = await tx
+            .select({ id: partners.id })
+            .from(partners)
+            .where(eq(partners.code, code))
+            .limit(1);
+          if (!p) return { error: `no partner with code ${code}` as const, status: 400 as const };
+          partnerId = p.id;
+        }
 
-      // `admin` is never touched from here, in either direction: it is filtered
-      // out of what may be removed as well as what may be added, so an
-      // administrator's own grant survives an edit to their other roles.
-      for (const row of before) {
-        if (row.role === 'admin') continue;
-        if (wanted.includes(row.role as Assignable)) continue;
-        await tx
-          .delete(userRoles)
-          .where(and(eq(userRoles.userId, targetId), eq(userRoles.role, row.role)));
-      }
-      for (const role of wanted) {
-        const existing = before.find((r) => r.role === role);
-        if (existing && (role !== 'partner_operator' || existing.partnerId === partnerId)) continue;
-        if (existing) {
-          // Rebinding an operator to a different partner: remove and re-add,
-          // because the pair is the fact, not the role alone.
+        const before = await tx
+          .select({ role: userRoles.role, partnerId: userRoles.partnerId })
+          .from(userRoles)
+          .where(eq(userRoles.userId, targetId));
+
+        // `admin` is never touched from here, in either direction: it is filtered
+        // out of what may be removed as well as what may be added, so an
+        // administrator's own grant survives an edit to their other roles.
+        for (const row of before) {
+          if (row.role === 'admin') continue;
+          if (wanted.includes(row.role as Assignable)) continue;
           await tx
             .delete(userRoles)
-            .where(and(eq(userRoles.userId, targetId), eq(userRoles.role, role)));
+            .where(and(eq(userRoles.userId, targetId), eq(userRoles.role, row.role)));
         }
-        await tx
-          .insert(userRoles)
-          .values({
-            userId: targetId,
-            role,
-            partnerId: role === 'partner_operator' ? partnerId : null,
-          })
-          .onConflictDoNothing();
-      }
+        for (const role of wanted) {
+          const existing = before.find((r) => r.role === role);
+          if (existing && (role !== 'partner_operator' || existing.partnerId === partnerId))
+            continue;
+          if (existing) {
+            // Rebinding an operator to a different partner: remove and re-add,
+            // because the pair is the fact, not the role alone.
+            await tx
+              .delete(userRoles)
+              .where(and(eq(userRoles.userId, targetId), eq(userRoles.role, role)));
+          }
+          await tx
+            .insert(userRoles)
+            .values({
+              userId: targetId,
+              role,
+              partnerId: role === 'partner_operator' ? partnerId : null,
+            })
+            .onConflictDoNothing();
+        }
 
-      const after = await tx
-        .select({ role: userRoles.role, partnerId: userRoles.partnerId })
-        .from(userRoles)
-        .where(eq(userRoles.userId, targetId));
+        const after = await tx
+          .select({ role: userRoles.role, partnerId: userRoles.partnerId })
+          .from(userRoles)
+          .where(eq(userRoles.userId, targetId));
 
-      await auditAppend(tx, {
-        actorType: 'user',
-        actorId: tenant.user.id,
-        userId: targetId,
-        partnerId,
-        action: 'user_roles.changed',
-        entityType: 'user_roles',
-        entityId: targetId,
-        detail: {
-          before: before.map((r) => r.role),
-          after: after.map((r) => r.role),
-          partnerCode: parsed.partnerCode?.toUpperCase() ?? null,
-          by: tenant.user.email,
-        },
-      });
+        await auditAppend(tx, {
+          actorType: 'user',
+          actorId: tenant.user.id,
+          userId: targetId,
+          partnerId,
+          action: 'user_roles.changed',
+          entityType: 'user_roles',
+          entityId: targetId,
+          detail: {
+            before: before.map((r) => r.role),
+            after: after.map((r) => r.role),
+            partnerCode: parsed.partnerCode?.toUpperCase() ?? null,
+            by: tenant.user.email,
+          },
+        });
 
-      return { roles: after };
-    });
+        return { roles: after };
+      }),
+    );
+    if ('pending' in attempted) return c.json({ error: MIGRATION_PENDING }, 503);
+    const result = attempted.ok;
 
     if ('error' in result) return c.json({ error: result.error }, result.status);
     deps.logger.info('administrator changed roles', {
@@ -648,27 +709,31 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
 
-    const counts = await withTenant(deps, tenant, async (tx) => {
-      const loaded = await seedReferenceData(tx);
-      await auditAppend(tx, {
-        actorType: 'user',
-        actorId: tenant.user.id,
-        userId: tenant.user.id,
-        partnerId: null,
-        action: 'reference_data.loaded',
-        entityType: 'partners',
-        entityId: null,
-        detail: { ...loaded, by: tenant.user.email },
-      });
-      const [row] = (await tx.execute(sql`
+    const attempted = await attempt(() =>
+      withTenant(deps, tenant, async (tx) => {
+        const loaded = await seedReferenceData(tx);
+        await auditAppend(tx, {
+          actorType: 'user',
+          actorId: tenant.user.id,
+          userId: tenant.user.id,
+          partnerId: null,
+          action: 'reference_data.loaded',
+          entityType: 'partners',
+          entityId: null,
+          detail: { ...loaded, by: tenant.user.email },
+        });
+        const [row] = (await tx.execute(sql`
         select
           (select count(*) from partners)          as partners,
           (select count(*) from instruments)       as instruments,
           (select count(*) from planning_products) as planning_products,
           (select count(*) from fx_rates)          as fx_rates
       `)) as unknown as [Record<string, string>];
-      return row;
-    });
+        return row;
+      }),
+    );
+    if ('pending' in attempted) return c.json({ error: MIGRATION_PENDING }, 503);
+    const counts = attempted.ok;
 
     deps.logger.info('administrator loaded reference data', { actor: tenant.user.id });
     return c.json({
