@@ -114,11 +114,18 @@ const app = createApp(deps);
       // sitting between this process and the internet that refuses the host —
       // which is what a locked-down build environment looks like, and why this
       // does not assert the key is wrong.
+      // The key has to belong to whoever is answering at OPENAI_BASE_URL. That
+      // is worth spelling out because MINIMAX_SECRET, the accepted alias, names
+      // the model Impala routes to rather than the credential's issuer — so a
+      // real MiniMax key lands in it and the gateway rejects a token it has
+      // never seen. It reads like a configuration error and is one, but not the
+      // one the name suggests.
+      const mismatch = `The key must have been issued by whoever answers at ${base}, not by the model provider behind it — MINIMAX_SECRET names the model, not the key's issuer. To talk to a provider directly, point OPENAI_BASE_URL at its own OpenAI-compatible endpoint and set AI_MODEL to one of its model ids.`;
       const hint =
         res.status === 401
-          ? 'The key is being rejected — check OPENAI_API_KEY (or MINIMAX_SECRET, which stands in for it) in the deployment environment.'
+          ? `The key is being rejected. ${mismatch}`
           : res.status === 403
-            ? 'Either the key has no access to this gateway or model, or something between this process and the gateway refused the request. Check the key first, then whether outbound traffic to this host is permitted.'
+            ? `Either the key has no access to this gateway or model, or something between this process and the gateway refused the request. ${mismatch}`
             : 'Check OPENAI_BASE_URL points at an OpenAI-compatible gateway.';
       logger.error(
         `AI gateway answered ${res.status} for GET ${url}. The agent chat will fail for every user. ${hint}`,

@@ -30,6 +30,16 @@ const SECRET_KEYS = new Set([
  * reads that; `MINIMAX_SECRET` is honored as a fallback (some deploy platforms
  * name the secret after the model). An explicit `OPENAI_API_KEY` always wins.
  * Returns a copy — the caller's env object is never mutated.
+ *
+ * `MINIMAX_SECRET` still has to hold an **Impala** key. The name refers to the
+ * model Impala routes to, not to the credential's issuer — the request goes to
+ * `OPENAI_BASE_URL`, which defaults to Impala, and Impala authenticates it
+ * against its own keys. A genuine MiniMax key put here is rejected with
+ * "Invalid proxy server token passed … not found in db", which has happened,
+ * and the name is why. To talk to MiniMax directly instead, change
+ * `OPENAI_BASE_URL` to MiniMax's own OpenAI-compatible endpoint and set
+ * `AI_MODEL` to one of its model ids; the SSRF allowlist follows
+ * `OPENAI_BASE_URL` automatically, so nothing else needs changing.
  */
 function withAliases(
   source: Record<string, string | undefined>,
