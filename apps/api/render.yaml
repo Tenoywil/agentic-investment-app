@@ -75,7 +75,32 @@ services:
     # this line is not on its own proof that the deploy source moved. Confirm in
     # Render → ccn-api → Settings → Build & Deploy → Branch.
     branch: main
-    preDeployCommand: cd packages/db && bun run db:migrate
+    # NO preDeployCommand — and this is the most important line in the file.
+    #
+    # Render does not support pre-deploy commands on the free instance type, so
+    # `preDeployCommand: cd packages/db && bun run db:migrate` made this
+    # Blueprint invalid and every sync failed. That failure is silent in the
+    # only place anyone looks: the service kept deploying from its dashboard
+    # configuration, builds stayed green, and NOTHING EVER APPLIED MIGRATIONS.
+    #
+    # It surfaced the way it always does — as a 500 in front of a person. An
+    # administrator pressed "Onboard a partner" against a database that had
+    # never received 0010's grant and got `permission denied for table
+    # partners`, while every read on the same screen answered 200.
+    #
+    # So while this service is on `free`, MIGRATIONS ARE A MANUAL STEP after any
+    # merge that adds one:
+    #
+    #     cd packages/db && DATABASE_URL='<production url>' bun run db:migrate
+    #
+    # To make them automatic, change `plan: free` to `plan: starter` above and
+    # restore the line below. That is the only combination Render allows, and it
+    # buys the no-spin-down behaviour this file already argues for:
+    #
+    #     preDeployCommand: cd packages/db && bun run db:migrate
+    #
+    # Do not re-add it on `free`. It does not fail loudly — it fails as a
+    # Blueprint that never syncs, which reads exactly like everything working.
     envVars:
       - key: APP_ENV
         value: production
