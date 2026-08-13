@@ -21,6 +21,7 @@ import {
 import { authClient } from '@/lib/auth-client';
 import { CircleAlert } from 'lucide-react';
 import * as React from 'react';
+import { PersonPanel } from './person';
 
 /**
  * The administration console: the whole network in one place.
@@ -109,11 +110,26 @@ export default function AdminPage() {
   const [orders, setOrders] = React.useState<AdminOrder[] | null>(null);
   const [audit, setAudit] = React.useState<AdminAuditEntry[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-
-  // Everything at once: six small reads, and an administrator moves between
-  // them constantly. Loading per tab would put a spinner on every click.
+  /** The person whose detail panel is open, if any. */
+  const [selected, setSelected] = React.useState<string | null>(null);
+  /** True once unmounted, so a slow response cannot set state afterwards. */
+  const gone = React.useRef(false);
   React.useEffect(() => {
-    let cancelled = false;
+    gone.current = false;
+    return () => {
+      gone.current = true;
+    };
+  }, []);
+
+  /**
+   * Everything at once: six small reads, and an administrator moves between the
+   * tabs constantly. Loading per tab would put a spinner on every click.
+   *
+   * Callable rather than an effect keyed on a counter, so a role change can ask
+   * for fresh data directly — the roles column behind the detail panel is stale
+   * the moment a grant lands otherwise.
+   */
+  const load = React.useCallback(() => {
     Promise.all([
       getAdminOverview(),
       getAdminInvestors(),
@@ -123,7 +139,7 @@ export default function AdminPage() {
       getAdminAudit(),
     ])
       .then(([o, i, pa, pr, or, au]) => {
-        if (cancelled) return;
+        if (gone.current) return;
         setOverview(o);
         setInvestors(i.investors);
         setPartners(pa.partners);
@@ -132,13 +148,15 @@ export default function AdminPage() {
         setAudit(au.entries);
       })
       .catch((err: unknown) => {
-        if (!cancelled)
+        if (!gone.current) {
           setError(err instanceof Error ? err.message : 'Could not load the network.');
+        }
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const loading = !error && overview === null;
 
@@ -303,40 +321,59 @@ export default function AdminPage() {
           ) : null}
 
           {!loading && !error && tab === 'Investors' && investors ? (
-            <Table head={['Person', 'Roles', 'KYC tier', 'Onboarding', 'Residency', 'Joined']}>
-              {investors.map((i) => {
-                const state = onboardingState(i);
-                return (
-                  <tr key={i.id}>
-                    <td className={CELL}>
-                      <div className="font-semibold">{i.name || '—'}</div>
-                      <div className="text-[13px] text-dim">{i.email}</div>
-                    </td>
-                    <td className={CELL}>
-                      {i.roles.length ? (
-                        <span className="flex flex-wrap gap-1">
-                          {i.roles.map((r) => (
-                            <Badge key={r} variant="secondary">
-                              {r.replace('_', ' ')}
-                            </Badge>
-                          ))}
-                        </span>
-                      ) : (
-                        <span className="text-dim">none yet</span>
-                      )}
-                    </td>
-                    <td className={CELL}>{i.kycTier ?? '—'}</td>
-                    <td className={CELL}>
-                      <Badge variant={state.tone === 'ok' ? 'default' : 'secondary'}>
-                        {state.label}
-                      </Badge>
-                    </td>
-                    <td className={CELL}>{i.residency ?? '—'}</td>
-                    <td className={CELL}>{new Date(i.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                );
-              })}
-            </Table>
+            <>
+              {selected ? (
+                <PersonPanel
+                  id={selected}
+                  partners={partners ?? []}
+                  onClose={() => setSelected(null)}
+                  onChanged={load}
+                />
+              ) : null}
+              <Table head={['Person', 'Roles', 'KYC tier', 'Onboarding', 'Residency', '']}>
+                {investors.map((i) => {
+                  const state = onboardingState(i);
+                  return (
+                    <tr key={i.id}>
+                      <td className={CELL}>
+                        <div className="font-semibold">{i.name || '—'}</div>
+                        <div className="text-[13px] text-dim">{i.email}</div>
+                      </td>
+                      <td className={CELL}>
+                        {i.roles.length ? (
+                          <span className="flex flex-wrap gap-1">
+                            {i.roles.map((r) => (
+                              <Badge key={r} variant="secondary">
+                                {r.replace('_', ' ')}
+                              </Badge>
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="text-dim">none yet</span>
+                        )}
+                      </td>
+                      <td className={CELL}>{i.kycTier ?? '—'}</td>
+                      <td className={CELL}>
+                        <Badge variant={state.tone === 'ok' ? 'default' : 'secondary'}>
+                          {state.label}
+                        </Badge>
+                      </td>
+                      <td className={CELL}>{i.residency ?? '—'}</td>
+                      <td className={CELL}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(i.id)}
+                          className="font-semibold text-teal2 underline-offset-4 hover:underline"
+                        >
+                          Manage
+                          <span className="sr-only"> {i.email}</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Table>
+            </>
           ) : null}
 
           {!loading && !error && tab === 'Partners' && partners ? (

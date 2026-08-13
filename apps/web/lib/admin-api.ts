@@ -74,6 +74,15 @@ export interface AdminAuditEntry {
   createdAt: string;
 }
 
+export interface AdminInvestorDetail {
+  user: { id: string; name: string | null; email: string };
+  roles: { role: string; partnerId: string | null }[];
+  kyc: Record<string, unknown> | null;
+  profile: Record<string, unknown> | null;
+  holdings: { id: string; name: string; valueMinor: string; currency: string }[];
+  approvals: { id: string; type: string; title: string; status: string; createdAt: string }[];
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}/api/admin${path}`, {
     credentials: 'include',
@@ -93,3 +102,35 @@ export const getAdminPartners = () => get<{ partners: AdminPartner[] }>('/partne
 export const getAdminProducts = () => get<{ products: AdminProduct[] }>('/products');
 export const getAdminOrders = () => get<{ orders: AdminOrder[] }>('/orders?limit=100');
 export const getAdminAudit = () => get<{ entries: AdminAuditEntry[] }>('/audit?limit=100');
+
+export const getAdminInvestor = (id: string) => get<AdminInvestorDetail>(`/investors/${id}`);
+export const getAdminInvestorActivity = (id: string) =>
+  get<{ entries: AdminAuditEntry[] }>(`/investors/${id}/activity?limit=100`);
+
+/**
+ * Set a person's roles. A whole set, not add/remove: roles decide which product
+ * someone sees, so "make this person an operator for JMMB" is one intention and
+ * should not pass through a state where they hold both surfaces or neither.
+ *
+ * `admin` is not assignable here by design — it comes from ADMIN_EMAILS alone,
+ * and both the API and the database refuse it.
+ */
+export async function setAdminInvestorRoles(
+  id: string,
+  roles: string[],
+  partnerCode?: string,
+): Promise<{ roles: { role: string; partnerId: string | null }[] }> {
+  const res = await fetch(`${API_URL}/api/admin/investors/${id}/roles`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(partnerCode ? { roles, partnerCode } : { roles }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.error === 'string' ? body.error : `request failed (${res.status})`,
+    );
+  }
+  return body;
+}
