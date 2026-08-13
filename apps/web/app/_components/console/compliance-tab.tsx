@@ -49,7 +49,7 @@ export function ComplianceTab({
   }
 
   return (
-    <div className="g-agent" style={{ gridTemplateColumns: '1fr 1.3fr' }}>
+    <div className="g-agent g-agent--flip">
       {/* Pure white, not a softened off-white: in the dark theme --primary
           resolves to a mid teal against which nothing dimmer than white clears
           4.5:1 for 14px text. Label vs. value is carried by weight instead. */}
@@ -61,9 +61,12 @@ export function ComplianceTab({
         {rows.length > 0 ? (
           <dl className="m-0">
             {rows.map((r) => (
-              <div key={r.label} className="flex justify-between gap-4 py-1.5 text-sm">
-                <dt>{r.label}</dt>
-                <dd className="m-0 text-right font-bold">{r.value}</dd>
+              // gap-x only, and both sides allowed to shrink: a long business
+              // description used to push its own value past the card's right
+              // edge rather than wrap inside it.
+              <div key={r.label} className="flex flex-wrap justify-between gap-x-4 py-1.5 text-sm">
+                <dt className="min-w-0">{r.label}</dt>
+                <dd className="m-0 min-w-0 text-right font-bold">{r.value}</dd>
               </div>
             ))}
           </dl>

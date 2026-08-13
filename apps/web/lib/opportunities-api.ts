@@ -176,3 +176,32 @@ export function getOpportunities(): Promise<OpportunitiesResponse> {
 export function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
   return apiFetch('/api/orders', { method: 'POST', body: JSON.stringify(input) });
 }
+
+/**
+ * One of the caller's own orders, as `GET /api/orders` returns it: camelCase,
+ * joined to the instrument and the executing institution. Distinct from
+ * `Order` above, which is the raw `create_order` row.
+ *
+ * `amountMinor` is a bigint and arrives as a numeric string.
+ */
+export interface MyOrder {
+  id: string;
+  status: OrderStatus;
+  amountMinor: string;
+  currency: Currency;
+  instrumentName: string | null;
+  instrumentAbbr: string | null;
+  partnerName: string | null;
+  partnerCode: string | null;
+  settlementEta: string | null;
+  rejectedReason: string | null;
+  createdBy: OrderCreatedBy;
+  createdAt: string;
+  acceptedAt: string | null;
+  settledAt: string | null;
+}
+
+/** Everything the caller has authorised, newest first. */
+export function getMyOrders(): Promise<{ orders: MyOrder[] }> {
+  return apiFetch('/api/orders');
+}

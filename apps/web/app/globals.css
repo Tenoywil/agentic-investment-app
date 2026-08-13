@@ -427,6 +427,15 @@ body:has(dialog.app-sheet[open]) {
   gap: 18px;
   align-items: start;
 }
+/* The compliance tab wants the narrower column first. It used to say so with
+   an inline `style={{ gridTemplateColumns: '1fr 1.3fr' }}`, which beats every
+   stylesheet rule including the one below that collapses these grids on a
+   phone — so the tab stayed two columns at 390px, and "Agreement & residency"
+   wrapped over three lines while its values ran past the card's edge. A
+   modifier class loses to the media query the way it should. */
+.g-agent--flip {
+  grid-template-columns: 1fr 1.3fr;
+}
 .g4 {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

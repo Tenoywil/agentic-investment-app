@@ -147,13 +147,19 @@ export default function PortfolioPage() {
     };
   }, [load]);
 
+  const pendingOrDeclined = (data?.connections ?? []).filter((c) => c.status !== 'active');
+
   return (
     <AppScreen active="portfolio">
       <PageHead
         eyebrow="Every holding, unified · custodied by licensed partners"
         title="Your portfolio"
         right={
-          <div className="flex items-center gap-3">
+          // Wraps, because three controls do not fit across a phone. PageHead
+          // wraps its own two children but this cluster did not wrap inside
+          // itself, so adding the Connect button here pushed the document to
+          // 610px in a 390px viewport and the whole screen scrolled sideways.
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {/* Also in the empty state, but it cannot only live there: an
                 investor with one account still needs to add the second. */}
             <Button type="button" size="sm" variant="outline" onClick={() => setConnecting(true)}>
@@ -193,6 +199,15 @@ export default function PortfolioPage() {
         }
       />
 
+      {/* Directly under the head, because it answers a button the reader just
+          pressed. It used to render below the empty state, a screen's height
+          from where they were looking. */}
+      {connected ? (
+        <output className="mb-4 block rounded-xl border border-solid border-border bg-mint px-4 py-3 text-[14px] leading-relaxed text-success-ink">
+          {connected}
+        </output>
+      ) : null}
+
       {loading && (
         // Mirrors the real shape: the allocation bar, then one row per partner.
         <SkeletonRegion label="Loading your portfolio">
@@ -222,11 +237,51 @@ export default function PortfolioPage() {
         </p>
       )}
 
+      {/* Links that hold nothing yet: waiting on the firm, or refused by it.
+          Both are states an investor actively looks for, and neither produces a
+          holding, so neither appears in the section below. */}
+      {data && pendingOrDeclined.length > 0 && (
+        <Card className="mb-4 p-[22px]">
+          <b className="font-display text-lg">Requested</b>
+          <div className="mb-3 text-[13px] text-faint">
+            An institution decides whether to take you on as a client. CCN passes them the
+            verification you have already done; nothing is read from them until they accept.
+          </div>
+          <ul className="m-0 list-none p-0">
+            {pendingOrDeclined.map((c) => (
+              <li
+                key={c.code}
+                className="flex items-center justify-between gap-3 border-0 border-t border-solid border-border py-[11px] first:border-t-0"
+              >
+                <div className="min-w-0">
+                  <div className="text-[14.5px] font-bold">{c.name}</div>
+                  <div className="text-[12.5px] text-faint">
+                    {c.status === 'pending'
+                      ? 'Waiting on their compliance desk'
+                      : (c.declineReason ?? 'They did not take this on')}
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    'flex-none rounded-full px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[.4px]',
+                    c.status === 'pending'
+                      ? 'bg-muted text-dim'
+                      : 'bg-[#f7e9e2] text-[#a44e20] dark:bg-terra/15 dark:text-terra',
+                  )}
+                >
+                  {c.status === 'pending' ? 'Pending' : 'Declined'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       {data && data.partners.length === 0 && !error && (
         <EmptyState
           icon={Wallet}
           title="No holdings yet"
-          body="Connect an account and every position you hold appears here, grouped by the institution that custodies it. CCN reads your balances — your institution keeps executing, custodying and settling."
+          body="Link an account and, once that institution accepts you as a client, every position you hold there appears here. CCN reads your balances — your institution keeps executing, custodying and settling."
           action={
             <Button type="button" size="sm" onClick={() => setConnecting(true)}>
               <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
@@ -241,15 +296,13 @@ export default function PortfolioPage() {
           onClose={() => setConnecting(false)}
           onConnected={(summary) => {
             setConnected(
-              `${summary.refreshed ? 'Refreshed' : 'Connected'} ${summary.partner} — ${summary.holdings} position${summary.holdings === 1 ? '' : 's'}.`,
+              summary.status === 'pending'
+                ? `Asked ${summary.partner} to take you on. They review the verification CCN passes them, and your positions appear here once they accept.`
+                : `${summary.refreshed ? 'Refreshed' : 'Connected'} ${summary.partner} — ${summary.holdings} position${summary.holdings === 1 ? '' : 's'}.`,
             );
             void load();
           }}
         />
-      ) : null}
-
-      {connected ? (
-        <output className="mb-4 block text-[14px] text-success">{connected}</output>
       ) : null}
 
       {data && data.allocation.length > 0 && <AllocationBreakdown slices={data.allocation} />}

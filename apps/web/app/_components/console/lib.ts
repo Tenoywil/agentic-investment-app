@@ -158,6 +158,12 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'reconciliation.rejected': 'Statement line rejected',
   'product_listing.live': 'Product listing set live',
   'product_listing.paused': 'Product listing paused',
+  'product_listing.created': 'Product listed',
+  'connected_account.requested': 'Client asked to link an account',
+  'connected_account.linked': 'Client positions read into CCN',
+  'connected_account.refreshed': 'Client positions refreshed',
+  'client.accepted': 'Client accepted',
+  'client.declined': 'Client declined',
 };
 
 /** Known actions get a sentence; anything else shows its raw key, which is the

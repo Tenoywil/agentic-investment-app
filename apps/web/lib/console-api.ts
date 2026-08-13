@@ -115,6 +115,39 @@ export interface ConsoleKpi {
   createdAt: string;
 }
 
+/**
+ * One client of this firm, and the KYC package CCN passes across with their
+ * consent. Columns are snake_case because this row comes straight from a
+ * database function (`partner_clients`, 0014) rather than a Drizzle select —
+ * renaming them in the handler would put the wire shape one edit away from
+ * disagreeing with the function that defines it.
+ *
+ * `holdings_value_minor` is a bigint and arrives as a numeric string.
+ */
+export interface ConsoleClient {
+  account_id: string;
+  status: 'pending' | 'active' | 'declined';
+  label: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  decline_reason: string | null;
+  user_id: string;
+  client_name: string;
+  client_email: string;
+  residency_country: string | null;
+  kyc_tier: 'none' | 'tier1' | 'tier2';
+  identity_verified: boolean;
+  compliance_confirmed: boolean;
+  risk_completed: boolean;
+  funds_confirmed: boolean;
+  is_pep: boolean;
+  tax_residency_declared: boolean;
+  sources: string[];
+  risk_band: string | null;
+  holdings_count: number;
+  holdings_value_minor: string;
+}
+
 export interface ConsoleFunnelStage {
   id: string;
   partnerId: string;
@@ -184,6 +217,29 @@ export function rejectOrder(id: string, reason?: string): Promise<{ order: Conso
   return consoleFetch(`/orders/${id}/reject`, {
     method: 'POST',
     body: JSON.stringify(reason ? { reason } : {}),
+  });
+}
+
+// ---- Clients ----
+
+/** This firm's clients, pending reviews first. */
+export function getClients(): Promise<{ clients: ConsoleClient[] }> {
+  return consoleFetch('/clients');
+}
+
+/**
+ * Accept or decline one pending client. The server returns the status the
+ * connection moved to, so the screen reconciles to that rather than to its own
+ * guess about what the press did.
+ */
+export function reviewClient(
+  id: string,
+  accept: boolean,
+  reason?: string,
+): Promise<{ status: 'active' | 'declined' }> {
+  return consoleFetch(`/clients/${id}/${accept ? 'accept' : 'decline'}`, {
+    method: 'POST',
+    body: JSON.stringify(!accept && reason ? { reason } : {}),
   });
 }
 

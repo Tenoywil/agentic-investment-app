@@ -31,7 +31,12 @@ export function ConnectAccountDialog({
   onConnected,
 }: {
   onClose: () => void;
-  onConnected: (summary: { partner: string; holdings: number; refreshed: boolean }) => void;
+  onConnected: (summary: {
+    partner: string;
+    status: 'pending' | 'active';
+    holdings: number;
+    refreshed: boolean;
+  }) => void;
 }) {
   const dialogRef = React.useRef<HTMLDialogElement>(null);
   const openerRef = React.useRef<HTMLElement | null>(null);
@@ -114,7 +119,8 @@ export function ConnectAccountDialog({
             Connect an account
           </h2>
           <div className="text-[13.5px] text-dim">
-            Your positions and cash come straight from the institution that holds them.
+            The institution decides whether to take you on, then your positions and cash come
+            straight from them.
           </div>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={close} aria-label="Close">
@@ -155,16 +161,18 @@ export function ConnectAccountDialog({
               </select>
             </label>
 
-            {/* Said plainly: this is a read, and CCN never moves the money. */}
+            {/* Said plainly: what is shared, who decides, and who holds the
+                money. None of it is CCN. */}
             <p className="mt-4 text-[12.5px] leading-relaxed text-faint">
-              CCN reads what you hold so it can see your whole position in one place. It does not
-              move your money — your institution executes, custodies and settles everything.
-              Connecting again later just refreshes the balances.
+              They receive the identity and compliance checks you have already completed, so you are
+              not asked for them twice, and their compliance desk decides. Once they accept, CCN
+              reads what you hold so your whole position is in one place — it never moves your
+              money. Your institution executes, custodies and settles everything.
             </p>
 
             <div className="mt-5 flex items-center gap-3">
               <Button type="submit" disabled={busy || !code}>
-                {busy ? 'Connecting…' : 'Connect'}
+                {busy ? 'Sending…' : 'Request an account'}
               </Button>
               <Button type="button" variant="ghost" onClick={close}>
                 Cancel

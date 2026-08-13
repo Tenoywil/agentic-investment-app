@@ -9,6 +9,7 @@ type Key =
   | 'home'
   | 'portfolio'
   | 'opportunities'
+  | 'orders'
   | 'agent'
   | 'planning'
   | 'onboarding'

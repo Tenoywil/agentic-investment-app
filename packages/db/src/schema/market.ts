@@ -1,8 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { boolean, integer, numeric, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  integer,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { user } from './auth';
 import {
   agreementStatus,
+  connectionStatus,
   currency,
   instrumentType,
   planningStatus,
@@ -72,6 +82,15 @@ export const connectedAccounts = pgTable('connected_accounts', {
     .notNull()
     .references(() => partners.id),
   label: text('label'), // e.g. "GOJ Bond 2029 · Chequing"
+  /**
+   * The partner's side of the relationship. A connection an investor creates
+   * starts `pending`: the firm reviews the KYC package CCN passes across and
+   * accepts or declines it (partner_review_client, 0014). Holdings are pulled
+   * only while it is `active`.
+   */
+  status: connectionStatus('status').notNull().default('pending'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  declineReason: text('decline_reason'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

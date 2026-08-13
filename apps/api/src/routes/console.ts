@@ -17,6 +17,8 @@ import { withTenant } from '../context';
 import {
   acceptOrder,
   auditAppend,
+  partnerClients,
+  partnerReviewClient,
   reconcileMatch,
   reconcileReject,
   rejectOrder,
@@ -31,6 +33,25 @@ import { requireAuth } from '../middleware';
  * only along the legal state path (created → accepted → settled). Ports the
  * prototype's acceptOrder / settleOrder.
  */
+/**
+ * Whether a database error was raised by a particular RAISE EXCEPTION.
+ *
+ * Drizzle wraps a driver error in one of its own — "Failed query: select …" —
+ * so the message a PL/pgSQL function raised is on `cause`, not on the error
+ * itself. Matching only the outer message silently loses every distinction the
+ * function bothered to draw, which is how a "you have not finished onboarding"
+ * becomes an unhelpful generic 409.
+ */
+function raisedBy(err: unknown, fragment: string): boolean {
+  for (let e: unknown = err, depth = 0; e && depth < 4; depth++) {
+    if (e instanceof Error) {
+      if (e.message.includes(fragment)) return true;
+      e = e.cause;
+    } else return false;
+  }
+  return false;
+}
+
 export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
@@ -209,6 +230,83 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
       return c.json({ error: 'order is not in a state you can reject' }, 409);
     }
   });
+
+  // ---- Clients: the people who linked an account here, and their KYC ----
+
+  /**
+   * The firm's clients, pending reviews first.
+   *
+   * The console's Clients tab has always been titled "Clients & KYC" and has
+   * never shown a client. It had a seeded funnel of counts and a reconciliation
+   * queue — nothing that named a person, and no way to admit or refuse one. An
+   * investor could link an account at a firm and the firm was never told.
+   *
+   * The KYC package is the client's own: CCN records the verified outcome, the
+   * partner remains the regulated owner. It becomes visible to this firm because
+   * the client linked an account here, and the database enforces that join
+   * rather than this handler.
+   *
+   * `holdings_value_minor` is a bigint and crosses the wire as a string, like
+   * every other bigint column.
+   */
+  app.get('/clients', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const clients = await withTenant(deps, tenant, (tx) => partnerClients(tx));
+    return c.json({ clients });
+  });
+
+  /**
+   * Accept or decline a pending client.
+   *
+   * Both verbs are one handler because they are one decision with one guarded
+   * transition behind them, and splitting them would let the two drift.
+   *
+   * A failure here is a 409 rather than a 404: the connection was not pending at
+   * this firm, or the person has completed no KYC, and both are states the
+   * operator can see on the row they just acted on. The database's message is
+   * not forwarded — it names internal ids — but the two cases are distinguished
+   * because the operator's next move differs.
+   */
+  const review = (accept: boolean) => async (c: Context<AppEnv>) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    let reason: string | null = null;
+    if (!accept) {
+      const parsed = rejectSchema.safeParse(await c.req.json().catch(() => ({})));
+      if (!parsed.success)
+        return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+      reason = parsed.data.reason ?? 'declined by partner';
+    }
+
+    const id = c.req.param('id');
+    try {
+      const status = await withTenant(deps, tenant, (tx) =>
+        partnerReviewClient(tx, id, accept, reason),
+      );
+      deps.logger.info('partner reviewed a client', { partner: scope.partnerId, status });
+      return c.json({ status });
+    } catch (err) {
+      if (raisedBy(err, 'has completed no KYC')) {
+        return c.json(
+          {
+            error:
+              'This person has not finished onboarding, so CCN has no verified KYC to pass you yet.',
+          },
+          409,
+        );
+      }
+      return c.json({ error: 'that client is not awaiting a decision here' }, 409);
+    }
+  };
+
+  app.post('/clients/:id/accept', review(true));
+  app.post('/clients/:id/decline', review(false));
 
   // ---- Reconciliation (clients & KYC tab): match ingested statement lines ----
 
