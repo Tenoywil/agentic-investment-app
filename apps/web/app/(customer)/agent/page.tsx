@@ -565,7 +565,11 @@ export default function AgentPage() {
             ref={logRef}
             aria-live="polite"
             aria-label="Conversation with your agent"
-            className="flex max-h-[440px] min-h-[220px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            // A fixed height, not a range. Between min-h and max-h the log grew with
+            // every message: the card got taller as the agent streamed, pushing the
+            // composer down under the cursor and resizing the whole two-column row
+            // around it. The conversation scrolls inside a box that does not move.
+            className="flex h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px] max-[900px]:h-[58vh]"
           >
             {historyState === 'loading' && (
               <SkeletonRegion label="Loading your conversation" className="flex flex-col gap-3.5">
