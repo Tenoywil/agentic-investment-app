@@ -601,81 +601,12 @@ body:has(dialog.app-sheet[open]) {
   [data-phone-h] {
     height: var(--phone-h) !important;
   }
-  /* The console rail becomes a compact header, not a stacked copy of itself.
-     Left as a full-width block it ran 461px down a 844px phone — the firm's
-     name, five stacked tabs, the agreement card and Sign out — before the first
-     figure of the order flow appeared. The identity and the way out share one
-     row, the sections become a strip that scrolls sideways, and the agreement
-     line stays, because a sandbox badge is exactly the sort of thing that must
-     not be the first casualty of a small screen. */
-  .console-sidebar {
-    width: 100% !important;
-    height: auto !important;
-    position: static !important;
-    display: grid !important;
-    /* Plain `1fr`, with the floor zeroed on the identity item below — see the
-       note on the dashboard grids above for why minmax(0, 1fr) does not
-       survive the build. */
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 10px 12px;
-    padding: 12px 14px !important;
-  }
-  /* Placed explicitly rather than left to auto-flow. Sign out is the last child
-     in source order, so after the two full-width rows below it the algorithm
-     put it on a fourth row of its own, full width — a phone screen led by a
-     giant Sign out button. */
-  .console-sidebar .console-sidebar__identity {
-    grid-column: 1;
-    grid-row: 1;
-    padding: 0 !important;
-    min-width: 0;
-  }
-  .console-sidebar .console-sidebar__signout {
-    grid-column: 2;
-    grid-row: 1;
-    width: auto;
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-  .console-sidebar .console-sidebar__grow {
-    display: none !important;
-  }
-  /* Both span the full width, under the identity row. */
-  .console-sidebar .console-sidebar__tabs,
-  .console-sidebar .console-sidebar__agreement {
-    grid-column: 1 / -1;
-    margin-bottom: 0 !important;
-  }
-  /* The sections wrap onto two rows rather than scrolling sideways. A scroller
-     looked right until it was used: the roving-focus tablist scrolls its active
-     tab into view on mount, so the strip opened part-scrolled with Overview
-     off the left edge and "Order flow" sliced down the middle. Wrapping costs
-     one row and shows every section at once, which is what a five-item tab set
-     on a phone should do anyway. */
-  .console-sidebar .console-sidebar__tabs {
-    flex-direction: row !important;
-    flex-wrap: wrap;
-    gap: 6px;
-    /* The primitive centres its items, which on wrapped rows leaves each row
-       indented by a different amount and reads as a mistake. */
-    justify-content: flex-start !important;
-  }
-  .console-sidebar .console-sidebar__tabs > * {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    padding: 8px 12px !important;
-    font-size: 14px;
-  }
-  /* The agreement keeps its headline — a sandbox badge is the last thing that
-     should be dropped for space — and loses the sentence under it, which the
-     console repeats in the page body. */
-  .console-sidebar .console-sidebar__agreement {
-    padding: 10px 12px !important;
-  }
-  .console-sidebar .console-sidebar__agreement > div:last-child {
-    display: none;
-  }
+  /* The console rail's phone treatment used to live here: a full-width block
+     that reshaped into an identity row, a two-row wrap of sections and the
+     agreement card — around 500px of an 844px screen before the console's
+     first word. It is a bottom sheet now, defined at the end of this file with
+     the rest of the sheet rules, so the partner side opens and dismisses its
+     navigation exactly the way the investor side does. */
 }
 @media (max-width: 560px) {
   .g5 {
@@ -790,4 +721,97 @@ body:has(dialog.app-sheet[open]) {
 .driver-popover.ccn-tour .driver-popover-footer-btn:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   The partner console's navigation, as a phone sheet.
+
+   It used to reshape in place: identity, then five sections wrapped onto two
+   rows, then the agreement panel — roughly 500px of an 844px screen before the
+   console's first word. Wrapping had been chosen over a sideways scroller
+   because Radix's roving-focus tablist scrolls its active tab into view and
+   fought the gesture. A drawer avoids that choice entirely by taking the
+   navigation off the screen until it is asked for, and it makes the partner
+   side behave like the investor side, which is the point.
+
+   Authored as a <dialog>, with the desktop rail put back here — the same
+   one-element-two-presentations approach `.agent-panels` uses, so the rail and
+   the drawer cannot drift apart. `display` is restored only under a selector
+   that also matches the closed state on the desktop, because the user-agent
+   sheet hides a closed dialog and the rail is never `open`.
+   --------------------------------------------------------------------------- */
+.console-topbar {
+  display: none;
+}
+.console-sidebar {
+  display: flex;
+  position: sticky;
+  inset: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  overflow: visible;
+  color: #d3e0da;
+}
+.console-sidebar::backdrop {
+  background: transparent;
+}
+.console-sidebar__handle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .console-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: hsl(var(--navy, 158 32% 12%));
+    background: var(--navy-bg, #0f2a22);
+  }
+  /* The rail becomes the sheet: hidden until opened, then rising from the
+     bottom exactly like the investor drawer. */
+  .console-sidebar {
+    display: none;
+    position: fixed;
+    inset: auto 0 0 0;
+    width: 100%;
+    height: auto !important;
+    max-height: 88dvh;
+    padding: 0 16px max(20px, env(safe-area-inset-bottom)) !important;
+    border-radius: 20px 20px 0 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .console-sidebar[open] {
+    display: flex;
+    animation: sheet-rise 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .console-sidebar::backdrop {
+    background: rgba(0, 0, 0, 0.55);
+    animation: sheet-fade 260ms ease;
+  }
+  .console-sidebar__handle {
+    display: grid;
+  }
+  /* Inside the sheet the sections are a plain vertical list again — the two-row
+     wrap only existed because the rail had to fit across the top. */
+  .console-sidebar .console-sidebar__tabs {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3px !important;
+  }
+  .console-sidebar .console-sidebar__grow {
+    display: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-sidebar[open],
+  .console-sidebar::backdrop {
+    animation: none;
+  }
 }
