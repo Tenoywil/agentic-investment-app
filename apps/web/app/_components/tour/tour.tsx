@@ -18,9 +18,17 @@ import 'driver.js/dist/driver.css';
  * Behaviour that matters on stage:
  * - It never blocks. A step whose element is absent is dropped, so a brand-new
  *   empty account gets a shorter tour rather than a popover pointing at nothing.
- * - It waits for the screen's data to arrive before starting, then gives up.
- *   Auto-starting over a loading skeleton would highlight boxes that are about
- *   to move.
+ * - It waits for the screen to settle before auto-starting. That wait used to be
+ *   "any one target is on the page", which is satisfied the instant the shell
+ *   renders, because the navigation carries a target and the navigation is drawn
+ *   before the session has even resolved. The consequence was not a cosmetic
+ *   one: the tour opened over the loading skeleton, dropped the five steps whose
+ *   elements had not arrived, showed the single nav step, and then marked itself
+ *   seen — so the six-step tour never ran again on that browser. On a phone it
+ *   happened every time, because the phone's top bar is the one presentation of
+ *   the navigation that is always visible. Waiting for the screen to stop
+ *   declaring itself busy and for the target count to stop growing is what makes
+ *   the auto-started tour the whole tour.
  * - It runs once per surface per browser, and the account menu replays it on
  *   demand, because it will be run more than once in front of an audience.
  *
@@ -92,6 +100,23 @@ function visibleTarget(target: string): Element | null {
   return null;
 }
 
+/**
+ * Whether anything on the page is still declaring itself unresolved.
+ *
+ * `aria-busy` is already the honest answer to this question — the skeletons set
+ * it for screen readers, so reading it here costs nothing and adds no second
+ * source of truth to keep in step. It also means a screen that grows its own
+ * loading state later is covered without touching this file.
+ */
+function screenIsBusy(): boolean {
+  return document.querySelector('[aria-busy="true"]') !== null;
+}
+
+/** How many of a surface's steps currently have an element to point at. */
+function visibleTargetCount(surface: Surface): number {
+  return stepsFor(surface).filter((s) => visibleTarget(s.target) !== null).length;
+}
+
 function seen(surface: Surface): boolean {
   try {
     return localStorage.getItem(DISMISS_KEY(surface)) === 'done';
@@ -158,29 +183,45 @@ export function Tour() {
     d.drive();
   }, [surface]);
 
-  // Wait for the screen to have something to point at before auto-starting.
-  // Polls briefly rather than observing, because the elements arrive with a
-  // fetch and the cost of a few frames of polling is nil.
+  // Wait for the screen to settle before auto-starting. Polls rather than
+  // observes, because the targets arrive with a fetch and the cost of a few
+  // frames of polling is nil.
   React.useEffect(() => {
     publishAvailable(false);
     if (!surface) return;
-    let cancelled = false;
     let tries = 0;
+    let previous = -1;
     const id = window.setInterval(() => {
       tries++;
-      const present = stepsFor(surface).some((s) => visibleTarget(s.target) !== null);
-      if (present && !cancelled) {
+      const count = visibleTargetCount(surface);
+      const busy = screenIsBusy();
+
+      // The replay item may appear as soon as there is a real screen behind it.
+      // Replay is a deliberate act, so a tour that is merely shorter than it
+      // could be is an acceptable thing to offer; auto-starting one is not,
+      // because auto-starting also spends the once-per-browser first run.
+      publishAvailable(count > 0 && !busy);
+
+      // Settled: nothing is loading, and the last tick added no new targets.
+      // Two conditions rather than one because they fail differently — a screen
+      // can stop being busy while a second fetch is still populating a card, and
+      // a count can hold steady for a tick while the skeleton is still up.
+      const settled = count > 0 && !busy && count === previous;
+      previous = count;
+
+      if (settled) {
         window.clearInterval(id);
-        publishAvailable(true);
         if (!seen(surface)) start();
-      } else if (tries > 40) {
-        // ~8s. The screen is empty or still loading; leave the replay item hidden
-        // rather than offering a tour with nothing in it.
+        return;
+      }
+      if (tries > 40) {
+        // ~8s. Something on this screen is not going to resolve. Do not spend
+        // the first run on a partial tour — leave it for the replay item, which
+        // is published above if there is anything worth replaying.
         window.clearInterval(id);
       }
     }, 200);
     return () => {
-      cancelled = true;
       window.clearInterval(id);
       publishAvailable(false);
       instance.current?.destroy();

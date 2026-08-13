@@ -3,6 +3,7 @@
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { usePathname } from 'next/navigation';
+import * as React from 'react';
 
 /**
  * What a customer screen looks like while the session is still resolving.
@@ -132,9 +133,28 @@ export function CustomerShellSkeleton() {
   const match =
     ROUTES.find((r) => pathname === r.prefix || pathname.startsWith(`${r.prefix}/`)) ?? FALLBACK;
 
+  // Placeholders that pulse for half a second read as "nearly there"; the same
+  // placeholders still pulsing after six read as an application stuck doing
+  // something. The API is on a plan that sleeps when idle and can take most of
+  // a minute to answer the first request, so past a few seconds the honest
+  // thing is to say which of the two is happening.
+  const [slow, setSlow] = React.useState(false);
+  React.useEffect(() => {
+    const id = setTimeout(() => setSlow(true), 6000);
+    return () => clearTimeout(id);
+  }, []);
+
   return (
     <AppScreen active={match.key}>
       <PageHead eyebrow="Loading" title={match.title} />
+      {/* <output> carries role="status" implicitly. No aria-busy on it — the
+          tour reads that attribute to decide the screen is still loading, and
+          this line is a fact about the screen, not a part of it that is. */}
+      {slow ? (
+        <output className="mb-[18px] block text-[13.5px] text-dim">
+          Still connecting — the server may be waking up.
+        </output>
+      ) : null}
       <SkeletonRegion label={`Loading ${match.title}`}>
         {match.shape === 'home' || match.shape === 'agent' ? <Hero /> : null}
         <Body shape={match.shape} />

@@ -74,11 +74,15 @@ export function RequireSurface({
 }: {
   surface: Surface;
   /**
-   * Rendered while the session resolves, and while a wrong-surface viewer is
-   * being redirected. Supply the shell of the surface being guarded: replacing
-   * the whole page with a splash for the length of one fetch is what made every
-   * screen arrive at once, and a shell that draws placeholders instead of data
-   * gives away nothing to someone who is about to be sent elsewhere.
+   * Rendered ONLY while the session is resolving. Supply the shell of the
+   * surface being guarded: replacing the whole page with a splash for the
+   * length of one fetch is what made every screen arrive at once.
+   *
+   * Deliberately not used for the signed-out or wrong-surface cases. Those are
+   * redirects, and a pulsing skeleton of a screen the viewer is being sent away
+   * from does not read as "one moment" — it reads as an application that is
+   * busy doing something, indefinitely, which is what it looked like on a phone
+   * where sign-in had failed and the redirect was the whole story.
    */
   fallback?: React.ReactNode;
   children: React.ReactNode;
@@ -96,8 +100,10 @@ export function RequireSurface({
     }
   }, [state, surface, router]);
 
+  // Waiting: draw the shell. Leaving: draw the quiet mark and go.
+  if (state.status === 'loading' && fallback) return <>{fallback}</>;
+
   if (state.status !== 'authenticated' || state.me.surface !== surface) {
-    if (fallback) return <>{fallback}</>;
     return (
       <div className="grid min-h-screen place-items-center bg-background">
         <div className="flex items-center gap-2.5">
