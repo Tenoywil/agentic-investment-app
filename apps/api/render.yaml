@@ -20,13 +20,16 @@
 # root directory `.` so the Docker build context is the whole monorepo, Dockerfile
 # path `apps/api/Dockerfile`.
 #
-# Migrations run automatically via `preDeployCommand` below — Render runs it once
-# per deploy, after the build, before traffic is cut over to the new instance, in
-# the same environment (so DATABASE_URL etc. are already in scope). Deliberately
-# NOT `db:seed` here: seeding is a one-time/manual step, not something to rerun on
-# every deploy against real user data. Run `bun run db:seed` by hand (same
-# DATABASE_URL) after the first successful migration if the reference data
-# (partners, instruments, planning products, …) isn't loaded yet.
+# Migrations do NOT run on deploy. See the note beside the service below: Render
+# does not support pre-deploy commands on `free`, so after any merge that adds a
+# migration, somebody runs
+#
+#   cd packages/db && DATABASE_URL='<production url>' bun run db:migrate
+#
+# Seeding is manual for a different and permanent reason: re-running it on every
+# deploy would write fixture rows over real user data. On a live database use the
+# catalog only — `bun run db:seed:reference` — or the "Load the catalog" action
+# on the administration surface, which does the same thing over HTTP.
 #
 # `packages/config` fails fast on boot (before serving a single request) if any
 # required value below is missing — set ALL of these in the Render dashboard,
@@ -93,14 +96,15 @@ services:
     #
     #     cd packages/db && DATABASE_URL='<production url>' bun run db:migrate
     #
-    # To make them automatic, change `plan: free` to `plan: starter` above and
-    # restore the line below. That is the only combination Render allows, and it
-    # buys the no-spin-down behaviour this file already argues for:
+    # Do not re-add it while this service is on `free`. It does not fail loudly
+    # — it fails as a Blueprint that never syncs, which reads exactly like
+    # everything working, and that is how this was missed the first time.
+    #
+    # A paid instance type is the only configuration in which Render will accept
+    # it, so if automatic migrations are ever wanted, the plan is the thing that
+    # has to change first:
     #
     #     preDeployCommand: cd packages/db && bun run db:migrate
-    #
-    # Do not re-add it on `free`. It does not fail loudly — it fails as a
-    # Blueprint that never syncs, which reads exactly like everything working.
     envVars:
       - key: APP_ENV
         value: production
