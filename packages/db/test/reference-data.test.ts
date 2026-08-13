@@ -2,12 +2,14 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { asc, eq } from 'drizzle-orm';
 import { createDb } from '../src/client';
 import { seedDemoCustomer } from '../src/demo/customer';
+import { seedPartnerConsole } from '../src/demo/partner';
 import {
   agentMessages,
   approvals,
   goals,
   holdings,
   kycFunnelStages,
+  orders,
   partnerKpis,
   partners,
   productListings,
@@ -204,6 +206,70 @@ suite('reference data and demo attachment', () => {
       expect(l.trend).toBeNull();
     }
   }, 60_000);
+  /**
+   * The institution surface's counterpart to the demo portfolio.
+   *
+   * The console's data lived only in the seed CLI and was hardcoded to the
+   * anchor partner, so an operator granted any other partner signed in
+   * successfully and landed on an empty console — as did every operator on a
+   * database where `db:seed` had never run, which is any deployment whose
+   * pre-deploy step only migrates. Provisioning now seeds it on first sign-in.
+   */
+  test("an operator's console seeds itself, once", async () => {
+    const [p] = await db
+      .select({ id: partners.id })
+      .from(partners)
+      .where(eq(partners.code, 'JMMB'));
+    if (!p) throw new Error('partner JMMB missing');
+
+    const counts = async () => ({
+      products: (await db.select().from(productListings).where(eq(productListings.partnerId, p.id)))
+        .length,
+      orders: (await db.select().from(orders).where(eq(orders.partnerId, p.id))).length,
+    });
+
+    await seedPartnerConsole(db, p.id);
+    const after = await counts();
+    expect(after.products).toBeGreaterThan(0);
+    expect(after.orders).toBeGreaterThan(0);
+
+    // The queue needs something to accept and something already settled, or the
+    // console's headline counts are all zero and the screen has nothing to show.
+    const statuses = (
+      await db.select({ s: orders.status }).from(orders).where(eq(orders.partnerId, p.id))
+    ).map((r) => r.s);
+    expect(statuses).toContain('created');
+    expect(statuses).toContain('settled');
+
+    // Replayed on every sign-in, so it must not accumulate.
+    await seedPartnerConsole(db, p.id);
+    expect(await counts()).toEqual(after);
+  }, 60_000);
+
+  /**
+   * The invented console metrics must not come back through this door. The seed
+   * CLI was cleaned of them; a second seeder that re-added them would undo that
+   * silently, and being API-backed is what made them convincing.
+   */
+  test('the partner seeder invents no metric either', async () => {
+    const [p] = await db.select({ id: partners.id }).from(partners).where(eq(partners.code, 'NCB'));
+    if (!p) throw new Error('partner NCB missing');
+    await seedPartnerConsole(db, p.id);
+
+    expect(await db.select().from(partnerKpis).where(eq(partnerKpis.partnerId, p.id))).toEqual([]);
+    expect(
+      await db.select().from(kycFunnelStages).where(eq(kycFunnelStages.partnerId, p.id)),
+    ).toEqual([]);
+    for (const l of await db
+      .select()
+      .from(productListings)
+      .where(eq(productListings.partnerId, p.id))) {
+      expect(l.clients).toBe(0);
+      expect(l.aumMinor).toBe(0n);
+      expect(l.trend).toBeNull();
+    }
+  }, 60_000);
+
   /**
    * `SET LOCAL ROLE ccn_app` is the first statement of every RLS-scoped
    * transaction, and it requires the connecting role to be a MEMBER of ccn_app

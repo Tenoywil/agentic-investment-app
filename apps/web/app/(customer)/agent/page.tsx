@@ -5,7 +5,9 @@ import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
+import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { Switch } from '@/app/_components/ui/switch';
+import { useDictation, useNarration } from '@/app/_lib/speech';
 import { cn } from '@/app/_lib/utils';
 import {
   AgentApiError,
@@ -30,7 +32,16 @@ import {
 } from '@/lib/limits-api';
 import { getOpportunities } from '@/lib/opportunities-api';
 import { getPortfolio } from '@/lib/portfolio-api';
-import { ArrowRight, CheckCheck, CircleAlert, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCheck,
+  CircleAlert,
+  Mic,
+  Sparkles,
+  Square,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
 type ChatEntry = { role: 'agent' | 'user'; text: string };
@@ -287,7 +298,22 @@ function LimitsCard() {
         </p>
       )}
 
-      {state === 'loading' && <p className="text-sm text-dim">Loading your limits…</p>}
+      {state === 'loading' && (
+        // Five rows, because five rules land here. The single line this replaced
+        // was the largest single contributor to this screen's 0.38 layout shift.
+        <SkeletonRegion label="Loading your limits" className="flex flex-col gap-3">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <Skeleton className="mb-1.5 h-3.5 w-2/5" />
+                <Skeleton className="h-3 w-3/5" />
+              </div>
+              <Skeleton className="h-6 w-16 flex-none" />
+              <Skeleton className="h-6 w-10 flex-none rounded-full" />
+            </div>
+          ))}
+        </SkeletonRegion>
+      )}
 
       {state === 'error' && <InlineError>{loadError}</InlineError>}
 
@@ -344,6 +370,12 @@ export default function AgentPage() {
   const [historyState, setHistoryState] = useState<HistoryState>('loading');
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const narration = useNarration();
+  // Dictation fills the composer rather than sending: a portfolio instruction
+  // read back wrong should be correctable before it goes anywhere.
+  const dictation = useDictation((text) =>
+    setDraft((d) => (d.trim() ? `${d.trim()} ${text}` : text)),
+  );
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -414,6 +446,14 @@ export default function AgentPage() {
       },
       onDone: () => {
         setSending(false);
+        // Read the finished reply, not each delta: speaking a token stream
+        // produces stuttering half-words. Narration is a no-op unless the user
+        // switched it on, so nothing ever speaks unasked.
+        setChat((c) => {
+          const last = c[c.length - 1];
+          if (last && last.role === 'agent' && last.text) narration.speak(last.text);
+          return c;
+        });
       },
       onError: (message) => {
         setStreamError(message);
@@ -496,18 +536,47 @@ export default function AgentPage() {
                 Suitability-aware · acts on your approval
               </div>
             </div>
+            {/* Only where the browser can actually speak. The toggle doubles as
+                the stop control while it is talking, so audio is never running
+                without something on screen to end it. */}
+            {narration.supported && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-pressed={narration.enabled}
+                aria-label={narration.enabled ? 'Turn off spoken replies' : 'Read replies aloud'}
+                onClick={() => narration.setEnabled(!narration.enabled)}
+                className="h-9 w-9 flex-none"
+              >
+                {narration.enabled ? (
+                  <Volume2
+                    className={cn('h-[18px] w-[18px]', narration.speaking && 'animate-pulse')}
+                    aria-hidden
+                  />
+                ) : (
+                  <VolumeX className="h-[18px] w-[18px] text-dim" aria-hidden />
+                )}
+              </Button>
+            )}
           </div>
 
           <div
             ref={logRef}
             aria-live="polite"
             aria-label="Conversation with your agent"
-            className="flex max-h-[440px] min-h-[220px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            // A fixed height, not a range. Between min-h and max-h the log grew with
+            // every message: the card got taller as the agent streamed, pushing the
+            // composer down under the cursor and resizing the whole two-column row
+            // around it. The conversation scrolls inside a box that does not move.
+            className="flex h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px] max-[900px]:h-[58vh]"
           >
             {historyState === 'loading' && (
-              <div className="flex flex-1 items-center justify-center py-10 text-sm text-dim">
-                Loading your conversation…
-              </div>
+              <SkeletonRegion label="Loading your conversation" className="flex flex-col gap-3.5">
+                <Skeleton className="h-14 w-4/5 rounded-2xl" />
+                <Skeleton className="h-10 w-3/5 self-end rounded-2xl" />
+                <Skeleton className="h-16 w-4/5 rounded-2xl" />
+              </SkeletonRegion>
             )}
 
             {historyState === 'error' && (
@@ -604,6 +673,24 @@ export default function AgentPage() {
                 placeholder="Ask your agent about income, rebalancing, or a specific deal…"
                 className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint disabled:opacity-60"
               />
+              {dictation.supported && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={dictation.listening ? 'default' : 'ghost'}
+                  aria-label={dictation.listening ? 'Stop dictating' : 'Dictate your question'}
+                  aria-pressed={dictation.listening}
+                  onClick={() => (dictation.listening ? dictation.stop() : dictation.start())}
+                  disabled={sending}
+                  className="h-[38px] w-[38px] flex-none rounded-[10px]"
+                >
+                  {dictation.listening ? (
+                    <Square className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Mic className="h-[18px] w-[18px]" aria-hidden />
+                  )}
+                </Button>
+              )}
               <Button
                 type="submit"
                 size="icon"
@@ -630,7 +717,13 @@ export default function AgentPage() {
             </div>
 
             {approvalsState === 'loading' && (
-              <p className="text-sm text-dim">Loading your approvals…</p>
+              <SkeletonRegion
+                label="Loading approvals waiting on you"
+                className="flex flex-col gap-3"
+              >
+                <SkeletonCard lines={3} />
+                <SkeletonCard lines={3} />
+              </SkeletonRegion>
             )}
 
             {approvalsState === 'error' && <InlineError>{approvalsError}</InlineError>}

@@ -1,4 +1,10 @@
-import { type ChatMessage, ResponseCache, buildContext, runAgent } from '@ccn/agent';
+import {
+  type ChatMessage,
+  ResponseCache,
+  buildContext,
+  runAgent,
+  stripReasoning,
+} from '@ccn/agent';
 import { agentMessages } from '@ccn/db';
 import { agentMessageSchema } from '@ccn/domain';
 import { desc, eq } from 'drizzle-orm';
@@ -12,7 +18,7 @@ import { loadAgentSnapshot } from '../services/agent-snapshot';
 
 /**
  * The Capital Agent chat. POST /message streams the reply over SSE while the
- * read/propose-only agent loop runs against the Impala/MiniMax gateway; both
+ * read/propose-only agent loop runs against the MiniMax gateway; both
  * sides of the turn persist to agent_messages. The agent can only PROPOSE — the
  * Limits Engine and the human approval loop remain the only paths to execution.
  *
@@ -41,7 +47,16 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
         .orderBy(desc(agentMessages.createdAt))
         .limit(50),
     );
-    return c.json({ messages: rows.reverse() });
+    // Cleaned on read, not by a migration. Rows written before the reasoning
+    // tags were stripped are still in the table, and /agent replays the last 50
+    // on every load — so without this the same wall of "let me try funds…"
+    // greets the customer forever. Reading is also the only place it can be
+    // done safely: agent_messages is append-only to the app role.
+    return c.json({
+      messages: rows
+        .reverse()
+        .map((r) => (r.role === 'agent' ? { ...r, content: stripReasoning(r.content) } : r)),
+    });
   });
 
   app.post('/message', async (c) => {
@@ -70,7 +85,13 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
       return { snapshot: snap, history: hist };
     });
 
+    // streamText reports a failed request here and then ends the stream
+    // normally, so this is the only place the real cause is available.
+    let gatewayError: unknown = null;
     const { textStream } = runAgent({
+      onError: (error) => {
+        gatewayError = error;
+      },
       gateway: {
         baseURL: deps.config.OPENAI_BASE_URL,
         apiKey: deps.config.OPENAI_API_KEY,
@@ -98,15 +119,53 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
           full += delta;
           await stream.writeSSE({ data: JSON.stringify({ delta }) });
         }
-      } catch {
+      } catch (error) {
+        gatewayError = error;
+      }
+
+      // A turn that produced no text is a failure, whether or not anything was
+      // thrown. This used to be treated as success: the catch was bare, an empty
+      // stream fell straight through, and the screen rendered an empty reply
+      // bubble with no error and no log — which is what "the agent is not
+      // working" looked like from the outside, with nothing on the server to
+      // act on. The gateway host and model are recorded because they are the
+      // two values most often wrong; the key never is.
+      if (full.length === 0) {
+        deps.logger.error('agent produced no text', {
+          error: gatewayError,
+          gateway: deps.config.OPENAI_BASE_URL,
+          model: deps.config.AI_MODEL,
+          userId: tenant.user.id,
+          // No error alongside an empty reply means the request succeeded and
+          // the model genuinely returned nothing — a different bug from a
+          // gateway that refused the call.
+          hadGatewayError: gatewayError !== null,
+        });
         await stream.writeSSE({
           event: 'error',
           data: JSON.stringify({ error: 'the agent is temporarily unavailable' }),
         });
-      }
-      if (full.length > 0) {
+      } else {
+        if (gatewayError !== null) {
+          // Partial answer: the stream broke mid-reply. Worth recording even
+          // though the user got something, because the something is truncated.
+          deps.logger.error('agent stream ended early', {
+            error: gatewayError,
+            gateway: deps.config.OPENAI_BASE_URL,
+            model: deps.config.AI_MODEL,
+            userId: tenant.user.id,
+            streamedChars: full.length,
+          });
+        }
+        // Stored clean. The middleware has already taken the tags out of the
+        // stream, so this is the belt to its braces — a malformed or truncated
+        // block that slipped through must not become a permanent row.
         await withTenant(deps, tenant, (tx) =>
-          tx.insert(agentMessages).values({ userId: tenant.user.id, role: 'agent', content: full }),
+          tx.insert(agentMessages).values({
+            userId: tenant.user.id,
+            role: 'agent',
+            content: stripReasoning(full),
+          }),
         );
       }
       await stream.writeSSE({ event: 'done', data: '[DONE]' });

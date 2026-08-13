@@ -150,6 +150,40 @@ describe('app shell controls', () => {
   });
 
   /**
+   * The tour must not auto-start over a loading screen.
+   *
+   * This was not cosmetic. The readiness check was "any one step's element is on
+   * the page", which the navigation satisfies before the session has resolved —
+   * and on a phone the navigation is the top bar, which is always visible. So
+   * the tour opened over the skeleton, dropped the five steps whose elements had
+   * not arrived, showed the one nav step, and `onDestroyed` marked the surface
+   * seen. The six-step tour then never ran again on that browser. Measured with
+   * a 1.5s identity round trip: one step before, four after.
+   *
+   * The gate is two conditions, and both are load-bearing — a screen can stop
+   * being busy while a second fetch is still filling a card, and a target count
+   * can hold steady for one tick while the skeleton is still up.
+   */
+  test('the tour waits for the screen to settle before auto-starting', () => {
+    const tour = code(join(SHELL, 'tour/tour.tsx'));
+
+    // Reads the busy state the skeletons already publish, rather than inventing
+    // a second signal that has to be kept in step with them.
+    expect(tour).toContain('aria-busy="true"');
+    expect(tour).toMatch(/function screenIsBusy/);
+
+    // Auto-start is gated on both conditions, not on "some target exists".
+    const autoStart = tour.slice(tour.indexOf('const settled'), tour.indexOf('if (tries > 40)'));
+    expect(autoStart).toContain('!busy');
+    expect(autoStart).toContain('count === previous');
+    expect(autoStart).toContain('start()');
+    expect(tour).not.toMatch(/\.some\(\(s\)\s*=>\s*visibleTarget/);
+
+    // And the skeletons must keep publishing it, or the gate reads nothing.
+    expect(code(join(SHELL, 'ui/skeleton.tsx'))).toContain('aria-busy="true"');
+  });
+
+  /**
    * The fixture-only preview has no session, so it cannot show an account menu
    * — and calling /api/me from it would break the rule that the demo track
    * makes no API calls at all. It keeps a bare theme toggle instead.

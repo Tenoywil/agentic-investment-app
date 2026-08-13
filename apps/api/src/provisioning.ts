@@ -1,5 +1,5 @@
 import { type AllowlistConfig, demoCustomerAllowlist, operatorAllowlist } from '@ccn/config';
-import { partners, seedDemoCustomer, userRoles, withRls } from '@ccn/db';
+import { partners, seedDemoCustomer, seedPartnerConsole, userRoles, withRls } from '@ccn/db';
 import { eq, sql } from 'drizzle-orm';
 import type { AppDeps, SessionUser } from './context';
 
@@ -60,6 +60,10 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
   // WITH CHECK. FORCE means even the table owner is subject to this; only a
   // superuser bypasses it, which is exactly what the local test database
   // connects as. That is why this passed every test and broke production sign-in.
+  // Set when this sign-in granted an operator role, so the console can be
+  // populated once the role transaction has committed.
+  let operatorPartnerId: string | null = null;
+
   await withRls(deps.db, { userId: user.id, dbRole: deps.config.DB_APP_ROLE }, async (tx) => {
     // Serialize concurrent first requests for this user; released at commit.
     await tx.execute(sql`select pg_advisory_xact_lock(${lockKey(user.id)})`);
@@ -87,6 +91,7 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
           .insert(userRoles)
           .values({ userId: user.id, role: 'partner_operator', partnerId: partner.id })
           .onConflictDoNothing();
+        operatorPartnerId = partner.id;
         return;
       }
     }
@@ -118,6 +123,29 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
       deps.logger.error('demo customer seeding failed; account will be empty', {
         error,
         userId: user.id,
+      });
+    }
+  }
+
+  // The institution counterpart. The console's data lived only in the seed CLI
+  // and was hardcoded to the anchor partner, so an operator whose partner had
+  // never been seeded — which is every deployment whose pre-deploy step only
+  // runs migrations — signed in successfully and landed on an empty console.
+  // Seeding it here means the surface populates itself on first sign-in, the
+  // same way the customer one does.
+  //
+  // Not scoped by a tenant GUC: these rows belong to a partner, not a user, and
+  // the console's own RLS keys off `app_current_partner_id()`. It runs with the
+  // connection's privileges as an administrative operation, and is a no-op when
+  // the partner already has listings.
+  if (operatorPartnerId) {
+    try {
+      await seedPartnerConsole(deps.db, operatorPartnerId);
+    } catch (error) {
+      deps.logger.error('partner console seeding failed; the console will be empty', {
+        error,
+        userId: user.id,
+        partnerId: operatorPartnerId,
       });
     }
   }

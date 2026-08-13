@@ -14,6 +14,7 @@ import {
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Input } from '@/app/_components/ui/input';
 import { Label } from '@/app/_components/ui/label';
+import { SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { cn } from '@/app/_lib/utils';
 import {
   type CreateGoalInput,
@@ -271,7 +272,12 @@ export default function PlanningPage() {
         </div>
       )}
       {productsLoading ? (
-        <p className="text-sm text-dim">Loading products…</p>
+        // Two cards in the same `g2` grid the real products land in, so the
+        // section holds its height and nothing below it moves when they arrive.
+        <SkeletonRegion label="Loading recommended products" className="g2">
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+        </SkeletonRegion>
       ) : products.length === 0 && !productsError ? (
         <EmptyState
           icon={ShieldCheck}
@@ -320,7 +326,11 @@ export default function PlanningPage() {
         </div>
       )}
       {goalsLoading ? (
-        <p className="text-sm text-dim">Loading your goals…</p>
+        <SkeletonRegion label="Loading your goals" className="g3">
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+        </SkeletonRegion>
       ) : goals.length === 0 && !goalsError ? (
         <EmptyState
           icon={Target}

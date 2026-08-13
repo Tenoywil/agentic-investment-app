@@ -25,11 +25,19 @@ const SECRET_KEYS = new Set([
 ]);
 
 /**
- * Provider-branded aliases for the AI gateway key. The Impala gateway is
+ * Provider-branded aliases for the AI gateway key. MiniMax's API is
  * OpenAI-compatible, so `OPENAI_API_KEY` is canonical and everything downstream
  * reads that; `MINIMAX_SECRET` is honored as a fallback (some deploy platforms
- * name the secret after the model). An explicit `OPENAI_API_KEY` always wins.
+ * name the secret after the provider). An explicit `OPENAI_API_KEY` always wins.
  * Returns a copy — the caller's env object is never mutated.
+ *
+ * Whatever the variable is called, the key must have been issued by whoever
+ * answers at `OPENAI_BASE_URL`. That used to be the Impala gateway while
+ * `MINIMAX_SECRET` named the model Impala routed to rather than the
+ * credential's issuer, so a genuine MiniMax key landed in it and was rejected
+ * with "Invalid proxy server token passed … not found in db". The base URL now
+ * points at MiniMax itself, which makes the alias mean what it looks like it
+ * means — but the rule is the base URL, not the name.
  */
 function withAliases(
   source: Record<string, string | undefined>,
@@ -58,10 +66,18 @@ const serverSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
 
-  // AI gateway (Impala, OpenAI-compatible)
-  OPENAI_BASE_URL: z.string().url().default('https://ht.getimpala.ai/v1'),
+  // AI gateway — MiniMax's own OpenAI-compatible API.
+  //
+  // https://api.minimax.io/v1 is the international endpoint; the China platform
+  // answers on a different host, so a key issued there will 401 here. The SSRF
+  // allowlist follows this value automatically, so pointing it elsewhere needs
+  // no other change.
+  OPENAI_BASE_URL: z.string().url().default('https://api.minimax.io/v1'),
   OPENAI_API_KEY: z.string().min(1),
-  AI_MODEL: z.string().min(1).default('MiniMax'),
+  // An exact model id, not a family name. `GET ${OPENAI_BASE_URL}/models` is the
+  // authoritative list for a given key and region, and the boot check below
+  // calls it — MiniMax-M2 is the id kept compatible as newer ones ship.
+  AI_MODEL: z.string().min(1).default('MiniMax-M2'),
   AI_EMBED_MODEL: z.string().default(''),
   // Gateway tiered-model overrides (packages/agent/src/gateway). Empty means
   // "use AI_MODEL" — resolved by packages/agent/src/gateway/provider.ts, so a

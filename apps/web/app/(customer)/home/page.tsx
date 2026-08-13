@@ -322,9 +322,14 @@ export default function HomePage() {
               {portfolio.netWorth}
             </div>
           ) : portfolioLoading ? (
-            <p className="my-[10px] mb-3 text-[17px] text-[#eafaf5]/[.94]">
-              Adding up your position…
-            </p>
+            // Same box the 52px figure occupies (leading-none, my-[10px] mb-3),
+            // so the hero does not resize under the reader when it resolves.
+            // On the hero's own dark ground rather than bg-muted, which would
+            // read as a hole punched in the card.
+            <output aria-busy="true" className="my-[10px] mb-3 block h-[52px]">
+              <span className="sr-only">Adding up your position</span>
+              <div className="h-[52px] w-56 animate-pulse rounded-md bg-white/15" aria-hidden />
+            </output>
           ) : null}
           {portfolioError && (
             <p className="mb-3 flex items-center gap-2 text-sm text-[#f6d9c9]">

@@ -69,9 +69,22 @@ export function useMe(): Me | null {
  */
 export function RequireSurface({
   surface,
+  fallback,
   children,
 }: {
   surface: Surface;
+  /**
+   * Rendered ONLY while the session is resolving. Supply the shell of the
+   * surface being guarded: replacing the whole page with a splash for the
+   * length of one fetch is what made every screen arrive at once.
+   *
+   * Deliberately not used for the signed-out or wrong-surface cases. Those are
+   * redirects, and a pulsing skeleton of a screen the viewer is being sent away
+   * from does not read as "one moment" — it reads as an application that is
+   * busy doing something, indefinitely, which is what it looked like on a phone
+   * where sign-in had failed and the redirect was the whole story.
+   */
+  fallback?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { state } = useSession();
@@ -86,6 +99,9 @@ export function RequireSurface({
       router.replace(state.me.surface === 'institution' ? '/institutions' : '/home');
     }
   }, [state, surface, router]);
+
+  // Waiting: draw the shell. Leaving: draw the quiet mark and go.
+  if (state.status === 'loading' && fallback) return <>{fallback}</>;
 
   if (state.status !== 'authenticated' || state.me.surface !== surface) {
     return (

@@ -19,6 +19,40 @@ describe('redactString', () => {
     expect(redactString(`using ${fakeGatewayKey} now`)).toBe(`using ${REDACTED} now`);
   });
 
+  /**
+   * The exact shape that reached a production log: the AI gateway rejected a
+   * token and echoed it back inside the error message. It carries no `sk-`
+   * prefix — a bare hex string — so no value pattern matched, and it was inside
+   * a message rather than a field, so the by-key pass never saw it.
+   */
+  test('masks a bare token echoed back in an upstream error message', () => {
+    const bare = 'a1a1957038511'.concat('46cb074767731c17b62927d64322d8417f87e664f1ee0a7a93f');
+    const message = `Authentication Error, Invalid proxy server token passed. key=${bare}, not found in db`;
+    const out = redactString(message);
+    expect(out).not.toContain(bare);
+    expect(out).toContain(`key=${REDACTED}`);
+    // The rest of the message has to survive — it is the diagnosis.
+    expect(out).toContain('not found in db');
+  });
+
+  test('masks credential assignments whatever they are called', () => {
+    const value = 'abcdef0123456789abcdef';
+    for (const name of ['token', 'api_key', 'apiKey', 'secret', 'password']) {
+      expect(redactString(`${name}=${value}`)).toBe(`${name}=${REDACTED}`);
+      expect(redactString(`${name}: ${value}`)).toBe(`${name}: ${REDACTED}`);
+    }
+  });
+
+  /**
+   * The audit chain's SHA-256 hashes are logged on purpose and are not secret.
+   * A blanket "long hex run" rule would have masked them, which is why the rule
+   * matches the assignment and not the value.
+   */
+  test('leaves audit-chain hashes alone', () => {
+    const hash = 'e3b0c44298fc1c149afbf4c8996fb924'.concat('27ae41e4649b934ca495991b7852b855');
+    expect(redactString(`chain head ${hash} verified`)).toBe(`chain head ${hash} verified`);
+  });
+
   test('masks a JWT', () => {
     // Sanity-check the fixture really is JWT-shaped before asserting on it.
     expect(fakeJwt.startsWith('eyJ')).toBe(true);

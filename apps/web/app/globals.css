@@ -413,6 +413,33 @@ input:-webkit-autofill:active {
   }
 }
 
+/* ---- Tablet (561-900px) ----------------------------------------------------
+   Between the phone and the desktop there is a real third size, and it was
+   being handed the phone's layout: every two- and three-column grid collapsed
+   to a single column at 900px, so an 820px tablet rendered one card per row
+   with half the width empty beside it. The rail stays hidden here — 264px out
+   of 820 is too much to spend on navigation, and the drawer is a better trade —
+   but the content grids get their second column back, and the page gets its
+   margins back. Below 560px this reverts to one column, which is correct on a
+   phone. */
+@media (min-width: 561px) and (max-width: 900px) {
+  .g2,
+  .g-held,
+  .g-agent,
+  .g3,
+  .g4 {
+    grid-template-columns: 1fr 1fr;
+  }
+  /* The hero is two unequal panels; side by side they are both too narrow to
+     read at this width, so it alone stays stacked. */
+  .g-hero {
+    grid-template-columns: 1fr;
+  }
+  .g5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 /*
  * Guided tour (driver.js) themed onto our tokens.
  *

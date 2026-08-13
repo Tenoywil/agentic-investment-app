@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { createApp } from './app';
 import { createAuth, resolveAuthBaseUrl } from './auth';
 import { createLogger } from './logger';
+import { createOutboundGuard } from './security';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
 import { type Registration, WsHub } from './ws/hub';
@@ -76,6 +77,64 @@ const app = createApp(deps);
     logger.error(
       `cannot SET ROLE ${role}; every authenticated request will fail with 500. Grant it once as a role with ADMIN OPTION (in Supabase, the SQL Editor runs as postgres): GRANT ${role} TO <the user in DATABASE_URL>;`,
       { error, dbAppRole: role },
+    );
+  }
+}
+
+/**
+ * Prove, at boot, that the AI gateway is reachable and the key is accepted.
+ *
+ * The agent chat has exactly one path to text and no fallback, and when it fails
+ * the user is told only that it is "temporarily unavailable". The agent-eval CI
+ * gate does not cover this: its live-model evals are skipped when no gateway key
+ * is configured, deliberately, so the gate never flakes on the network — which
+ * means the live path can be broken with every check green.
+ *
+ * `/models` is the cheapest call that exercises both halves of the problem: it
+ * fails on an unreachable host and 401s on a bad key, and it costs no tokens.
+ * It goes through the same SSRF-guarded fetch the agent uses, so a host missing
+ * from the allowlist fails here too rather than only under a real question.
+ *
+ * Like the role check above, it does not exit — the rest of the product works
+ * without the agent — and it never logs the key.
+ */
+{
+  const base = config.OPENAI_BASE_URL.replace(/\/+$/, '');
+  const url = `${base}/models`;
+  try {
+    const res = await createOutboundGuard(config).fetch(url, {
+      headers: { authorization: `Bearer ${config.OPENAI_API_KEY}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      logger.info('ai gateway check passed', { gateway: base, model: config.AI_MODEL });
+    } else {
+      // 401 is unambiguous. 403 is not: an OpenAI-compatible gateway returns it
+      // for a key without access to the account or model, but so does any proxy
+      // sitting between this process and the internet that refuses the host —
+      // which is what a locked-down build environment looks like, and why this
+      // does not assert the key is wrong.
+      // The key has to belong to whoever is answering at OPENAI_BASE_URL, and
+      // the model id has to be one that host actually serves. Both have been
+      // wrong here before — first a MiniMax key against a gateway that had
+      // never issued it, then a family name where an exact id was required —
+      // and each reads like the other from the status code alone.
+      const mismatch = `The key must have been issued by whoever answers at ${base}. For MiniMax, that is a key from platform.minimax.io and the international endpoint https://api.minimax.io/v1 — a China-platform key will not authenticate here. AI_MODEL must be an exact id from GET ${base}/models (e.g. MiniMax-M2), not a family name.`;
+      const hint =
+        res.status === 401
+          ? `The key is being rejected. ${mismatch}`
+          : res.status === 403
+            ? `Either the key has no access to this gateway or model, or something between this process and the gateway refused the request. ${mismatch}`
+            : 'Check OPENAI_BASE_URL points at an OpenAI-compatible gateway.';
+      logger.error(
+        `AI gateway answered ${res.status} for GET ${url}. The agent chat will fail for every user. ${hint}`,
+        { gateway: base, status: res.status, model: config.AI_MODEL },
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `cannot reach the AI gateway at ${base}; the agent chat will fail for every user. This is a network or allowlist failure, not a bad key — the key is not checked until the host answers.`,
+      { error, gateway: base, model: config.AI_MODEL },
     );
   }
 }

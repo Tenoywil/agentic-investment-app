@@ -27,6 +27,17 @@ export interface RunAgentArgs {
   cacheScope?: unknown;
   /** Max tool-use steps before the model must answer. */
   maxSteps?: number;
+  /**
+   * Called when the underlying model call fails.
+   *
+   * `streamText` does NOT throw on a failed request — it reports the error here
+   * and ends the stream normally. Consume only `textStream` and a gateway that
+   * is unreachable, unauthorized or rate-limited is indistinguishable from a
+   * model that chose to say nothing: zero chunks, no exception, no clue. That
+   * is precisely how a broken agent reached production looking like an empty
+   * reply bubble, so the hook is part of the contract rather than an extra.
+   */
+  onError?: (error: unknown) => void;
 }
 
 export interface RunAgentResult {
@@ -89,6 +100,7 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     messages,
     tools,
     stopWhen: stepCountIs(args.maxSteps ?? 8),
+    onError: ({ error }) => args.onError?.(error),
   });
 
   const textStream = args.cache

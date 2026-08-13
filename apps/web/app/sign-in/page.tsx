@@ -2,22 +2,13 @@
 
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
 import { CircleAlert, Lock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { authClient } from '../../lib/auth-client';
 
 export default function SignInPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const google = () => {
-    setError(null);
-    authClient.signIn
-      .social({ provider: 'google', callbackURL: `${window.location.origin}/after-sign-in` })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Could not reach the sign-in service.');
-      });
-  };
+  const { start: google, pending, slow, error } = useGoogleSignIn();
 
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans text-foreground">
@@ -42,18 +33,32 @@ export default function SignInPage() {
           <p className="mx-0 mb-[26px] mt-[9px] text-center text-[15px] leading-relaxed text-dim">
             Sign up so your capital agent can work across every licensed partner in the region.
           </p>
-          <Button variant="outline" onClick={google} className="h-[54px] w-full gap-3 text-base">
+          <Button
+            variant="outline"
+            onClick={google}
+            disabled={pending}
+            aria-busy={pending}
+            className="h-[54px] w-full gap-3 text-base"
+          >
             <span className="grid h-[22px] w-[22px] place-items-center rounded-full border border-border bg-white font-display text-sm font-bold text-[#3f7ae0]">
               G
             </span>
-            Continue with Google
+            {pending ? 'Connecting to Google…' : 'Continue with Google'}
           </Button>
-          {error && (
-            <p className="mt-3 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
-              <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
-              {error}
-            </p>
-          )}
+          {/* One line, one height, whichever of the three states is showing, so
+              the card does not resize under the thumb that just tapped it. */}
+          <div className="min-h-[34px] pt-3">
+            {error ? (
+              <p className="flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+                <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+                {error}
+              </p>
+            ) : slow ? (
+              <output className="block text-sm text-dim">
+                Waking the server — this can take up to a minute the first time.
+              </output>
+            ) : null}
+          </div>
           <div className="my-5 flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
             <span className="text-[13px] text-faint">or</span>
@@ -75,7 +80,8 @@ export default function SignInPage() {
             <button
               type="button"
               onClick={google}
-              className="font-bold text-teal2 underline-offset-4 hover:underline"
+              disabled={pending}
+              className="font-bold text-teal2 underline-offset-4 hover:underline disabled:opacity-60"
             >
               Sign in
             </button>

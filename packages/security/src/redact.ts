@@ -70,8 +70,28 @@ const VALUE_PATTERNS: { pattern: RegExp; replacement: string }[] = [
     pattern: /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/g,
     replacement: REDACTED,
   },
-  // OpenAI-compatible gateway keys (the Impala team key is `sk-…`).
+  // OpenAI-compatible gateway keys shaped `sk-…`. MiniMax issues JWTs, which the
+  // rule above already covers, but the base URL is configuration and the next
+  // provider behind it may well use this shape.
   { pattern: /\bsk-[A-Za-z0-9_-]{8,}\b/g, replacement: REDACTED },
+  // `key=<value>` and friends, anywhere in a string.
+  //
+  // Not hypothetical: the gateway rejected a bad token with
+  //   "Invalid proxy server token passed. key=a1a1957…, not found in db"
+  // and the whole message went to the production log, key included, because the
+  // token carries no `sk-` prefix — it is a bare 64-character hex string, which
+  // matches none of the shapes above. The by-key pass does not help either: the
+  // secret is not a field of the payload, it is spelled out inside an upstream
+  // error message.
+  //
+  // Matching the assignment rather than the value keeps this precise. A blanket
+  // "long hex run" rule would also mask the SHA-256 audit-chain hashes, which
+  // are logged deliberately and are not secret.
+  {
+    pattern:
+      /\b(key|api[_-]?key|token|secret|password|passwd|pwd)(\s*[=:]\s*)["']?[A-Za-z0-9._~+/-]{12,}["']?/gi,
+    replacement: `$1$2${REDACTED}`,
+  },
   // `Bearer <token>` / `Basic <token>` in a header dump.
   { pattern: /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, replacement: `$1 ${REDACTED}` },
   // Postgres/AMQP-style URLs carrying a password.
