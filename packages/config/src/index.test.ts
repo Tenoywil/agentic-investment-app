@@ -16,8 +16,8 @@ const valid: Record<string, string> = {
 group('loadServerConfig', () => {
   test('parses a valid environment and applies defaults', () => {
     const cfg = loadServerConfig(valid);
-    expect(cfg.OPENAI_BASE_URL).toBe('https://ht.getimpala.ai/v1');
-    expect(cfg.AI_MODEL).toBe('MiniMax');
+    expect(cfg.OPENAI_BASE_URL).toBe('https://api.openai.com/v1');
+    expect(cfg.AI_MODEL).toBe('gpt-4o-mini');
     expect(cfg.SUPABASE_STORAGE_BUCKET).toBe('ccn-private');
   });
 
@@ -54,7 +54,7 @@ group('loadServerConfig', () => {
     const view = describe(loadServerConfig(valid));
     expect(view.OPENAI_API_KEY).toBe('***');
     expect(view.BETTER_AUTH_SECRET).toBe('***');
-    expect(view.OPENAI_BASE_URL).toBe('https://ht.getimpala.ai/v1');
+    expect(view.OPENAI_BASE_URL).toBe('https://api.openai.com/v1');
   });
 
   test('gateway tier overrides default to empty (fall back to AI_MODEL downstream)', () => {

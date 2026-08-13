@@ -114,13 +114,14 @@ const app = createApp(deps);
       // sitting between this process and the internet that refuses the host —
       // which is what a locked-down build environment looks like, and why this
       // does not assert the key is wrong.
-      // The key has to belong to whoever is answering at OPENAI_BASE_URL. That
-      // is worth spelling out because MINIMAX_SECRET, the accepted alias, names
-      // the model Impala routes to rather than the credential's issuer — so a
-      // real MiniMax key lands in it and the gateway rejects a token it has
-      // never seen. It reads like a configuration error and is one, but not the
-      // one the name suggests.
-      const mismatch = `The key must have been issued by whoever answers at ${base}, not by the model provider behind it — MINIMAX_SECRET names the model, not the key's issuer. To talk to a provider directly, point OPENAI_BASE_URL at its own OpenAI-compatible endpoint and set AI_MODEL to one of its model ids.`;
+      // The key has to have been issued by whoever answers at OPENAI_BASE_URL.
+      // Worth spelling out, because the failure it prevents already happened
+      // once: a key from one vendor was sent to another vendor's gateway, which
+      // rejected a token it had never issued. It reads like a bad key and is
+      // not — the key is fine, it is pointed at the wrong door. The legacy
+      // MINIMAX_SECRET alias is the likeliest way for this to recur, since it
+      // still feeds whatever it holds to OPENAI_BASE_URL.
+      const mismatch = `The key must have been issued by whoever answers at ${base}. A key from a different vendor is rejected here even though it is perfectly valid elsewhere — check OPENAI_API_KEY (and the legacy MINIMAX_SECRET alias, which stands in for it when OPENAI_API_KEY is unset) really belong to this endpoint.`;
       const hint =
         res.status === 401
           ? `The key is being rejected. ${mismatch}`
