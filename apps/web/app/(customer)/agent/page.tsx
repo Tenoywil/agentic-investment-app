@@ -38,6 +38,7 @@ import {
   CheckCheck,
   CircleAlert,
   Mic,
+  SlidersHorizontal,
   Sparkles,
   Square,
   Volume2,
@@ -379,6 +380,28 @@ export default function AgentPage() {
   );
   const [sending, setSending] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  /**
+   * Approvals and limits, as a sheet on a phone.
+   *
+   * They are a second column on a desktop and were stacked under the
+   * conversation on a phone, which is what made the screen scroll on past the
+   * chat: the composer went off the bottom the moment you moved, and coming
+   * back meant scrolling up through the whole log. As a sheet the chat keeps
+   * the screen and these stay one tap away.
+   *
+   * A <dialog>, so the browser supplies the top layer, the backdrop, Escape and
+   * focus containment. On a desktop CSS puts the display back and it renders in
+   * the flow as the column it always was — the same trick the phone nav drawer
+   * uses, and the reason the cards exist in exactly one place in the DOM rather
+   * than being rendered twice and drifting.
+   */
+  const panelsRef = useRef<HTMLDialogElement>(null);
+  const [panelsOpen, setPanelsOpen] = useState(false);
+  const openPanels = () => {
+    if (!panelsRef.current?.open) panelsRef.current?.showModal();
+    setPanelsOpen(true);
+  };
+  const closePanels = () => panelsRef.current?.close();
   const logRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
 
@@ -564,11 +587,40 @@ export default function AgentPage() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="font-display text-base font-bold">CCN Capital Agent</div>
-              <div className="flex items-center gap-1.5 text-[13px] text-dim">
+              {/* Reassurance, and it wraps to three lines beside the two
+                  controls on a 390px header. The claim it makes is enforced by
+                  the Limits Engine and stated on the limits card, so a phone
+                  spends the space on conversation instead. */}
+              <div className="flex items-center gap-1.5 text-[13px] text-dim max-[900px]:hidden">
                 <span className="h-[7px] w-[7px] rounded-full bg-success" />
                 Suitability-aware · acts on your approval
               </div>
             </div>
+            {/* Phone only: the way back to approvals and limits, which are a
+                column on a desktop. The count is on the button because the
+                thing people come here to do is act on a waiting approval, and
+                a sheet you have to open to discover it is empty is a worse
+                trade than a number in the header. */}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="agent-panels__open h-9 flex-none gap-1.5 px-2.5 font-semibold text-teal2"
+              aria-haspopup="dialog"
+              aria-expanded={panelsOpen}
+              onClick={openPanels}
+            >
+              <SlidersHorizontal className="h-[18px] w-[18px]" aria-hidden />
+              <span className="sr-only">Approvals and limits</span>
+              {approvalsState === 'ready' && approvals.length > 0 ? (
+                <span
+                  className="min-w-[20px] rounded-full bg-[#f9ede2] px-1.5 text-center text-[12px] font-bold text-terra-ink dark:bg-[#2e2118]"
+                  aria-hidden
+                >
+                  {approvals.length}
+                </span>
+              ) : null}
+            </Button>
             {/* Only where the browser can actually speak. The toggle doubles as
                 the stop control while it is talking, so audio is never running
                 without something on screen to end it. */}
@@ -740,8 +792,23 @@ export default function AgentPage() {
           </div>
         </Card>
 
-        {/* Approvals + limits */}
-        <div className="flex flex-col gap-[18px]">
+        {/* Approvals + limits. A column on a desktop, a sheet on a phone. */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: the click closes on backdrop only; Escape is the dialog's own. */}
+        <dialog
+          ref={panelsRef}
+          className="agent-panels flex flex-col gap-[18px] bg-transparent text-foreground"
+          aria-label="Approvals and limits"
+          onClose={() => setPanelsOpen(false)}
+          onClick={(e) => {
+            if (e.target === panelsRef.current) closePanels();
+          }}
+        >
+          <div className="agent-panels__bar">
+            <span className="font-display text-base font-bold">Approvals and limits</span>
+            <Button type="button" size="sm" variant="ghost" onClick={closePanels}>
+              Done
+            </Button>
+          </div>
           <Card className="p-5" data-tour="customer-approvals">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
@@ -841,7 +908,7 @@ export default function AgentPage() {
           </Card>
 
           <LimitsCard />
-        </div>
+        </dialog>
       </div>
     </AppScreen>
   );

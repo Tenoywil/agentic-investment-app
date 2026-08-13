@@ -306,6 +306,34 @@ input:-webkit-autofill:active {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Approvals and limits: a column beside the conversation on a desktop.
+   It is authored as a <dialog> so a phone can present it as a sheet with the
+   browser's own top layer, backdrop, Escape and focus containment — and the
+   cards then live in exactly one place in the DOM instead of being rendered
+   twice and drifting apart. Here the display is simply put back. */
+.agent-panels {
+  display: flex;
+  position: static;
+  inset: auto;
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: visible;
+}
+.agent-panels::backdrop {
+  background: transparent;
+}
+/* The sheet's own chrome, and the button that raises it, are phone-only. */
+.agent-panels__bar,
+.agent-panels__open {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .g-hero,
   .g2,
@@ -331,6 +359,55 @@ input:-webkit-autofill:active {
   .app-mobilenav {
     display: block;
   }
+  /* On a phone they become a sheet rising from the bottom, so the
+     conversation keeps the screen. Stacked under the chat they were the reason
+     the page scrolled on past it: the composer left the bottom of the screen
+     the moment you moved, and getting back meant scrolling up through the
+     whole log. */
+  .agent-panels {
+    display: none;
+    position: fixed;
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: 86dvh;
+    margin: 0;
+    padding: 0 16px 20px;
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    background: hsl(var(--card));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .agent-panels[open] {
+    display: flex;
+  }
+  .agent-panels::backdrop {
+    background: rgba(0, 0, 0, 0.55);
+  }
+  .agent-panels__bar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 0 10px;
+    background: hsl(var(--card));
+  }
+  .agent-panels__open {
+    display: inline-flex;
+  }
+  /* The conversation owns the viewport, so the page behind it must not scroll:
+     a fixed-height chat inside a scrolling page is what let the screen move on
+     past the composer. The log is the only thing that scrolls here. */
+  .app-shell:has(.agent-chat) main {
+    overflow: hidden;
+    height: calc(100dvh - 65px);
+    padding-bottom: 0;
+  }
+
   /* The agent screen becomes a chat app.
 
      Everything above the conversation collapses to nothing visible — a heading,
