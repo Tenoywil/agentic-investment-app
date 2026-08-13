@@ -285,6 +285,71 @@ input:-webkit-autofill:active {
 .app-sheet__handle:active {
   cursor: grabbing;
 }
+/* A panel that is a centred dialog on a desktop and a bottom sheet on a phone.
+
+   One element, two presentations, because the alternative is two copies of the
+   same panel in the DOM drifting apart — the mistake the agent screen already
+   made once. Built on <dialog>.showModal(), so the browser owns the top layer,
+   the backdrop, Escape and focus containment.
+
+   `display` has to be restored under `[open]` and nowhere else: the user-agent
+   stylesheet hides a closed dialog with `display: none`, so declaring flex on
+   the bare class would leave the panel on screen permanently. */
+.app-modal {
+  width: min(920px, calc(100vw - 48px));
+  max-width: none;
+  max-height: 86dvh;
+  padding: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 18px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(20, 14, 8, 0.28);
+}
+.app-modal[open] {
+  display: flex;
+  flex-direction: column;
+  animation: modal-in 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.app-modal::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  animation: sheet-fade 200ms ease;
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+/* The grab handle belongs to the sheet presentation only. Defined after
+   `.app-sheet__handle` so it wins on equal specificity. */
+.app-modal__handle {
+  display: none;
+  flex: none;
+}
+@media (max-width: 900px) {
+  .app-modal {
+    margin: auto 0 0;
+    width: 100%;
+    max-height: 92dvh;
+    border: 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -12px 40px rgba(20, 14, 8, 0.28);
+  }
+  .app-modal[open] {
+    animation: sheet-rise 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .app-modal__handle {
+    display: grid;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-modal[open],
+  .app-modal::backdrop {
+    animation: none;
+  }
+}
 /* Grid items get min-width: auto by default, so a child that cannot shrink —
    a partner's full name beside a right-aligned amount — pushes its track wider
    than the grid, and the card overflows the phone. On /home that made two cards

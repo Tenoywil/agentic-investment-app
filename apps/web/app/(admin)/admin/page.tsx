@@ -2,6 +2,7 @@
 
 import { Badge } from '@/app/_components/ui/badge';
 import { Card } from '@/app/_components/ui/card';
+import { EmptyState } from '@/app/_components/ui/empty';
 import { SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { useMe } from '@/app/_lib/session';
 import {
@@ -19,7 +20,7 @@ import {
   getAdminProducts,
 } from '@/lib/admin-api';
 import { authClient } from '@/lib/auth-client';
-import { CircleAlert } from 'lucide-react';
+import { Building2, CircleAlert, History, Package, Receipt, Users } from 'lucide-react';
 import * as React from 'react';
 import { PersonPanel } from './person';
 
@@ -330,53 +331,73 @@ export default function AdminPage() {
                   onChanged={load}
                 />
               ) : null}
-              <Table head={['Person', 'Roles', 'KYC tier', 'Onboarding', 'Residency', '']}>
-                {investors.map((i) => {
-                  const state = onboardingState(i);
-                  return (
-                    <tr key={i.id}>
-                      <td className={CELL}>
-                        <div className="font-semibold">{i.name || '—'}</div>
-                        <div className="text-[13px] text-dim">{i.email}</div>
-                      </td>
-                      <td className={CELL}>
-                        {i.roles.length ? (
-                          <span className="flex flex-wrap gap-1">
-                            {i.roles.map((r) => (
-                              <Badge key={r} variant="secondary">
-                                {r.replace('_', ' ')}
-                              </Badge>
-                            ))}
-                          </span>
-                        ) : (
-                          <span className="text-dim">none yet</span>
-                        )}
-                      </td>
-                      <td className={CELL}>{i.kycTier ?? '—'}</td>
-                      <td className={CELL}>
-                        <Badge variant={state.tone === 'ok' ? 'default' : 'secondary'}>
-                          {state.label}
-                        </Badge>
-                      </td>
-                      <td className={CELL}>{i.residency ?? '—'}</td>
-                      <td className={CELL}>
-                        <button
-                          type="button"
-                          onClick={() => setSelected(i.id)}
-                          className="font-semibold text-teal2 underline-offset-4 hover:underline"
-                        >
-                          Manage
-                          <span className="sr-only"> {i.email}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </Table>
+              {investors.length === 0 ? (
+                <EmptyState
+                  icon={Users}
+                  title="Nobody has signed in yet"
+                  body="Everyone who signs in appears here, with how far through onboarding they are and what they hold."
+                />
+              ) : (
+                <Table head={['Person', 'Roles', 'KYC tier', 'Onboarding', 'Residency', '']}>
+                  {investors.map((i) => {
+                    const state = onboardingState(i);
+                    return (
+                      <tr key={i.id}>
+                        <td className={CELL}>
+                          <div className="font-semibold">{i.name || '—'}</div>
+                          <div className="text-[13px] text-dim">{i.email}</div>
+                        </td>
+                        <td className={CELL}>
+                          {i.roles.length ? (
+                            <span className="flex flex-wrap gap-1">
+                              {i.roles.map((r) => (
+                                <Badge key={r} variant="secondary">
+                                  {r.replace('_', ' ')}
+                                </Badge>
+                              ))}
+                            </span>
+                          ) : (
+                            <span className="text-dim">none yet</span>
+                          )}
+                        </td>
+                        <td className={CELL}>{i.kycTier ?? '—'}</td>
+                        <td className={CELL}>
+                          <Badge variant={state.tone === 'ok' ? 'default' : 'secondary'}>
+                            {state.label}
+                          </Badge>
+                        </td>
+                        <td className={CELL}>{i.residency ?? '—'}</td>
+                        <td className={CELL}>
+                          <button
+                            type="button"
+                            onClick={() => setSelected(i.id)}
+                            className="font-semibold text-teal2 underline-offset-4 hover:underline"
+                          >
+                            Manage
+                            <span className="sr-only"> {i.email}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Table>
+              )}
             </>
           ) : null}
 
-          {!loading && !error && tab === 'Partners' && partners ? (
+          {/* Every tab below can legitimately be empty on a database that has
+              only just been stood up, and an empty <table> renders as a bare
+              header row — which reads as a request that failed rather than a
+              network with nothing in it yet. */}
+          {!loading && !error && tab === 'Partners' && partners?.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              title="No partners on the network yet"
+              body="Partners are reference data — the licensed institutions CCN routes orders to. Until at least one exists, no operator can be bound and no product can be listed."
+            />
+          ) : null}
+
+          {!loading && !error && tab === 'Partners' && partners && partners.length > 0 ? (
             <Table
               head={['Partner', 'Line of business', 'Regulator', 'Agreement', 'Products', 'Orders']}
             >
@@ -400,7 +421,15 @@ export default function AdminPage() {
             </Table>
           ) : null}
 
-          {!loading && !error && tab === 'Products' && products ? (
+          {!loading && !error && tab === 'Products' && products?.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              title="Nothing listed yet"
+              body="Products are listed by partners from their own console. None have been added to the network."
+            />
+          ) : null}
+
+          {!loading && !error && tab === 'Products' && products && products.length > 0 ? (
             <Table head={['Product', 'Type', 'Partner', 'Status']}>
               {products.map((p) => (
                 <tr key={p.id}>
@@ -419,7 +448,15 @@ export default function AdminPage() {
             </Table>
           ) : null}
 
-          {!loading && !error && tab === 'Orders' && orders ? (
+          {!loading && !error && tab === 'Orders' && orders?.length === 0 ? (
+            <EmptyState
+              icon={Receipt}
+              title="No orders yet"
+              body="Every order on the network appears here the moment it is placed, whichever partner it was routed to."
+            />
+          ) : null}
+
+          {!loading && !error && tab === 'Orders' && orders && orders.length > 0 ? (
             <Table head={['Placed', 'Investor', 'Partner', 'Amount', 'Status']}>
               {orders.map((o) => (
                 <tr key={o.id}>
@@ -439,7 +476,15 @@ export default function AdminPage() {
             </Table>
           ) : null}
 
-          {!loading && !error && tab === 'Activity' && audit ? (
+          {!loading && !error && tab === 'Activity' && audit?.length === 0 ? (
+            <EmptyState
+              icon={History}
+              title="Nothing has happened yet"
+              body="Sign-ins, role changes, orders and approvals are appended here as they occur. The table is append-only — updates and deletes on it are rejected outright."
+            />
+          ) : null}
+
+          {!loading && !error && tab === 'Activity' && audit && audit.length > 0 ? (
             <>
               <p className="mb-3 text-[13.5px] text-dim">
                 Appended by the database and never rewritten — updates and deletes on this table are
