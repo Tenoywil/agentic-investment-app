@@ -1,4 +1,9 @@
-import { type AllowlistConfig, demoCustomerAllowlist, operatorAllowlist } from '@ccn/config';
+import {
+  type AllowlistConfig,
+  adminAllowlist,
+  demoCustomerAllowlist,
+  operatorAllowlist,
+} from '@ccn/config';
 import { partners, seedDemoCustomer, seedPartnerConsole, userRoles, withRls } from '@ccn/db';
 import { eq, sql } from 'drizzle-orm';
 import type { AppDeps, SessionUser } from './context';
@@ -41,7 +46,9 @@ export function needsOperatorGrant(
   email: string,
   roles: readonly { role: string }[],
 ): boolean {
-  if (!operatorAllowlist(config).has(email.trim().toLowerCase())) return false;
+  const at = email.trim().toLowerCase();
+  if (adminAllowlist(config).has(at) && !roles.some((r) => r.role === 'admin')) return true;
+  if (!operatorAllowlist(config).has(at)) return false;
   return !roles.some((r) => r.role === 'partner_operator');
 }
 
@@ -70,6 +77,7 @@ export interface ProvisioningDeps {
 export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUser): Promise<void> {
   const email = user.email.trim().toLowerCase();
   const grant = operatorAllowlist(deps.config).get(email);
+  const isAdmin = adminAllowlist(deps.config).has(email);
 
   // Runs inside the caller's RLS scope, not on a bare connection.
   //
@@ -125,6 +133,21 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
      * in SQL is legitimate, and silently stripping a console mid-demo is a worse
      * failure than a stale grant. Revocation stays a deliberate act.
      */
+    // Administration outranks everything else and is bound to no partner. It is
+    // handled before the operator branches so an address on both lists resolves
+    // one way, always — and it is granted on the reconcile path too, because an
+    // administrator is exactly the sort of account that existed long before
+    // anyone thought to write ADMIN_EMAILS.
+    if (isAdmin) {
+      if (existing.some((r) => r.role === 'admin')) return;
+      await tx.insert(userRoles).values({ userId: user.id, role: 'admin' }).onConflictDoNothing();
+      deps.logger.info('granted administrator from the allowlist', {
+        userId: user.id,
+        heldBefore: existing.map((r) => r.role),
+      });
+      return;
+    }
+
     if (existing.length > 0) {
       if (!partner) {
         if (grant) {

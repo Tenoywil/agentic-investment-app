@@ -34,6 +34,7 @@ async function main() {
     PARTNER_OPERATOR_EMAILS: process.env.PARTNER_OPERATOR_EMAILS ?? '',
     DEMO_CUSTOMER_EMAILS: process.env.DEMO_CUSTOMER_EMAILS ?? '',
     DEMO_PARTNER_CODE: process.env.DEMO_PARTNER_CODE ?? 'SAG',
+    ADMIN_EMAILS: process.env.ADMIN_EMAILS ?? '',
     // Provisioning drops to this role and sets the tenant GUC, so the grant CLI
     // exercises the same RLS path a real sign-in does.
     DB_APP_ROLE: process.env.DB_APP_ROLE ?? 'ccn_app',

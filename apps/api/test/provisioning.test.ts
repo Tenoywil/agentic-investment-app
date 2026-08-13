@@ -44,6 +44,7 @@ suite('first-sign-in provisioning under RLS', () => {
       PARTNER_OPERATOR_EMAILS: '',
       DEMO_CUSTOMER_EMAILS: '',
       DEMO_PARTNER_CODE: 'SAG',
+      ADMIN_EMAILS: '',
       // The role the production connection runs as. Without this the suite
       // would run as a superuser and prove nothing.
       DB_APP_ROLE: 'ccn_app',
@@ -174,6 +175,7 @@ suite('first-sign-in provisioning under RLS', () => {
       PARTNER_OPERATOR_EMAILS: 'ops@firm.test:SAG',
       DEMO_CUSTOMER_EMAILS: '',
       DEMO_PARTNER_CODE: 'SAG',
+      ADMIN_EMAILS: '',
     };
     expect(needsOperatorGrant(cfg, 'someone@else.test', [{ role: 'customer' }])).toBe(false);
     expect(needsOperatorGrant(cfg, 'ops@firm.test', [{ role: 'customer' }])).toBe(true);

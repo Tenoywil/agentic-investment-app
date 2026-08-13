@@ -1,6 +1,6 @@
 'use client';
 
-import { type Me, MeApiError, type Surface, getMe } from '@/lib/me-api';
+import { type Me, MeApiError, type Surface, getMe, landingPathFor } from '@/lib/me-api';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
 
@@ -96,7 +96,7 @@ export function RequireSurface({
       return;
     }
     if (state.status === 'authenticated' && state.me.surface !== surface) {
-      router.replace(state.me.surface === 'institution' ? '/institutions' : '/home');
+      router.replace(landingPathFor(state.me));
     }
   }, [state, surface, router]);
 
