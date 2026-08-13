@@ -6,6 +6,7 @@ import {
   orders,
   partners,
   productListings,
+  seedReferenceData,
   user,
   userProfiles,
   userRoles,
@@ -472,6 +473,62 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
       roles: result.roles.map((r) => r.role),
     });
     return c.json(result);
+  });
+
+  /**
+   * Load the catalog: partners, instruments, planning products, FX rates.
+   *
+   * A freshly migrated database has none of them, because migrations create
+   * tables and the seed is a separate manual step. That is not cosmetic — with
+   * no partners there is no institution side of the product at all, since
+   * `partner_operator` requires one, and the opportunities and planning screens
+   * have nothing to list. The only route to fixing it was someone running a
+   * script against production from a laptop, which is the out-of-band database
+   * access this system is otherwise built to avoid.
+   *
+   * The rows come from `@ccn/db`'s reference module — the same definition
+   * `db:seed` uses, so the two cannot drift — and none of it is invented: real
+   * institutions, real product shapes, and every figure the product cannot
+   * compute left absent rather than filled in.
+   *
+   * Idempotent, so the button is safe to press twice: partners upsert on their
+   * code (their reference columns have no other writer and would otherwise
+   * freeze at whatever the first load contained), everything else conflicts to
+   * nothing. 0010 grants exactly these four tables and no DELETE anywhere.
+   */
+  app.post('/reference-data', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+
+    const counts = await withTenant(deps, tenant, async (tx) => {
+      const loaded = await seedReferenceData(tx);
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: null,
+        action: 'reference_data.loaded',
+        entityType: 'partners',
+        entityId: null,
+        detail: { ...loaded, by: tenant.user.email },
+      });
+      const [row] = (await tx.execute(sql`
+        select
+          (select count(*) from partners)          as partners,
+          (select count(*) from instruments)       as instruments,
+          (select count(*) from planning_products) as planning_products,
+          (select count(*) from fx_rates)          as fx_rates
+      `)) as unknown as [Record<string, string>];
+      return row;
+    });
+
+    deps.logger.info('administrator loaded reference data', { actor: tenant.user.id });
+    return c.json({
+      partners: Number(counts?.partners ?? 0),
+      instruments: Number(counts?.instruments ?? 0),
+      planningProducts: Number(counts?.planning_products ?? 0),
+      fxRates: Number(counts?.fx_rates ?? 0),
+    });
   });
 
   /** One person's audit trail, newest first — what they did and what was done to them. */

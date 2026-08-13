@@ -239,10 +239,62 @@ suite('administration surface', () => {
   });
 
   /**
-   * Read-only, enforced by the database rather than by convention. The
-   * migration grants admin SELECT and nothing else, so this fails at the
-   * policy — which is the guarantee that survives someone adding a handler
-   * here later without reading the comment at the top of the file.
+   * The catalog load. A freshly migrated database has no partners, and with
+   * none there is no institution side of the product at all — so this is the
+   * one thing an administrator has to be able to do on a new deployment, where
+   * nobody has a shell to run the seed from.
+   */
+  const loadReference = (who = 'admin') =>
+    app().request('/api/admin/reference-data', {
+      method: 'POST',
+      headers: { cookie: cookies[who] ?? '' },
+    });
+
+  test('an administrator loads the catalog, and twice is the same as once', async () => {
+    const first = await loadReference();
+    expect(first.status).toBe(200);
+    const a = (await first.json()) as Record<string, number>;
+    expect(a.partners).toBeGreaterThan(0);
+    expect(a.instruments).toBeGreaterThan(0);
+
+    const second = await loadReference();
+    expect(second.status).toBe(200);
+    // Idempotent: partners upsert on their code, everything else conflicts to
+    // nothing, so pressing the button twice cannot duplicate the network.
+    expect(await second.json()).toEqual(a);
+  });
+
+  test.each([['customer'], ['operator']])('a %s cannot load the catalog', async (who) => {
+    expect((await loadReference(who)).status).toBe(403);
+  });
+
+  test('loading the catalog is written to the audit trail', async () => {
+    await loadReference();
+    const res = await get('/api/admin/audit?limit=200', 'admin');
+    const { entries } = (await res.json()) as { entries: { action: string }[] };
+    expect(entries.some((e) => e.action === 'reference_data.loaded')).toBe(true);
+  });
+
+  /**
+   * The catalog is network-wide reference data, so 0010 opens it to `admin`
+   * alone. Anyone else is refused by the policy rather than by a handler — the
+   * version of that guarantee that survives a future route.
+   */
+  test('a customer cannot write the catalog at the database', async () => {
+    const attempt = withRls(
+      db,
+      { userId: ids.customer ?? '', appRole: 'customer', dbRole: 'ccn_app' },
+      (tx) => tx.insert(partners).values({ code: 'GK', name: 'Not allowed' }),
+    );
+    await expect(attempt).rejects.toThrow();
+  });
+
+  /**
+   * Read-only everywhere else, enforced by the database rather than by
+   * convention. 0008 grants admin SELECT and 0009/0010 open exactly two things
+   * — a person's roles and the catalog — so this fails at the policy, which is
+   * the guarantee that survives someone adding a handler here later without
+   * reading the comment at the top of the file.
    */
   test('an administrator cannot write another tenant’s rows', async () => {
     const victim = ids.customer ?? '';
