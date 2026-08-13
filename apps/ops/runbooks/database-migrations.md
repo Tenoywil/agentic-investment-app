@@ -11,14 +11,33 @@ by `bun run db:migrate` (`packages/db/src/migrate.ts`). Drizzle records each
 applied migration in `drizzle.__drizzle_migrations` — schema `drizzle`, columns
 `id`, `hash`, `created_at`.
 
-Render applies them automatically: `apps/api/render.yaml` sets
+**Render does not apply them. Somebody has to.** This document used to say the
+opposite, and the gap between the two cost a production incident on 13 Aug 2026 —
+so read this part carefully.
 
-```yaml
-preDeployCommand: cd packages/db && bun run db:migrate
+`preDeployCommand` is a Blueprint field, and **Render does not support pre-deploy
+commands on the free instance type**. Declaring one on a `free` service makes the
+Blueprint invalid, so every sync fails — silently, in the only place anyone
+looks. The service kept deploying from its dashboard configuration, builds stayed
+green, and nothing ever ran `db:migrate`.
+
+It surfaced the way it always does, as a 500 in front of a person: an
+administrator pressed "Onboard a partner" against a database that had never
+received `0010_admin_reference_data.sql`, and Postgres answered `permission
+denied for table partners` while every read on the same screen returned 200.
+
+So while the API is on `free`:
+
+```
+cd packages/db && DATABASE_URL='<production url>' bun run db:migrate
 ```
 
-which Render runs once per deploy, after the build and before traffic cuts over
-to the new instance, in the service's own environment.
+**after every merge that adds a migration.** Nothing else does it.
+
+To make it automatic, change `plan: free` to `plan: starter` in
+`apps/api/render.yaml` and restore the `preDeployCommand` line documented there.
+That is the only combination Render allows, and it also retires the free plan's
+30–60s cold start.
 
 **Drizzle decides what to apply by `created_at`, not by hash-matching each file.**
 It takes the newest `created_at` in the journal and applies every migration whose
@@ -27,9 +46,22 @@ regardless of what actually exists in the database.
 
 ## The rule
 
-**Apply migrations only through `db:migrate`.** Never paste migration SQL into the
-Supabase SQL Editor, psql, or any other client, even to "just get it applied" —
-see below for exactly what that costs.
+**Never apply migration SQL without also recording it in the journal.** Prefer
+`db:migrate`, which does both. Pasting raw migration SQL into the Supabase SQL
+Editor "just to get it applied" leaves the journal untouched, and the next
+`db:migrate` replays from the beginning and dies — see below for exactly what
+that costs.
+
+Two scripts in `packages/db/scripts/` are the sanctioned exception, because each
+writes the journal rows itself using the hashes Drizzle computes:
+
+| script | what it is for |
+|---|---|
+| `baseline-journal.sql` | 0000–0005 were applied by hand; record them so `db:migrate` becomes a clean no-op |
+| `apply-admin-migrations.sql` | apply 0010 and 0011 to a database that missed them, from a SQL Editor, when there is no shell |
+
+Both are idempotent and touch no application data. After either, `db:migrate`
+should run clean and change nothing.
 
 ## Known hazards
 
