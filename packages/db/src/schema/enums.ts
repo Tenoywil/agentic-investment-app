@@ -6,17 +6,11 @@ import { pgEnum } from 'drizzle-orm/pg-core';
  * unrepresentable at the storage layer, not just in TypeScript.
  */
 
-// FSC-licensed partner network (+ GK GraceKennedy issuer, distributed via Barita).
-export const partnerCode = pgEnum('partner_code', [
-  'NCB',
-  'SAG',
-  'PRV',
-  'JMMB',
-  'BAR',
-  'REP',
-  'SYG',
-  'GK',
-]);
+// `partner_code` used to live here as an enum of eight institutions. It was
+// removed in 0011: the list of partners CCN routes to is not a closed set fixed
+// at schema time, and onboarding a ninth needed a migration and a deploy for
+// the most ordinary commercial event this company has. `partners.code` is text
+// with a shape CHECK and a UNIQUE — which is what the enum was really for.
 
 export const regulator = pgEnum('regulator', [
   'FSC_JAMAICA',

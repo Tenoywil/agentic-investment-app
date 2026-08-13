@@ -135,6 +135,47 @@ export async function loadAdminReferenceData(): Promise<{
   return body;
 }
 
+/** What an administrator may set on a partner. `code` is identity, so it is create-only. */
+export interface PartnerDraft {
+  code?: string;
+  name: string;
+  kind?: string;
+  regulator?: string;
+  agreementStatus?: string;
+  residency?: string;
+}
+
+async function send<T>(path: string, method: 'POST' | 'PUT', body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}/api/admin${path}`, {
+    method,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const parsed = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof parsed?.error === 'string' ? parsed.error : `request failed (${res.status})`,
+    );
+  }
+  return parsed as T;
+}
+
+/**
+ * Onboard a partner.
+ *
+ * Until the code column stopped being a database enum this took a migration and
+ * a deploy — for the most ordinary commercial event the company has. The
+ * regulator and the agreement status stay closed sets, because they are: the
+ * agreement is what gates live order routing.
+ */
+export const createAdminPartner = (draft: PartnerDraft) =>
+  send<{ partner: AdminPartner }>('/partners', 'POST', draft);
+
+/** Correct a partner's record — everything but its code. */
+export const updateAdminPartner = (id: string, draft: PartnerDraft) =>
+  send<{ partner: AdminPartner }>(`/partners/${id}`, 'PUT', draft);
+
 /**
  * Set a person's roles. A whole set, not add/remove: roles decide which product
  * someone sees, so "make this person an operator for JMMB" is one intention and
