@@ -70,7 +70,13 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
       return { snapshot: snap, history: hist };
     });
 
+    // streamText reports a failed request here and then ends the stream
+    // normally, so this is the only place the real cause is available.
+    let gatewayError: unknown = null;
     const { textStream } = runAgent({
+      onError: (error) => {
+        gatewayError = error;
+      },
       gateway: {
         baseURL: deps.config.OPENAI_BASE_URL,
         apiKey: deps.config.OPENAI_API_KEY,
@@ -98,13 +104,44 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
           full += delta;
           await stream.writeSSE({ data: JSON.stringify({ delta }) });
         }
-      } catch {
+      } catch (error) {
+        gatewayError = error;
+      }
+
+      // A turn that produced no text is a failure, whether or not anything was
+      // thrown. This used to be treated as success: the catch was bare, an empty
+      // stream fell straight through, and the screen rendered an empty reply
+      // bubble with no error and no log — which is what "the agent is not
+      // working" looked like from the outside, with nothing on the server to
+      // act on. The gateway host and model are recorded because they are the
+      // two values most often wrong; the key never is.
+      if (full.length === 0) {
+        deps.logger.error('agent produced no text', {
+          error: gatewayError,
+          gateway: deps.config.OPENAI_BASE_URL,
+          model: deps.config.AI_MODEL,
+          userId: tenant.user.id,
+          // No error alongside an empty reply means the request succeeded and
+          // the model genuinely returned nothing — a different bug from a
+          // gateway that refused the call.
+          hadGatewayError: gatewayError !== null,
+        });
         await stream.writeSSE({
           event: 'error',
           data: JSON.stringify({ error: 'the agent is temporarily unavailable' }),
         });
-      }
-      if (full.length > 0) {
+      } else {
+        if (gatewayError !== null) {
+          // Partial answer: the stream broke mid-reply. Worth recording even
+          // though the user got something, because the something is truncated.
+          deps.logger.error('agent stream ended early', {
+            error: gatewayError,
+            gateway: deps.config.OPENAI_BASE_URL,
+            model: deps.config.AI_MODEL,
+            userId: tenant.user.id,
+            streamedChars: full.length,
+          });
+        }
         await withTenant(deps, tenant, (tx) =>
           tx.insert(agentMessages).values({ userId: tenant.user.id, role: 'agent', content: full }),
         );
