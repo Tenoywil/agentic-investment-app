@@ -63,22 +63,41 @@ import { auditAppend } from '../db-fns';
  * in front of the screen nothing at all. Postgres already knows exactly what is
  * wrong, so it is worth saying.
  *
- * `42501` covers both a missing grant and a row-level security refusal, and
- * they mean opposite things — the second is the system working. Only the first
- * says "permission denied for table"; an RLS refusal says the row violates a
- * policy. Matching on the message keeps a correctly refused write reported as
- * one.
+ * A migration can be missing in two ways, and both arrive as `42501`:
+ *
+ *   - the GRANT never happened — "permission denied for table partners"
+ *   - the POLICY never happened — "new row violates row-level security policy
+ *     for table user_roles"
+ *
+ * Only the first was matched at first, and the second reached an administrator
+ * as a 500 with a stack trace — the exact failure this function exists to
+ * prevent, one migration later.
+ *
+ * Treating an RLS refusal as "the database is behind" is safe **on this surface
+ * specifically**, and nowhere else. Every write here has already been checked
+ * against its own rules in TypeScript before any SQL runs: `admin` is refused
+ * as a grantable role, a self-target is refused, an unknown partner is refused.
+ * So a request that reaches Postgres and is then refused by a policy is not a
+ * correctly-refused write — it is a policy that should have permitted it and
+ * does not exist. Anywhere an RLS refusal could be legitimate, this reasoning
+ * would be wrong, which is why it lives beside these handlers rather than in a
+ * global error mapper.
  */
 const MIGRATION_PENDING =
   'this database is missing a migration that the administration surface needs. Apply it with `bun run db:migrate` against this database, or run packages/db/scripts/apply-admin-migrations.sql from the SQL editor, then try again.';
 
-function isMissingGrant(err: unknown): boolean {
+function isDatabaseBehind(err: unknown): boolean {
   const seen = new Set<unknown>();
   let e: unknown = err;
   while (e && typeof e === 'object' && !seen.has(e)) {
     seen.add(e);
     const { code, message } = e as { code?: string; message?: string };
-    if (code === '42501' && /permission denied for/i.test(message ?? '')) return true;
+    if (
+      code === '42501' &&
+      /permission denied for|violates row-level security policy/i.test(message ?? '')
+    ) {
+      return true;
+    }
     e = (e as { cause?: unknown }).cause;
   }
   return false;
@@ -92,8 +111,8 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     try {
       return { ok: await work() };
     } catch (err) {
-      if (!isMissingGrant(err)) throw err;
-      deps.logger.error('an administration write was refused by a missing grant', {
+      if (!isDatabaseBehind(err)) throw err;
+      deps.logger.error('an administration write was refused: this database is behind', {
         error: err instanceof Error ? err.message : String(err),
       });
       return { pending: true };

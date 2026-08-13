@@ -419,6 +419,31 @@ suite('administration surface', () => {
   });
 
   /**
+   * The other half of "the database is behind": a missing POLICY rather than a
+   * missing GRANT. Both arrive as 42501 with different messages, and only the
+   * grant case was handled at first — so this one reached an administrator as a
+   * 500 in production, one migration after the mapping was added.
+   */
+  test('a missing policy is reported as a pending migration too', async () => {
+    await db.execute(sql`DROP POLICY IF EXISTS "user_roles_admin_grant" ON "user_roles"`);
+    try {
+      const res = await putRoles(ids.customer ?? '', { roles: ['compliance'] });
+      expect(res.status).toBe(503);
+      expect((await res.json()).error).toContain('missing a migration');
+    } finally {
+      await db.execute(sql`
+        CREATE POLICY "user_roles_admin_grant" ON "user_roles" FOR INSERT
+          WITH CHECK (
+            app_current_role() = 'admin'
+            AND "role" <> 'admin'
+            AND "user_id" <> app_current_user_id()
+          )`);
+    }
+    expect((await putRoles(ids.customer ?? '', { roles: ['compliance'] })).status).toBe(200);
+    await putRoles(ids.customer ?? '', { roles: ['customer'] });
+  });
+
+  /**
    * Read-only everywhere else, enforced by the database rather than by
    * convention. 0008 grants admin SELECT and 0009/0010 open exactly two things
    * — a person's roles and the catalog — so this fails at the policy, which is
