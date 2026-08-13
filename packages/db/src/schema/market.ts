@@ -5,7 +5,6 @@ import {
   agreementStatus,
   currency,
   instrumentType,
-  partnerCode,
   planningStatus,
   productListingStatus,
   regulator,
@@ -20,7 +19,10 @@ import { createdAt, moneyMinor, updatedAt } from './helpers';
  */
 export const partners = pgTable('partners', {
   id: uuid('id').defaultRandom().primaryKey(),
-  code: partnerCode('code').notNull().unique(),
+  // Text, not an enum: the set of licensed institutions is the business, not a
+  // schema-time constant. Shape and uniqueness are enforced by the database
+  // (0011_partner_onboarding.sql) — a code is a short uppercase identifier.
+  code: text('code').notNull().unique(),
   name: text('name').notNull(),
   kind: text('kind'),
   regulator: regulator('regulator'),

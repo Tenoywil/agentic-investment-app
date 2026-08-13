@@ -102,16 +102,16 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
       .from(userRoles)
       .where(eq(userRoles.userId, user.id));
 
-    // `partners.code` is an enum column, so an allowlist entry naming a code
-    // outside it is rejected here rather than reaching the query.
-    const knownCodes = partners.code.enumValues as readonly string[];
-    const partnerCode = grant && knownCodes.includes(grant.partnerCode) ? grant.partnerCode : null;
+    // The partner is whatever the table says. `code` used to be an enum, so an
+    // allowlist entry naming an unknown code could be rejected without a query;
+    // partners are onboarded at runtime now (0011), so the table is the only
+    // authority on which codes exist. An unknown one resolves to no partner and
+    // falls through to the customer surface below, which is the same
+    // fail-closed outcome by a shorter route.
+    const partnerCode = grant?.partnerCode ?? null;
 
     const [partner] = partnerCode
-      ? await tx
-          .select({ id: partners.id })
-          .from(partners)
-          .where(eq(partners.code, partnerCode as (typeof partners.code.enumValues)[number]))
+      ? await tx.select({ id: partners.id }).from(partners).where(eq(partners.code, partnerCode))
       : [];
 
     /**

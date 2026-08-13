@@ -290,6 +290,106 @@ suite('administration surface', () => {
   });
 
   /**
+   * Onboarding a partner. Until `partners.code` stopped being a database enum
+   * this was impossible without a migration and a deploy — for the most
+   * ordinary commercial event the company has. These prove the new code is
+   * genuinely open (a code the enum never contained) and still constrained.
+   */
+  const onboard = (body: unknown, who = 'admin') =>
+    app().request('/api/admin/partners', {
+      method: 'POST',
+      headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  const NEW_CODE = `T${String(Date.now()).slice(-6)}`;
+
+  test('an administrator onboards a partner the enum never contained', async () => {
+    const res = await onboard({
+      code: NEW_CODE,
+      name: 'Test Capital Partners',
+      kind: 'Brokerage',
+      regulator: 'FSC_BARBADOS',
+      agreementStatus: 'sandbox',
+      residency: 'Barbados',
+    });
+    expect(res.status).toBe(201);
+    const { partner } = (await res.json()) as { partner: Record<string, unknown> };
+    expect(partner.code).toBe(NEW_CODE);
+    expect(partner.regulator).toBe('FSC_BARBADOS');
+    expect(partner.agreementStatus).toBe('sandbox');
+
+    // And it is immediately usable as the thing partners exist for: something
+    // an operator can be bound to.
+    const granted = await putRoles(ids.customer ?? '', {
+      roles: ['partner_operator'],
+      partnerCode: NEW_CODE,
+    });
+    expect(granted.status).toBe(200);
+    await putRoles(ids.customer ?? '', { roles: ['customer'] });
+  });
+
+  test('a code is unique, and shaped', async () => {
+    expect((await onboard({ code: NEW_CODE, name: 'Someone else' })).status).toBe(400);
+    // Too short, punctuation, too long, leading digit.
+    for (const code of ['', 'x', 'A-B', 'WAYTOOLONGCODE', '1ST']) {
+      expect((await onboard({ code, name: 'Test' })).status).toBe(400);
+    }
+  });
+
+  /**
+   * Typing it in lower case is not a mistake worth refusing — the constraint is
+   * on what gets stored, and a code is uppercase there. Pinned because the form
+   * uppercases as you type and the server must agree with it.
+   */
+  test('a code typed in lower case is stored upper case', async () => {
+    const lower = `q${String(Date.now()).slice(-5)}`;
+    const res = await onboard({ code: lower, name: 'Case Test' });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { partner: { code: string } }).partner.code).toBe(
+      lower.toUpperCase(),
+    );
+  });
+
+  test('a partner needs a name, a real regulator and a real agreement', async () => {
+    expect((await onboard({ code: 'ZZTOP', name: '' })).status).toBe(400);
+    expect((await onboard({ code: 'ZZTOP', name: 'Test', regulator: 'FSC_MARS' })).status).toBe(
+      400,
+    );
+    expect((await onboard({ code: 'ZZTOP', name: 'Test', agreementStatus: 'maybe' })).status).toBe(
+      400,
+    );
+  });
+
+  test.each([['customer'], ['operator']])('a %s cannot onboard a partner', async (who) => {
+    expect((await onboard({ code: 'ZZTOP', name: 'Test' }, who)).status).toBe(403);
+  });
+
+  test('an administrator corrects a partner, and the agreement change is audited', async () => {
+    const list = await get('/api/admin/partners', 'admin');
+    const { partners: rows } = (await list.json()) as { partners: { id: string; code: string }[] };
+    const target = rows.find((p) => p.code === NEW_CODE);
+    expect(target).toBeDefined();
+
+    const res = await app().request(`/api/admin/partners/${target?.id}`, {
+      method: 'PUT',
+      headers: { cookie: cookies.admin ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Test Capital', agreementStatus: 'live' }),
+    });
+    expect(res.status).toBe(200);
+    const { partner } = (await res.json()) as { partner: Record<string, unknown> };
+    expect(partner.name).toBe('Test Capital');
+    expect(partner.agreementStatus).toBe('live');
+    // A code is an identity: correcting the record must not rewrite it.
+    expect(partner.code).toBe(NEW_CODE);
+
+    const audit = await get('/api/admin/audit?limit=200', 'admin');
+    const { entries } = (await audit.json()) as { entries: { action: string }[] };
+    expect(entries.some((e) => e.action === 'partner.onboarded')).toBe(true);
+    expect(entries.some((e) => e.action === 'partner.changed')).toBe(true);
+  });
+
+  /**
    * Read-only everywhere else, enforced by the database rather than by
    * convention. 0008 grants admin SELECT and 0009/0010 open exactly two things
    * — a person's roles and the catalog — so this fails at the policy, which is

@@ -26,7 +26,7 @@ export async function adapterFor(
   const [partner] = await tx
     .select({ id: partners.id, code: partners.code, agreementStatus: partners.agreementStatus })
     .from(partners)
-    .where(eq(partners.code, partnerCode as (typeof partners.code.enumValues)[number]));
+    .where(eq(partners.code, partnerCode));
   if (!partner) throw new Error(`unknown partner ${partnerCode}`);
 
   const registry = new AdapterRegistry();

@@ -22,8 +22,9 @@ import {
   loadAdminReferenceData,
 } from '@/lib/admin-api';
 import { authClient } from '@/lib/auth-client';
-import { Building2, CircleAlert, History, Package, Receipt, Users } from 'lucide-react';
+import { Building2, CircleAlert, History, Package, Plus, Receipt, Users } from 'lucide-react';
 import * as React from 'react';
+import { PartnerForm } from './partner-form';
 import { PersonPanel } from './person';
 
 /**
@@ -149,6 +150,12 @@ export default function AdminPage() {
   const [error, setError] = React.useState<string | null>(null);
   /** The person whose detail panel is open, if any. */
   const [selected, setSelected] = React.useState<string | null>(null);
+  /**
+   * The partner form: `null` closed, `'new'` onboarding, or the partner being
+   * corrected. One piece of state rather than two booleans, because "onboarding"
+   * and "editing SAG" are the same dialog and cannot both be open.
+   */
+  const [partnerForm, setPartnerForm] = React.useState<AdminPartner | 'new' | null>(null);
   /** True once unmounted, so a slow response cannot set state afterwards. */
   const gone = React.useRef(false);
   React.useEffect(() => {
@@ -509,12 +516,44 @@ export default function AdminPage() {
               only just been stood up, and an empty <table> renders as a bare
               header row — which reads as a request that failed rather than a
               network with nothing in it yet. */}
+          {partnerForm ? (
+            <PartnerForm
+              partner={partnerForm === 'new' ? null : partnerForm}
+              onClose={() => setPartnerForm(null)}
+              onSaved={load}
+            />
+          ) : null}
+
+          {!loading && !error && tab === 'Partners' && partners && partners.length > 0 ? (
+            <div className="mb-3.5 flex items-center justify-between gap-3">
+              <p className="text-[13.5px] text-dim">
+                {partners.length} on the network. Only a live partner receives real orders.
+              </p>
+              <Button type="button" size="sm" onClick={() => setPartnerForm('new')}>
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+                Onboard a partner
+              </Button>
+            </div>
+          ) : null}
+
           {!loading && !error && tab === 'Partners' && partners?.length === 0 ? (
             <EmptyState
               icon={Building2}
               title="No partners on the network yet"
-              body="Partners are the licensed institutions CCN routes orders to. Until at least one exists no operator can be bound, no product can be listed, and the opportunities and planning screens have nothing to show. Loading the catalog adds the eight regional institutions, the instruments they list, the planning products and the FX rates — real reference data, no demo accounts."
-              action={referenceAction}
+              body="Partners are the licensed institutions CCN routes orders to. Until at least one exists no operator can be bound, no product can be listed, and the opportunities and planning screens have nothing to show. Load the catalog for the eight regional institutions and everything they list, or onboard one yourself."
+              action={
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {referenceAction}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPartnerForm('new')}
+                  >
+                    Onboard one instead
+                  </Button>
+                </div>
+              }
             />
           ) : null}
 
@@ -548,6 +587,14 @@ export default function AdminPage() {
                     <Badge variant={p.agreementStatus === 'live' ? 'default' : 'secondary'}>
                       {p.agreementStatus ?? 'unknown'}
                     </Badge>
+                    <button
+                      type="button"
+                      onClick={() => setPartnerForm(p)}
+                      className="mt-1.5 block font-semibold text-teal2 underline-offset-4 hover:underline"
+                    >
+                      Edit
+                      <span className="sr-only"> {p.name}</span>
+                    </button>
                   </td>
                   <td className={CELL_WIDE}>{p.products}</td>
                   <td className={CELL_WIDE}>{p.orders}</td>

@@ -362,8 +362,15 @@ input:-webkit-autofill:active {
    condition *is* "a sheet is open" and CSS can ask that question directly. The
    gutter is reserved on <html> so removing the scrollbar does not shift the
    page sideways under the backdrop. */
-html {
-  scrollbar-gutter: stable;
+/* Desktop only. A classic scrollbar disappearing when the page locks would
+   shift everything behind the backdrop sideways, so the gutter is reserved.
+   A phone has overlay scrollbars and nothing to reserve — and reserving it
+   anyway cost 11px of a 390px viewport, which showed as a strip of background
+   down the side of a sheet that is supposed to be full width. */
+@media (min-width: 901px) {
+  html {
+    scrollbar-gutter: stable;
+  }
 }
 body:has(dialog.app-modal[open]),
 body:has(dialog.app-sheet[open]) {

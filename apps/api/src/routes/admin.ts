@@ -207,6 +207,157 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     return c.json({ partners: rows });
   });
 
+  /**
+   * Onboarding a partner, and keeping its record right afterwards.
+   *
+   * This is the most ordinary commercial event the company has, and until
+   * 0011 it was impossible without an engineer: `partners.code` was an enum of
+   * eight institutions, so a ninth needed a migration and a deploy. The list of
+   * licensed institutions CCN routes to is the business, not a schema constant.
+   *
+   * Two closed sets stay closed, because they are genuinely closed and both are
+   * load-bearing. `regulator` is the three CCN is licensed under. And
+   * `agreement_status` is the gate on live order routing — the adapter registry
+   * refuses `placeOrder` unless a partner is `live` with trade scope — so a
+   * partner with a misspelled status would silently never trade.
+   *
+   * A code is an identity, not a field: it is written into audit rows and read
+   * back by operators, so it is set once at onboarding and never edited. Change
+   * the name, the regulator, the agreement — not who this is.
+   */
+  const REGULATORS = ['FSC_JAMAICA', 'FSC_BARBADOS', 'FSC_TRINIDAD_TOBAGO'] as const;
+  const AGREEMENTS = ['prospect', 'dpa_pending', 'sandbox', 'live', 'suspended'] as const;
+  /** Mirrors the CHECK constraint in 0011, so the caller gets a reason not a 500. */
+  const CODE_SHAPE = /^[A-Z][A-Z0-9]{1,11}$/;
+
+  type PartnerFields = {
+    name: string;
+    kind: string | null;
+    regulator: (typeof REGULATORS)[number] | null;
+    agreementStatus: (typeof AGREEMENTS)[number];
+    residency: string | null;
+  };
+
+  function readPartnerBody(
+    body: unknown,
+    { withCode }: { withCode: boolean },
+  ): ({ code?: string } & PartnerFields) | { bad: string } {
+    if (typeof body !== 'object' || body === null) return { bad: 'a JSON body is required' };
+    const b = body as Record<string, unknown>;
+    const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+    const name = str(b.name);
+    if (name.length < 2) return { bad: 'a partner needs a name' };
+    if (name.length > 120) return { bad: 'that name is too long' };
+
+    const regulator = str(b.regulator);
+    if (regulator && !(REGULATORS as readonly string[]).includes(regulator)) {
+      return { bad: `regulator must be one of ${REGULATORS.join(', ')}` };
+    }
+    const agreement = str(b.agreementStatus) || 'prospect';
+    if (!(AGREEMENTS as readonly string[]).includes(agreement)) {
+      return { bad: `agreementStatus must be one of ${AGREEMENTS.join(', ')}` };
+    }
+
+    const fields: PartnerFields = {
+      name,
+      kind: str(b.kind) || null,
+      regulator: (regulator || null) as PartnerFields['regulator'],
+      agreementStatus: agreement as PartnerFields['agreementStatus'],
+      residency: str(b.residency) || null,
+    };
+    if (!withCode) return fields;
+
+    const code = str(b.code).toUpperCase();
+    if (!CODE_SHAPE.test(code)) {
+      return {
+        bad: 'a code is 2 to 12 characters, uppercase letters and digits, starting with a letter — like SAG or JMMB',
+      };
+    }
+    return { code, ...fields };
+  }
+
+  app.post('/partners', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+
+    const parsed = readPartnerBody(await c.req.json().catch(() => null), { withCode: true });
+    if ('bad' in parsed) return c.json({ error: parsed.bad }, 400);
+    const { code, ...fields } = parsed as { code: string } & PartnerFields;
+
+    const result = await withTenant(deps, tenant, async (tx) => {
+      const [clash] = await tx
+        .select({ id: partners.id, name: partners.name })
+        .from(partners)
+        .where(eq(partners.code, code))
+        .limit(1);
+      if (clash) return { error: `${code} is already ${clash.name}` as const };
+
+      const [row] = await tx
+        .insert(partners)
+        .values({ code, ...fields })
+        .returning();
+      if (!row) return { error: 'the partner was not created' as const };
+
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: row.id,
+        action: 'partner.onboarded',
+        entityType: 'partners',
+        entityId: row.id,
+        detail: { code, ...fields, by: tenant.user.email },
+      });
+      return { partner: row };
+    });
+
+    if ('error' in result) return c.json({ error: result.error }, 400);
+    deps.logger.info('administrator onboarded a partner', { actor: tenant.user.id, code });
+    return c.json({ partner: { ...result.partner, products: 0, orders: 0 } }, 201);
+  });
+
+  /** Correct a partner's record. Everything but its code, which is its identity. */
+  app.put('/partners/:id', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const id = c.req.param('id');
+
+    const parsed = readPartnerBody(await c.req.json().catch(() => null), { withCode: false });
+    if ('bad' in parsed) return c.json({ error: parsed.bad }, 400);
+    const fields = parsed as PartnerFields;
+
+    const result = await withTenant(deps, tenant, async (tx) => {
+      const [before] = await tx.select().from(partners).where(eq(partners.id, id)).limit(1);
+      if (!before) return { error: 'not found' as const, status: 404 as const };
+
+      const [row] = await tx.update(partners).set(fields).where(eq(partners.id, id)).returning();
+      if (!row) return { error: 'the partner was not updated' as const, status: 400 as const };
+
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: row.id,
+        action: 'partner.changed',
+        entityType: 'partners',
+        entityId: row.id,
+        detail: {
+          code: row.code,
+          // The agreement gates live order routing, so a change to it is the
+          // one thing someone reading this trail will be looking for.
+          agreementStatus: { from: before.agreementStatus, to: row.agreementStatus },
+          name: { from: before.name, to: row.name },
+          by: tenant.user.email,
+        },
+      });
+      return { partner: row };
+    });
+
+    if ('error' in result) return c.json({ error: result.error }, result.status);
+    return c.json({ partner: result.partner });
+  });
+
   /** Everything on offer, across every partner. */
   app.get('/products', async (c) => {
     const tenant = c.get('tenant');
@@ -395,13 +546,10 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         const code = parsed.partnerCode?.toUpperCase();
         if (!code)
           return { error: 'partner_operator needs a partnerCode' as const, status: 400 as const };
-        const known = partners.code.enumValues as readonly string[];
-        if (!known.includes(code))
-          return { error: `no partner with code ${code}` as const, status: 400 as const };
         const [p] = await tx
           .select({ id: partners.id })
           .from(partners)
-          .where(eq(partners.code, code as (typeof partners.code.enumValues)[number]))
+          .where(eq(partners.code, code))
           .limit(1);
         if (!p) return { error: `no partner with code ${code}` as const, status: 400 as const };
         partnerId = p.id;
