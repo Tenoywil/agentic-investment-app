@@ -4,25 +4,25 @@ import { type TieredGatewayConfig, gatewayConfigForTier } from './provider';
 const BASE: TieredGatewayConfig = {
   baseURL: 'https://gateway.example/v1',
   apiKey: 'sk-test',
-  defaultModel: 'gpt-4o-mini',
+  defaultModel: 'MiniMax',
 };
 
 describe('gatewayConfigForTier', () => {
   test('falls back to defaultModel when no tier override is set', () => {
-    expect(gatewayConfigForTier(BASE, 'high').model).toBe('gpt-4o-mini');
-    expect(gatewayConfigForTier(BASE, 'general').model).toBe('gpt-4o-mini');
-    expect(gatewayConfigForTier(BASE, 'low').model).toBe('gpt-4o-mini');
+    expect(gatewayConfigForTier(BASE, 'high').model).toBe('MiniMax');
+    expect(gatewayConfigForTier(BASE, 'general').model).toBe('MiniMax');
+    expect(gatewayConfigForTier(BASE, 'low').model).toBe('MiniMax');
   });
 
   test('an explicit tier override wins for that tier only', () => {
     const cfg: TieredGatewayConfig = { ...BASE, models: { high: 'big-model' } };
     expect(gatewayConfigForTier(cfg, 'high').model).toBe('big-model');
-    expect(gatewayConfigForTier(cfg, 'general').model).toBe('gpt-4o-mini');
+    expect(gatewayConfigForTier(cfg, 'general').model).toBe('MiniMax');
   });
 
   test('a blank tier override (empty string) still falls back, not an empty model id', () => {
     const cfg: TieredGatewayConfig = { ...BASE, models: { low: '   ' } };
-    expect(gatewayConfigForTier(cfg, 'low').model).toBe('gpt-4o-mini');
+    expect(gatewayConfigForTier(cfg, 'low').model).toBe('MiniMax');
   });
 
   test('carries baseURL/apiKey/fetch through unchanged', async () => {

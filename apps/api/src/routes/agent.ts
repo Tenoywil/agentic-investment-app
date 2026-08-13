@@ -12,7 +12,7 @@ import { loadAgentSnapshot } from '../services/agent-snapshot';
 
 /**
  * The Capital Agent chat. POST /message streams the reply over SSE while the
- * read/propose-only agent loop runs against the AI gateway; both
+ * read/propose-only agent loop runs against the Impala/MiniMax gateway; both
  * sides of the turn persist to agent_messages. The agent can only PROPOSE — the
  * Limits Engine and the human approval loop remain the only paths to execution.
  *

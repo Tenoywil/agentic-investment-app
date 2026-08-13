@@ -25,21 +25,21 @@ const SECRET_KEYS = new Set([
 ]);
 
 /**
- * Legacy alias for the AI gateway key.
+ * Provider-branded aliases for the AI gateway key. The Impala gateway is
+ * OpenAI-compatible, so `OPENAI_API_KEY` is canonical and everything downstream
+ * reads that; `MINIMAX_SECRET` is honored as a fallback (some deploy platforms
+ * name the secret after the model). An explicit `OPENAI_API_KEY` always wins.
+ * Returns a copy — the caller's env object is never mutated.
  *
- * `OPENAI_API_KEY` is canonical and everything downstream reads it. This app
- * previously ran against the Impala gateway, whose key some deploy platforms
- * held under `MINIMAX_SECRET` — named after the model Impala routed to, not
- * after the credential's issuer. That name cost real time: a genuine MiniMax
- * key was set there, sent to Impala, and rejected as a token Impala had never
- * issued.
- *
- * The alias is kept so an environment still carrying it keeps booting, but it
- * is legacy: whatever it holds is now sent to `OPENAI_BASE_URL`, which is
- * OpenAI. An explicit `OPENAI_API_KEY` always wins, and the boot check in
- * apps/api/src/index.ts names a rejected key rather than leaving it to be
- * discovered mid-conversation. Returns a copy — the caller's env is never
- * mutated.
+ * `MINIMAX_SECRET` still has to hold an **Impala** key. The name refers to the
+ * model Impala routes to, not to the credential's issuer — the request goes to
+ * `OPENAI_BASE_URL`, which defaults to Impala, and Impala authenticates it
+ * against its own keys. A genuine MiniMax key put here is rejected with
+ * "Invalid proxy server token passed … not found in db", which has happened,
+ * and the name is why. To talk to MiniMax directly instead, change
+ * `OPENAI_BASE_URL` to MiniMax's own OpenAI-compatible endpoint and set
+ * `AI_MODEL` to one of its model ids; the SSRF allowlist follows
+ * `OPENAI_BASE_URL` automatically, so nothing else needs changing.
  */
 function withAliases(
   source: Record<string, string | undefined>,
@@ -68,18 +68,10 @@ const serverSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
 
-  // AI gateway. OpenAI directly: one vendor for the key, the endpoint and the
-  // model id, so there is no way for them to disagree — which is exactly how
-  // the previous setup failed. Still expressed as a base URL rather than
-  // hardcoded, so any OpenAI-compatible endpoint remains a config change. The
-  // SSRF allowlist derives from this value (apps/api/src/security.ts), so
-  // pointing it elsewhere needs no second edit.
-  OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
+  // AI gateway (Impala, OpenAI-compatible)
+  OPENAI_BASE_URL: z.string().url().default('https://ht.getimpala.ai/v1'),
   OPENAI_API_KEY: z.string().min(1),
-  // Overridable per deployment. The default favours latency, which is what a
-  // live audience notices; set a larger model here if answer quality matters
-  // more than the wait.
-  AI_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  AI_MODEL: z.string().min(1).default('MiniMax'),
   AI_EMBED_MODEL: z.string().default(''),
   // Gateway tiered-model overrides (packages/agent/src/gateway). Empty means
   // "use AI_MODEL" — resolved by packages/agent/src/gateway/provider.ts, so a
