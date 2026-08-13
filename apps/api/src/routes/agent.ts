@@ -1,4 +1,10 @@
-import { type ChatMessage, ResponseCache, buildContext, runAgent } from '@ccn/agent';
+import {
+  type ChatMessage,
+  ResponseCache,
+  buildContext,
+  runAgent,
+  stripReasoning,
+} from '@ccn/agent';
 import { agentMessages } from '@ccn/db';
 import { agentMessageSchema } from '@ccn/domain';
 import { desc, eq } from 'drizzle-orm';
@@ -41,7 +47,16 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
         .orderBy(desc(agentMessages.createdAt))
         .limit(50),
     );
-    return c.json({ messages: rows.reverse() });
+    // Cleaned on read, not by a migration. Rows written before the reasoning
+    // tags were stripped are still in the table, and /agent replays the last 50
+    // on every load — so without this the same wall of "let me try funds…"
+    // greets the customer forever. Reading is also the only place it can be
+    // done safely: agent_messages is append-only to the app role.
+    return c.json({
+      messages: rows
+        .reverse()
+        .map((r) => (r.role === 'agent' ? { ...r, content: stripReasoning(r.content) } : r)),
+    });
   });
 
   app.post('/message', async (c) => {
@@ -142,8 +157,15 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
             streamedChars: full.length,
           });
         }
+        // Stored clean. The middleware has already taken the tags out of the
+        // stream, so this is the belt to its braces — a malformed or truncated
+        // block that slipped through must not become a permanent row.
         await withTenant(deps, tenant, (tx) =>
-          tx.insert(agentMessages).values({ userId: tenant.user.id, role: 'agent', content: full }),
+          tx.insert(agentMessages).values({
+            userId: tenant.user.id,
+            role: 'agent',
+            content: stripReasoning(full),
+          }),
         );
       }
       await stream.writeSSE({ event: 'done', data: '[DONE]' });
