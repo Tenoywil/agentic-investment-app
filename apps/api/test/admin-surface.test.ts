@@ -163,6 +163,82 @@ suite('administration surface', () => {
   });
 
   /**
+   * The one write this surface has. Roles decide which product a person sees,
+   * so the endpoint takes the whole set: "make this person an operator for SAG"
+   * is one intention, not two edits with a window in between where they hold
+   * both surfaces or neither.
+   */
+  const putRoles = (target: string, body: unknown, who = 'admin') =>
+    app().request(`/api/admin/investors/${target}/roles`, {
+      method: 'PUT',
+      headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  test('an administrator grants and revokes an operator role', async () => {
+    const target = ids.customer ?? '';
+    const granted = await putRoles(target, {
+      roles: ['customer', 'partner_operator'],
+      partnerCode: 'SAG',
+    });
+    expect(granted.status).toBe(200);
+    const after = (await granted.json()) as { roles: { role: string; partnerId: string | null }[] };
+    const op = after.roles.find((r) => r.role === 'partner_operator');
+    expect(op).toBeDefined();
+    expect(op?.partnerId).toBeTruthy();
+
+    const revoked = await putRoles(target, { roles: ['customer'] });
+    expect(revoked.status).toBe(200);
+    const back = (await revoked.json()) as { roles: { role: string }[] };
+    expect(back.roles.map((r) => r.role)).toEqual(['customer']);
+  });
+
+  /**
+   * The property the whole surface rests on: there is no path to becoming an
+   * administrator except the environment variable, so a compromised admin
+   * account cannot promote a second one. Refused by the API, and by the policy
+   * underneath it.
+   */
+  test('an administrator cannot grant admin', async () => {
+    const res = await putRoles(ids.customer ?? '', { roles: ['admin'] });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('ADMIN_EMAILS');
+  });
+
+  test('an administrator cannot edit their own roles', async () => {
+    const res = await putRoles(ids.admin ?? '', { roles: ['customer'] });
+    expect(res.status).toBe(400);
+  });
+
+  /** An operator with no partner resolves to the customer surface, which would
+   *  read as the grant having silently failed. */
+  test('partner_operator without a resolvable partner is refused', async () => {
+    expect((await putRoles(ids.customer ?? '', { roles: ['partner_operator'] })).status).toBe(400);
+    expect(
+      (await putRoles(ids.customer ?? '', { roles: ['partner_operator'], partnerCode: 'NOPE' }))
+        .status,
+    ).toBe(400);
+  });
+
+  test('a customer cannot change anyone’s roles', async () => {
+    expect((await putRoles(ids.operator ?? '', { roles: ['customer'] }, 'customer')).status).toBe(
+      403,
+    );
+  });
+
+  /** A role change that leaves no trace would defeat the point of the surface. */
+  test('a role change is written to the audit trail', async () => {
+    const target = ids.operator ?? '';
+    await putRoles(target, { roles: ['customer'] });
+    const res = await app().request(`/api/admin/investors/${target}/activity`, {
+      headers: { cookie: cookies.admin ?? '' },
+    });
+    expect(res.status).toBe(200);
+    const { entries } = (await res.json()) as { entries: { action: string }[] };
+    expect(entries.some((e) => e.action === 'user_roles.changed')).toBe(true);
+  });
+
+  /**
    * Read-only, enforced by the database rather than by convention. The
    * migration grants admin SELECT and nothing else, so this fails at the
    * policy — which is the guarantee that survives someone adding a handler

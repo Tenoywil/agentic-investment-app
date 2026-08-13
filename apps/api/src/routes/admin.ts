@@ -10,10 +10,11 @@ import {
   userProfiles,
   userRoles,
 } from '@ccn/db';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
+import { auditAppend } from '../db-fns';
 
 /**
  * Administration: one read across the whole network.
@@ -35,6 +36,12 @@ import { withTenant } from '../context';
  * Counts are computed in SQL rather than by loading rows and measuring the
  * array, because this is the one surface whose queries are unbounded by a
  * tenant and the difference is the whole table.
+ *
+ * The one write: a person's roles. 0009_admin_role_writes.sql opens
+ * `user_roles` and nothing else, and refuses `admin` at the policy — the only
+ * route to becoming an administrator stays the ADMIN_EMAILS environment
+ * variable, so a compromised admin account cannot promote a second one. Every
+ * change goes through `audit_append`, which is append-only by trigger.
  *
  * What is deliberately absent: subscriptions and billing. There is no such
  * table in this schema, and inventing a figure on an administrative screen —
@@ -318,6 +325,178 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         createdAt: a.createdAt,
       })),
     });
+  });
+
+  /**
+   * Set a person's roles.
+   *
+   * A whole-set PUT rather than add/remove verbs: roles decide which product
+   * someone sees, and "make this person an operator for JMMB" is one intention,
+   * not two edits with a window in between where they hold both surfaces or
+   * neither.
+   *
+   * Three refusals before any SQL runs. The database enforces the first two as
+   * well (see the migration), and the API states them so the caller gets a
+   * reason rather than a constraint violation:
+   *
+   *  - `admin` may not be granted or revoked here, ever.
+   *  - An administrator may not edit their own roles.
+   *  - `partner_operator` requires a partner that exists; an unbound operator
+   *    resolves to the customer surface and would look like the grant silently
+   *    failed.
+   */
+  /** Roles an administrator may assign. `admin` is absent on purpose. */
+  const ASSIGNABLE = ['customer', 'partner_operator', 'compliance', 'analyst'] as const;
+  type Assignable = (typeof ASSIGNABLE)[number];
+
+  function readRolesBody(
+    body: unknown,
+  ): { roles: Assignable[]; partnerCode?: string } | { bad: string } {
+    if (typeof body !== 'object' || body === null) return { bad: 'a JSON body is required' };
+    const b = body as { roles?: unknown; partnerCode?: unknown };
+    if (!Array.isArray(b.roles)) return { bad: 'roles must be an array' };
+    const roles: Assignable[] = [];
+    for (const r of b.roles) {
+      if (typeof r !== 'string' || !(ASSIGNABLE as readonly string[]).includes(r)) {
+        return {
+          bad: `roles may only contain ${ASSIGNABLE.join(', ')} — admin is granted by ADMIN_EMAILS alone`,
+        };
+      }
+      if (!roles.includes(r as Assignable)) roles.push(r as Assignable);
+    }
+    const code = typeof b.partnerCode === 'string' ? b.partnerCode.trim() : undefined;
+    return code ? { roles, partnerCode: code } : { roles };
+  }
+
+  app.put('/investors/:id/roles', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const targetId = c.req.param('id');
+
+    if (targetId === tenant.user.id) {
+      return c.json({ error: 'an administrator cannot change their own roles' }, 400);
+    }
+    const parsed = readRolesBody(await c.req.json().catch(() => null));
+    if ('bad' in parsed) return c.json({ error: parsed.bad }, 400);
+    const wanted = parsed.roles;
+    const needsPartner = wanted.includes('partner_operator');
+
+    const result = await withTenant(deps, tenant, async (tx) => {
+      const [target] = await tx
+        .select({ id: user.id, email: user.email })
+        .from(user)
+        .where(eq(user.id, targetId))
+        .limit(1);
+      if (!target) return { error: 'not found' as const, status: 404 as const };
+
+      let partnerId: string | null = null;
+      if (needsPartner) {
+        const code = parsed.partnerCode?.toUpperCase();
+        if (!code)
+          return { error: 'partner_operator needs a partnerCode' as const, status: 400 as const };
+        const known = partners.code.enumValues as readonly string[];
+        if (!known.includes(code))
+          return { error: `no partner with code ${code}` as const, status: 400 as const };
+        const [p] = await tx
+          .select({ id: partners.id })
+          .from(partners)
+          .where(eq(partners.code, code as (typeof partners.code.enumValues)[number]))
+          .limit(1);
+        if (!p) return { error: `no partner with code ${code}` as const, status: 400 as const };
+        partnerId = p.id;
+      }
+
+      const before = await tx
+        .select({ role: userRoles.role, partnerId: userRoles.partnerId })
+        .from(userRoles)
+        .where(eq(userRoles.userId, targetId));
+
+      // `admin` is never touched from here, in either direction: it is filtered
+      // out of what may be removed as well as what may be added, so an
+      // administrator's own grant survives an edit to their other roles.
+      for (const row of before) {
+        if (row.role === 'admin') continue;
+        if (wanted.includes(row.role as Assignable)) continue;
+        await tx
+          .delete(userRoles)
+          .where(and(eq(userRoles.userId, targetId), eq(userRoles.role, row.role)));
+      }
+      for (const role of wanted) {
+        const existing = before.find((r) => r.role === role);
+        if (existing && (role !== 'partner_operator' || existing.partnerId === partnerId)) continue;
+        if (existing) {
+          // Rebinding an operator to a different partner: remove and re-add,
+          // because the pair is the fact, not the role alone.
+          await tx
+            .delete(userRoles)
+            .where(and(eq(userRoles.userId, targetId), eq(userRoles.role, role)));
+        }
+        await tx
+          .insert(userRoles)
+          .values({
+            userId: targetId,
+            role,
+            partnerId: role === 'partner_operator' ? partnerId : null,
+          })
+          .onConflictDoNothing();
+      }
+
+      const after = await tx
+        .select({ role: userRoles.role, partnerId: userRoles.partnerId })
+        .from(userRoles)
+        .where(eq(userRoles.userId, targetId));
+
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: targetId,
+        partnerId,
+        action: 'user_roles.changed',
+        entityType: 'user_roles',
+        entityId: targetId,
+        detail: {
+          before: before.map((r) => r.role),
+          after: after.map((r) => r.role),
+          partnerCode: parsed.partnerCode?.toUpperCase() ?? null,
+          by: tenant.user.email,
+        },
+      });
+
+      return { roles: after };
+    });
+
+    if ('error' in result) return c.json({ error: result.error }, result.status);
+    deps.logger.info('administrator changed roles', {
+      actor: tenant.user.id,
+      target: targetId,
+      roles: result.roles.map((r) => r.role),
+    });
+    return c.json(result);
+  });
+
+  /** One person's audit trail, newest first — what they did and what was done to them. */
+  app.get('/investors/:id/activity', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const id = c.req.param('id');
+    const limit = Math.min(Number(c.req.query('limit') ?? 100), 500);
+
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({
+          id: auditLog.id,
+          seq: auditLog.seq,
+          action: auditLog.action,
+          entityType: auditLog.entityType,
+          actorType: auditLog.actorType,
+          createdAt: auditLog.createdAt,
+        })
+        .from(auditLog)
+        .where(eq(auditLog.userId, id))
+        .orderBy(desc(auditLog.seq))
+        .limit(limit),
+    );
+    return c.json({ entries: rows.map((r) => ({ ...r, seq: String(r.seq) })) });
   });
 
   return app;
