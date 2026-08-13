@@ -347,7 +347,19 @@ export default function HomePage() {
             </div>
           )}
         </div>
-        <div className="border-l border-[#eafaf5]/[.16] pl-[26px]" data-tour="customer-agent">
+        {/* The hero's height is whichever column is taller, and this one fills
+            from three separate fetches — the agent's last message, the approval
+            count, the buttons that depend on both. Until they land it is short,
+            and the whole page sits 55px higher than it will: measured as a
+            single 0.156 layout shift on /home, every element below the hero
+            moving at once. Reserving the settled height holds the page still.
+            The numbers are measured (207px at 1280, 297px stacked on a phone)
+            and are a floor, not a cap — a longer message grows the card as it
+            always did. */}
+        <div
+          className="min-h-[207px] border-l border-[#eafaf5]/[.16] pl-[26px] max-[900px]:min-h-[297px]"
+          data-tour="customer-agent"
+        >
           <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.78]')}>
             <span className="h-[7px] w-[7px] rounded-full bg-peach" />
             Your agent · acting within your limits
