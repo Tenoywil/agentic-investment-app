@@ -350,6 +350,25 @@ input:-webkit-autofill:active {
     animation: none;
   }
 }
+/* Hold the page still underneath an open sheet.
+
+   A modal <dialog> takes the top layer, the backdrop and focus, but it does
+   NOT stop the document behind it scrolling — so a swipe anywhere that was not
+   itself a scroller moved the list behind the sheet instead of the sheet. On a
+   phone that is most of the surface, and you would close the panel to find the
+   list somewhere else entirely. Measured: 0 → 600px behind an open sheet.
+
+   `overflow: hidden` here rather than a scroll-lock in JavaScript, because the
+   condition *is* "a sheet is open" and CSS can ask that question directly. The
+   gutter is reserved on <html> so removing the scrollbar does not shift the
+   page sideways under the backdrop. */
+html {
+  scrollbar-gutter: stable;
+}
+body:has(dialog.app-modal[open]),
+body:has(dialog.app-sheet[open]) {
+  overflow: hidden;
+}
 /* Grid items get min-width: auto by default, so a child that cannot shrink —
    a partner's full name beside a right-aligned amount — pushes its track wider
    than the grid, and the card overflows the phone. On /home that made two cards

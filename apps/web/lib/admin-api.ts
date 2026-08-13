@@ -108,6 +108,34 @@ export const getAdminInvestorActivity = (id: string) =>
   get<{ entries: AdminAuditEntry[] }>(`/investors/${id}/activity?limit=100`);
 
 /**
+ * Load the catalog on a database that has none.
+ *
+ * A freshly migrated deployment has no partners, and with no partners there is
+ * no institution side of the product at all — `partner_operator` requires one.
+ * The rows are the same definition `db:seed` uses, so a deployment does not
+ * need a shell and a connection string to become usable. Idempotent.
+ */
+export async function loadAdminReferenceData(): Promise<{
+  partners: number;
+  instruments: number;
+  planningProducts: number;
+  fxRates: number;
+}> {
+  const res = await fetch(`${API_URL}/api/admin/reference-data`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.error === 'string' ? body.error : `request failed (${res.status})`,
+    );
+  }
+  return body;
+}
+
+/**
  * Set a person's roles. A whole set, not add/remove: roles decide which product
  * someone sees, so "make this person an operator for JMMB" is one intention and
  * should not pass through a state where they hold both surfaces or neither.
