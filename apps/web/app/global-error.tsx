@@ -30,7 +30,7 @@ export default function GlobalError({
       >
         <div style={{ maxWidth: '46ch', textAlign: 'center' }} role="alert">
           <h1 style={{ fontSize: '19px', fontWeight: 700, margin: 0 }}>
-            Caribbean Capital didn’t load
+            Caribbean Capital Network didn’t load
           </h1>
           <p style={{ fontSize: '14px', lineHeight: 1.6, color: '#5c544a', marginTop: '10px' }}>
             Your account and your data are unaffected — nothing was changed.

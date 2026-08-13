@@ -1,5 +1,5 @@
 import { instruments, partners, riskProfiles } from '@ccn/db';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
@@ -47,10 +47,13 @@ export function opportunitiesRoutes(deps: AppDeps): Hono<AppEnv> {
         })
         .from(instruments)
         .leftJoin(partners, eq(instruments.partnerId, partners.id));
+      // Newest assessment wins — risk profiles are appended, never replaced.
       const [profile] = await tx
         .select({ band: riskProfiles.band })
         .from(riskProfiles)
-        .where(eq(riskProfiles.userId, tenant.user.id));
+        .where(eq(riskProfiles.userId, tenant.user.id))
+        .orderBy(desc(riskProfiles.createdAt))
+        .limit(1);
       return { rows, profile };
     });
 

@@ -33,7 +33,8 @@ import {
   settleOrder,
   toggleProductLive,
 } from '@/lib/console-api';
-import { useEffect, useState } from 'react';
+import { Menu } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * The partner console: a dark-navy shell (Warm-themed shadcn) with Radix Tabs
@@ -169,6 +170,9 @@ export default function InstitutionsPage() {
    */
   const [listingOpen, setListingOpen] = useState(false);
 
+  /** The phone navigation sheet; on a desktop this element is the rail. */
+  const navRef = useRef<HTMLDialogElement>(null);
+
   async function handleToggleProductLive(id: string) {
     const previous = products.find((p) => p.id === id)?.status;
     if (!previous) return;
@@ -229,7 +233,31 @@ export default function InstitutionsPage() {
       orientation="vertical"
       className="app-shell bg-background font-sans text-foreground"
     >
+      {/* The phone bar. Same shape as the investor side: a compact header whose
+          only job is to open the navigation, so the console itself starts at
+          the top of the screen instead of 500px down it. */}
+      <header className="console-topbar">
+        <button
+          type="button"
+          onClick={() => navRef.current?.showModal()}
+          aria-haspopup="dialog"
+          aria-label="Open navigation"
+          className="grid h-11 w-11 flex-none place-items-center rounded-[12px] text-[#d3e0da] transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Menu className="h-6 w-6" aria-hidden />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-display text-[15px] font-bold leading-tight text-white">
+            {partner?.name ?? 'Partner console'}
+          </div>
+          <div className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
+            Partner console
+          </div>
+        </div>
+      </header>
+
       <ConsoleSidebar
+        dialogRef={navRef}
         partner={partner}
         pendingOrders={ordersError ? 0 : orders.filter((o) => o.status === 'created').length}
         pendingReconciliation={reconciliationError ? 0 : reconciliation.length}

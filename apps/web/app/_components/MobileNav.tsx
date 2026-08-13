@@ -92,7 +92,7 @@ export function MobileNav({
             C
           </span>
           <span className="truncate font-display text-[15px] font-bold tracking-tight">
-            Caribbean Capital
+            Caribbean Capital Network
           </span>
         </Link>
 

@@ -325,7 +325,7 @@ function BrandHeader({ showSkip }: { showSkip: boolean }) {
         >
           C
         </span>
-        <span className="font-display text-base font-bold">Caribbean Capital</span>
+        <span className="font-display text-base font-bold">Caribbean Capital Network</span>
       </div>
       {showSkip ? (
         <Button variant="outline" asChild className="h-auto gap-1.5 px-[15px] py-[9px] text-sm">
