@@ -1,6 +1,7 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
@@ -13,8 +14,9 @@ import {
   getPortfolio,
   regulatorLabel,
 } from '@/lib/portfolio-api';
-import { CircleAlert, ShieldCheck, Wallet } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { CircleAlert, Link2, ShieldCheck, Wallet } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { ConnectAccountDialog } from './connect-account';
 
 /**
  * Deterministic badge tint/color per partner code, matching the prototype's
@@ -100,29 +102,50 @@ export default function PortfolioPage() {
   // the numbers we already hold.
   const [currency, setCurrency] = useState<Currency>('USD');
 
+  /**
+   * Connecting an account is how anything gets into this screen. Without it an
+   * investor finished onboarding, arrived here, and had no way to put anything
+   * in — and with no cash, every order they tried was refused by their own cash
+   * floor.
+   */
+  const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useState<string | null>(null);
+  /**
+   * The load, callable rather than only an effect, because connecting an
+   * account has to ask for it directly — the holdings it just pulled are the
+   * whole point of the screen, and a counter in a dependency array is a
+   * roundabout way of saying "fetch again".
+   */
+  const load = useCallback(
+    (signal?: { cancelled: boolean }) => {
+      setLoading(true);
+      setError(null);
+      return getPortfolio(currency)
+        .then((portfolio) => {
+          if (!signal?.cancelled) setData(portfolio);
+        })
+        .catch((err) => {
+          if (signal?.cancelled) return;
+          if (err instanceof PortfolioApiError && err.status === 401) {
+            setError('Your session has expired. Please sign in again to view your portfolio.');
+          } else {
+            setError(err instanceof Error ? err.message : 'Could not load your portfolio.');
+          }
+        })
+        .finally(() => {
+          if (!signal?.cancelled) setLoading(false);
+        });
+    },
+    [currency],
+  );
+
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getPortfolio(currency)
-      .then((portfolio) => {
-        if (!cancelled) setData(portfolio);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err instanceof PortfolioApiError && err.status === 401) {
-          setError('Your session has expired. Please sign in again to view your portfolio.');
-        } else {
-          setError(err instanceof Error ? err.message : 'Could not load your portfolio.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const signal = { cancelled: false };
+    void load(signal);
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, [currency]);
+  }, [load]);
 
   return (
     <AppScreen active="portfolio">
@@ -131,6 +154,12 @@ export default function PortfolioPage() {
         title="Your portfolio"
         right={
           <div className="flex items-center gap-3">
+            {/* Also in the empty state, but it cannot only live there: an
+                investor with one account still needs to add the second. */}
+            <Button type="button" size="sm" variant="outline" onClick={() => setConnecting(true)}>
+              <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
+              Connect an account
+            </Button>
             <fieldset className="m-0 flex min-w-0 items-center gap-1 rounded-xl border border-solid border-border bg-card p-1">
               <legend className="sr-only">Display currency</legend>
               {CURRENCY_OPTIONS.map((code) => (
@@ -197,9 +226,31 @@ export default function PortfolioPage() {
         <EmptyState
           icon={Wallet}
           title="No holdings yet"
-          body="Once your accounts are linked, every position you hold appears here, grouped by the institution that custodies it."
+          body="Connect an account and every position you hold appears here, grouped by the institution that custodies it. CCN reads your balances — your institution keeps executing, custodying and settling."
+          action={
+            <Button type="button" size="sm" onClick={() => setConnecting(true)}>
+              <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
+              Connect an account
+            </Button>
+          }
         />
       )}
+
+      {connecting ? (
+        <ConnectAccountDialog
+          onClose={() => setConnecting(false)}
+          onConnected={(summary) => {
+            setConnected(
+              `${summary.refreshed ? 'Refreshed' : 'Connected'} ${summary.partner} — ${summary.holdings} position${summary.holdings === 1 ? '' : 's'}.`,
+            );
+            void load();
+          }}
+        />
+      ) : null}
+
+      {connected ? (
+        <output className="mb-4 block text-[14px] text-success">{connected}</output>
+      ) : null}
 
       {data && data.allocation.length > 0 && <AllocationBreakdown slices={data.allocation} />}
 

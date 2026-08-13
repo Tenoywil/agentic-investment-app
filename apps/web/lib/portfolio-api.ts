@@ -115,3 +115,44 @@ export function getAgentHistory(): Promise<{ messages: AgentMessage[] }> {
 /** `FSC_JAMAICA` -> `FSC Jamaica`. One implementation, shared with the
  *  marketplace, so a regulator never reads two different ways in one product. */
 export { regulatorLabel } from './opportunities-api';
+
+/**
+ * Connect an account at a partner, and pull what it holds.
+ *
+ * Until this existed an investor who finished onboarding had an empty
+ * portfolio, no cash, and therefore could not place an order at all — every
+ * amount drew them below their cash floor and the guardrail refused it, which
+ * is correct and left the customer side terminating at an empty screen.
+ *
+ * The balances come from the partner's own adapter, not from here. Connecting
+ * the same partner twice refreshes that account rather than adding a second.
+ */
+export async function connectAccount(
+  partnerCode: string,
+): Promise<{ partner: string; holdings: number; refreshed: boolean }> {
+  const res = await fetch(`${API_URL}/api/portfolio/accounts`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ partnerCode }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.error === 'string' ? body.error : `request failed (${res.status})`,
+    );
+  }
+  return body;
+}
+
+/** The institutions on the network — the choices in the connect dialog. */
+export async function getNetworkPartners(): Promise<
+  { code: string; name: string; kind: string | null; regulator: string | null }[]
+> {
+  const res = await fetch(`${API_URL}/api/portfolio/partners`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`request failed (${res.status})`);
+  return ((await res.json()) as { partners: [] }).partners;
+}
