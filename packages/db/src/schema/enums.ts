@@ -101,6 +101,15 @@ export const sourceOfFunds = pgEnum('source_of_funds', [
 export const productListingStatus = pgEnum('product_listing_status', ['live', 'paused']);
 
 /**
+ * Whether an instrument is offered in the marketplace.
+ *
+ * Distinct from `blocked`, which means "screened out for your suitability" and
+ * renders to the investor as a refusal with reasons. A paused listing is simply
+ * not offered — the firm has taken it off the shelf.
+ */
+export const listingStatus = pgEnum('listing_status', ['live', 'paused']);
+
+/**
  * A client's standing at one partner. An investor links an account; the partner
  * reviews the KYC package CCN passes across and accepts or declines them. CCN is
  * not the KYC owner, so the relationship is not real until the firm says it is.

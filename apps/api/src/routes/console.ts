@@ -4,20 +4,30 @@ import {
   instruments,
   orders as ordersTable,
   partners,
-  productListings,
   reconciliationItems,
 } from '@ccn/db';
-import { rejectSchema } from '@ccn/domain';
+import {
+  acceptOrderSchema,
+  listInstrumentSchema,
+  partnerProfileSchema,
+  rejectSchema,
+  settleOrderSchema,
+} from '@ccn/domain';
 import { formatMoney, money } from '@ccn/money';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import type { AppDeps, AppEnv, TenantContext } from '../context';
 import { withTenant } from '../context';
+import type { InstrumentRow } from '../db-fns';
 import {
   acceptOrder,
   auditAppend,
+  partnerClientHoldings,
   partnerClients,
   partnerReviewClient,
+  partnerToggleInstrument,
+  partnerUpdateProfile,
+  partnerUpsertInstrument,
   reconcileMatch,
   reconcileReject,
   rejectOrder,
@@ -49,6 +59,41 @@ function raisedBy(err: unknown, fragment: string): boolean {
     } else return false;
   }
   return false;
+}
+
+/**
+ * A body that failed its schema, thrown from inside a transition so the guarded
+ * transition and the parse can share one handler. Distinguished from a database
+ * refusal because the operator's next move differs: one is a field to correct,
+ * the other is an order that is not theirs or not in that state.
+ */
+class BadRequest extends Error {
+  constructor(
+    message: string,
+    readonly issues: unknown,
+  ) {
+    super(message);
+  }
+}
+
+/** The order states a caller may filter on — the enum, not a free string. */
+const ORDER_STATUSES = ['created', 'accepted', 'settled', 'rejected', 'expired'] as const;
+
+/**
+ * `limit` and `offset` from the query string, clamped.
+ *
+ * The same shape the audit route already used and the orders and clients routes
+ * did not have at all. 200 is the ceiling rather than 500 because these rows are
+ * wide; a desk exporting more than that uses the export, which says when it has
+ * truncated.
+ */
+function readPage(c: Context<AppEnv>): { limit: number; offset: number } {
+  const rawLimit = Number.parseInt(c.req.query('limit') ?? '', 10);
+  const rawOffset = Number.parseInt(c.req.query('offset') ?? '', 10);
+  return {
+    limit: Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 50,
+    offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0,
+  };
 }
 
 export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
@@ -84,6 +129,12 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     idempotencyKey: ordersTable.idempotencyKey,
     clientRef: ordersTable.clientRef,
     settlementEta: ordersTable.settlementEta,
+    // What the firm reported at settlement. Null means it did not report the
+    // figure, which the screens say rather than filling in a zero.
+    unitPriceMinor: ordersTable.unitPriceMinor,
+    units: ordersTable.units,
+    feeMinor: ordersTable.feeMinor,
+    externalRef: ordersTable.externalRef,
     rejectedReason: ordersTable.rejectedReason,
     createdBy: ordersTable.createdBy,
     createdAt: ordersTable.createdAt,
@@ -132,6 +183,49 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
   });
 
   /**
+   * The firm corrects its own record.
+   *
+   * `partners` has an UPDATE grant and exactly one UPDATE policy —
+   * `partners_admin_correct` — so an operator's transaction failed it and a
+   * firm could not fix a typo in its own name. It goes through a SECURITY
+   * DEFINER function rather than a new partner-scoped policy because RLS cannot
+   * restrict columns, and three columns must not be a firm's to set about
+   * itself: `code` resolves the executing adapter, `regulator` is a compliance
+   * claim shown to investors on every deal card, and `agreement_status` gates
+   * live order routing. They are not parameters, so this path cannot reach them.
+   */
+  app.patch('/partner', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const parsed = partnerProfileSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+    }
+
+    const row = await withTenant(deps, tenant, (tx) =>
+      partnerUpdateProfile(tx, {
+        name: parsed.data.name,
+        kind: parsed.data.kind ?? null,
+        residency: parsed.data.residency ?? null,
+      }),
+    );
+    return c.json({
+      partner: {
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        kind: row.kind,
+        regulator: row.regulator,
+        agreementStatus: row.agreement_status,
+        residency: row.residency,
+      },
+    });
+  });
+
+  /**
    * The real, immutable audit trail (packages/db/schema/audit.ts), newest first.
    *
    * `audit_log_read` already scopes rows to this partner, but that policy also
@@ -168,47 +262,117 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     return c.json({ entries });
   });
 
+  /**
+   * The firm's order queue — filtered, searchable and bounded.
+   *
+   * It used to take no parameters and return **every order the firm had ever
+   * received**, unbounded, on every page load and again on every realtime event.
+   * That is fine for a desk with nine orders and untenable for one with nine
+   * thousand, and it left an operator scrolling to find the one they were asked
+   * about.
+   *
+   * `total` accompanies the page because a count is the one thing the client
+   * cannot derive once the rows are truncated, and the pager needs it.
+   */
   app.get('/orders', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
+
+    const { limit, offset } = readPage(c);
+    const status = c.req.query('status');
+    const q = (c.req.query('q') ?? '').trim();
+
+    const filters = [eq(ordersTable.partnerId, scope.partnerId)];
+    if (status && (ORDER_STATUSES as readonly string[]).includes(status)) {
+      filters.push(eq(ordersTable.status, status as (typeof ORDER_STATUSES)[number]));
+    }
+    if (q) {
+      // The two things an operator is given when asked about an order: the
+      // product's name, or the masked client reference on the row.
+      filters.push(
+        sql`(${instruments.name} ilike ${`%${q}%`} or ${ordersTable.clientRef} ilike ${`%${q}%`})`,
+      );
+    }
+    const where = and(...filters);
+
+    const { rows, total } = await withTenant(deps, tenant, async (tx) => ({
+      rows: await tx
         .select(orderColumns)
         .from(ordersTable)
         .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
-        .where(eq(ordersTable.partnerId, scope.partnerId))
-        .orderBy(desc(ordersTable.createdAt)),
-    );
-    return c.json({ orders: rows });
+        .where(where)
+        .orderBy(desc(ordersTable.createdAt))
+        .limit(limit)
+        .offset(offset),
+      total: await tx
+        .select({ n: sql<string>`count(*)` })
+        .from(ordersTable)
+        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+        .where(where),
+    }));
+
+    return c.json({ orders: rows, total: Number(total[0]?.n ?? 0) });
   });
 
+  /**
+   * Accept or settle, each carrying what the firm is telling us.
+   *
+   * `move` runs the guarded transition inside the caller's transaction and
+   * re-reads the order afterwards, rather than returning the SECURITY DEFINER
+   * function's raw row: that row is snake_case and instrument-less, so the
+   * client used to swap a well-formed order for one whose amountMinor was
+   * `undefined` and rendered "US$NaN" the moment an operator clicked Accept.
+   */
   const transition =
-    (fn: typeof acceptOrder | typeof settleOrder) => async (c: Context<AppEnv>) => {
+    (move: (tx: Transaction, id: string, partnerId: string, body: unknown) => Promise<unknown>) =>
+    async (c: Context<AppEnv>) => {
       const tenant = c.get('tenant');
       if (!tenant) return c.json({ error: 'authentication required' }, 401);
       const scope = partnerScope(tenant);
       if ('error' in scope) return c.json(scope, 403);
       const id = c.req.param('id');
+      const body = await c.req.json().catch(() => ({}));
       try {
-        // Re-read rather than return the SECURITY DEFINER function's raw row:
-        // that row is snake_case and instrument-less, so the client used to
-        // swap a well-formed order for one whose amountMinor was `undefined`
-        // and rendered "US$NaN" the moment an operator clicked Accept.
         const order = await withTenant(deps, tenant, async (tx) => {
-          await fn(tx, id, scope.partnerId);
+          await move(tx, id, scope.partnerId, body);
           return selectOrder(tx, id, scope.partnerId);
         });
         return c.json({ order });
-      } catch {
-        // The guarded UPDATE matched no row: wrong partner or illegal transition.
+      } catch (err) {
+        // A rejected body is the operator's mistake to correct and says which
+        // field; an unmatched UPDATE is a wrong partner or an illegal
+        // transition and deliberately says neither.
+        if (err instanceof BadRequest)
+          return c.json({ error: err.message, issues: err.issues }, 400);
         return c.json({ error: 'order is not in a state you can transition' }, 409);
       }
     };
 
-  app.post('/orders/:id/accept', transition(acceptOrder));
-  app.post('/orders/:id/settle', transition(settleOrder));
+  app.post(
+    '/orders/:id/accept',
+    transition(async (tx, id, partnerId, body) => {
+      const parsed = acceptOrderSchema.safeParse(body);
+      if (!parsed.success) throw new BadRequest('invalid request', parsed.error.issues);
+      return acceptOrder(tx, id, partnerId, parsed.data.settlementEta ?? null);
+    }),
+  );
+
+  app.post(
+    '/orders/:id/settle',
+    transition(async (tx, id, partnerId, body) => {
+      const parsed = settleOrderSchema.safeParse(body);
+      if (!parsed.success) throw new BadRequest('invalid request', parsed.error.issues);
+      const d = parsed.data;
+      return settleOrder(tx, id, partnerId, {
+        unitPriceMinor: d.unitPriceMinor ?? null,
+        units: d.units ?? null,
+        feeMinor: d.feeMinor ?? null,
+        externalRef: d.externalRef ?? null,
+      });
+    }),
+  );
 
   app.post('/orders/:id/reject', async (c) => {
     const tenant = c.get('tenant');
@@ -253,18 +417,103 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const clients = await withTenant(deps, tenant, (tx) => partnerClients(tx));
-    return c.json({ clients });
+
+    /**
+     * `partner_clients()` returns a table and resolves the partner from the GUC
+     * itself, so filtering happens around it rather than inside it — no change
+     * to a SECURITY DEFINER function, which is the last place to put a
+     * user-supplied string.
+     */
+    const { limit, offset } = readPage(c);
+    const status = c.req.query('status');
+    const q = (c.req.query('q') ?? '').trim();
+
+    const all = await withTenant(deps, tenant, (tx) => partnerClients(tx));
+    const filtered = all.filter((row) => {
+      if (status && row.status !== status) return false;
+      if (!q) return true;
+      const needle = q.toLowerCase();
+      return (
+        (row.client_name ?? '').toLowerCase().includes(needle) ||
+        (row.client_email ?? '').toLowerCase().includes(needle)
+      );
+    });
+
+    return c.json({ clients: filtered.slice(offset, offset + limit), total: filtered.length });
   });
 
   /**
-   * Accept or decline a pending client.
+   * One client, opened.
    *
-   * Both verbs are one handler because they are one decision with one guarded
-   * transition behind them, and splitting them would let the two drift.
+   * The list row carries a holdings count and a total, so the console could say
+   * "4 holdings · US$12,400" and could not say what any of them were. This
+   * answers the first question anyone asks about a client — what are they
+   * actually in with us — and the second, what have they traded through us.
    *
-   * A failure here is a 409 rather than a 404: the connection was not pending at
-   * this firm, or the person has completed no KYC, and both are states the
+   * Three reads, each scoped a different way and all to the same firm: the KYC
+   * package through `partner_clients()` (the only path to it), the holdings
+   * through `partner_client_holdings()` (holdings have no partner read policy),
+   * and the orders through RLS, which already admits `partner_id = ours`. The
+   * client's user id is taken from the row this firm can see rather than from
+   * the request, so there is no id to substitute.
+   */
+  app.get('/clients/:id', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const accountId = c.req.param('id');
+
+    const detail = await withTenant(deps, tenant, async (tx) => {
+      const client = (await partnerClients(tx)).find((row) => row.account_id === accountId);
+      if (!client) return null;
+      const holdings = await partnerClientHoldings(tx, accountId);
+      const clientOrders = await tx
+        .select(orderColumns)
+        .from(ordersTable)
+        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+        .where(
+          and(eq(ordersTable.partnerId, scope.partnerId), eq(ordersTable.userId, client.user_id)),
+        )
+        .orderBy(desc(ordersTable.createdAt))
+        .limit(50);
+      // This client's own thread of the firm's audit log. `audit_log_read`
+      // scopes to the partner; `user_id` — the subject of the action, not its
+      // actor — narrows it to the person.
+      const history = await tx
+        .select({
+          id: auditLog.id,
+          seq: auditLog.seq,
+          action: auditLog.action,
+          entityType: auditLog.entityType,
+          actorType: auditLog.actorType,
+          detail: auditLog.detail,
+          createdAt: auditLog.createdAt,
+        })
+        .from(auditLog)
+        .where(and(eq(auditLog.partnerId, scope.partnerId), eq(auditLog.userId, client.user_id)))
+        .orderBy(desc(auditLog.seq))
+        .limit(50);
+      return { client, holdings, orders: clientOrders, audit: history };
+    });
+
+    // Not found and not-yours are the same answer, so an account id cannot be
+    // probed by watching which one comes back.
+    if (!detail) return c.json({ error: 'client not found' }, 404);
+    return c.json(detail);
+  });
+
+  /**
+   * Move a client along: accept, decline, revoke, reinstate.
+   *
+   * Two verbs, four transitions — `accept` is also how a declined client is
+   * reinstated and `decline` is also how an active one is revoked, because
+   * underneath they are one guarded transition and the database picks the audit
+   * action from where the row actually was. Splitting them into four routes
+   * would let four things drift.
+   *
+   * A failure here is a 409 rather than a 404: the connection is already in
+   * that state, or the person has completed no KYC, and both are states the
    * operator can see on the row they just acted on. The database's message is
    * not forwarded — it names internal ids — but the two cases are distinguished
    * because the operator's next move differs.
@@ -300,7 +549,10 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           409,
         );
       }
-      return c.json({ error: 'that client is not awaiting a decision here' }, 409);
+      if (raisedBy(err, 'is already')) {
+        return c.json({ error: 'that client is already in that state' }, 409);
+      }
+      return c.json({ error: 'that client is not one of yours' }, 409);
     }
   };
 
@@ -382,65 +634,87 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
 
   // ---- Overview / products / compliance tabs: partner-scoped reference data ----
 
+  /**
+   * The upsert function returns `RETURNS instruments` — the raw snake_case row
+   * — while GET /products returns a Drizzle select. Mapping here keeps the two
+   * identical, so the console can drop a saved product straight into the list
+   * it already has instead of refetching to find out what it just wrote.
+   *
+   * `slug` and `partner_id` are deliberately not returned: neither is the
+   * operator's to see or set, and echoing an id back invites a client to start
+   * sending it.
+   */
+  function toConsoleProduct(row: InstrumentRow) {
+    return {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      abbr: row.abbr,
+      currency: row.currency,
+      minInvestmentMinor: row.min_investment_minor,
+      term: row.term,
+      metric: row.metric,
+      metricLabel: row.metric_label,
+      risk: row.risk,
+      description: row.description,
+      region: row.region,
+      status: row.listing_status,
+      blocked: row.blocked,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  /**
+   * The firm's own listings, from the table the marketplace reads.
+   *
+   * This used to read `product_listings`, which the marketplace has no
+   * relationship to at all — so a partner could list a fund, see it here, and no
+   * investor would ever be shown it. `product_listings` is left alone; nothing
+   * writes it from here any more.
+   */
   app.get('/products', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    // `clients`, `aum_minor` and `trend` are deliberately not selected. CCN
-    // measures none of them — there is no attribution model, no AUM roll-up and
-    // no time series behind those columns; they held the prototype's invented
-    // figures. They are NOT NULL with a 0 default, so returning them would hand
-    // the UI a zero that reads as "this product has no clients" rather than
-    // "we do not compute this". Not selecting them means the console cannot
-    // render the claim at all, which is the point.
     const rows = await withTenant(deps, tenant, (tx) =>
       tx
         .select({
-          id: productListings.id,
-          partnerId: productListings.partnerId,
-          name: productListings.name,
-          type: productListings.type,
-          status: productListings.status,
-          createdAt: productListings.createdAt,
-          updatedAt: productListings.updatedAt,
+          id: instruments.id,
+          name: instruments.name,
+          type: instruments.type,
+          abbr: instruments.abbr,
+          currency: instruments.currency,
+          minInvestmentMinor: instruments.minInvestmentMinor,
+          term: instruments.term,
+          metric: instruments.metric,
+          metricLabel: instruments.metricLabel,
+          risk: instruments.risk,
+          description: instruments.description,
+          region: instruments.region,
+          status: instruments.listingStatus,
+          blocked: instruments.blocked,
+          createdAt: instruments.createdAt,
+          updatedAt: instruments.updatedAt,
         })
-        .from(productListings)
-        .where(eq(productListings.partnerId, scope.partnerId))
-        .orderBy(desc(productListings.createdAt)),
+        .from(instruments)
+        .where(eq(instruments.partnerId, scope.partnerId))
+        .orderBy(desc(instruments.createdAt)),
     );
     return c.json({ products: rows });
   });
 
   /**
-   * Flip one listing between `live` and `paused` — the console's only write to
-   * its own catalogue, and the reason the Products switch is no longer a
-   * disabled ornament.
+   * List a product, or amend one already listed.
    *
-   * The flip is a single guarded UPDATE (CASE expression, not read-then-write)
-   * so two operators racing on the same listing cannot lose one another's
-   * change, and `partner_id` is in the WHERE as well as the RLS policy. No row
-   * back means the listing is not this partner's, which is a 404 rather than a
-   * 403: an operator must not be able to probe another firm's listing ids.
-   */
-  /**
-   * List a product.
+   * The fields are the ones the marketplace renders. Without them a new listing
+   * showed "US$0", an empty metric and "Not rated" on every investor's deal
+   * card, which is worse than not appearing — it is appearing wrong.
    *
-   * The console could read its catalogue and pause a listing, and never create
-   * one — the only products on the network came from `db:seed`, which writes
-   * five for the anchor partner and nothing for anyone else. A partner who had
-   * just been onboarded signed in to an empty catalogue with no control that
-   * could change it, which is the missing half of the institution side.
-   *
-   * `partner_id` comes from the caller's scope and is never read from the body:
-   * an operator lists for their own firm or not at all, and the RLS policy
-   * enforces the same thing underneath.
-   *
-   * A new listing starts `live`, the column's default — the operator is
-   * deliberately listing it, and the pause switch beside it is one click away.
-   * `clients`, `aum_minor` and `trend` are left at their defaults and are not
-   * accepted here: CCN measures none of them, and a figure an operator typed
-   * about their own product is not a measurement.
+   * The slug and the regulator are set by the function, not accepted here: a
+   * slug is the key holdings and reconciliation join on, and a regulator is a
+   * compliance claim about the executing firm rather than a field it types.
    */
   app.post('/products', async (c) => {
     const tenant = c.get('tenant');
@@ -448,88 +722,61 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
 
-    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
-    const name = typeof body?.name === 'string' ? body.name.trim() : '';
-    const type = typeof body?.type === 'string' ? body.type.trim() : '';
-    if (name.length < 2) return c.json({ error: 'a product needs a name' }, 400);
-    if (name.length > 140) return c.json({ error: 'that name is too long' }, 400);
-    if (type.length > 60) return c.json({ error: 'that type is too long' }, 400);
+    const parsed = listInstrumentSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+    }
+    const input = parsed.data;
 
-    const product = await withTenant(deps, tenant, async (tx) => {
-      const [row] = await tx
-        .insert(productListings)
-        .values({ partnerId: scope.partnerId, name, type: type || null })
-        .returning();
-      if (!row) return null;
-      await auditAppend(tx, {
-        actorType: 'user',
-        actorId: tenant.user.id,
-        userId: tenant.user.id,
-        partnerId: scope.partnerId,
-        action: 'product_listing.created',
-        entityType: 'product_listings',
-        entityId: row.id,
-        detail: { name: row.name, type: row.type, status: row.status },
-      });
-      return row;
-    });
-
-    if (!product) return c.json({ error: 'the product was not listed' }, 400);
-    deps.logger.info('partner listed a product', { partner: scope.partnerId, product: product.id });
-    return c.json({ product }, 201);
+    try {
+      const row = await withTenant(deps, tenant, (tx) =>
+        partnerUpsertInstrument(tx, {
+          id: input.id ?? null,
+          name: input.name,
+          type: input.type,
+          // A short badge for the card. Derived when not given rather than
+          // demanded: it is display, and an empty tile reads as a bug.
+          abbr: (input.abbr || input.name.slice(0, 6)).toUpperCase(),
+          currency: input.currency,
+          minInvestmentMinor: BigInt(input.minInvestmentMinor),
+          term: input.term ?? null,
+          metric: input.metric ?? null,
+          metricLabel: input.metricLabel ?? null,
+          risk: input.risk ?? null,
+          description: input.description ?? null,
+          region: input.region ?? null,
+        }),
+      );
+      return c.json({ product: toConsoleProduct(row) }, input.id ? 200 : 201);
+    } catch (err) {
+      if (raisedBy(err, 'is not listed by this partner')) {
+        return c.json({ error: 'that product is not one of yours' }, 404);
+      }
+      throw err;
+    }
   });
 
+  /** Take a listing off the marketplace, or put it back. */
   app.post('/products/:id/live', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
     const id = c.req.param('id');
-    const status = await withTenant(deps, tenant, async (tx) => {
-      const [row] = await tx
-        .update(productListings)
-        .set({
-          status: sql`case when ${productListings.status} = 'live' then 'paused'::product_listing_status else 'live'::product_listing_status end`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(productListings.id, id), eq(productListings.partnerId, scope.partnerId)))
-        .returning({ status: productListings.status });
-      if (!row) return null;
-      // A listing going dark is exactly the kind of thing the compliance tab's
-      // audit trail exists to record, so record it — through the same
-      // append-only, hash-chained choke point everything else uses.
-      await auditAppend(tx, {
-        actorType: 'user',
-        actorId: tenant.user.id,
-        userId: tenant.user.id,
-        partnerId: scope.partnerId,
-        action: `product_listing.${row.status}`,
-        entityType: 'product_listing',
-        entityId: id,
-        detail: { status: row.status },
-      });
-      return row.status;
-    });
-    if (!status) return c.json({ error: 'product listing not found' }, 404);
-    return c.json({ status });
+
+    try {
+      const status = await withTenant(deps, tenant, (tx) => partnerToggleInstrument(tx, id));
+      return c.json({ status });
+    } catch (err) {
+      // 404 rather than 403 for a product belonging to another firm, so ids
+      // cannot be probed by watching which answer comes back.
+      if (raisedBy(err, 'is not listed by this partner')) {
+        return c.json({ error: 'product listing not found' }, 404);
+      }
+      throw err;
+    }
   });
 
-  /**
-   * The firm's numbers, computed from its own rows.
-   *
-   * This read `partner_kpis`, a table with no writer anywhere in the product —
-   * the seed leaves it empty on purpose (packages/db/src/seed.ts) after the
-   * invented "Referred AUM US$48.2M" and "1,284 funded clients" were removed
-   * from the prototype. Leaving them out was the right call. Leaving a reader
-   * pointed at an empty table was not: the tiles never appeared, the tour step
-   * that describes them narrated a grid that could not exist, and an operator
-   * had no way to see the business CCN was sending them.
-   *
-   * So they are derived instead, from the four things this partner genuinely
-   * owns: who asked to become their client, who they accepted, what those
-   * clients hold with them, and what CCN has routed. Nothing here is a figure
-   * the database cannot answer for.
-   */
   app.get('/kpis', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);

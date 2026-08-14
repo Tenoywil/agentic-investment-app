@@ -46,6 +46,13 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
           partnerName: partners.name,
           partnerCode: partners.code,
           settlementEta: ordersTable.settlementEta,
+          // What the firm reported when it settled. Null throughout means the
+          // firm did not report it, and the screen says nothing rather than
+          // printing a zero the firm never claimed.
+          unitPriceMinor: ordersTable.unitPriceMinor,
+          units: ordersTable.units,
+          feeMinor: ordersTable.feeMinor,
+          externalRef: ordersTable.externalRef,
           rejectedReason: ordersTable.rejectedReason,
           createdBy: ordersTable.createdBy,
           createdAt: ordersTable.createdAt,
@@ -74,6 +81,15 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
       if (!instrument) return { status: 404 as const, body: { error: 'instrument not found' } };
       if (!instrument.partnerId || !instrument.partnerCode) {
         return { status: 409 as const, body: { error: 'instrument has no executing partner' } };
+      }
+      // A listing paused between the marketplace loading and this tap. The
+      // card is gone from /api/opportunities, but a page held open still has
+      // the id, so the refusal has to be here as well as in the query.
+      if (instrument.listingStatus !== 'live') {
+        return {
+          status: 409 as const,
+          body: { error: 'this product is no longer offered by the listing firm' },
+        };
       }
       const partnerCode = instrument.partnerCode;
       const decision = await runGate(tx, {

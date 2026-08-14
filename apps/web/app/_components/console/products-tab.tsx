@@ -4,24 +4,34 @@ import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Switch } from '@/app/_components/ui/switch';
-import type { ConsoleProduct } from '@/lib/console-api';
-import { Boxes, Plus } from 'lucide-react';
-import { ROW_DIVIDER, uppr } from './lib';
+import type { ConsoleCurrency, ConsoleProduct } from '@/lib/console-api';
+import { Boxes, Pencil, Plus } from 'lucide-react';
+import { ROW_DIVIDER, fmtMinor, uppr } from './lib';
 import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
 /**
- * The partner's listed products.
+ * The partner's listed products — rows of `instruments`, the table the
+ * marketplace reads.
+ *
+ * They used to be rows of `product_listings`, which nothing joined to the
+ * marketplace: a firm listed a fund, saw it here, and no investor was ever
+ * shown it. So this table now prints what an investor sees on the deal card —
+ * the minimum, the headline figure, the risk band — because those are the
+ * fields that make a listing correct rather than merely present.
  *
  * The live/paused switch is a real write to POST /api/console/products/:id/live
- * — it used to be permanently `disabled` with a tooltip apologising that no
- * write endpoint existed.
- *
- * "List a product" is back, and now it is real. It was removed for having no
- * handler and no endpoint behind it, which was right at the time; a partner
- * onboarded onto a live network then had no way to put anything on it, and an
- * empty catalogue with no control is a worse answer than a control that works.
+ * and now takes the product out of the marketplace, not out of a table only
+ * this screen reads.
  */
+const TYPE_LABELS: Record<string, string> = {
+  bond: 'Bond',
+  fund: 'Fund',
+  equity: 'Equity',
+  real_estate: 'Real estate',
+  private: 'Private',
+};
+
 export function ProductsTab({
   products,
   productsError,
@@ -30,6 +40,7 @@ export function ProductsTab({
   productActionError,
   onToggleLive,
   onList,
+  onEdit,
 }: {
   products: ConsoleProduct[];
   productsError: string | null;
@@ -38,6 +49,7 @@ export function ProductsTab({
   productActionError: string | null;
   onToggleLive: (id: string) => void;
   onList: () => void;
+  onEdit: (product: ConsoleProduct) => void;
 }) {
   return (
     <Card className="overflow-hidden" data-tour="institution-products">
@@ -88,25 +100,54 @@ export function ProductsTab({
               Without it those spans resolve against the page, escape this
               element's clipping, and stretch the document's scroll area past
               the viewport — a phone scrolled 140px sideways onto nothing. */}
-          <div className="min-w-[560px]">
+          <div className="min-w-[680px]">
             {/* Clients / AUM / Inflow columns removed: CCN computes none of
-                them, so the figures that used to fill them were invented. */}
-            <div className={`grid grid-cols-[3fr_1fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}>
+                them, so the figures that used to fill them were invented. What
+                is here instead is what the investor is shown. */}
+            <div
+              className={`grid grid-cols-[2.4fr_1fr_0.9fr_1.4fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}
+            >
               <span>Product</span>
+              <span className="text-right">Minimum</span>
+              <span className="text-right">Risk</span>
               <span className="text-right">Status</span>
             </div>
             {products.map((p) => {
               const live = p.status === 'live';
+              const typeLabel = p.type ? (TYPE_LABELS[p.type] ?? p.type) : null;
               return (
                 <div
                   key={p.id}
-                  className={`grid grid-cols-[3fr_1fr] items-center px-6 py-3.5 ${ROW_DIVIDER}`}
+                  className={`grid grid-cols-[2.4fr_1fr_0.9fr_1.4fr] items-center px-6 py-3.5 ${ROW_DIVIDER}`}
                 >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-bold">{p.name}</div>
-                    {p.type ? <div className="text-xs text-faint">{p.type}</div> : null}
+                    <div className="text-xs text-faint">
+                      {[typeLabel, p.metric ? `${p.metric} ${p.metricLabel ?? ''}`.trim() : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  </div>
+                  {/* An unset minimum reads "No minimum", not "US$0" — zero is
+                      a price, and the two are not the same claim. */}
+                  <div className="text-right font-mono text-[13px]">
+                    {p.minInvestmentMinor === '0'
+                      ? '—'
+                      : fmtMinor(p.minInvestmentMinor, p.currency as ConsoleCurrency)}
+                  </div>
+                  <div className="text-right text-[13px] capitalize text-dim">
+                    {p.risk ?? 'Not rated'}
                   </div>
                   <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onEdit(p)}
+                      aria-label={`Edit ${p.name}`}
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    </Button>
                     <span className="text-[13px] font-bold text-dim">
                       {live ? 'Live' : 'Paused'}
                     </span>

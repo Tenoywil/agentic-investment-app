@@ -43,7 +43,7 @@ export function OverviewTab({
   orderActionError: string | null;
   onAccept: (id: string) => void;
   onSettle: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, reason?: string) => void;
 }) {
   const pending = orders.filter((o) => o.status === 'created').length;
   const settled = orders.filter((o) => o.status === 'settled').length;

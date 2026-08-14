@@ -1,5 +1,7 @@
 'use client';
 
+import * as React from 'react';
+
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
@@ -32,9 +34,11 @@ export function ClientsTab({
   clients,
   clientsError,
   loading,
+  total,
   clientBusyId,
   clientActionError,
   onReviewClient,
+  onOpenClient,
   funnel,
   funnelError,
   reconciliation,
@@ -48,9 +52,16 @@ export function ClientsTab({
   clients: ConsoleClient[];
   clientsError: string | null;
   loading: boolean;
+  /**
+   * How many clients match, which is not how many are on screen. The list is
+   * bounded now; saying so is the difference between a short list and a wrong
+   * one.
+   */
+  total: number;
   clientBusyId: string | null;
   clientActionError: string | null;
   onReviewClient: (id: string, accept: boolean, reason?: string) => void;
+  onOpenClient: (client: ConsoleClient) => void;
   funnel: ConsoleFunnelStage[];
   funnelError: string | null;
   reconciliation: ConsoleReconciliationItem[];
@@ -58,11 +69,32 @@ export function ClientsTab({
   reconBusyId: string | null;
   reconActionError: string | null;
   onMatch: (id: string) => void;
-  onRejectItem: (id: string) => void;
+  onRejectItem: (id: string, reason?: string) => void;
 }) {
+  /**
+   * Which reconciliation line is being asked about. `reconcile_reject` records
+   * the reason in the audit trail, and the API has always accepted one — it was
+   * dropped at the call site, so every rejected statement line was audited as
+   * "rejected at reconciliation" whatever the operator's actual reason was.
+   */
+  const [reconRejecting, setReconRejecting] = React.useState<string | null>(null);
+  const [reconReason, setReconReason] = React.useState('');
+
   return (
     <>
       {/* The decision the firm actually makes, above the counts describing it. */}
+      {/*
+        The list is bounded at a page now. Before it was every client the firm
+        had ever been referred, unbounded and re-fetched on every realtime
+        event — but a truncated list that does not say it is truncated is worse
+        than a long one, so it says.
+      */}
+      {!loading && total > clients.length ? (
+        <p className="mb-2 text-[12.5px] text-faint">
+          Showing {clients.length} of {total} clients.
+        </p>
+      ) : null}
+
       <ClientReview
         clients={clients}
         clientsError={clientsError}
@@ -70,6 +102,7 @@ export function ClientsTab({
         busyId={clientBusyId}
         actionError={clientActionError}
         onReview={onReviewClient}
+        onOpen={onOpenClient}
       />
 
       <div className="g-held">
@@ -193,20 +226,64 @@ export function ClientsTab({
                   {fmtMinor(guess.valueMinor, guess.currency)}
                 </span>
               ) : null}
-              <div className="flex gap-1.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={TERRA_GHOST_BTN}
-                  disabled={busy}
-                  onClick={() => onRejectItem(item.id)}
+              {reconRejecting === item.id ? (
+                <form
+                  className="flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    // Empty sends nothing rather than '', which rejectSchema's
+                    // .min(1) refuses; the server writes its own default then.
+                    onRejectItem(item.id, reconReason.trim() || undefined);
+                    setReconRejecting(null);
+                    setReconReason('');
+                  }}
                 >
-                  Reject
-                </Button>
-                <Button size="sm" disabled={busy} onClick={() => onMatch(item.id)}>
-                  {busy ? 'Matching…' : 'Match'}
-                </Button>
-              </div>
+                  <label className="min-w-[180px] flex-1 text-[13px]">
+                    <span className="sr-only">Why this line is being rejected</span>
+                    <input
+                      value={reconReason}
+                      onChange={(e) => setReconReason(e.target.value)}
+                      placeholder="Why — this is audited"
+                      className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                    />
+                  </label>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="ghost"
+                    className={TERRA_GHOST_BTN}
+                    disabled={busy}
+                  >
+                    {busy ? 'Rejecting…' : 'Reject'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setReconRejecting(null);
+                      setReconReason('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </form>
+              ) : (
+                <div className="flex gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={TERRA_GHOST_BTN}
+                    disabled={busy}
+                    onClick={() => setReconRejecting(item.id)}
+                  >
+                    Reject
+                  </Button>
+                  <Button size="sm" disabled={busy} onClick={() => onMatch(item.id)}>
+                    {busy ? 'Matching…' : 'Match'}
+                  </Button>
+                </div>
+              )}
             </div>
           );
         })}

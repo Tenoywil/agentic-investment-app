@@ -1,7 +1,8 @@
 import { fxRates } from '@ccn/db';
 import { type FetchLike, allSources, fetchRate } from '@ccn/fx-rates/sources';
-import { type Currency, DEFAULT_FX, FX_SCALE, type FxTable } from '@ccn/money';
+import { CURRENCIES, type Currency, DEFAULT_FX, FX_SCALE, type FxTable } from '@ccn/money';
 import type { AppDeps } from '../context';
+import { isDatabaseBehind } from '../migrations';
 
 /**
  * Exchange rates, from the banks that publish them.
@@ -28,11 +29,20 @@ export interface RateMeta {
   /** `BOJ`, `CBTT`, or `seed` when no bank stands behind it. */
   source: string | null;
   stale: boolean;
+  /**
+   * No rate could be read at all — the table is unreadable because this database
+   * is behind the code. Distinct from `stale`, which means an old rate that is
+   * still a real published one. A currency marked this way must not be converted
+   * to; the caller serves the base currency instead.
+   */
+  unavailable: boolean;
 }
 
 export interface FxSnapshot {
   table: FxTable;
   rates: RateMeta[];
+  /** True when the rate table could not be read and USD is all that is safe. */
+  degraded: boolean;
 }
 
 /** Whole days between a published date and now. */
@@ -48,21 +58,50 @@ function ageInDays(asOf: string, now: Date): number {
  * A currency with no row falls back to `DEFAULT_FX` and is reported as having no
  * source and being stale, which is the truth about it. Falling back silently is
  * what this module exists to stop.
+ *
+ * A table that cannot be read at all is a different failure and gets a different
+ * answer. When this database is behind the code — no `as_of` column, because
+ * `0016_fx_as_of` was never applied — every non-base currency is marked
+ * `unavailable` and the caller serves USD. That was worth building because the
+ * alternative is what actually happened: one missing column 500ing the main
+ * investor screen for everybody. It is deliberately *not* a quiet fall back to
+ * `DEFAULT_FX`; converting somebody's net worth at a rate nobody published is
+ * the failure this module was written to end, and doing it during an incident
+ * would be the worst moment to start.
  */
 export async function loadFxTable(tx: AnyTx, now: Date = new Date()): Promise<FxSnapshot> {
-  const rows = (await tx
-    .select({
-      quote: fxRates.quoteCurrency,
-      rate: fxRates.rate,
-      asOf: fxRates.asOf,
-      source: fxRates.source,
-    })
-    .from(fxRates)) as {
+  let rows: {
     quote: Currency;
     rate: string;
     asOf: string | null;
     source: string | null;
   }[];
+
+  try {
+    rows = (await tx
+      .select({
+        quote: fxRates.quoteCurrency,
+        rate: fxRates.rate,
+        asOf: fxRates.asOf,
+        source: fxRates.source,
+      })
+      .from(fxRates)) as typeof rows;
+  } catch (error) {
+    if (!isDatabaseBehind(error)) throw error;
+    return {
+      table: { ...DEFAULT_FX },
+      rates: CURRENCIES.map((currency) => ({
+        currency,
+        asOf: null,
+        source: null,
+        // USD is the base: no rate is read for it and none is needed, so it is
+        // never unavailable however far behind the database is.
+        stale: currency !== 'USD',
+        unavailable: currency !== 'USD',
+      })),
+      degraded: true,
+    };
+  }
 
   const table: FxTable = { ...DEFAULT_FX };
   const rates: RateMeta[] = [];
@@ -70,7 +109,7 @@ export async function loadFxTable(tx: AnyTx, now: Date = new Date()): Promise<Fx
   for (const currency of ['USD', 'JMD', 'TTD'] as const) {
     if (currency === 'USD') {
       // The base. Always exactly one, never stale, nobody publishes it.
-      rates.push({ currency, asOf: null, source: null, stale: false });
+      rates.push({ currency, asOf: null, source: null, stale: false, unavailable: false });
       continue;
     }
     const row = rows.find((r) => r.quote === currency);
@@ -85,10 +124,13 @@ export async function loadFxTable(tx: AnyTx, now: Date = new Date()): Promise<Fx
       asOf: row?.asOf ?? null,
       source: row?.source ?? null,
       stale: !row?.asOf || ageInDays(row.asOf, now) > STALE_AFTER_DAYS,
+      // A missing row is a rate nobody has loaded yet, not an unreadable table.
+      // The seeded fallback still converts; it is reported as `seed` and stale.
+      unavailable: false,
     });
   }
 
-  return { table, rates };
+  return { table, rates, degraded: false };
 }
 
 /** `"157.903400"` → `157_903_400n`, without going through a float. */

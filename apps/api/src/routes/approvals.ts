@@ -84,6 +84,15 @@ export function approvalsRoutes(deps: AppDeps): Hono<AppEnv> {
       if (!instrument?.partnerId) {
         return { status: 409 as const, body: { error: 'instrument not investable' } };
       }
+      // An approval card can sit for days, and the firm may have withdrawn the
+      // product in the meantime. Approving it then would route an order into a
+      // listing that no longer exists on the marketplace.
+      if (instrument.listingStatus !== 'live') {
+        return {
+          status: 409 as const,
+          body: { error: 'this product is no longer offered by the listing firm' },
+        };
+      }
       // Re-gate on approval: guardrails may have changed since the card opened.
       const decision = await runGate(tx, {
         userId: tenant.user.id,

@@ -68,6 +68,15 @@ export interface ConsoleOrder {
   idempotencyKey: string;
   clientRef: string | null;
   settlementEta: string | null;
+  /**
+   * What the settling firm reported. Null is "not reported", which the screens
+   * say by leaving it out — a zero would be the firm stating there was no fee,
+   * and on a record about someone's money those are different claims.
+   */
+  unitPriceMinor: string | null;
+  units: string | null;
+  feeMinor: string | null;
+  externalRef: string | null;
   rejectedReason: string | null;
   createdBy: ConsoleActorType;
   createdAt: string;
@@ -90,19 +99,52 @@ export interface ConsoleReconciliationItem {
 }
 
 /**
- * A listed product. No `clients`, `aumMinor` or `trend`: CCN measures none of
- * them, the API no longer returns them, and the columns behind them held the
- * prototype's invented figures. Adding them back means building the
- * attribution first.
+ * A listed product — a row of `instruments`, the table the marketplace reads.
+ *
+ * It used to be a row of `product_listings`, a table with no relationship to
+ * the marketplace in either direction: a firm could list a fund, watch it
+ * appear here, and no investor would ever be shown it. These are the fields a
+ * deal card renders, which is why the form now asks for all of them.
+ *
+ * No `clients`, `aumMinor` or `trend`: CCN measures none of them, and the
+ * columns behind them held the prototype's invented figures.
  */
 export interface ConsoleProduct {
   id: string;
-  partnerId: string;
   name: string;
   type: string | null;
+  abbr: string;
+  currency: string;
+  /** Minor units as a string — bigint has no JSON form. */
+  minInvestmentMinor: string;
+  term: string | null;
+  metric: string | null;
+  metricLabel: string | null;
+  risk: 'low' | 'medium' | 'high' | null;
+  description: string | null;
+  region: string | null;
   status: ConsoleProductStatus;
+  /** Screened out of suitability for some investors. Not the same as paused. */
+  blocked: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What the console form sends. Mirrors `listInstrumentSchema` in @ccn/domain. */
+export interface ProductInput {
+  /** Present to amend a listing, absent to create one. */
+  id?: string;
+  name: string;
+  type: string;
+  abbr?: string;
+  currency?: string;
+  minInvestmentMinor?: string;
+  term?: string;
+  metric?: string;
+  metricLabel?: string;
+  risk?: 'low' | 'medium' | 'high';
+  description?: string;
+  region?: string;
 }
 
 /**
@@ -198,6 +240,23 @@ export function getPartner(): Promise<{ partner: ConsolePartner }> {
   return consoleFetch('/partner');
 }
 
+/**
+ * The firm corrects its own record.
+ *
+ * Three fields only, and the omissions are deliberate: `code` resolves the
+ * executing adapter, `regulator` is a compliance claim rendered to investors on
+ * every deal card, and `agreementStatus` gates live order routing. The server
+ * function takes no parameter for any of them, so this path cannot reach them
+ * whatever a client sends.
+ */
+export function updatePartner(input: {
+  name: string;
+  kind?: string;
+  residency?: string;
+}): Promise<{ partner: ConsolePartner }> {
+  return consoleFetch('/partner', { method: 'PATCH', body: JSON.stringify(input) });
+}
+
 /** Real audit rows for this partner, newest first. Server clamps limit to 200. */
 export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> {
   return consoleFetch(`/audit?limit=${limit}`);
@@ -205,16 +264,75 @@ export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> 
 
 // ---- Orders ----
 
-export function getOrders(): Promise<{ orders: ConsoleOrder[] }> {
-  return consoleFetch('/orders');
+/** How a list is narrowed. Every field optional; omitted means unfiltered. */
+export interface ConsoleQuery {
+  status?: string | undefined;
+  q?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
 }
 
-export function acceptOrder(id: string): Promise<{ order: ConsoleOrder }> {
-  return consoleFetch(`/orders/${id}/accept`, { method: 'POST' });
+function queryString(query: ConsoleQuery = {}): string {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.q) params.set('q', query.q);
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.offset !== undefined) params.set('offset', String(query.offset));
+  const s = params.toString();
+  return s ? `?${s}` : '';
 }
 
-export function settleOrder(id: string): Promise<{ order: ConsoleOrder }> {
-  return consoleFetch(`/orders/${id}/settle`, { method: 'POST' });
+/**
+ * The order queue, a page at a time.
+ *
+ * This used to return every order the firm had ever received, unbounded, and
+ * re-fetch the lot on every realtime event. `total` is what the pager needs and
+ * the only thing it cannot work out for itself once the rows are truncated.
+ */
+export function getOrders(
+  query: ConsoleQuery = {},
+): Promise<{ orders: ConsoleOrder[]; total: number }> {
+  return consoleFetch(`/orders${queryString(query)}`);
+}
+
+/**
+ * Take the order onto the desk, optionally committing to a settlement date.
+ *
+ * The exec dialog tells investors the date is set by the firm on acceptance,
+ * and `settlement_eta` has existed since the first migration with no writer at
+ * all. Optional here for the same reason it is optional in the schema: a desk
+ * that cannot yet commit to a date must still be able to accept.
+ */
+export function acceptOrder(id: string, settlementEta?: string): Promise<{ order: ConsoleOrder }> {
+  return consoleFetch(`/orders/${id}/accept`, {
+    method: 'POST',
+    body: JSON.stringify(settlementEta ? { settlementEta } : {}),
+  });
+}
+
+/** What a firm reports about an execution. Minor units as strings. */
+export interface SettlementInput {
+  unitPriceMinor?: string;
+  units?: string;
+  feeMinor?: string;
+  externalRef?: string;
+}
+
+/**
+ * Confirm the trade back to the client, with what was actually executed.
+ *
+ * Settling used to write status, settled_at and updated_at and nothing else, so
+ * an investor was told "settled" and never at what price. Every field is
+ * optional — the alternative to an empty column is an invented number.
+ */
+export function settleOrder(
+  id: string,
+  detail?: SettlementInput,
+): Promise<{ order: ConsoleOrder }> {
+  return consoleFetch(`/orders/${id}/settle`, {
+    method: 'POST',
+    body: JSON.stringify(detail ?? {}),
+  });
 }
 
 export function rejectOrder(id: string, reason?: string): Promise<{ order: ConsoleOrder }> {
@@ -227,14 +345,52 @@ export function rejectOrder(id: string, reason?: string): Promise<{ order: Conso
 // ---- Clients ----
 
 /** This firm's clients, pending reviews first. */
-export function getClients(): Promise<{ clients: ConsoleClient[] }> {
-  return consoleFetch('/clients');
+export function getClients(
+  query: ConsoleQuery = {},
+): Promise<{ clients: ConsoleClient[]; total: number }> {
+  return consoleFetch(`/clients${queryString(query)}`);
+}
+
+/** One position a client holds through this firm. */
+export interface ConsoleClientHolding {
+  id: string;
+  name: string;
+  instrument_id: string | null;
+  instrument_name: string | null;
+  instrument_abbr: string | null;
+  value_minor: string;
+  currency: ConsoleCurrency;
+  return_label: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
- * Accept or decline one pending client. The server returns the status the
- * connection moved to, so the screen reconciles to that rather than to its own
- * guess about what the press did.
+ * One client, opened.
+ *
+ * The list row carries a holdings count and a total; this carries the rows
+ * behind them, the orders this firm has taken for the person, and their own
+ * thread of the firm's audit log.
+ */
+export interface ConsoleClientDetail {
+  client: ConsoleClient;
+  holdings: ConsoleClientHolding[];
+  orders: ConsoleOrder[];
+  audit: ConsoleAuditEntry[];
+}
+
+export function getClient(accountId: string): Promise<ConsoleClientDetail> {
+  return consoleFetch(`/clients/${accountId}`);
+}
+
+/**
+ * Move one client along: accept, decline, revoke or reinstate.
+ *
+ * `accept` is also how a declined client is reinstated and the decline path is
+ * also how an active one is revoked — one guarded transition underneath, and
+ * the database names the audit action from where the row actually was. The
+ * server returns the status the connection moved to, so the screen reconciles
+ * to that rather than to its own guess about what the press did.
  */
 export function reviewClient(
   id: string,
@@ -276,17 +432,15 @@ export function getProducts(): Promise<{ products: ConsoleProduct[] }> {
  * reconciles to that value rather than assuming its optimistic guess held.
  */
 /**
- * List a product.
+ * List a product, or amend one already listed (send its `id`).
  *
  * The console could read its catalogue and pause a listing and never create
  * one, so a newly onboarded partner signed in to an empty screen. `partnerId`
  * is deliberately absent: the server takes it from the caller's own scope, so
- * an operator lists for their firm or not at all.
+ * an operator lists for their firm or not at all. `slug` and `regulator` are
+ * absent for the same reason — the database derives one and copies the other.
  */
-export async function createProduct(input: {
-  name: string;
-  type?: string;
-}): Promise<{ product: ConsoleProduct }> {
+export async function saveProduct(input: ProductInput): Promise<{ product: ConsoleProduct }> {
   const res = await fetch(`${API_URL}/api/console/products`, {
     method: 'POST',
     credentials: 'include',

@@ -1,5 +1,6 @@
 'use client';
 
+import { ClientDetailDialog } from '@/app/_components/console/client-detail';
 import { ClientsTab } from '@/app/_components/console/clients-tab';
 import { ComplianceTab } from '@/app/_components/console/compliance-tab';
 import { ConsoleHeader } from '@/app/_components/console/console-header';
@@ -11,7 +12,7 @@ import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
 import { Tabs, TabsContent } from '@/app/_components/ui/tabs';
-import { useMe } from '@/app/_lib/session';
+import { useMe, useSession } from '@/app/_lib/session';
 import { useRealtime } from '@/app/_lib/use-realtime';
 import { authClient } from '@/lib/auth-client';
 import {
@@ -22,6 +23,7 @@ import {
   type ConsoleOrder,
   type ConsoleProduct,
   type ConsoleReconciliationItem,
+  type SettlementInput,
   acceptOrder,
   getAudit,
   getClients,
@@ -36,6 +38,7 @@ import {
   reviewClient,
   settleOrder,
   toggleProductLive,
+  updatePartner,
 } from '@/lib/console-api';
 import { Menu } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -58,6 +61,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  */
 export default function InstitutionsPage() {
   const me = useMe();
+  // The firm's own name comes from the session, so saving it has to refresh
+  // the session — otherwise the sidebar and every header go on showing the old
+  // one until a reload.
+  const { refresh } = useSession();
   const partner = me?.partner ?? null;
   const [tab, setTab] = useState<TabKey>('overview');
   const [signingOut, setSigningOut] = useState(false);
@@ -85,6 +92,8 @@ export default function InstitutionsPage() {
   const [reconActionError, setReconActionError] = useState<string | null>(null);
   const [clientBusyId, setClientBusyId] = useState<string | null>(null);
   const [clientActionError, setClientActionError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   /**
    * Seven reads, and until this flag existed there was no way to tell "still
@@ -95,13 +104,31 @@ export default function InstitutionsPage() {
    */
   const [loading, setLoading] = useState(true);
 
+  /**
+   * How the order queue is narrowed. Held here rather than in the tab because
+   * `load` is what fetches, and a filter that did not reach the fetch would be
+   * a control that filters only what is already on screen — which on a bounded
+   * list is a different answer from the one it appears to give.
+   */
+  const [orderStatus, setOrderStatus] = useState('');
+  const [orderQuery, setOrderQuery] = useState('');
+  const [orderOffset, setOrderOffset] = useState(0);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [clientTotal, setClientTotal] = useState(0);
+  const ORDER_PAGE = 50;
+
   const load = useCallback(async () => {
     // Each panel reports its own failure. One route being down must not blank
     // the other four — an operator with a broken funnel query can still work
     // their order queue.
     const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR] = await Promise.allSettled(
       [
-        getOrders(),
+        getOrders({
+          status: orderStatus || undefined,
+          q: orderQuery || undefined,
+          limit: ORDER_PAGE,
+          offset: orderOffset,
+        }),
         getProducts(),
         getKpis(),
         getClients(),
@@ -113,6 +140,7 @@ export default function InstitutionsPage() {
 
     if (ordersR.status === 'fulfilled') {
       setOrders(ordersR.value.orders);
+      setOrderTotal(ordersR.value.total);
       setOrdersError(null);
     } else setOrdersError(errorMessage(ordersR.reason, 'Could not load order flow.'));
 
@@ -128,6 +156,7 @@ export default function InstitutionsPage() {
 
     if (clientsR.status === 'fulfilled') {
       setClients(clientsR.value.clients);
+      setClientTotal(clientsR.value.total);
       setClientsError(null);
     } else setClientsError(errorMessage(clientsR.reason, 'Could not load your clients.'));
 
@@ -148,7 +177,7 @@ export default function InstitutionsPage() {
     } else setAuditError(errorMessage(auditR.reason, 'Could not load the audit trail.'));
 
     setLoading(false);
-  }, []);
+  }, [orderStatus, orderQuery, orderOffset]);
 
   useEffect(() => {
     void load();
@@ -178,13 +207,22 @@ export default function InstitutionsPage() {
     }
   }
 
-  /** Accept / settle / reject all return the updated row from the server. */
-  function orderTransition(fn: (id: string) => Promise<{ order: ConsoleOrder }>, fallback: string) {
-    return async (id: string) => {
+  /**
+   * Accept / settle / reject all return the updated row from the server.
+   *
+   * The second argument differs per transition — a settlement date, the
+   * executed figures, a reason — so it is passed through untyped here and
+   * narrowed at each call site below.
+   */
+  function orderTransition<A>(
+    fn: (id: string, arg?: A) => Promise<{ order: ConsoleOrder }>,
+    fallback: string,
+  ) {
+    return async (id: string, arg?: A) => {
       setOrderBusyId(id);
       setOrderActionError(null);
       try {
-        const { order } = await fn(id);
+        const { order } = await fn(id, arg);
         setOrders((os) => os.map((o) => (o.id === id ? order : o)));
         // The transition wrote an audit row; pull the trail back into sync so
         // the compliance tab is not quietly stale.
@@ -199,9 +237,43 @@ export default function InstitutionsPage() {
     };
   }
 
-  const handleAccept = orderTransition(acceptOrder, 'Could not accept the order.');
-  const handleSettle = orderTransition(settleOrder, 'Could not settle the order.');
-  const handleReject = orderTransition((id) => rejectOrder(id), 'Could not reject the order.');
+  // Accepting carries the settlement date the firm commits to; settling
+  // carries what it actually executed. Both are optional at every layer.
+  const handleAccept = orderTransition<string>(acceptOrder, 'Could not accept the order.');
+  const handleSettle = orderTransition<SettlementInput>(settleOrder, 'Could not settle the order.');
+  /**
+   * The reason reaches the investor: `reject_order` writes `rejected_reason`,
+   * `/orders` renders it, and without one they are told only that their
+   * institution "did not take this order on". It was accepted by the client
+   * function and the API all along and dropped right here.
+   */
+  const handleReject = orderTransition<string>(
+    (id, reason) => rejectOrder(id, reason),
+    'Could not reject the order.',
+  );
+
+  /**
+   * The firm corrects its own record.
+   *
+   * Not optimistic: the name is what investors see beside every product this
+   * firm lists, and showing it as changed before the server has accepted the
+   * change would be showing a claim nobody has recorded.
+   */
+  async function handleSaveProfile(input: { name: string; kind?: string; residency?: string }) {
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      await updatePartner(input);
+      await refresh();
+      void getAudit(50)
+        .then((r) => setAudit(r.entries))
+        .catch(() => {});
+    } catch (err) {
+      setProfileError(errorMessage(err, 'Could not save your firm details.'));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   /**
    * Optimistic flip, then reconcile to whatever the server says the status now
@@ -215,6 +287,11 @@ export default function InstitutionsPage() {
    * cold API.
    */
   const [listingOpen, setListingOpen] = useState(false);
+  /** The listing being amended. Undefined while `listingOpen` means "create". */
+  const [editingProduct, setEditingProduct] = useState<ConsoleProduct | undefined>(undefined);
+  /** The client whose drill-down is open. */
+  const [openClientId, setOpenClientId] = useState<string | null>(null);
+  const openClient = clients.find((c) => c.account_id === openClientId) ?? null;
 
   /** The phone navigation sheet; on a desktop this element is the rail. */
   const navRef = useRef<HTMLDialogElement>(null);
@@ -289,11 +366,11 @@ export default function InstitutionsPage() {
     }
   }
 
-  async function handleReconReject(id: string) {
+  async function handleReconReject(id: string, reason?: string) {
     setReconBusyId(id);
     setReconActionError(null);
     try {
-      await rejectReconciliation(id);
+      await rejectReconciliation(id, reason);
       setReconciliation((items) => items.filter((i) => i.id !== id));
       void getAudit(50)
         .then((r) => setAudit(r.entries))
@@ -368,6 +445,20 @@ export default function InstitutionsPage() {
             orders={orders}
             ordersError={ordersError}
             loading={loading}
+            total={orderTotal}
+            offset={orderOffset}
+            pageSize={ORDER_PAGE}
+            status={orderStatus}
+            query={orderQuery}
+            onStatus={(v) => {
+              setOrderStatus(v);
+              setOrderOffset(0);
+            }}
+            onQuery={(v) => {
+              setOrderQuery(v);
+              setOrderOffset(0);
+            }}
+            onPage={setOrderOffset}
             orderBusyId={orderBusyId}
             orderActionError={orderActionError}
             onAccept={handleAccept}
@@ -376,11 +467,35 @@ export default function InstitutionsPage() {
           />
         </TabsContent>
 
+        {/* Held by id, not by value: the row updates when a decision lands,
+            and a dialog holding its own copy would go on offering "Revoke" to
+            a client it had just revoked. */}
+        {openClient ? (
+          <ClientDetailDialog
+            client={openClient}
+            busy={clientBusyId === openClient.account_id}
+            actionError={clientActionError}
+            onReview={handleReviewClient}
+            onClose={() => setOpenClientId(null)}
+          />
+        ) : null}
+
         {listingOpen ? (
           <ListProductDialog
-            onClose={() => setListingOpen(false)}
-            onListed={(product) => {
-              setProducts((ps) => [product, ...ps]);
+            product={editingProduct}
+            onClose={() => {
+              setListingOpen(false);
+              setEditingProduct(undefined);
+            }}
+            onSaved={(product) => {
+              // An amend replaces its row in place; a new listing goes to the
+              // top. Keyed on the id the server returned rather than on
+              // whether the dialog thought it was editing.
+              setProducts((ps) =>
+                ps.some((p) => p.id === product.id)
+                  ? ps.map((p) => (p.id === product.id ? product : p))
+                  : [product, ...ps],
+              );
               void getAudit(50)
                 .then((r) => setAudit(r.entries))
                 .catch(() => {});
@@ -390,7 +505,14 @@ export default function InstitutionsPage() {
 
         <TabsContent value="products" className="mt-0">
           <ProductsTab
-            onList={() => setListingOpen(true)}
+            onList={() => {
+              setEditingProduct(undefined);
+              setListingOpen(true);
+            }}
+            onEdit={(product) => {
+              setEditingProduct(product);
+              setListingOpen(true);
+            }}
             products={products}
             productsError={productsError}
             loading={loading}
@@ -405,9 +527,11 @@ export default function InstitutionsPage() {
             clients={clients}
             clientsError={clientsError}
             loading={loading}
+            total={clientTotal}
             clientBusyId={clientBusyId}
             clientActionError={clientActionError}
             onReviewClient={handleReviewClient}
+            onOpenClient={(c) => setOpenClientId(c.account_id)}
             partner={partner}
             funnel={funnel}
             funnelError={funnelError}
@@ -426,6 +550,9 @@ export default function InstitutionsPage() {
             audit={audit}
             auditError={auditError}
             loading={loading}
+            onSaveProfile={handleSaveProfile}
+            profileSaving={profileSaving}
+            profileError={profileError}
           />
         </TabsContent>
       </main>

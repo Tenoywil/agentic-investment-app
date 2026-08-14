@@ -73,6 +73,104 @@ export const rejectSchema = z.object({
 export type RejectInput = z.infer<typeof rejectSchema>;
 
 /**
+ * POST /api/console/orders/:id/accept — the firm takes the order onto its desk
+ * and commits to a settlement date.
+ *
+ * The exec dialog has told investors "set by your firm on acceptance" since the
+ * fabricated "T+2" was removed from it; this is what finally sets it. Optional,
+ * because a desk that cannot yet commit to a date must still be able to accept
+ * — and a date invented to fill the field is the thing that was removed.
+ */
+export const acceptOrderSchema = z.object({
+  /** ISO-8601. Parsed and range-checked rather than trusted as a string. */
+  settlementEta: z
+    .string()
+    .datetime({ offset: true })
+    .refine((v) => {
+      const at = new Date(v).getTime();
+      const now = Date.now();
+      // A settlement date in the past is a typo; one more than a year out is
+      // not a settlement date. Both are worth refusing at the boundary.
+      return at > now - 86_400_000 && at < now + 365 * 86_400_000;
+    }, 'settlement date must be between yesterday and a year from now')
+    .optional(),
+});
+export type AcceptOrderInput = z.infer<typeof acceptOrderSchema>;
+
+/**
+ * POST /api/console/orders/:id/settle — what the firm actually executed.
+ *
+ * `settle_order` used to write three columns: status, settled_at, updated_at.
+ * An investor was told "settled" and nothing else, and the desk had nowhere to
+ * put the execution. Every field here is optional: a firm that does not report
+ * a price still has to be able to settle, and the alternative to an empty
+ * column is an invented number on a record someone reads about their money.
+ */
+export const settleOrderSchema = z.object({
+  /** Price per unit in minor units. Zero is legal (a bonus allocation). */
+  unitPriceMinor: amountMinorSchema.optional(),
+  /** Decimal units, as a string — fractional and not a money amount. */
+  units: z
+    .string()
+    .regex(/^\d+(\.\d{1,6})?$/, 'units must be a positive decimal')
+    .refine((v) => Number(v) > 0, 'units must be greater than zero')
+    .optional(),
+  feeMinor: amountMinorSchema.optional(),
+  /** The firm's own reference, for reconciling against their books. */
+  externalRef: z.string().min(1).max(120).optional(),
+});
+export type SettleOrderInput = z.infer<typeof settleOrderSchema>;
+
+/**
+ * PATCH /api/console/partner — a firm corrects its own record.
+ *
+ * Three fields, and the omissions are the point. `code` is how the adapter
+ * registry resolves an executing firm, `regulator` is a compliance claim
+ * rendered to investors on every deal card, and `agreementStatus` gates live
+ * order routing. None is a firm's to set about itself.
+ */
+export const partnerProfileSchema = z.object({
+  name: z.string().min(2).max(140),
+  kind: z.string().max(80).optional(),
+  residency: z.string().max(100).optional(),
+});
+export type PartnerProfileInput = z.infer<typeof partnerProfileSchema>;
+
+/**
+ * POST /api/console/products — a partner lists a product, or amends one.
+ *
+ * The fields are exactly what the marketplace renders on a deal card, which is
+ * the point: the console used to capture a name and a type, and a listing made
+ * from those two showed "US$0", a blank metric and "Not rated" to every
+ * investor who opened it.
+ *
+ * `slug` and `regulator` are deliberately absent. The slug is the key holdings
+ * and reconciliation join on, so it is derived once by the database and never
+ * re-typed; the regulator is a compliance claim about the executing firm, and a
+ * console that could set it freely could claim any regulator it liked.
+ */
+export const listInstrumentSchema = z.object({
+  /** Present to amend a listing, absent to create one. */
+  id: uuidSchema.optional(),
+  name: z.string().min(2).max(140),
+  type: z.enum(['bond', 'fund', 'equity', 'real_estate', 'private']),
+  /** The short badge on the card. Derived from the name when not given. */
+  abbr: z.string().min(1).max(12).optional(),
+  currency: currencySchema.default('USD'),
+  /** Zero is allowed and means "no minimum", so this is not the positive variant. */
+  minInvestmentMinor: amountMinorSchema.default(0),
+  term: z.string().max(60).optional(),
+  /** The headline number, e.g. "8.25%" — free text because a fund's is not a bond's. */
+  metric: z.string().max(60).optional(),
+  /** What that number is, e.g. "Coupon", "Target return". */
+  metricLabel: z.string().max(60).optional(),
+  risk: z.enum(['low', 'medium', 'high']).optional(),
+  description: z.string().max(2000).optional(),
+  region: z.string().max(100).optional(),
+});
+export type ListInstrumentInput = z.infer<typeof listInstrumentSchema>;
+
+/**
  * Gateway — evidence/matching/introduction schemas. See
  * `packages/gateway-guardrail` (the deterministic decision) and
  * `packages/agent/src/gateway/matching.ts` (the deterministic score) for the

@@ -79,6 +79,21 @@ export function fmtMinor(minor: string, currency: ConsoleCurrency): string {
   return `${CURRENCY_PREFIX[currency]}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
+/**
+ * The same, to the cent.
+ *
+ * Order amounts are whole-unit figures where cents are noise. An execution
+ * price is not: rounding a unit price of 100.25 to "US$100" would misstate the
+ * number the firm reported, which is the only reason that column exists.
+ */
+export function fmtMinorExact(minor: string, currency: ConsoleCurrency): string {
+  const n = Number(minor) / 100;
+  return `${CURRENCY_PREFIX[currency]}${n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 // `fmtAumUSD` was here, formatting product_listings.aum_minor into "US$14.2M".
 // Deleted along with the column it rendered: CCN runs no AUM roll-up, so the
 // number was invented. A formatter left lying around for a metric we do not
@@ -154,8 +169,18 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'order.accepted': 'Order accepted',
   'order.settled': 'Order settled',
   'order.rejected': 'Order rejected',
+  'order.routed': 'Order routed to the firm',
+  'order.routing_failed': 'Order could not be routed',
+  'approval.approved': 'Client approved a recommendation',
+  'approval.rejected': 'Client declined a recommendation',
   'reconciliation.matched': 'Statement line matched to a holding',
   'reconciliation.rejected': 'Statement line rejected',
+  'instrument.listed': 'Product listed',
+  'instrument.updated': 'Product details amended',
+  'instrument.live': 'Product put back on the marketplace',
+  'instrument.paused': 'Product taken off the marketplace',
+  // `product_listings` is no longer written, but rows already in the chain
+  // still name it — an append-only log keeps its history whatever the code does.
   'product_listing.live': 'Product listing set live',
   'product_listing.paused': 'Product listing paused',
   'product_listing.created': 'Product listed',
@@ -164,12 +189,61 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'connected_account.refreshed': 'Client positions refreshed',
   'client.accepted': 'Client accepted',
   'client.declined': 'Client declined',
+  'client.revoked': 'Client access revoked',
+  'client.reinstated': 'Client reinstated',
+  'partner.onboarded': 'Firm onboarded to CCN',
+  'partner.changed': 'Firm record changed by CCN',
+  'user_roles.changed': 'Console access changed',
+  'fx_rates.refreshed': 'Exchange rates refreshed',
+  'reference_data.loaded': 'Reference data loaded',
 };
 
-/** Known actions get a sentence; anything else shows its raw key, which is the
- *  honest answer for an action this build has not been taught to name. */
+/**
+ * An audit action as a sentence.
+ *
+ * The unknown case used to print the raw key — `instrument.listed`,
+ * `connected_account.refreshed` — at a compliance officer reading their firm's
+ * regulated record. The map above is the curated wording; anything it has not
+ * been taught is at least turned into words rather than shown as a database
+ * identifier, since the log is append-only and will always carry actions
+ * written by builds older than the screen reading them.
+ */
 export function auditActionLabel(action: string): string {
-  return AUDIT_ACTION_LABELS[action] ?? action;
+  const known = AUDIT_ACTION_LABELS[action];
+  if (known) return known;
+  const words = action.replace(/[._]/g, ' ').trim();
+  if (!words) return action;
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * What an audit row was about, in the reader's vocabulary.
+ *
+ * `entity_type` is the table name the writer passed — `connected_accounts`,
+ * `reconciliation_items` — and the compliance tab printed it verbatim under
+ * every entry.
+ */
+const AUDIT_ENTITY_LABELS: Record<string, string> = {
+  orders: 'Order',
+  instruments: 'Product',
+  product_listings: 'Product listing',
+  connected_accounts: 'Client account',
+  reconciliation_items: 'Statement line',
+  approvals: 'Approval',
+  holdings: 'Holding',
+  partners: 'Firm',
+  user_roles: 'Console access',
+  fx_rates: 'Exchange rates',
+  limits: 'Guardrails',
+  goals: 'Goal',
+};
+
+export function auditEntityLabel(entityType: string | null | undefined): string | null {
+  if (!entityType) return null;
+  const known = AUDIT_ENTITY_LABELS[entityType];
+  if (known) return known;
+  const words = entityType.replace(/_/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : null;
 }
 
 /** Decorative dot beside an audit row; the actor is also written out in text. */

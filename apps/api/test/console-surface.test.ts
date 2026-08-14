@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { loadServerConfig } from '@ccn/config';
 import {
+  connectedAccounts,
   createDb,
+  holdings,
   instruments,
+  kycStatus,
   orders,
   partners,
-  productListings,
   session,
   user,
   userRoles,
@@ -85,9 +87,19 @@ suite('partner console data surface', () => {
   let ncbId = '';
   let instrumentId = '';
   let listingId = '';
+  /** SAG's client connection, for the drill-down and the revoke path. */
+  let clientAccountId = '';
+  /** Everything the listing tests create, so afterAll can take it back out. */
+  const createdInstrumentIds: string[] = [];
 
-  /** A partner operator bound to `partnerId`, with a live session cookie. */
-  async function makeOperator(key: string, partnerId: string) {
+  /**
+   * A signed-in user. `partnerId` makes them a partner_operator for that firm;
+   * without one they are a customer, which is the only role /api/opportunities
+   * and /api/orders will serve — those are guarded by requireCustomer, so an
+   * operator cannot stand in for an investor when checking that a listing
+   * actually reached the marketplace.
+   */
+  async function makeOperator(key: string, partnerId?: string) {
     const [row] = await db
       .insert(user)
       .values({ name: key, email: `${tag}-${key}@x.com`, emailVerified: true })
@@ -96,7 +108,11 @@ suite('partner console data surface', () => {
     ids[key] = id;
     await db
       .insert(userRoles)
-      .values({ userId: id, role: 'partner_operator', partnerId })
+      .values(
+        partnerId
+          ? { userId: id, role: 'partner_operator', partnerId }
+          : { userId: id, role: 'customer' },
+      )
       .onConflictDoNothing();
     const token = `${tag}-${key}-token`;
     await db
@@ -106,12 +122,24 @@ suite('partner console data surface', () => {
   }
 
   beforeAll(async () => {
-    // Two partners: the caller's, and the one whose data must never leak.
+    /**
+     * Two partners: the caller's, and the one whose data must never leak.
+     *
+     * Upserting the NAME, not inserting-and-ignoring. The firm-profile test
+     * renames SAG for real — that is the feature — and with
+     * onConflictDoNothing that rename survived into the next run, where the
+     * marketplace test asserts the listing carries "Sagicor Investments". A
+     * fixture that is only correct on a fresh database is a test that passes
+     * once.
+     */
     for (const p of [
       { code: 'SAG' as const, name: 'Sagicor Investments' },
       { code: 'NCB' as const, name: 'National Commercial Bank' },
     ]) {
-      await db.insert(partners).values(p).onConflictDoNothing({ target: partners.code });
+      await db
+        .insert(partners)
+        .values(p)
+        .onConflictDoUpdate({ target: partners.code, set: { name: p.name } });
     }
     const partnerRows = await db
       .select({ id: partners.id, code: partners.code })
@@ -123,6 +151,7 @@ suite('partner console data surface', () => {
 
     await makeOperator('sagOperator', sagId);
     await makeOperator('ncbOperator', ncbId);
+    await makeOperator('investor');
 
     const [inst] = await db
       .insert(instruments)
@@ -159,11 +188,50 @@ suite('partner console data surface', () => {
       },
     ]);
 
+    // The listing the toggle test flips. It is an `instruments` row now: the
+    // console moved onto the table the marketplace reads, because a
+    // `product_listings` row was one no investor could ever be shown.
     const [listing] = await db
-      .insert(productListings)
-      .values({ partnerId: sagId, name: `${tag} listing`, type: 'Bond', status: 'live' })
-      .returning({ id: productListings.id });
+      .insert(instruments)
+      .values({
+        slug: `${tag}-listing`,
+        abbr: 'LIST',
+        type: 'fund',
+        partnerId: sagId,
+        name: `${tag} listing`,
+      })
+      .returning({ id: instruments.id });
     listingId = listing?.id ?? '';
+
+    /**
+     * A client of SAG's, with a position, so the drill-down has something to
+     * drill into. The KYC row matters: `partner_review_client` refuses to grant
+     * access to somebody with no package to review, which is the floor
+     * reinstating has to clear too.
+     */
+    await db
+      .insert(kycStatus)
+      .values({ userId: ids.investor ?? '', tier: 'tier1', identityVerified: true })
+      .onConflictDoNothing();
+    const [account] = await db
+      .insert(connectedAccounts)
+      .values({
+        userId: ids.investor ?? '',
+        partnerId: sagId,
+        label: `${tag} account`,
+        status: 'active',
+      })
+      .returning({ id: connectedAccounts.id });
+    clientAccountId = account?.id ?? '';
+    await db.insert(holdings).values({
+      userId: ids.investor ?? '',
+      connectedAccountId: clientAccountId,
+      instrumentId,
+      name: 'GOJ USD Global Bond 2032',
+      valueMinor: 1_250_000n,
+      currency: 'USD',
+      returnLabel: '+6.8%',
+    });
 
     // One audit row per partner, through the append-only hash-chained function.
     for (const [partnerId, action] of [
@@ -185,8 +253,18 @@ suite('partner console data surface', () => {
       // orders cascade with their owning user.
       await db.delete(user).where(inArray(user.id, all));
     }
-    if (listingId) await db.delete(productListings).where(eq(productListings.id, listingId));
+    // Products this suite listed through the console, plus the two fixtures.
+    await db.delete(instruments).where(inArray(instruments.id, createdInstrumentIds));
+    if (listingId) await db.delete(instruments).where(eq(instruments.id, listingId));
     if (instrumentId) await db.delete(instruments).where(eq(instruments.id, instrumentId));
+    // Put the names back, so a file that runs after this one sees the seeded
+    // firms rather than whatever this suite renamed them to.
+    for (const p of [
+      { code: 'SAG', name: 'Sagicor Investments' },
+      { code: 'NCB', name: 'National Commercial Bank' },
+    ]) {
+      await db.update(partners).set({ name: p.name }).where(eq(partners.code, p.code));
+    }
     // audit_log is append-only by design (BEFORE UPDATE OR DELETE raises for
     // everyone, superusers included), so the two rows above stay. They are
     // namespaced by `tag`, so they cannot collide with a later run.
@@ -243,6 +321,51 @@ suite('partner console data surface', () => {
     expect(other.orders.some((o) => o.idempotencyKey.startsWith(tag))).toBe(false);
   });
 
+  test('/console/orders filters, searches and pages, and reports the real total', async () => {
+    type Body = {
+      orders: { idempotencyKey: string; status: string; instrumentName: string | null }[];
+      total: number;
+    };
+
+    // Unfiltered: the page plus a total the client cannot otherwise know once
+    // the rows are truncated.
+    const all = await json<Body>('/api/console/orders', 'sagOperator');
+    expect(all.total).toBeGreaterThanOrEqual(all.orders.length);
+    expect(all.total).toBeGreaterThan(0);
+
+    // A status the fixtures have, and one they do not: the filter has to be
+    // capable of returning nothing, or it is not filtering.
+    const created = await json<Body>('/api/console/orders?status=created', 'sagOperator');
+    expect(created.orders.every((o) => o.status === 'created')).toBe(true);
+    const expired = await json<Body>('/api/console/orders?status=expired', 'sagOperator');
+    expect(expired.orders).toEqual([]);
+    expect(expired.total).toBe(0);
+
+    // An unknown status is ignored rather than 500ing or matching nothing —
+    // the enum is the allowlist.
+    const bogus = await json<Body>('/api/console/orders?status=nonsense', 'sagOperator');
+    expect(bogus.total).toBe(all.total);
+
+    // Search hits the instrument name.
+    const hit = await json<Body>('/api/console/orders?q=GOJ', 'sagOperator');
+    expect(hit.orders.some((o) => o.idempotencyKey === `${tag}-with-instrument`)).toBe(true);
+    const miss = await json<Body>('/api/console/orders?q=zzzznotathing', 'sagOperator');
+    expect(miss.orders).toEqual([]);
+
+    // Paging: one row at a time walks the same list without repeating itself,
+    // and `total` stays the size of the whole result, not of the page.
+    const first = await json<Body>('/api/console/orders?limit=1&offset=0', 'sagOperator');
+    const second = await json<Body>('/api/console/orders?limit=1&offset=1', 'sagOperator');
+    expect(first.orders).toHaveLength(1);
+    expect(second.orders).toHaveLength(1);
+    expect(first.orders[0]?.idempotencyKey).not.toBe(second.orders[0]?.idempotencyKey);
+    expect(first.total).toBe(all.total);
+
+    // And a page is still this partner's book only.
+    const other = await json<Body>('/api/console/orders?limit=200', 'ncbOperator');
+    expect(other.orders.some((o) => o.idempotencyKey.startsWith(tag))).toBe(false);
+  });
+
   test('/console/audit returns only this partner’s rows', async () => {
     type Body = { entries: { action: string; seq: string; actorType: string }[] };
     const { entries } = await json<Body>('/api/console/audit?limit=50', 'sagOperator');
@@ -290,37 +413,110 @@ suite('partner console data surface', () => {
     });
     expect(res.status).toBe(404);
     const [row] = await db
-      .select({ status: productListings.status })
-      .from(productListings)
-      .where(eq(productListings.id, listingId));
+      .select({ status: instruments.listingStatus })
+      .from(instruments)
+      .where(eq(instruments.id, listingId));
     expect(row?.status).toBe('live');
   });
 
   /**
-   * Listing a product. The console could read its catalogue and pause a
-   * listing and never create one, so every product on the network came from
-   * the seed — a partner onboarded onto a live network had no way to put
-   * anything on it.
-   *
-   * The property worth pinning is that `partner_id` comes from the caller's
-   * scope and never from the body: an operator lists for their own firm or not
-   * at all, whatever they send.
+   * The point of the switch. Pausing used to flip a `product_listings` row that
+   * nothing else in the product read, so the marketplace went on offering the
+   * product and orders went on being accepted for it.
    */
-  test('an operator lists a product, for their own partner only', async () => {
-    // 201, so this cannot go through the 200-asserting `json` helper.
-    const list = (body: unknown, who = 'sagOperator') =>
-      app().request('/api/console/products', {
-        method: 'POST',
-        headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+  test('pausing a listing takes it out of the marketplace and refuses new orders', async () => {
+    const opportunityIds = async (who = 'investor') => {
+      const { opportunities } = await json<{ opportunities: { id: string }[] }>(
+        '/api/opportunities',
+        who,
+      );
+      return opportunities.map((o) => o.id);
+    };
 
-    const res = await list({ name: 'A New Fund', type: 'Fund' });
+    expect(await opportunityIds()).toContain(listingId);
+
+    const paused = await json<{ status: string }>(
+      `/api/console/products/${listingId}/live`,
+      'sagOperator',
+      { method: 'POST' },
+    );
+    expect(paused.status).toBe('paused');
+
+    expect(await opportunityIds()).not.toContain(listingId);
+
+    // And a client holding the page open, who still has the id, is refused
+    // rather than routed into a product the firm has withdrawn.
+    const order = await app().request('/api/orders', {
+      method: 'POST',
+      headers: { cookie: cookies.investor ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ instrumentId: listingId, amountMinor: 10_000, currency: 'USD' }),
+    });
+    expect(order.status).toBe(409);
+    expect(((await order.json()) as { error: string }).error).toContain('no longer offered');
+
+    // Back on the shelf, and visible again.
+    await json(`/api/console/products/${listingId}/live`, 'sagOperator', { method: 'POST' });
+    expect(await opportunityIds()).toContain(listingId);
+  });
+
+  /**
+   * Listing a product, and having an investor be able to see it.
+   *
+   * The old version of this test passed while the feature did not work: it
+   * wrote a `product_listings` row, asserted the row came back, and never
+   * asked the question that matters — whether the thing now exists in the
+   * marketplace. It did not, and could not, because nothing joined the two
+   * tables. So the assertions here follow the product through to
+   * /api/opportunities, which is where a customer meets it.
+   *
+   * The property worth pinning on the way is that `partner_id` comes from the
+   * caller's scope and never from the body: an operator lists for their own
+   * firm or not at all, whatever they send.
+   */
+  const list = (body: unknown, who = 'sagOperator') =>
+    app().request('/api/console/products', {
+      method: 'POST',
+      headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  test('a listed product reaches the marketplace, priced as the firm listed it', async () => {
+    // 201, so this cannot go through the 200-asserting `json` helper.
+    const res = await list({
+      name: `${tag} Income Fund`,
+      type: 'fund',
+      currency: 'JMD',
+      minInvestmentMinor: '250000',
+      metric: '8.25%',
+      metricLabel: 'Target return',
+      term: '5 years',
+      risk: 'medium',
+      region: 'Jamaica',
+      description: 'A fund listed by the console test.',
+    });
     expect(res.status).toBe(201);
     const created = (await res.json()) as {
-      product: { id: string; partnerId: string; status: string };
+      product: {
+        id: string;
+        status: string;
+        currency: string;
+        minInvestmentMinor: string;
+        metric: string;
+        metricLabel: string;
+        risk: string;
+      };
     };
+    createdInstrumentIds.push(created.product.id);
     expect(created.product.status).toBe('live');
+
+    // The fields a deal card renders survive the round trip. Before this, a
+    // listing carried a name and a type, so every card showed "US$0", a blank
+    // metric and "Not rated".
+    expect(created.product.currency).toBe('JMD');
+    expect(created.product.minInvestmentMinor).toBe('250000');
+    expect(created.product.metric).toBe('8.25%');
+    expect(created.product.metricLabel).toBe('Target return');
+    expect(created.product.risk).toBe('medium');
 
     // It is in this partner's catalogue, and not in the other partner's.
     const mine = await json<{ products: { id: string }[] }>('/api/console/products', 'sagOperator');
@@ -331,23 +527,269 @@ suite('partner console data surface', () => {
     );
     expect(theirs.products.some((p) => p.id === created.product.id)).toBe(false);
 
-    // A partnerId in the body is ignored — the scope decides.
+    // The assertion the old test was missing: a customer can see it, under the
+    // listing firm's name and regulator, priced as listed.
+    const { opportunities } = await json<{
+      opportunities: {
+        id: string;
+        partner: string | null;
+        regulator: string | null;
+        minInvestmentMinor: string;
+        currency: string;
+        risk: string | null;
+      }[];
+    }>('/api/opportunities', 'investor');
+    const offered = opportunities.find((o) => o.id === created.product.id);
+    expect(offered).toBeTruthy();
+    expect(offered?.partner).toBe('Sagicor Investments');
+    expect(offered?.minInvestmentMinor).toBe('250000');
+    expect(offered?.currency).toBe('JMD');
+    expect(offered?.risk).toBe('Medium');
+
+    // The regulator is the firm's own, not one the console typed.
+    const [partnerRow] = await db
+      .select({ regulator: partners.regulator })
+      .from(partners)
+      .where(eq(partners.id, sagId));
+    expect(offered?.regulator).toBe(partnerRow?.regulator ?? null);
+
+    // partner_id comes from the caller's scope: a forged one is ignored.
     const forgedRes = await list({
-      name: 'Forged',
+      name: `${tag} Forged`,
+      type: 'bond',
       partnerId: '00000000-0000-0000-0000-000000000000',
     });
     expect(forgedRes.status).toBe(201);
-    const forged = (await forgedRes.json()) as { product: { partnerId: string } };
-    expect(forged.product.partnerId).toBe(created.product.partnerId);
+    const forged = (await forgedRes.json()) as { product: { id: string } };
+    createdInstrumentIds.push(forged.product.id);
+    const [forgedRow] = await db
+      .select({ partnerId: instruments.partnerId })
+      .from(instruments)
+      .where(eq(instruments.id, forged.product.id));
+    expect(forgedRow?.partnerId).toBe(sagId);
   });
 
-  test('a product needs a name', async () => {
-    for (const body of [{}, { name: '' }, { name: 'x' }]) {
-      const res = await app().request('/api/console/products', {
+  /** Amending is the same function, and must not touch anyone else's row. */
+  test('an operator amends their own listing and nobody else’s', async () => {
+    const res = await list({ name: `${tag} Amendable`, type: 'bond', minInvestmentMinor: '100' });
+    const { product } = (await res.json()) as { product: { id: string } };
+    createdInstrumentIds.push(product.id);
+
+    const amended = await list({
+      id: product.id,
+      name: `${tag} Amended`,
+      type: 'bond',
+      minInvestmentMinor: '900',
+      metric: '6%',
+    });
+    expect(amended.status).toBe(200);
+    const after = (await amended.json()) as {
+      product: { name: string; minInvestmentMinor: string; metric: string };
+    };
+    expect(after.product.name).toBe(`${tag} Amended`);
+    expect(after.product.minInvestmentMinor).toBe('900');
+
+    // The slug is not re-derived from the new name: holdings and reconciliation
+    // join on it, so renaming a product must not orphan what people hold.
+    const [row] = await db
+      .select({ slug: instruments.slug })
+      .from(instruments)
+      .where(eq(instruments.id, product.id));
+    expect(row?.slug).toContain('amendable');
+
+    // Another firm's operator cannot amend it, and cannot tell it exists.
+    const foreign = await list({ id: product.id, name: 'Hijacked', type: 'bond' }, 'ncbOperator');
+    expect(foreign.status).toBe(404);
+    const [unchanged] = await db
+      .select({ name: instruments.name })
+      .from(instruments)
+      .where(eq(instruments.id, product.id));
+    expect(unchanged?.name).toBe(`${tag} Amended`);
+  });
+
+  /**
+   * The drill-down. The list row could say "1 position · US$12,500" and could
+   * not say what it was, which is the first thing anyone asks about a client.
+   */
+  test('an operator opens one of their clients and sees where the money is', async () => {
+    type Detail = {
+      client: { account_id: string; client_name: string; status: string };
+      holdings: { name: string; instrument_name: string | null; value_minor: string }[];
+      orders: unknown[];
+      audit: { action: string }[];
+    };
+    const detail = await json<Detail>(`/api/console/clients/${clientAccountId}`, 'sagOperator');
+    expect(detail.client.account_id).toBe(clientAccountId);
+    expect(detail.holdings).toHaveLength(1);
+    expect(detail.holdings[0]?.value_minor).toBe('1250000');
+    // The product's name, not a UUID: `holdings.name` is what the statement
+    // called it, `instrument_name` is what it maps to in the catalogue.
+    expect(detail.holdings[0]?.instrument_name).toBe('GOJ USD Global Bond 2032');
+
+    // Another firm's operator gets the same answer as for an id that does not
+    // exist, so client ids cannot be probed from a console.
+    const foreign = await app().request(`/api/console/clients/${clientAccountId}`, {
+      headers: { cookie: cookies.ncbOperator ?? '' },
+    });
+    expect(foreign.status).toBe(404);
+    const missing = await app().request(
+      '/api/console/clients/00000000-0000-0000-0000-000000000000',
+      { headers: { cookie: cookies.sagOperator ?? '' } },
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  /**
+   * Revoking. `partner_review_client` hard-coded `status = 'pending'`, so
+   * accepting a client was a one-way door: a firm needing to end a
+   * relationship had no control anywhere in the console, and the audit row it
+   * would have written is the one a regulator asks for.
+   */
+  test('an operator revokes an active client, and can reinstate them', async () => {
+    const move = (accept: boolean, who = 'sagOperator', body: unknown = {}) =>
+      app().request(`/api/console/clients/${clientAccountId}/${accept ? 'accept' : 'decline'}`, {
         method: 'POST',
-        headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+        headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
+
+    const revoked = await move(false, 'sagOperator', { reason: 'periodic review failed' });
+    expect(revoked.status).toBe(200);
+    expect(((await revoked.json()) as { status: string }).status).toBe('declined');
+
+    const [row] = await db
+      .select({ status: connectedAccounts.status, reason: connectedAccounts.declineReason })
+      .from(connectedAccounts)
+      .where(eq(connectedAccounts.id, clientAccountId));
+    expect(row?.status).toBe('declined');
+    expect(row?.reason).toBe('periodic review failed');
+
+    // Revoking is audited as its own event, not as a decline — the two are
+    // different decisions and a regulator reading the log has to see which.
+    const detail = await json<{ audit: { action: string }[] }>(
+      `/api/console/clients/${clientAccountId}`,
+      'sagOperator',
+    );
+    expect(detail.audit.map((a) => a.action)).toContain('client.revoked');
+
+    // Revoking twice is refused rather than silently written again.
+    expect((await move(false)).status).toBe(409);
+
+    const back = await move(true);
+    expect(back.status).toBe(200);
+    expect(((await back.json()) as { status: string }).status).toBe('active');
+    const after = await json<{ audit: { action: string }[] }>(
+      `/api/console/clients/${clientAccountId}`,
+      'sagOperator',
+    );
+    expect(after.audit.map((a) => a.action)).toContain('client.reinstated');
+
+    // And none of it is another firm's to do.
+    expect((await move(false, 'ncbOperator')).status).toBe(409);
+    const [unchanged] = await db
+      .select({ status: connectedAccounts.status })
+      .from(connectedAccounts)
+      .where(eq(connectedAccounts.id, clientAccountId));
+    expect(unchanged?.status).toBe('active');
+  });
+
+  /**
+   * The firm's own record.
+   *
+   * `partners` had an UPDATE grant and exactly one UPDATE policy — admin-only —
+   * so a firm could not fix a typo in the name that appears beside every
+   * product it lists. What matters as much as the fix is what it does not
+   * reach: the regulator is a compliance claim rendered to investors, the code
+   * resolves the executing adapter, and the agreement status gates live
+   * routing.
+   */
+  test('a firm edits its own name, and cannot touch what CCN asserts about it', async () => {
+    const before = await json<{ partner: { regulator: string | null; code: string } }>(
+      '/api/console/partner',
+      'sagOperator',
+    );
+
+    const res = await app().request('/api/console/partner', {
+      method: 'PATCH',
+      headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: `${tag} Renamed Investments`,
+        kind: 'Funds · Insurance',
+        residency: 'Jamaica',
+        // Sent and expected to be ignored — the function takes no parameter for
+        // any of them, so there is nothing for a client to reach.
+        code: 'HACK',
+        regulator: 'FSC_BARBADOS',
+        agreementStatus: 'live',
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const [row] = await db
+      .select({
+        name: partners.name,
+        kind: partners.kind,
+        residency: partners.residency,
+        code: partners.code,
+        regulator: partners.regulator,
+        agreementStatus: partners.agreementStatus,
+      })
+      .from(partners)
+      .where(eq(partners.id, sagId));
+    expect(row?.name).toBe(`${tag} Renamed Investments`);
+    expect(row?.kind).toBe('Funds · Insurance');
+    expect(row?.residency).toBe('Jamaica');
+    expect(row?.code).toBe('SAG');
+    expect(row?.regulator).toBe(before.partner.regulator as never);
+    expect(row?.agreementStatus).not.toBe('live');
+
+    // Both sides of the change are on the audit row: a firm's name is what
+    // investors see beside its products, so "from what, to what" is the
+    // question worth being able to answer.
+    const { entries } = await json<{ entries: { action: string; detail: unknown }[] }>(
+      '/api/console/audit?limit=50',
+      'sagOperator',
+    );
+    const entry = entries.find((e) => e.action === 'partner.profile_updated');
+    expect(entry).toBeTruthy();
+    const detail = entry?.detail as { from: { name: string }; to: { name: string } };
+    expect(detail.to.name).toBe(`${tag} Renamed Investments`);
+    expect(detail.from.name).not.toBe(detail.to.name);
+
+    // A nameless firm is refused, and another firm's operator changes nothing
+    // here — the partner comes from their own scope, so this edits NCB's row.
+    const blank = await app().request('/api/console/partner', {
+      method: 'PATCH',
+      headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ name: ' ' }),
+    });
+    expect(blank.status).toBe(400);
+
+    await app().request('/api/console/partner', {
+      method: 'PATCH',
+      headers: { cookie: cookies.ncbOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ name: `${tag} NCB Renamed` }),
+    });
+    const [sag] = await db
+      .select({ name: partners.name })
+      .from(partners)
+      .where(eq(partners.id, sagId));
+    expect(sag?.name).toBe(`${tag} Renamed Investments`);
+  });
+
+  test('a product needs a name and a type CCN can act on', async () => {
+    const bodies = [
+      {},
+      { name: '', type: 'fund' },
+      { name: 'x', type: 'fund' },
+      // Free text was accepted before, and produced a product the marketplace
+      // could not filter or the suitability rules branch on.
+      { name: 'A Fund', type: 'Real Estate' },
+      { name: 'A Fund', type: 'fund', minInvestmentMinor: -1 },
+      { name: 'A Fund', type: 'fund', risk: 'extremely high' },
+    ];
+    for (const body of bodies) {
+      const res = await list(body);
       expect(res.status).toBe(400);
     }
   });

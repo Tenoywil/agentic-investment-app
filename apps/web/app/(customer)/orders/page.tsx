@@ -32,6 +32,22 @@ function money(minor: string, currency: string): string {
   return `${CURRENCY_PREFIX[currency] ?? ''}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
+/**
+ * The same, to the cent.
+ *
+ * Amounts on this screen are whole-unit figures where the cents are noise. A
+ * unit price is not: rounding an execution at 100.25 to "US$100" would misstate
+ * the number the firm actually reported, which is the whole reason the column
+ * exists.
+ */
+function moneyExact(minor: string, currency: string): string {
+  const n = Number(minor) / 100;
+  return `${CURRENCY_PREFIX[currency] ?? ''}${n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 function when(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', {
     day: 'numeric',
@@ -65,8 +81,23 @@ const STATE: Record<
   settled: {
     label: 'Settled',
     tone: 'bg-mint text-success-ink',
-    says: (o) =>
-      `Settled${o.settledAt ? ` on ${when(o.settledAt)}` : ''}. It is in your portfolio.`,
+    /**
+     * What was actually executed, when the firm reported it.
+     *
+     * Settling used to write three columns, so this line could only ever say
+     * "settled" — an investor was told their money had moved and never at what
+     * price. Each figure is included only if the firm gave it; an absent one is
+     * left out rather than shown as zero.
+     */
+    says: (o) => {
+      const base = `Settled${o.settledAt ? ` on ${when(o.settledAt)}` : ''}. It is in your portfolio.`;
+      const detail = [
+        o.units ? `${Number(o.units)} units` : null,
+        o.unitPriceMinor ? `at ${moneyExact(o.unitPriceMinor, o.currency)} each` : null,
+        o.feeMinor ? `fee ${moneyExact(o.feeMinor, o.currency)}` : null,
+      ].filter(Boolean);
+      return detail.length > 0 ? `${base} ${detail.join(', ')}.` : base;
+    },
   },
   rejected: {
     label: 'Declined',
