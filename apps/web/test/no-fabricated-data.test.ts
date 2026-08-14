@@ -20,9 +20,29 @@ import { join, relative, resolve } from 'node:path';
 /** Resolved against this file, not the cwd — the suite runs both from the repo
  *  root (`bun test`) and from apps/web (`turbo run test`). */
 const WEB = resolve(import.meta.dir, '..');
-const ROOTS = ['app/(customer)', 'app/(institution)', 'app/(admin)', 'app/_components'].map((r) =>
-  join(WEB, r),
-);
+/**
+ * Directories are walked; individual files are scanned as themselves.
+ *
+ * The unauthenticated entry pages are in scope even though nobody has signed in
+ * yet. They are where the product makes its first claims about itself, and for a
+ * long time they were the one place a fabricated figure could live untouched:
+ * the four route-group directories below were scanned from the start, and
+ * `app/page.tsx` — carrying an invented net worth, an invented return, an
+ * invented blended yield, an invented instrument count and a decorative Approve
+ * control that was not a control — sat outside all of them.
+ *
+ * `app/demo/**` stays exempt. It is fixtures by design, labelled as a preview,
+ * and shown before anyone signs up.
+ */
+const ROOTS = [
+  'app/(customer)',
+  'app/(institution)',
+  'app/(admin)',
+  'app/_components',
+  'app/page.tsx',
+  'app/sign-in',
+  'app/after-sign-in',
+].map((r) => join(WEB, r));
 
 /** Literals lifted from the prototype during the audit. Each one shipped to a
  *  live screen at some point, so each one earns a permanent test. */
@@ -78,7 +98,12 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const files = ROOTS.flatMap((root) => walk(root));
+/** A root is either a directory to walk or a single file to scan. */
+function collect(root: string): string[] {
+  return statSync(root).isDirectory() ? walk(root) : [root];
+}
+
+const files = ROOTS.flatMap(collect);
 
 describe('authenticated surfaces carry no fabricated data', () => {
   it('finds the screens to scan', () => {

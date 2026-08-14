@@ -30,7 +30,7 @@ const BENEFITS: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: LineChart,
     title: 'One portfolio, every partner',
-    body: 'See and manage holdings across eight licensed institutions in a single live view: net worth, yield and allocation, unified.',
+    body: 'See and manage your holdings at every licensed institution you connect, in one view: net worth and allocation, unified.',
   },
   {
     Icon: Target,
@@ -40,7 +40,7 @@ const BENEFITS: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: ShieldCheck,
     title: 'Regulated and regional',
-    body: 'Every instrument is custodied and executed by an FSC-licensed partner, with KYC, suitability and source-of-funds handled for you.',
+    body: 'Every instrument is custodied and executed by a licensed partner, with KYC, suitability and source-of-funds handled by the firm that already knows you.',
   },
 ];
 
@@ -48,7 +48,7 @@ const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: LineChart,
     title: 'Unified portfolio',
-    body: 'Every holding across every partner, valued live in your chosen currency.',
+    body: 'Every holding across every partner, in your chosen currency at published central-bank rates.',
   },
   {
     Icon: TrendingUp,
@@ -58,7 +58,7 @@ const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: Target,
     title: 'Capital agent',
-    body: 'Chat or talk to an agent that plans, screens and executes on your say-so, inside your limits.',
+    body: 'Chat or talk to an agent that plans and screens, then routes what you approve to the partner that executes it.',
   },
   {
     Icon: ShieldCheck,
@@ -68,7 +68,7 @@ const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
 ];
 
 const PIPE = [
-  { n: '1', t: 'Research', b: 'Scans 47 instruments across the 8-partner network', flag: false },
+  { n: '1', t: 'Research', b: 'Scans the marketplace of listed regional instruments', flag: false },
   { n: '2', t: 'Suitability', b: 'Matches your risk band and goals', flag: false },
   { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds', flag: false },
   { n: '4', t: 'Your approval', b: 'You confirm every move above your limits', flag: true },
@@ -166,7 +166,7 @@ export default function LandingPage() {
           <div className="mt-6 flex flex-wrap items-center gap-3.5 text-[13.5px] text-dim">
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
-              FSC-regulated partners
+              Licensed, regulated partners
             </span>
             <span>·</span>
             <span>KYC / AML built in</span>
@@ -179,30 +179,40 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Hero aside card */}
+        {/*
+          Hero aside card.
+
+          This used to be a mock screenshot of somebody's portfolio: a net worth,
+          an all-time gain, a blended yield, a swept amount and a coupon to
+          reinvest — five invented figures — under a chip styled as an Approve
+          button that was a <span> with no handler. A visitor's first impression
+          of the product was numbers belonging to no one and a control that did
+          nothing.
+
+          It now describes the three things the product actually does, and the
+          one control on it really is one: it opens the preview, where the
+          figures are labelled as sample data.
+        */}
         <Card className="p-4 shadow-[0_24px_60px_rgba(40,34,22,0.12)]">
           <div className="rounded-xl bg-primary px-[22px] py-5 text-[#eafaf5]">
             <div className="text-xs font-semibold uppercase tracking-[1px] text-[#eafaf5]/[.66]">
-              Total net worth · 4 partners
+              One portfolio
             </div>
-            <div className="mt-1.5 font-display text-[40px] font-bold leading-none tracking-[-1px]">
-              US$31,350
+            <div className="mt-1.5 font-display text-[26px] font-bold leading-tight tracking-[-.5px]">
+              Every partner you connect, in one view
             </div>
-            <div className="mt-2 flex items-center gap-2.5 text-[13.5px]">
-              <span className="rounded-[7px] bg-white/10 px-[9px] py-[3px] font-mono font-bold text-[#9fe6c6]">
-                ↑ 6.8%
-              </span>
-              <span className="text-[#eafaf5]/80">blended yield 6.2%</span>
+            <div className="mt-2 text-[13.5px] text-[#eafaf5]/80">
+              Net worth and allocation, in USD, JMD or TTD.
             </div>
           </div>
           <div className="mt-3.5 flex items-start gap-2.5 rounded-[11px] border border-border bg-[#fbfaf6] dark:bg-white/[0.02] px-3.5 py-[13px]">
             <span className="mt-[5px] h-[9px] w-[9px] flex-none rounded-full bg-success" />
             <div className="flex-1">
               <div className="text-sm font-semibold leading-snug text-[#2c2925] dark:text-foreground">
-                Agent swept US$400 into your money-market fund
+                Your agent acts only inside limits you set
               </div>
               <div className="mt-0.5 text-[12.5px] text-faint">
-                Inside your US$500 limit · 2 days ago
+                A cash floor, a cap per move, and a ceiling above which it must ask.
               </div>
             </div>
           </div>
@@ -212,12 +222,16 @@ export default function LandingPage() {
                 Needs your approval
               </div>
               <div className="mt-0.5 text-sm font-semibold text-foreground">
-                Reinvest US$412 GOJ coupon
+                Anything larger waits for you
               </div>
             </div>
-            <span className="rounded-[9px] bg-primary px-3.5 py-2 text-[13px] font-bold text-white">
-              Approve
-            </span>
+            <button
+              type="button"
+              onClick={demo}
+              className="rounded-[9px] bg-primary px-3.5 py-2 text-[13px] font-bold text-white"
+            >
+              See it
+            </button>
           </div>
         </Card>
       </div>
@@ -225,8 +239,15 @@ export default function LandingPage() {
       {/* PARTNER STRIP */}
       <div className="border-y border-border bg-card">
         <div className={`flex flex-wrap items-center gap-7 py-5 ${CONTAINER}`}>
+          {/*
+            "Held at licensed partners" claimed more than the catalogue supports:
+            these are the institutions the network is built around, and most are
+            still prospects rather than firms with a signed agreement routing
+            live orders. Naming what the list actually is costs nothing and
+            survives a partner asking where their logo came from.
+          */}
           <span className="text-[13px] font-semibold uppercase tracking-wide text-faint">
-            Held at licensed partners
+            Institutions on the network
           </span>
           <div className="flex flex-wrap gap-[26px] font-mono text-[15px] font-semibold text-dim">
             {['NCB', 'SAGICOR', 'JMMB', 'PROVEN', 'BARITA', 'REPUBLIC', 'SYGNUS'].map((p) => (

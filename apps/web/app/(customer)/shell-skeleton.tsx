@@ -78,6 +78,13 @@ const ROUTES: { prefix: string; key: Key; title: string; shape: Shape; eyebrow: 
     eyebrow: 'Cover, retirement, property and legacy planning across borders',
   },
   {
+    prefix: '/orders',
+    key: 'orders',
+    title: 'Your orders',
+    shape: 'list',
+    eyebrow: 'Executed and settled by the institution that holds them',
+  },
+  {
     prefix: '/onboarding',
     key: 'onboarding',
     title: 'Onboarding',

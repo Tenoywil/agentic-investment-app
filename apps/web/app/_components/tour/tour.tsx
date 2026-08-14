@@ -76,7 +76,7 @@ export function useTourAvailable(): boolean {
 function surfaceForPath(pathname: string): Surface | null {
   if (pathname.startsWith('/institutions')) return 'institution';
   if (
-    ['/home', '/portfolio', '/opportunities', '/agent', '/planning', '/gateway'].some(
+    ['/home', '/portfolio', '/opportunities', '/orders', '/agent', '/planning', '/gateway'].some(
       (p) => pathname === p || pathname.startsWith(`${p}/`),
     )
   ) {
