@@ -79,6 +79,18 @@ export function orderReference(orderId: string): string {
   return `CCN-${orderId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
+/**
+ * One instrument in the marketplace.
+ *
+ * Almost everything here is nullable, and this interface used to say otherwise
+ * — `region`, `metricLabel`, `metric`, `term`, `description` and `agentNote`
+ * were all typed `string` against columns that have always allowed NULL. It
+ * went unnoticed because every instrument came from the seed with every field
+ * filled in. Then the console gained the ability to list a product, those
+ * fields became optional on the form (correctly — not every product has a
+ * headline figure or a fixed term), and the lie started rendering: an empty
+ * metric box with a large blank number where a yield should be.
+ */
 export interface OpportunityListItem {
   id: string;
   slug: string;
@@ -87,15 +99,18 @@ export interface OpportunityListItem {
   partner: string | null;
   regulator: string | null;
   name: string;
-  region: string;
-  metricLabel: string;
-  metric: string;
+  region: string | null;
+  /** What the headline figure is. Null together with `metric`. */
+  metricLabel: string | null;
+  /** The headline figure itself, e.g. "8.25%". */
+  metric: string | null;
   minInvestmentMinor: string;
   currency: Currency;
-  term: string;
+  term: string | null;
   risk: Risk | null;
-  description: string;
-  agentNote: string;
+  description: string | null;
+  /** The agent's own note. Only the seeded catalogue carries one. */
+  agentNote: string | null;
   blocked: boolean;
   blockReasons: string[];
 }

@@ -90,7 +90,16 @@ const STATE: Record<
      * left out rather than shown as zero.
      */
     says: (o) => {
-      const base = `Settled${o.settledAt ? ` on ${when(o.settledAt)}` : ''}. It is in your portfolio.`;
+      /**
+       * Not "it is in your portfolio".
+       *
+       * Nothing creates a holding when an order settles — `settle_order`
+       * updates the order and stops there, and positions reach the portfolio
+       * only through a statement pull or a reconciliation match by the firm.
+       * So the screen was asserting a state of someone's portfolio that the
+       * product had not produced, on the one screen they would go to check.
+       */
+      const base = `Settled${o.settledAt ? ` on ${when(o.settledAt)}` : ''} by ${o.partnerName ?? 'your institution'}. It appears in your portfolio once they next report the position.`;
       const detail = [
         o.units ? `${Number(o.units)} units` : null,
         o.unitPriceMinor ? `at ${moneyExact(o.unitPriceMinor, o.currency)} each` : null,

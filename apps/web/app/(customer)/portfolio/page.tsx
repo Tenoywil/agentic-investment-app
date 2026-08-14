@@ -459,9 +459,12 @@ export default function PortfolioPage() {
                     </button>
                   </div>
                 </div>
-                {inst.holdings.map((h) => (
+                {inst.holdings.map((h, i) => (
                   <div
-                    key={h.name}
+                    // Name is not unique: two accounts at one firm can hold
+                    // instruments with the same name, and React collapsed them
+                    // onto one row.
+                    key={`${h.name}-${i}`}
                     className="flex items-center justify-between gap-3 border-t border-border py-[11px]"
                   >
                     <span className="text-sm">{h.name}</span>
@@ -469,9 +472,19 @@ export default function PortfolioPage() {
                       <b className="font-mono text-[13.5px]">{h.value}</b>
                       {/* No return label on this holding means the partner
                           statement carried none — nothing is printed, rather
-                          than a dash that reads like a measured zero. */}
+                          than a dash that reads like a measured zero.
+                          Coloured by sign: this was success green whatever the
+                          figure said, so a statement reporting "-4.2%" was
+                          rendered in the colour the product uses for a gain. */}
                       {h.ret !== null && (
-                        <span className="min-w-[42px] text-right text-[13px] text-success-ink">
+                        <span
+                          className={cn(
+                            'min-w-[42px] text-right text-[13px]',
+                            h.ret.trim().startsWith('-')
+                              ? 'text-[#a44e20] dark:text-terra'
+                              : 'text-success-ink',
+                          )}
+                        >
                           {h.ret}
                         </span>
                       )}

@@ -35,7 +35,7 @@ import {
 } from '@/lib/opportunities-api';
 import { Check, CircleAlert, Compass, ShieldCheck, Target, X } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 
 /* ---- type palette (warm), ported from the prototype tone() map. The text inks
    are darkened from the prototype's originals so every label and pill clears
@@ -74,18 +74,22 @@ type Opp = {
   abbr: string;
   type: Kind;
   partner: string;
-  regulator: string;
+  /** Null when the listing firm's record names no regulator. */
+  regulator: string | null;
   name: string;
-  region: string;
-  metricLabel: string;
-  metric: string;
+  /** Null on a product listed without one. */
+  region: string | null;
+  /** Null together with `metric` — not every product has a headline figure. */
+  metricLabel: string | null;
+  metric: string | null;
   min: string;
   minMinor: string;
   currency: Currency;
-  term: string;
+  term: string | null;
   risk: string;
-  desc: string;
-  agentNote: string;
+  desc: string | null;
+  /** Only the seeded catalogue carries an agent note. */
+  agentNote: string | null;
   blocked: boolean;
   blockReasons: string[];
 };
@@ -101,7 +105,17 @@ function toOpp(item: OpportunityListItem): Opp {
     region: item.region,
     metricLabel: item.metricLabel,
     metric: item.metric,
-    min: formatMinor(item.minInvestmentMinor, item.currency),
+    /**
+     * "No minimum", not "US$0".
+     *
+     * The column defaults to zero and the console form allows it, so a product
+     * listed without one used to advertise a minimum investment of nothing —
+     * which reads as a price rather than as the absence of a floor.
+     */
+    min:
+      item.minInvestmentMinor === '0'
+        ? 'No minimum'
+        : formatMinor(item.minInvestmentMinor, item.currency),
     minMinor: item.minInvestmentMinor,
     currency: item.currency,
     term: item.term,
@@ -141,13 +155,19 @@ function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
           <Badge variant={RISK_VARIANT[o.risk]}>{o.risk} risk</Badge>
         </div>
       </div>
-      <div className="mb-1 text-[13px] text-faint">{o.region}</div>
+      {o.region ? <div className="mb-1 text-[13px] text-faint">{o.region}</div> : null}
       <div className="mb-3.5 font-display text-lg font-bold leading-tight">{o.name}</div>
-      <div className="mb-3.5 grid grid-cols-2 gap-[11px]">
-        <div className={METRIC_BOX}>
-          <div className={METRIC_LBL}>{o.metricLabel}</div>
-          <div className="font-mono text-lg font-bold text-success">{o.metric}</div>
-        </div>
+      {/* One box or two. A product listed without a headline figure — which the
+          console allows, because not every product has one — used to render an
+          empty label above a large blank number, which reads as a figure that
+          failed to load rather than one that was never claimed. */}
+      <div className={cn('mb-3.5 grid gap-[11px]', o.metric ? 'grid-cols-2' : 'grid-cols-1')}>
+        {o.metric ? (
+          <div className={METRIC_BOX}>
+            <div className={METRIC_LBL}>{o.metricLabel ?? 'Headline'}</div>
+            <div className="font-mono text-lg font-bold text-success">{o.metric}</div>
+          </div>
+        ) : null}
         <div className={METRIC_BOX}>
           <div className={METRIC_LBL}>Minimum</div>
           <div className="font-mono text-lg font-bold text-foreground">{o.min}</div>
@@ -155,7 +175,10 @@ function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
       </div>
       <div className="mb-4 flex items-center gap-2 text-[13px] text-dim">
         <span aria-hidden className="h-4 w-4 flex-none rounded-full border-[1.6px] border-teal2" />
-        {o.partner} · {o.regulator}
+        {/* The separator belongs to the regulator, not to the line: a firm whose
+            record names no regulator used to leave a dangling "·". */}
+        {o.partner}
+        {o.regulator ? ` · ${o.regulator}` : ''}
       </div>
       <Button className="mt-auto w-full" onClick={() => onOpen(o)}>
         Review &amp; invest
@@ -174,7 +197,9 @@ function ScreenedOutNotice({
   footer,
 }: {
   heading: string;
-  note: string;
+  /** The agent's own words. Absent on a partner-listed product, which the
+   *  seeded catalogue's notes do not cover. */
+  note: string | null;
   reasons: string[];
   footer: string;
 }) {
@@ -323,7 +348,14 @@ function ExecDialog({
   opp,
   band,
   onClose,
-}: { opp: Opp | null; band: string | null; onClose: () => void }) {
+  onWithdrawn,
+}: {
+  opp: Opp | null;
+  band: string | null;
+  onClose: () => void;
+  /** Re-read the catalogue: the firm withdrew this product mid-session. */
+  onWithdrawn: () => void;
+}) {
   const titleId = useId();
   const me = useMe();
   const [step, setStep] = useState(0);
@@ -337,7 +369,11 @@ function ExecDialog({
   useEffect(() => {
     if (opp) {
       setStep(0);
-      setAmt(String(Math.round(minMajor(opp))));
+      // Pre-filled with the minimum, which is the smallest thing they can
+      // legitimately do. A product with no minimum starts empty rather than at
+      // zero: zero is not an amount somebody meant to invest, and pre-filling
+      // it put "Authorize & route US$0" in front of them as a live control.
+      setAmt(minMajor(opp) > 0 ? String(Math.round(minMajor(opp))) : '');
       setPlacing(false);
       setPlaceError(null);
       setOrder(null);
@@ -372,11 +408,24 @@ function ExecDialog({
         setStep(2);
       }
     } catch (err) {
+      /**
+       * The firm withdrew this product while the card was open.
+       *
+       * The order path refuses a paused instrument — correctly, since a stale
+       * page still holds the id — but the refusal read as a malfunction,
+       * because the screen went on showing the product as available. Saying
+       * what happened and re-reading the catalogue behind the dialog is the
+       * difference between a bug and an event.
+       */
+      const withdrawn = err instanceof OpportunitiesApiError && err.status === 409;
       setPlaceError(
-        err instanceof OpportunitiesApiError || err instanceof Error
-          ? err.message
-          : 'Could not route this order. Try again.',
+        withdrawn
+          ? `${opp.partner} has taken this product off the marketplace. Nothing was routed and nothing was charged.`
+          : err instanceof OpportunitiesApiError || err instanceof Error
+            ? err.message
+            : 'Could not route this order. Try again.',
       );
+      if (withdrawn) onWithdrawn();
     } finally {
       setPlacing(false);
     }
@@ -405,7 +454,7 @@ function ExecDialog({
               {opp.name}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              {opp.region} · executed by {opp.partner}
+              {opp.region ? `${opp.region} · ` : ''}executed by {opp.partner}
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -421,7 +470,8 @@ function ExecDialog({
               />
               <div className="flex items-center gap-2 text-[13.5px] text-dim">
                 <ShieldCheck className="h-3.5 w-3.5 flex-none text-success" aria-hidden />
-                Executed by {opp.partner} · Regulated by {opp.regulator}
+                Executed by {opp.partner}
+                {opp.regulator ? ` · Regulated by ${opp.regulator}` : ''}
               </div>
             </>
           )}
@@ -430,7 +480,7 @@ function ExecDialog({
             <>
               <div className="mb-[18px] grid grid-cols-2 gap-[11px]">
                 <div className={METRIC_BOX}>
-                  <div className={METRIC_LBL}>{opp.metricLabel}</div>
+                  <div className={METRIC_LBL}>{opp.metricLabel ?? 'Headline'}</div>
                   <div className="font-mono text-[21px] font-bold text-success">{opp.metric}</div>
                 </div>
                 <div className={METRIC_BOX}>
@@ -439,14 +489,16 @@ function ExecDialog({
                 </div>
                 <div className={METRIC_BOX}>
                   <div className={METRIC_LBL}>Term</div>
-                  <div className="text-base font-bold">{opp.term}</div>
+                  <div className="text-base font-bold">{opp.term ?? 'Not stated'}</div>
                 </div>
                 <div className={METRIC_BOX}>
                   <div className={METRIC_LBL}>Risk rating</div>
                   <div className="text-base font-bold">{opp.risk}</div>
                 </div>
               </div>
-              <p className="mb-4 text-[15px] leading-relaxed text-dim">{opp.desc}</p>
+              {opp.desc ? (
+                <p className="mb-4 text-[15px] leading-relaxed text-dim">{opp.desc}</p>
+              ) : null}
 
               {blocked ? (
                 <ScreenedOutNotice
@@ -455,7 +507,10 @@ function ExecDialog({
                   reasons={opp.blockReasons}
                   footer="The agent will not route this order. If your goals or limits change, re-run suitability from your profile and it will reassess."
                 />
-              ) : (
+              ) : opp.agentNote ? (
+                // Only when the agent has actually said something. A
+                // partner-listed product carries no note, and an empty
+                // "Agent assessment" panel asserts a judgement nobody made.
                 <div className="mb-4 rounded-xl border border-[#cde0d8] dark:border-white/10 bg-mint px-4 py-3.5">
                   <div className="mb-1.5 flex items-center gap-2">
                     <Target className="h-[15px] w-[15px] text-teal2" aria-hidden />
@@ -465,11 +520,12 @@ function ExecDialog({
                     {opp.agentNote}
                   </p>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex items-center gap-2 text-[13.5px] text-dim">
                 <ShieldCheck className="h-3.5 w-3.5 flex-none text-success" aria-hidden />
-                Executed by {opp.partner} · Regulated by {opp.regulator}
+                Executed by {opp.partner}
+                {opp.regulator ? ` · Regulated by ${opp.regulator}` : ''}
               </div>
             </>
           )}
@@ -587,7 +643,7 @@ function ExecDialog({
                 <Button
                   size="lg"
                   className="w-full"
-                  disabled={amtNum < minMajor(opp) || placing || !compliant}
+                  disabled={amtNum <= 0 || amtNum < minMajor(opp) || placing || !compliant}
                   onClick={handleAuthorize}
                 >
                   {placing ? 'Routing…' : `Authorize & route ${amtFmt}`}
@@ -654,6 +710,40 @@ export default function OpportunitiesPage() {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Re-read the catalogue without disturbing the reader.
+   *
+   * Deliberately NOT wired to the realtime stream. A listing event carries a
+   * partner id and no user id, and `shouldReceive` delivers an event only to
+   * its own user or its own partner — so listing events reach the firm's own
+   * desk and never an investor. Subscribing here would have looked like a fix
+   * and fired nothing. Making them public would change the fan-out rule for
+   * every event, which is a bigger decision than this screen.
+   *
+   * What is left is the two moments staleness actually bites: coming back to a
+   * tab left open, and being refused at the point of investing.
+   */
+  const refresh = useCallback(() => {
+    void getOpportunities()
+      .then(({ opportunities, suitabilityBand }) => {
+        setOpportunities(opportunities);
+        setBand(suitabilityBand);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refresh]);
 
   const opps = opportunities.map(toOpp);
   const TRADEABLE = opps.filter((o) => !o.blocked);
@@ -798,7 +888,12 @@ export default function OpportunitiesPage() {
             </>
           )}
 
-          <ExecDialog opp={selected} band={band} onClose={() => setSelected(null)} />
+          <ExecDialog
+            opp={selected}
+            band={band}
+            onClose={() => setSelected(null)}
+            onWithdrawn={refresh}
+          />
         </>
       )}
     </AppScreen>
