@@ -1,5 +1,6 @@
 'use client';
 
+import { ClientDetailDialog } from '@/app/_components/console/client-detail';
 import { ClientsTab } from '@/app/_components/console/clients-tab';
 import { ComplianceTab } from '@/app/_components/console/compliance-tab';
 import { ConsoleHeader } from '@/app/_components/console/console-header';
@@ -249,6 +250,9 @@ export default function InstitutionsPage() {
   const [listingOpen, setListingOpen] = useState(false);
   /** The listing being amended. Undefined while `listingOpen` means "create". */
   const [editingProduct, setEditingProduct] = useState<ConsoleProduct | undefined>(undefined);
+  /** The client whose drill-down is open. */
+  const [openClientId, setOpenClientId] = useState<string | null>(null);
+  const openClient = clients.find((c) => c.account_id === openClientId) ?? null;
 
   /** The phone navigation sheet; on a desktop this element is the rail. */
   const navRef = useRef<HTMLDialogElement>(null);
@@ -424,6 +428,19 @@ export default function InstitutionsPage() {
           />
         </TabsContent>
 
+        {/* Held by id, not by value: the row updates when a decision lands,
+            and a dialog holding its own copy would go on offering "Revoke" to
+            a client it had just revoked. */}
+        {openClient ? (
+          <ClientDetailDialog
+            client={openClient}
+            busy={clientBusyId === openClient.account_id}
+            actionError={clientActionError}
+            onReview={handleReviewClient}
+            onClose={() => setOpenClientId(null)}
+          />
+        ) : null}
+
         {listingOpen ? (
           <ListProductDialog
             product={editingProduct}
@@ -475,6 +492,7 @@ export default function InstitutionsPage() {
             clientBusyId={clientBusyId}
             clientActionError={clientActionError}
             onReviewClient={handleReviewClient}
+            onOpenClient={(c) => setOpenClientId(c.account_id)}
             partner={partner}
             funnel={funnel}
             funnelError={funnelError}

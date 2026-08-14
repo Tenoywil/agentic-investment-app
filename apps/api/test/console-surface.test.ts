@@ -1,6 +1,17 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { loadServerConfig } from '@ccn/config';
-import { createDb, instruments, orders, partners, session, user, userRoles } from '@ccn/db';
+import {
+  connectedAccounts,
+  createDb,
+  holdings,
+  instruments,
+  kycStatus,
+  orders,
+  partners,
+  session,
+  user,
+  userRoles,
+} from '@ccn/db';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { createApp } from '../src/app';
 import { createAuth } from '../src/auth';
@@ -76,6 +87,8 @@ suite('partner console data surface', () => {
   let ncbId = '';
   let instrumentId = '';
   let listingId = '';
+  /** SAG's client connection, for the drill-down and the revoke path. */
+  let clientAccountId = '';
   /** Everything the listing tests create, so afterAll can take it back out. */
   const createdInstrumentIds: string[] = [];
 
@@ -177,6 +190,36 @@ suite('partner console data surface', () => {
       })
       .returning({ id: instruments.id });
     listingId = listing?.id ?? '';
+
+    /**
+     * A client of SAG's, with a position, so the drill-down has something to
+     * drill into. The KYC row matters: `partner_review_client` refuses to grant
+     * access to somebody with no package to review, which is the floor
+     * reinstating has to clear too.
+     */
+    await db
+      .insert(kycStatus)
+      .values({ userId: ids.investor ?? '', tier: 'tier1', identityVerified: true })
+      .onConflictDoNothing();
+    const [account] = await db
+      .insert(connectedAccounts)
+      .values({
+        userId: ids.investor ?? '',
+        partnerId: sagId,
+        label: `${tag} account`,
+        status: 'active',
+      })
+      .returning({ id: connectedAccounts.id });
+    clientAccountId = account?.id ?? '';
+    await db.insert(holdings).values({
+      userId: ids.investor ?? '',
+      connectedAccountId: clientAccountId,
+      instrumentId,
+      name: 'GOJ USD Global Bond 2032',
+      valueMinor: 1_250_000n,
+      currency: 'USD',
+      returnLabel: '+6.8%',
+    });
 
     // One audit row per partner, through the append-only hash-chained function.
     for (const [partnerId, action] of [
@@ -542,6 +585,92 @@ suite('partner console data surface', () => {
       .from(instruments)
       .where(eq(instruments.id, product.id));
     expect(unchanged?.name).toBe(`${tag} Amended`);
+  });
+
+  /**
+   * The drill-down. The list row could say "1 position · US$12,500" and could
+   * not say what it was, which is the first thing anyone asks about a client.
+   */
+  test('an operator opens one of their clients and sees where the money is', async () => {
+    type Detail = {
+      client: { account_id: string; client_name: string; status: string };
+      holdings: { name: string; instrument_name: string | null; value_minor: string }[];
+      orders: unknown[];
+      audit: { action: string }[];
+    };
+    const detail = await json<Detail>(`/api/console/clients/${clientAccountId}`, 'sagOperator');
+    expect(detail.client.account_id).toBe(clientAccountId);
+    expect(detail.holdings).toHaveLength(1);
+    expect(detail.holdings[0]?.value_minor).toBe('1250000');
+    // The product's name, not a UUID: `holdings.name` is what the statement
+    // called it, `instrument_name` is what it maps to in the catalogue.
+    expect(detail.holdings[0]?.instrument_name).toBe('GOJ USD Global Bond 2032');
+
+    // Another firm's operator gets the same answer as for an id that does not
+    // exist, so client ids cannot be probed from a console.
+    const foreign = await app().request(`/api/console/clients/${clientAccountId}`, {
+      headers: { cookie: cookies.ncbOperator ?? '' },
+    });
+    expect(foreign.status).toBe(404);
+    const missing = await app().request(
+      '/api/console/clients/00000000-0000-0000-0000-000000000000',
+      { headers: { cookie: cookies.sagOperator ?? '' } },
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  /**
+   * Revoking. `partner_review_client` hard-coded `status = 'pending'`, so
+   * accepting a client was a one-way door: a firm needing to end a
+   * relationship had no control anywhere in the console, and the audit row it
+   * would have written is the one a regulator asks for.
+   */
+  test('an operator revokes an active client, and can reinstate them', async () => {
+    const move = (accept: boolean, who = 'sagOperator', body: unknown = {}) =>
+      app().request(`/api/console/clients/${clientAccountId}/${accept ? 'accept' : 'decline'}`, {
+        method: 'POST',
+        headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const revoked = await move(false, 'sagOperator', { reason: 'periodic review failed' });
+    expect(revoked.status).toBe(200);
+    expect(((await revoked.json()) as { status: string }).status).toBe('declined');
+
+    const [row] = await db
+      .select({ status: connectedAccounts.status, reason: connectedAccounts.declineReason })
+      .from(connectedAccounts)
+      .where(eq(connectedAccounts.id, clientAccountId));
+    expect(row?.status).toBe('declined');
+    expect(row?.reason).toBe('periodic review failed');
+
+    // Revoking is audited as its own event, not as a decline — the two are
+    // different decisions and a regulator reading the log has to see which.
+    const detail = await json<{ audit: { action: string }[] }>(
+      `/api/console/clients/${clientAccountId}`,
+      'sagOperator',
+    );
+    expect(detail.audit.map((a) => a.action)).toContain('client.revoked');
+
+    // Revoking twice is refused rather than silently written again.
+    expect((await move(false)).status).toBe(409);
+
+    const back = await move(true);
+    expect(back.status).toBe(200);
+    expect(((await back.json()) as { status: string }).status).toBe('active');
+    const after = await json<{ audit: { action: string }[] }>(
+      `/api/console/clients/${clientAccountId}`,
+      'sagOperator',
+    );
+    expect(after.audit.map((a) => a.action)).toContain('client.reinstated');
+
+    // And none of it is another firm's to do.
+    expect((await move(false, 'ncbOperator')).status).toBe(409);
+    const [unchanged] = await db
+      .select({ status: connectedAccounts.status })
+      .from(connectedAccounts)
+      .where(eq(connectedAccounts.id, clientAccountId));
+    expect(unchanged?.status).toBe('active');
   });
 
   test('a product needs a name and a type CCN can act on', async () => {

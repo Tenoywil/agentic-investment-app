@@ -11,6 +11,7 @@ import {
   ROW_DIVIDER,
   agreementLabel,
   auditActionLabel,
+  auditEntityLabel,
   auditReason,
   regulatorLabel,
   timeAgo,
@@ -101,6 +102,7 @@ export function ComplianceTab({
 
         {audit.map((a) => {
           const reason = auditReason(a.detail);
+          const entity = auditEntityLabel(a.entityType);
           return (
             <div key={a.id} className={`flex gap-2.5 py-2.5 ${ROW_DIVIDER} last:border-b-0`}>
               <span
@@ -111,7 +113,7 @@ export function ComplianceTab({
                 <div className="text-sm text-foreground">{auditActionLabel(a.action)}</div>
                 <div className="mt-0.5 text-[12.5px] text-faint">
                   {AUDIT_ACTOR_LABEL[a.actorType]}
-                  {a.entityType ? ` · ${a.entityType}` : ''} · {timeAgo(a.createdAt)}
+                  {entity ? ` · ${entity}` : ''} · {timeAgo(a.createdAt)}
                 </div>
                 {reason ? (
                   <div className="mt-0.5 text-[12.5px] italic text-dim">{reason}</div>

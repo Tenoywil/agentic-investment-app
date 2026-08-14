@@ -16,6 +16,7 @@ import type { InstrumentRow } from '../db-fns';
 import {
   acceptOrder,
   auditAppend,
+  partnerClientHoldings,
   partnerClients,
   partnerReviewClient,
   partnerToggleInstrument,
@@ -339,13 +340,77 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
   });
 
   /**
-   * Accept or decline a pending client.
+   * One client, opened.
    *
-   * Both verbs are one handler because they are one decision with one guarded
-   * transition behind them, and splitting them would let the two drift.
+   * The list row carries a holdings count and a total, so the console could say
+   * "4 holdings · US$12,400" and could not say what any of them were. This
+   * answers the first question anyone asks about a client — what are they
+   * actually in with us — and the second, what have they traded through us.
    *
-   * A failure here is a 409 rather than a 404: the connection was not pending at
-   * this firm, or the person has completed no KYC, and both are states the
+   * Three reads, each scoped a different way and all to the same firm: the KYC
+   * package through `partner_clients()` (the only path to it), the holdings
+   * through `partner_client_holdings()` (holdings have no partner read policy),
+   * and the orders through RLS, which already admits `partner_id = ours`. The
+   * client's user id is taken from the row this firm can see rather than from
+   * the request, so there is no id to substitute.
+   */
+  app.get('/clients/:id', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const accountId = c.req.param('id');
+
+    const detail = await withTenant(deps, tenant, async (tx) => {
+      const client = (await partnerClients(tx)).find((row) => row.account_id === accountId);
+      if (!client) return null;
+      const holdings = await partnerClientHoldings(tx, accountId);
+      const clientOrders = await tx
+        .select(orderColumns)
+        .from(ordersTable)
+        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+        .where(
+          and(eq(ordersTable.partnerId, scope.partnerId), eq(ordersTable.userId, client.user_id)),
+        )
+        .orderBy(desc(ordersTable.createdAt))
+        .limit(50);
+      // This client's own thread of the firm's audit log. `audit_log_read`
+      // scopes to the partner; `user_id` — the subject of the action, not its
+      // actor — narrows it to the person.
+      const history = await tx
+        .select({
+          id: auditLog.id,
+          seq: auditLog.seq,
+          action: auditLog.action,
+          entityType: auditLog.entityType,
+          actorType: auditLog.actorType,
+          detail: auditLog.detail,
+          createdAt: auditLog.createdAt,
+        })
+        .from(auditLog)
+        .where(and(eq(auditLog.partnerId, scope.partnerId), eq(auditLog.userId, client.user_id)))
+        .orderBy(desc(auditLog.seq))
+        .limit(50);
+      return { client, holdings, orders: clientOrders, audit: history };
+    });
+
+    // Not found and not-yours are the same answer, so an account id cannot be
+    // probed by watching which one comes back.
+    if (!detail) return c.json({ error: 'client not found' }, 404);
+    return c.json(detail);
+  });
+
+  /**
+   * Move a client along: accept, decline, revoke, reinstate.
+   *
+   * Two verbs, four transitions — `accept` is also how a declined client is
+   * reinstated and `decline` is also how an active one is revoked, because
+   * underneath they are one guarded transition and the database picks the audit
+   * action from where the row actually was. Splitting them into four routes
+   * would let four things drift.
+   *
+   * A failure here is a 409 rather than a 404: the connection is already in
+   * that state, or the person has completed no KYC, and both are states the
    * operator can see on the row they just acted on. The database's message is
    * not forwarded — it names internal ids — but the two cases are distinguished
    * because the operator's next move differs.
@@ -381,7 +446,10 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           409,
         );
       }
-      return c.json({ error: 'that client is not awaiting a decision here' }, 409);
+      if (raisedBy(err, 'is already')) {
+        return c.json({ error: 'that client is already in that state' }, 409);
+      }
+      return c.json({ error: 'that client is not one of yours' }, 409);
     }
   };
 

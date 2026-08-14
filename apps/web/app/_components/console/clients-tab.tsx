@@ -38,6 +38,7 @@ export function ClientsTab({
   clientBusyId,
   clientActionError,
   onReviewClient,
+  onOpenClient,
   funnel,
   funnelError,
   reconciliation,
@@ -60,6 +61,7 @@ export function ClientsTab({
   clientBusyId: string | null;
   clientActionError: string | null;
   onReviewClient: (id: string, accept: boolean, reason?: string) => void;
+  onOpenClient: (client: ConsoleClient) => void;
   funnel: ConsoleFunnelStage[];
   funnelError: string | null;
   reconciliation: ConsoleReconciliationItem[];
@@ -100,6 +102,7 @@ export function ClientsTab({
         busyId={clientBusyId}
         actionError={clientActionError}
         onReview={onReviewClient}
+        onOpen={onOpenClient}
       />
 
       <div className="g-held">

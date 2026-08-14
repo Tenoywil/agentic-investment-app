@@ -293,10 +293,46 @@ export function getClients(
   return consoleFetch(`/clients${queryString(query)}`);
 }
 
+/** One position a client holds through this firm. */
+export interface ConsoleClientHolding {
+  id: string;
+  name: string;
+  instrument_id: string | null;
+  instrument_name: string | null;
+  instrument_abbr: string | null;
+  value_minor: string;
+  currency: ConsoleCurrency;
+  return_label: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
- * Accept or decline one pending client. The server returns the status the
- * connection moved to, so the screen reconciles to that rather than to its own
- * guess about what the press did.
+ * One client, opened.
+ *
+ * The list row carries a holdings count and a total; this carries the rows
+ * behind them, the orders this firm has taken for the person, and their own
+ * thread of the firm's audit log.
+ */
+export interface ConsoleClientDetail {
+  client: ConsoleClient;
+  holdings: ConsoleClientHolding[];
+  orders: ConsoleOrder[];
+  audit: ConsoleAuditEntry[];
+}
+
+export function getClient(accountId: string): Promise<ConsoleClientDetail> {
+  return consoleFetch(`/clients/${accountId}`);
+}
+
+/**
+ * Move one client along: accept, decline, revoke or reinstate.
+ *
+ * `accept` is also how a declined client is reinstated and the decline path is
+ * also how an active one is revoked — one guarded transition underneath, and
+ * the database names the audit action from where the row actually was. The
+ * server returns the status the connection moved to, so the screen reconciles
+ * to that rather than to its own guess about what the press did.
  */
 export function reviewClient(
   id: string,

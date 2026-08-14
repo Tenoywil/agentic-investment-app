@@ -174,10 +174,46 @@ export async function partnerClients(tx: Transaction): Promise<PartnerClientRow[
   return (await tx.execute(sql`select * from partner_clients()`)) as unknown as PartnerClientRow[];
 }
 
+/** One holding a client has through the caller's firm. */
+export interface PartnerClientHoldingRow {
+  id: string;
+  name: string;
+  instrument_id: string | null;
+  instrument_name: string | null;
+  instrument_abbr: string | null;
+  value_minor: string;
+  currency: string;
+  return_label: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 /**
- * Accept or decline one pending connection. Returns the status it moved to.
- * Throws when the connection is not this partner's, is not pending, or (on
- * accept) when the client has no KYC at all to review.
+ * What one client actually holds through the caller's firm.
+ *
+ * `partner_clients()` aggregates the same rows to a count and a sum, which is
+ * all the Clients tab could show — an operator could see "4 holdings" and not
+ * what any of them were. `holdings` has no partner read policy, so this is the
+ * only path to them, and it scopes by the account's partner inside the
+ * function rather than trusting the id it is handed.
+ */
+export async function partnerClientHoldings(
+  tx: Transaction,
+  accountId: string,
+): Promise<PartnerClientHoldingRow[]> {
+  return (await tx.execute(
+    sql`select * from partner_client_holdings(${accountId}::uuid)`,
+  )) as unknown as PartnerClientHoldingRow[];
+}
+
+/**
+ * Move one connection along. Returns the status it moved to.
+ *
+ * Four transitions, all the partner's own decision: accept and decline a
+ * pending review, revoke an active client, reinstate a declined one. Throws
+ * when the connection is not this partner's, is already in the state asked
+ * for, or (on anything that grants access) when the client has no KYC at all
+ * to review.
  */
 export async function partnerReviewClient(
   tx: Transaction,

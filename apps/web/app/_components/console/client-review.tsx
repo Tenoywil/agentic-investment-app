@@ -93,6 +93,7 @@ export function ClientReview({
   busyId,
   actionError,
   onReview,
+  onOpen,
 }: {
   clients: ConsoleClient[];
   clientsError: string | null;
@@ -100,6 +101,8 @@ export function ClientReview({
   busyId: string | null;
   actionError: string | null;
   onReview: (id: string, accept: boolean, reason?: string) => void;
+  /** Open the drill-down: positions, orders, and the record with this firm. */
+  onOpen: (client: ConsoleClient) => void;
 }) {
   const pending = clients.filter((c) => c.status === 'pending');
   const decided = clients.filter((c) => c.status !== 'pending');
@@ -124,11 +127,26 @@ export function ClientReview({
               {timeAgo(c.requested_at)}
             </div>
           </div>
-          <div className="text-right">
-            <div className="font-mono text-[13.5px] font-bold">{TIER_LABEL[c.kyc_tier]}</div>
-            {c.risk_band ? (
-              <div className="text-[12px] text-faint">{BAND_LABEL[c.risk_band] ?? c.risk_band}</div>
-            ) : null}
+          <div className="flex items-start gap-2">
+            <div className="text-right">
+              <div className="font-mono text-[13.5px] font-bold">{TIER_LABEL[c.kyc_tier]}</div>
+              {c.risk_band ? (
+                <div className="text-[12px] text-faint">
+                  {BAND_LABEL[c.risk_band] ?? c.risk_band}
+                </div>
+              ) : null}
+            </div>
+            {/* The drill-down. The row can say "4 positions · US$12,400"; only
+                this can say what they are. */}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onOpen(c)}
+              aria-label={`Open ${c.client_name}`}
+            >
+              Open
+            </Button>
           </div>
         </div>
 
