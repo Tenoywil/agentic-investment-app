@@ -16,6 +16,7 @@ import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
 import { auditAppend } from '../db-fns';
+import { MIGRATION_PENDING, isDatabaseBehind } from '../migrations';
 import { createOutboundGuard } from '../security';
 import { refreshFxRates } from '../services/fx';
 
@@ -51,60 +52,6 @@ import { refreshFxRates } from '../services/fx';
  * where it would be read as the authoritative one — is the exact failure this
  * product has already had once.
  */
-/**
- * A write refused because the database is behind the code.
- *
- * This surface's writes each depend on a grant added by a migration, and a
- * deployment can be running new code against a database that never received
- * one — `preDeployCommand` is declared in a Blueprint, and a service created
- * from the dashboard instead does not have it, so migrations only run when a
- * person runs them. Nothing in the deploy log says so: the build is green, the
- * code ships, and the first request that needs the grant is where it surfaces.
- *
- * It surfaced as a 500 and a stack trace, which tells an administrator standing
- * in front of the screen nothing at all. Postgres already knows exactly what is
- * wrong, so it is worth saying.
- *
- * A migration can be missing in two ways, and both arrive as `42501`:
- *
- *   - the GRANT never happened — "permission denied for table partners"
- *   - the POLICY never happened — "new row violates row-level security policy
- *     for table user_roles"
- *
- * Only the first was matched at first, and the second reached an administrator
- * as a 500 with a stack trace — the exact failure this function exists to
- * prevent, one migration later.
- *
- * Treating an RLS refusal as "the database is behind" is safe **on this surface
- * specifically**, and nowhere else. Every write here has already been checked
- * against its own rules in TypeScript before any SQL runs: `admin` is refused
- * as a grantable role, a self-target is refused, an unknown partner is refused.
- * So a request that reaches Postgres and is then refused by a policy is not a
- * correctly-refused write — it is a policy that should have permitted it and
- * does not exist. Anywhere an RLS refusal could be legitimate, this reasoning
- * would be wrong, which is why it lives beside these handlers rather than in a
- * global error mapper.
- */
-const MIGRATION_PENDING =
-  'this database is missing a migration that the administration surface needs. Apply it with `bun run db:migrate` against this database, or run packages/db/scripts/apply-admin-migrations.sql from the SQL editor, then try again.';
-
-function isDatabaseBehind(err: unknown): boolean {
-  const seen = new Set<unknown>();
-  let e: unknown = err;
-  while (e && typeof e === 'object' && !seen.has(e)) {
-    seen.add(e);
-    const { code, message } = e as { code?: string; message?: string };
-    if (
-      code === '42501' &&
-      /permission denied for|violates row-level security policy/i.test(message ?? '')
-    ) {
-      return true;
-    }
-    e = (e as { cause?: unknown }).cause;
-  }
-  return false;
-}
-
 export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 

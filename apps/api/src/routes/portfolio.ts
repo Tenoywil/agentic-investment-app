@@ -263,7 +263,7 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
 
     const requested = c.req.query('currency');
-    const display: Currency =
+    const asked: Currency =
       requested && (CURRENCIES as readonly string[]).includes(requested)
         ? (requested as Currency)
         : 'USD';
@@ -335,6 +335,18 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
       }
     >();
     // Allocation by asset class, derived from each holding's instrument type.
+    /**
+     * The currency actually used, which is not always the one asked for.
+     *
+     * When the rate table cannot be read — this database behind the code, no
+     * `as_of` column — converting would mean picking a number nobody published.
+     * Serving the base currency instead is the one answer that cannot be wrong,
+     * and the response says which currency was requested so the screen can
+     * explain itself rather than silently showing different units.
+     */
+    const wanted = fx.rates.find((r) => r.currency === asked);
+    const display: Currency = wanted?.unavailable ? 'USD' : asked;
+
     // `holdings.instrumentId` is nullable (an ingested statement line may not
     // have been matched to a catalogue instrument yet), so those fall into
     // `other` rather than being silently dropped from the denominator.
@@ -393,7 +405,13 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
        * converted figure without them is a number the reader has no way to
        * date, which is how the hardcoded table went unnoticed for months.
        */
+      /** Null only if the currency list and the rate list ever disagree. */
       fx: fx.rates.find((r) => r.currency === display) ?? null,
+      /**
+       * Set when the caller asked for a currency that could not be converted to.
+       * The figures above are in `currency`, not in this one.
+       */
+      requestedCurrency: display === asked ? null : asked,
       netWorth: formatMoney(netWorth),
       netWorthMinor: netWorth.minor.toString(),
       allocation,

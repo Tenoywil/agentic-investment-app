@@ -78,12 +78,26 @@ export interface FxMeta {
   /** `BOJ`, `CBTT`, or `seed` for the fallback rows. */
   source: string | null;
   stale: boolean;
+  /**
+   * No rate could be read at all, so this currency was not converted to.
+   * Different from `stale`, which is an old but real published rate. Happens
+   * when the API's database is behind the code and the rate table is unreadable;
+   * the figures then arrive in USD, and `requestedCurrency` says what was asked
+   * for.
+   */
+  unavailable: boolean;
 }
 
 export interface Portfolio {
+  /** The currency the figures are actually in. */
   currency: Currency;
   /** Null for USD, which is the base and needs no conversion. */
   fx: FxMeta | null;
+  /**
+   * Set only when the requested currency could not be converted to, in which
+   * case `currency` is USD. Null on every ordinary response.
+   */
+  requestedCurrency: Currency | null;
   netWorth: string;
   netWorthMinor: string;
   allocation: AllocationSlice[];

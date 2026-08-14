@@ -264,6 +264,20 @@ export default function PortfolioPage() {
       */}
       {pullNote ? <output className="mb-3 block text-[13px] text-dim">{pullNote}</output> : null}
 
+      {/*
+        The currency asked for could not be converted to, so these figures are in
+        USD. Saying so matters more than it looks: without it the screen silently
+        changes units under somebody comparing two numbers, which is a worse
+        failure than the 500 this replaced.
+      */}
+      {data?.requestedCurrency ? (
+        <p className="-mt-1 mb-4 flex items-center gap-2 text-[13px] text-[#a44e20] dark:text-terra">
+          <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+          Showing {data.currency}. No published rate for {data.requestedCurrency} could be read just
+          now, and converting at an unpublished one would be a guess.
+        </p>
+      ) : null}
+
       {data?.fx?.source ? (
         <p className="-mt-1 mb-4 text-[12.5px] text-faint">
           {data.fx.source === 'seed' ? (

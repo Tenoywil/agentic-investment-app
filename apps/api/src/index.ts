@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { createApp } from './app';
 import { createAuth, resolveAuthBaseUrl } from './auth';
 import { createLogger } from './logger';
+import { checkMigrations } from './migrations';
 import { createOutboundGuard } from './security';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
@@ -81,6 +82,18 @@ const app = createApp(deps);
     );
   }
 }
+
+/**
+ * Say, at boot, whether this database has the migrations this code needs.
+ *
+ * Render cannot apply them on the free plan, so a person does it after every
+ * merge that adds one. That has been missed twice, and both times the first
+ * report was a 500 in front of a user rather than a line anybody could have read
+ * at deploy time. Like the checks around it, this does not exit — with the
+ * degradation in services/fx.ts the product mostly keeps working, and an API
+ * still serving /health and the auth routes beats one that refuses to start.
+ */
+await checkMigrations(deps);
 
 /**
  * Say, at boot, whether anyone can reach the institution console.
