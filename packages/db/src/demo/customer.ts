@@ -194,7 +194,13 @@ export async function seedDemoCustomer(db: Database | Transaction, userId: strin
   const totalValue = accounts.flatMap((a) => a.holdings).reduce((s, h) => s + h.value, 0);
   const goj = 12_400;
   const gojPct = Math.round((goj / totalValue) * 1000) / 10;
-  const capPct = 25; // matches the single-position default in the limits table
+  // 15, because that is what the engine will actually enforce: it is the
+  // `single_position_max_pct` column default and DEFAULT_LIMITS in
+  // services/gate.ts. This said 25 with a comment claiming it matched the
+  // limits table, so the card told a demo user their cap was 25% while any
+  // order they placed was measured against 15% — the seeded narrative and the
+  // guardrail disagreeing about the same rule.
+  const capPct = 15;
   const trimTo = Math.round((goj - totalValue * (capPct / 100)) / 50) * 50;
 
   // The projected annual figure follows the catalogue's quoted yield. If the

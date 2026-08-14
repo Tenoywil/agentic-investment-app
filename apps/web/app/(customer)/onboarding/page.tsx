@@ -131,7 +131,13 @@ export default function OnboardingPage() {
   const band = riskBand(scores);
   const riskTotal = scores.reduce((a, b) => a + b, 0);
 
-  const allDeclared = declared.every(Boolean);
+  /**
+   * Only the affirmations gate the step. The PEP item is a disclosure — being
+   * one is not disqualifying, it is something the firm carrying the KYC
+   * obligation has to be told — so requiring it ticked would once again make
+   * "not a PEP" the only way through.
+   */
+  const allDeclared = DECLARATIONS.every((d, i) => !d.mustBeTrue || declared[i] === true);
   const riskComplete = scores.length === RISK_QUESTIONS.length;
   const hasSource = Object.values(sources).some(Boolean);
   const identityComplete =
@@ -170,7 +176,11 @@ export default function OnboardingPage() {
     if (step === 1) {
       setBusy(true);
       try {
-        await submitCompliance();
+        // Their real answer, not a constant. DECLARATIONS carries the PEP item
+        // as a disclosure rather than an affirmation, so this is the one place it
+        // has to be read back out by id rather than by position.
+        const pepIndex = DECLARATIONS.findIndex((d) => d.id === 'pep');
+        await submitCompliance({ isPoliticallyExposed: declared[pepIndex] ?? false });
         setStep((s) => s + 1);
       } catch (err) {
         setError(errorMessage(err, 'Could not save your declarations.'));
@@ -467,12 +477,12 @@ function ComplianceStep({
     <fieldset className="m-0 min-w-0 border-0 p-0">
       <legend className="sr-only">Declarations</legend>
       <div className="flex flex-col gap-[11px]">
-        {DECLARATIONS.map((text, i) => (
+        {DECLARATIONS.map((d, i) => (
           <ToggleRow
-            key={text}
+            key={d.id}
             checked={declared[i] ?? false}
             onChange={(v) => onToggle(i, v)}
-            label={text}
+            label={d.text}
           />
         ))}
       </div>
@@ -634,25 +644,46 @@ function RiskStep({
   );
 }
 
+/**
+ * What actually happened, and what happens next.
+ *
+ * This card used to announce "You're verified · Tier 2" and tick "Identity
+ * verified (KYC · Tier 2)". Nothing had been verified: `POST /identity` sets
+ * `identity_verified = true` from a typed name, a country and an occupation.
+ * There is no document upload, no IDV provider and no liveness check anywhere in
+ * this product — by design, because CCN does not own KYC. The regulated firm
+ * does, and links its verified status across with the client's consent.
+ *
+ * So the screen said the one thing the whole architecture is careful not to
+ * claim. What the person has really done is complete a self-declaration, and
+ * what they are really waiting on is a firm accepting them — which is the next
+ * thing they will hit, and worth telling them now rather than at the point it
+ * blocks them.
+ *
+ * The suitability band falls back to nothing rather than to "High Moderate". A
+ * band is the output of the three answers they just gave; printing a default
+ * when the server did not return one shows somebody a risk profile they were
+ * never assessed for.
+ */
 function DoneStep({ band }: { band: string }) {
+  const steps = [
+    'Identity details recorded',
+    band ? `Suitability: ${band} profile` : 'Suitability assessed from your answers',
+    'Source of funds declared',
+  ];
+
   return (
     <div className="py-3.5 text-center">
       <span className="mx-auto mb-[18px] grid h-[72px] w-[72px] place-items-center rounded-full bg-mint">
         <Check className="h-[38px] w-[38px] text-success" aria-hidden />
       </span>
-      <h1 className="font-display text-[23px] font-bold tracking-tight">
-        You're verified · Tier 2
-      </h1>
+      <h1 className="font-display text-[23px] font-bold tracking-tight">Your details are in</h1>
       <p className="mx-auto mt-2.5 max-w-[400px] text-[15px] leading-relaxed text-dim">
-        Your agent can now discover, screen and coordinate execution across every licensed partner
-        in the network, always on your approval.
+        Connect an account at a licensed partner next. They verify your identity and accept you as
+        their client — CCN never holds your money and does not carry out KYC itself.
       </p>
       <ul className="mx-auto mt-5 flex max-w-[360px] list-none flex-col gap-2 p-0 text-left">
-        {[
-          'Identity verified (KYC · Tier 2)',
-          `Suitability: ${band || 'High Moderate'} profile`,
-          'Source of funds confirmed',
-        ].map((item) => (
+        {steps.map((item) => (
           <li key={item} className="flex items-center gap-2.5 text-[14.5px] text-foreground">
             <Check className="h-4 w-4 flex-none text-success" aria-hidden />
             {item}
@@ -660,7 +691,7 @@ function DoneStep({ band }: { band: string }) {
         ))}
       </ul>
       <Button asChild className="mt-6">
-        <Link href="/home">Explore opportunities</Link>
+        <Link href="/portfolio">Connect an account</Link>
       </Button>
     </div>
   );

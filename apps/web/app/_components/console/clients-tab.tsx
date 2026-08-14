@@ -77,8 +77,12 @@ export function ClientsTab({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <b className="font-display text-lg">Onboarding pipeline</b>
+              {/* No window. The counts are every connection this firm has ever
+                  been sent, and "last 90 days" described a date filter that no
+                  query applied — a caption quietly narrowing numbers it did not
+                  narrow. */}
               <div className="mb-[18px] mt-1 text-[13px] text-faint">
-                Agent-referred clients, last 90 days
+                Everyone CCN has referred to you, and where they stopped
               </div>
             </div>
             {isSandbox(partner) && funnel.length > 0 ? <SandboxBadge /> : null}
@@ -90,7 +94,7 @@ export function ClientsTab({
             <RowsSkeleton rows={3} label="Loading the onboarding pipeline" />
           ) : null}
 
-          {!loading && !funnelError && funnel.length === 0 ? (
+          {!loading && !funnelError && funnel.every((k) => k.count === 0) ? (
             <EmptyState
               icon={Users}
               title="No referrals yet"

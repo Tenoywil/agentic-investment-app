@@ -110,15 +110,18 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         .values({
           userId: tenant.user.id,
           complianceConfirmed: true,
-          isPep: false,
-          taxResidencyDeclared: true,
+          // What they actually declared. This was hardcoded `false`, so the
+          // column recorded the same answer for everyone whether they had been
+          // asked or not.
+          isPep: parsed.data.isPoliticallyExposed,
+          taxResidencyDeclared: parsed.data.taxResidencyDeclared,
         })
         .onConflictDoUpdate({
           target: kycStatus.userId,
           set: {
             complianceConfirmed: true,
-            isPep: false,
-            taxResidencyDeclared: true,
+            isPep: parsed.data.isPoliticallyExposed,
+            taxResidencyDeclared: parsed.data.taxResidencyDeclared,
             updatedAt: new Date(),
           },
         });

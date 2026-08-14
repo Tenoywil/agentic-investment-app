@@ -173,9 +173,18 @@ export const onboardingIdentitySchema = z.object({
 });
 export type OnboardingIdentityInput = z.infer<typeof onboardingIdentitySchema>;
 
-/** POST /api/onboarding/compliance — the three prototype declarations, all required. */
+/**
+ * POST /api/onboarding/compliance — the declarations.
+ *
+ * Two are affirmations and must be true to proceed. The third is a disclosure
+ * and is a plain boolean: it used to be `notPoliticallyExposed: z.literal(true)`,
+ * which made "I am not a PEP" the only submittable answer, wrote `is_pep = false`
+ * for every person on the network, and left the console's "Politically exposed"
+ * chip permanently unreachable. A screening question with one legal answer is
+ * not screening anything.
+ */
 export const onboardingComplianceSchema = z.object({
-  notPoliticallyExposed: z.literal(true),
+  isPoliticallyExposed: z.boolean(),
   taxResidencyDeclared: z.literal(true),
   risksUnderstood: z.literal(true),
 });

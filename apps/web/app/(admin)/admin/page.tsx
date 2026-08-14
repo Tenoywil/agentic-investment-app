@@ -20,6 +20,7 @@ import {
   getAdminPartners,
   getAdminProducts,
   loadAdminReferenceData,
+  refreshAdminFxRates,
 } from '@/lib/admin-api';
 import { authClient } from '@/lib/auth-client';
 import {
@@ -279,6 +280,39 @@ export default function AdminPage() {
       .finally(() => setSeeding(false));
   }
 
+  /**
+   * Pull today's rates from the central banks that publish them.
+   *
+   * Every conversion in the product used to run on three constants compiled into
+   * @ccn/money, because `convert()` takes an optional table and no caller passed
+   * one. Rates now come from `fx_rates`, which means somebody has to fill it —
+   * a scheduled job does, and this is the button for when it matters now. A bank
+   * that cannot be reached leaves its stored rate alone and the portfolio screen
+   * reports it as stale, so pressing this can never make a number worse.
+   */
+  const [refreshingFx, setRefreshingFx] = React.useState(false);
+  const [fxNote, setFxNote] = React.useState<string | null>(null);
+  const [fxError, setFxError] = React.useState<string | null>(null);
+
+  function refreshFx() {
+    setRefreshingFx(true);
+    setFxNote(null);
+    setFxError(null);
+    refreshAdminFxRates()
+      .then((r) => {
+        const updated = r.updated.length > 0 ? `Updated ${r.updated.join(', ')}.` : 'None updated.';
+        const failed =
+          r.failed.length > 0
+            ? ` ${r.failed.map((f) => `${f.source} unreachable`).join('; ')} — the stored rate stands.`
+            : '';
+        setFxNote(`${updated}${failed}`);
+      })
+      .catch((err: unknown) => {
+        setFxError(err instanceof Error ? err.message : 'Could not reach the rate publishers.');
+      })
+      .finally(() => setRefreshingFx(false));
+  }
+
   const referenceAction = (
     <div className="flex flex-col items-center gap-2">
       <Button type="button" size="sm" onClick={loadReferenceData} disabled={seeding}>
@@ -337,6 +371,16 @@ export default function AdminPage() {
               type="button"
               size="sm"
               variant="outline"
+              onClick={refreshFx}
+              disabled={refreshingFx}
+              title="Pull today's USD rates from the central banks that publish them"
+            >
+              {refreshingFx ? 'Pulling rates…' : 'Refresh FX rates'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
               onClick={() => void load()}
               disabled={refreshing}
             >
@@ -355,6 +399,9 @@ export default function AdminPage() {
           Every investor, partner, product and order, read across all tenants. This surface makes no
           changes — actions stay on their own audited paths.
         </p>
+
+        {fxNote ? <output className="mt-2 block text-[13px] text-dim">{fxNote}</output> : null}
+        {fxError ? <Failed message={fxError} /> : null}
 
         {/* One scrolling row on a phone rather than two wrapped lines: six tabs
             wrapped took another 90px off the top of a 390px screen. */}

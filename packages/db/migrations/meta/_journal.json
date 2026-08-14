@@ -113,6 +113,13 @@
       "when": 1786580000000,
       "tag": "0015_realtime_events",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786590000000,
+      "tag": "0016_fx_as_of",
+      "breakpoints": true
     }
   ]
 }

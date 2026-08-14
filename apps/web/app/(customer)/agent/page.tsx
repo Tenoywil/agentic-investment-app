@@ -139,12 +139,22 @@ const RULES: {
     note: 'Never swept below this',
     value: (l) => formatLimitMinor(l.cashFloorMinor),
   },
-  {
-    flag: 'fxSpreadEnabled',
-    label: 'FX spread guardrail',
-    note: 'Holds transfers above this spread for review',
-    value: (l) => `≤ ${formatBps(l.fxSpreadMaxBps)}`,
-  },
+  /*
+    The FX spread guardrail is not here, and should not be until it does
+    something. `GateInput.isFxTransfer` and `fxSpreadBps` are optional and no
+    caller sets them: services/gate.ts defaults them to `false` and `0`, and the
+    agent hardcodes the same, so the branch in limits-engine that compares them
+    is unreachable in production. The row rendered a switch an investor could
+    turn on, a threshold they could edit, and a promise — "holds transfers above
+    this spread for review" — that nothing in the system could keep.
+
+    A guardrail that cannot fire is worse than an absent one: it is the control
+    someone believes is protecting them. It comes back when a transfer path
+    exists to measure a spread on, which is also when CCN would have a spread to
+    know about — it routes orders and moves no money today. The column, the
+    engine branch and the PUT /api/limits handling all stay, so restoring this is
+    one entry in this list.
+  */
   {
     flag: 'requireApprovalEnabled',
     label: 'Require approval above',

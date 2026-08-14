@@ -219,6 +219,33 @@ export default function PortfolioPage() {
         }
       />
 
+      {/*
+        Where a converted figure's rate came from.
+
+        Everything above is stated in the chosen currency, and until the rates
+        moved into the database that conversion ran on three constants compiled
+        into @ccn/money from the prototype — so a portfolio read in JMD was
+        restated at a rate nobody had checked in months, with no more hedging
+        than the balance itself. CCN routes orders and holds no money; it has no
+        rate of its own to quote, and the honest thing to show is the central
+        bank's, dated. When the rate is old, or when it is the seeded fallback
+        that no bank published, the line says so rather than quietly rounding.
+      */}
+      {data?.fx?.source ? (
+        <p className="-mt-1 mb-4 text-[12.5px] text-faint">
+          {data.fx.source === 'seed' ? (
+            <>
+              Converted at a fallback rate — no published rate has been loaded for {currency} yet.
+            </>
+          ) : (
+            <>
+              Converted at the {data.fx.source} rate {data.fx.asOf ? `of ${data.fx.asOf}` : ''}
+              {data.fx.stale ? ' · this rate is out of date' : ''}
+            </>
+          )}
+        </p>
+      ) : null}
+
       {/* Directly under the head, because it answers a button the reader just
           pressed. It used to render below the empty state, a screen's height
           from where they were looking. */}
@@ -343,6 +370,25 @@ export default function PortfolioPage() {
                   <div className="min-w-0 flex-1">
                     <div className="text-[15px] font-bold">{inst.name}</div>
                     {inst.kind && <div className="text-[12.5px] text-faint">{inst.kind}</div>}
+                    {/*
+                      When these balances were last pulled from the firm.
+
+                      `holdings.updated_at` has been written on every refresh
+                      since the table existed and read by nothing, so a figure
+                      pulled at signup and one pulled a minute ago looked
+                      identical. A balance is a claim about a moment, and the
+                      moment was the missing half.
+                    */}
+                    {inst.asOf && (
+                      <div className="text-[12.5px] text-faint">
+                        Balances as of{' '}
+                        {new Date(inst.asOf).toLocaleDateString('en-US', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="font-mono text-[15px] font-bold">{inst.total}</div>

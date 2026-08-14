@@ -28,6 +28,12 @@ export interface PortfolioPartner {
    *  carries none — render nothing rather than claiming a regulator. */
   regulator: string | null;
   total: string;
+  /**
+   * When this firm's balances were last pulled, ISO. Null when nothing here has
+   * ever been refreshed. Taken from the *oldest* holding on the card, because a
+   * card is only as current as its least recently updated line.
+   */
+  asOf: string | null;
   holdings: Holding[];
 }
 
@@ -56,8 +62,28 @@ export interface PortfolioConnection {
   declineReason: string | null;
 }
 
+/**
+ * Which bank published the rate a converted figure used, and when.
+ *
+ * Conversion used to run on three constants compiled into @ccn/money, so a
+ * portfolio shown in JMD was restated at a rate nobody had checked in months and
+ * presented as confidently as the balance. A converted number the reader cannot
+ * date is the problem; this is the fix, and `stale` is what the screen says when
+ * the publisher's date is old.
+ */
+export interface FxMeta {
+  currency: Currency;
+  /** The publisher's own date, `YYYY-MM-DD`. Null when no bank stands behind it. */
+  asOf: string | null;
+  /** `BOJ`, `CBTT`, or `seed` for the fallback rows. */
+  source: string | null;
+  stale: boolean;
+}
+
 export interface Portfolio {
   currency: Currency;
+  /** Null for USD, which is the base and needs no conversion. */
+  fx: FxMeta | null;
   netWorth: string;
   netWorthMinor: string;
   allocation: AllocationSlice[];
