@@ -38,6 +38,24 @@ export interface RunAgentArgs {
    * reply bubble, so the hook is part of the contract rather than an extra.
    */
   onError?: (error: unknown) => void;
+  /**
+   * Called when the model runs `propose_move` and the Limits Engine returns a
+   * verdict.
+   *
+   * The tool set is read/propose-only by construction — there is deliberately no
+   * tool that creates an order, an approval, or moves cash — so a proposal has
+   * always existed only inside the model's own reasoning and reached the user as
+   * prose. That left the product's headline loop unreachable: nothing in the
+   * app called POST /api/approvals, and the only writer of an approval row was
+   * the demo seed, so "the agent proposes and you approve" could not happen for
+   * anyone outside an email allowlist.
+   *
+   * Surfacing the verdict is not the same as acting on it. This hands the
+   * caller a structured proposal to show; a human still has to raise the
+   * approval card, and a second human tap still has to approve it. The model
+   * gains no actuator it did not have.
+   */
+  onProposal?: (proposal: unknown) => void;
 }
 
 export interface RunAgentResult {
@@ -101,6 +119,12 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     tools,
     stopWhen: stepCountIs(args.maxSteps ?? 8),
     onError: ({ error }) => args.onError?.(error),
+    onStepFinish: ({ toolResults }) => {
+      if (!args.onProposal) return;
+      for (const r of toolResults) {
+        if (r.toolName === 'propose_move') args.onProposal(r.output);
+      }
+    },
   });
 
   const textStream = args.cache

@@ -15,9 +15,11 @@ import { cn } from '@/app/_lib/utils';
 import {
   AgentApiError,
   type AgentMessage,
+  type AgentProposal,
   type Approval,
   type ApprovalType,
   approveApproval,
+  createApproval,
   getAgentHistory,
   getApprovals,
   rejectApproval,
@@ -381,6 +383,18 @@ function LimitsCard() {
 
 export default function AgentPage() {
   const [chat, setChat] = useState<ChatEntry[]>([]);
+  /**
+   * Moves the agent prepared this session.
+   *
+   * The approvals panel below has always been able to show and decide approval
+   * cards, and nothing in the product could create one — POST /api/approvals had
+   * no caller, and the only writer of an approval row was the demo seed. So the
+   * loop the product is built around was reachable only by an email allowlist.
+   * These are the missing half: a proposal, and a button that raises it.
+   */
+  const [proposals, setProposals] = useState<AgentProposal[]>([]);
+  const [raisingId, setRaisingId] = useState<string | null>(null);
+  const [raiseError, setRaiseError] = useState<string | null>(null);
   const [historyState, setHistoryState] = useState<HistoryState>('loading');
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -512,6 +526,13 @@ export default function AgentPage() {
     scrollToBottom();
 
     streamAgentMessage(t, {
+      /**
+       * A move the agent prepared. It is offered, not taken: raising the
+       * approval card is a tap the reader makes, and approving it is a second
+       * one. Blocked verdicts are still shown — the guardrail refusing
+       * something, with its reasons, is the product working.
+       */
+      onProposal: (proposal) => setProposals((p) => [...p, proposal]),
       onDelta: (delta) => {
         setChat((c) => {
           const last = c[c.length - 1];
@@ -846,6 +867,84 @@ export default function AgentPage() {
               Done
             </Button>
           </div>
+          {/*
+            What the agent prepared in this conversation.
+
+            It sits above the approvals panel because that is the order things
+            happen in: the agent proposes, you decide whether it is worth
+            raising, and only then does it become a card waiting on you. A
+            blocked verdict is shown too — the guardrail refusing a move, with
+            its reasons, is the product doing its job rather than an error.
+          */}
+          {proposals.length > 0 && (
+            <Card className="p-5">
+              <div className="mb-3.5 flex items-center gap-2.5">
+                <span className={cn(UPPR, 'text-foreground')}>Prepared by your agent</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {proposals.map((p, i) => (
+                  <div
+                    key={`${p.instrumentId}-${i}`}
+                    className="rounded-xl border border-solid border-border p-3.5"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <b className="text-[14.5px]">{p.name}</b>
+                      <b className="font-mono text-[14.5px]">{p.amount}</b>
+                    </div>
+                    <p className="mt-1 text-[13px] leading-snug text-dim">{p.summary}</p>
+                    {p.reasons.length > 0 && (
+                      <ul className="mt-1.5 mb-0 list-disc pl-4 text-[12.5px] text-faint">
+                        {p.reasons.map((r) => (
+                          <li key={r}>{r}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {p.decision === 'blocked' ? (
+                      <p className="mt-2 mb-0 text-[12.5px] font-semibold text-terra-ink">
+                        Your agent will not prepare this.
+                      </p>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="mt-2.5"
+                        disabled={raisingId === p.instrumentId}
+                        onClick={async () => {
+                          setRaisingId(p.instrumentId);
+                          setRaiseError(null);
+                          try {
+                            await createApproval({
+                              instrumentId: p.instrumentId,
+                              // The engine worked in minor units; the display
+                              // string is for reading, not for reparsing.
+                              amountMinor: p.amountMinor,
+                              title: `${p.name} · ${p.amount}`,
+                              body: p.summary,
+                            });
+                            setProposals((list) => list.filter((x) => x !== p));
+                            const { approvals: rows } = await getApprovals();
+                            setApprovals(rows.filter((a) => a.status === 'pending'));
+                          } catch (err) {
+                            setRaiseError(
+                              err instanceof Error
+                                ? err.message
+                                : 'Could not raise that for approval.',
+                            );
+                          } finally {
+                            setRaisingId(null);
+                          }
+                        }}
+                      >
+                        {raisingId === p.instrumentId ? 'Raising…' : 'Send to my approvals'}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {raiseError && <InlineError>{raiseError}</InlineError>}
+            </Card>
+          )}
+
           <Card className="p-5" data-tour="customer-approvals">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>

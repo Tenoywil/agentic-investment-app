@@ -88,6 +88,8 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
     // streamText reports a failed request here and then ends the stream
     // normally, so this is the only place the real cause is available.
     let gatewayError: unknown = null;
+    /** Structured proposals the model prepared during this turn. */
+    const proposals: unknown[] = [];
     const { textStream } = runAgent({
       onError: (error) => {
         gatewayError = error;
@@ -103,6 +105,13 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
       history,
       message,
       cache,
+      /**
+       * A proposal the model prepared, captured so the screen can offer it as a
+       * card. Collected rather than streamed directly because `streamSSE` below
+       * owns the connection; it is flushed as its own event once the text is
+       * done, which also means a turn that fails mid-answer sends no proposal.
+       */
+      onProposal: (p) => proposals.push(p),
       // Scope the cache to this user's data so answers are never shared.
       cacheScope: {
         userId: tenant.user.id,
@@ -168,6 +177,18 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
           }),
         );
       }
+      /**
+       * Anything the model prepared, after the text and before `done`.
+       *
+       * The client turns each of these into a card with a button that raises a
+       * real approval row. The agent cannot raise one itself — its tool set has
+       * no state-mutating tool and `assertReadOnly` runs on every turn — so this
+       * is a suggestion travelling to a human, which is the whole design.
+       */
+      for (const proposal of proposals) {
+        await stream.writeSSE({ event: 'proposal', data: JSON.stringify(proposal) });
+      }
+
       await stream.writeSSE({ event: 'done', data: '[DONE]' });
     });
   });

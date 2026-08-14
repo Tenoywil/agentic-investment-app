@@ -240,6 +240,15 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
         instrumentId,
         name: inst.name,
         amount: formatMoney(amount),
+        /**
+         * The same amount in minor units, as a string.
+         *
+         * `amount` above is formatted for reading. A caller turning this
+         * proposal into an approval needs the number the engine actually
+         * weighed, and re-parsing "US$2,500" to get it back is how a currency
+         * bug starts. Bigints do not survive JSON, hence the string.
+         */
+        amountMinor: amount.minor.toString(),
         decision: decision.decision,
         code: decision.code,
         reasons,
