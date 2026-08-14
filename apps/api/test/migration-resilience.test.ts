@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { MIGRATIONS, createDb, pendingMigrations } from '@ccn/db';
+import { instruments, partners } from '@ccn/db';
 import { sql } from 'drizzle-orm';
-import { isDatabaseBehind, outstandingMigrations } from '../src/migrations';
+import { eq } from 'drizzle-orm';
+import { isDatabaseBehind, outstandingMigrations, readOrDegrade } from '../src/migrations';
 import { loadFxTable } from '../src/services/fx';
+import { loadInstrument } from '../src/services/gate';
 
 /**
  * Surviving a database that is behind the code.
@@ -33,6 +36,20 @@ describe('recognising a database that is behind', () => {
     expect(isDatabaseBehind(Object.assign(new Error('no such relation'), { code: '42P01' }))).toBe(
       true,
     );
+  });
+
+  test('a missing function', () => {
+    // Every migration since 0014 ships a SECURITY DEFINER function, so this is
+    // now the likeliest shape of the failure. It went undetected until a
+    // partner operator pressing "List a product" against a database without
+    // 0017 got an unexplained 500 instead of "run the migration".
+    expect(
+      isDatabaseBehind(
+        Object.assign(new Error('function partner_upsert_instrument(...) does not exist'), {
+          code: '42883',
+        }),
+      ),
+    ).toBe(true);
   });
 
   test('a missing grant or policy', () => {
@@ -132,6 +149,114 @@ suite('the portfolio survives a behind database', () => {
   test('and the columns are back afterwards', async () => {
     const snapshot = await loadFxTable(handle.db as never);
     expect(snapshot.degraded).toBe(false);
+  });
+});
+
+/**
+ * The surfaces the merge of PR #31 would have taken down.
+ *
+ * Only the portfolio had a fallback. `0017` added `instruments.listing_status`
+ * and `0019` four `orders` columns, and the code selects both — so merging
+ * before the migrations ran meant the marketplace, the orders list, order
+ * placement and approvals all raising 42703 at once. These read paths now
+ * degrade to the query that was correct before the migration, which is a real
+ * answer rather than a guess.
+ *
+ * Same technique as above: drop for real, roll back at the end.
+ */
+suite('the marketplace and the order path survive a behind database', () => {
+  const handle = createDb(DATABASE_URL ?? '', { max: 2 });
+  const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as never;
+
+  /** Run `fn` with the named columns really gone, then put them back. */
+  async function without(drops: string[], fn: (tx: never) => Promise<unknown>): Promise<unknown> {
+    let result: unknown;
+    await handle.db
+      .transaction(async (tx) => {
+        for (const drop of drops) await tx.execute(sql.raw(drop));
+        result = await fn(tx as never);
+        throw new Error('rollback');
+      })
+      .catch((err: unknown) => {
+        if (!(err instanceof Error) || err.message !== 'rollback') throw err;
+      });
+    return result;
+  }
+
+  test('the marketplace still lists instruments without listing_status', async () => {
+    const rows = (await without(['alter table instruments drop column listing_status'], (tx) =>
+      readOrDegrade(
+        { logger },
+        'test marketplace',
+        tx,
+        (t) =>
+          (t as unknown as typeof handle.db)
+            .select({ id: instruments.id })
+            .from(instruments)
+            .where(eq(instruments.listingStatus, 'live')),
+        (t) => (t as unknown as typeof handle.db).select({ id: instruments.id }).from(instruments),
+      ),
+    )) as { id: string }[];
+    // Not empty: an empty marketplace would be a different lie from a 500.
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  test('loadInstrument answers live rather than raising', async () => {
+    const [seed] = await handle.db.select({ id: instruments.id }).from(instruments).limit(1);
+    if (!seed) throw new Error('no seeded instrument to load');
+
+    const loaded = (await without(['alter table instruments drop column listing_status'], (tx) =>
+      loadInstrument(tx, seed.id, logger),
+    )) as Awaited<ReturnType<typeof loadInstrument>>;
+
+    expect(loaded).not.toBeNull();
+    // Before 0017 nothing could be paused, so "live" is the previous truth,
+    // not an optimistic guess — and it keeps the order path open.
+    expect(loaded?.listingStatus).toBe('live');
+    expect(loaded?.id).toBe(seed.id);
+  });
+
+  test('the fallback runs on a savepoint, so the transaction survives', async () => {
+    /**
+     * The property the whole mechanism rests on. A statement that raises leaves
+     * the transaction aborted, so without a SAVEPOINT the fallback would fail
+     * with 25P02 and this would turn one 500 into another.
+     */
+    const after = await without(
+      ['alter table instruments drop column listing_status'],
+      async (tx) => {
+        await readOrDegrade(
+          { logger },
+          'test marketplace',
+          tx,
+          (t) =>
+            (t as unknown as typeof handle.db)
+              .select({ id: instruments.id })
+              .from(instruments)
+              .where(eq(instruments.listingStatus, 'live')),
+          (t) =>
+            (t as unknown as typeof handle.db).select({ id: instruments.id }).from(instruments),
+        );
+        // The transaction is still usable afterwards, which is the point.
+        return (tx as unknown as typeof handle.db)
+          .select({ id: partners.id })
+          .from(partners)
+          .limit(1);
+      },
+    );
+    expect(after).toBeTruthy();
+  });
+
+  test('an error that is not a missing column still propagates', async () => {
+    await expect(
+      readOrDegrade(
+        { logger },
+        'test',
+        handle.db as never,
+        () => Promise.reject(Object.assign(new Error('duplicate key'), { code: '23505' })),
+        () => Promise.resolve('fallback ran'),
+      ),
+    ).rejects.toThrow('duplicate key');
     await handle.client.end();
   });
 });

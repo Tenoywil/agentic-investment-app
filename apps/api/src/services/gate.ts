@@ -16,6 +16,8 @@ import {
 } from '@ccn/limits-engine';
 import type { Currency } from '@ccn/money';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import type { AppDeps } from '../context';
+import { readOrDegrade } from '../migrations';
 
 /**
  * Assemble the Limits Engine's input from the caller's live data and evaluate a
@@ -45,27 +47,58 @@ export interface LoadedInstrument {
   listingStatus: 'live' | 'paused';
 }
 
-/** Fetch the instrument a proposal targets, or null if it does not exist. */
+/**
+ * Fetch the instrument a proposal targets, or null if it does not exist.
+ *
+ * Sits on the order path and the approval path, so an error here is not one
+ * screen failing — it is nobody on the network being able to invest. That is
+ * why `listing_status` is read through a fallback: on a database without
+ * `0017` the column does not exist, and a raise would take out both paths over
+ * a field whose whole purpose is to *stop* one instrument being offered.
+ *
+ * The fallback answers `'live'`, which is not a guess: before `0017` there was
+ * no way to pause a listing, so every instrument on such a database is offered.
+ * `logger` is optional only because this is called from tests that construct no
+ * deps; when it is absent the degrade is silent, which is acceptable for a
+ * fallback that is already logged loudly at boot and on every other surface.
+ */
 export async function loadInstrument(
   tx: Transaction,
   instrumentId: string,
+  logger?: AppDeps['logger'],
 ): Promise<LoadedInstrument | null> {
-  const [row] = await tx
-    .select({
-      id: instruments.id,
-      partnerId: instruments.partnerId,
-      slug: instruments.slug,
-      partnerCode: partners.code,
-      risk: instruments.risk,
-      blocked: instruments.blocked,
-      blockReasons: instruments.blockReasons,
-      minInvestmentMinor: instruments.minInvestmentMinor,
-      currency: instruments.currency,
-      listingStatus: instruments.listingStatus,
-    })
-    .from(instruments)
-    .leftJoin(partners, eq(partners.id, instruments.partnerId))
-    .where(eq(instruments.id, instrumentId));
+  const base = {
+    id: instruments.id,
+    partnerId: instruments.partnerId,
+    slug: instruments.slug,
+    partnerCode: partners.code,
+    risk: instruments.risk,
+    blocked: instruments.blocked,
+    blockReasons: instruments.blockReasons,
+    minInvestmentMinor: instruments.minInvestmentMinor,
+    currency: instruments.currency,
+  };
+  const row = await readOrDegrade(
+    { logger: logger ?? SILENT },
+    'the instrument behind an order',
+    tx,
+    async (t) => {
+      const [found] = await t
+        .select({ ...base, listingStatus: instruments.listingStatus })
+        .from(instruments)
+        .leftJoin(partners, eq(partners.id, instruments.partnerId))
+        .where(eq(instruments.id, instrumentId));
+      return found ?? null;
+    },
+    async (t) => {
+      const [found] = await t
+        .select(base)
+        .from(instruments)
+        .leftJoin(partners, eq(partners.id, instruments.partnerId))
+        .where(eq(instruments.id, instrumentId));
+      return found ? { ...found, listingStatus: 'live' as const } : null;
+    },
+  );
   if (!row) return null;
   return {
     id: row.id,
@@ -80,6 +113,14 @@ export async function loadInstrument(
     listingStatus: row.listingStatus,
   };
 }
+
+/** A logger-shaped no-op, for the callers that have no deps to pass. */
+const SILENT: AppDeps['logger'] = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+} as unknown as AppDeps['logger'];
 
 /** Default guardrail policy (mirrors the `limits` column defaults) when a user
  *  has no row yet. */
