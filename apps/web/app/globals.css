@@ -755,7 +755,12 @@ body:has(dialog.app-sheet[open]) {
 .console-sidebar {
   display: flex;
   position: sticky;
-  inset: auto;
+  /* top:0, the rest auto. It used to be a flat `inset: auto`, written to undo
+     the UA's `inset-inline: 0` on a <dialog> — but that also clobbered the
+     `top-0` this element carries, and a sticky box with `top: auto` never
+     sticks. The rail scrolled away with the page, leaving its own background
+     ending mid-screen and the sign-out button riding up out of view. */
+  inset: 0 auto auto auto;
   max-width: none;
   max-height: none;
   margin: 0;

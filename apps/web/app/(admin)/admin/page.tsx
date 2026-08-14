@@ -22,7 +22,16 @@ import {
   loadAdminReferenceData,
 } from '@/lib/admin-api';
 import { authClient } from '@/lib/auth-client';
-import { Building2, CircleAlert, History, Package, Plus, Receipt, Users } from 'lucide-react';
+import {
+  Building2,
+  CircleAlert,
+  History,
+  Package,
+  Plus,
+  Receipt,
+  RefreshCw,
+  Users,
+} from 'lucide-react';
 import * as React from 'react';
 import { PartnerForm } from './partner-form';
 import { PersonPanel } from './person';
@@ -44,10 +53,19 @@ import { PersonPanel } from './person';
  * console is read as the authoritative one.
  */
 
-const TABS = ['Overview', 'Investors', 'Partners', 'Products', 'Orders', 'Activity'] as const;
+// "People", not "Investors": this list has always shown everyone on the network
+// — operators and administrators included, with a Roles column saying which is
+// which — and naming it for one of the three made the count beside it on
+// Overview look wrong.
+const TABS = ['Overview', 'People', 'Partners', 'Products', 'Orders', 'Activity'] as const;
 type Tab = (typeof TABS)[number];
 
 const LABEL = 'text-[12px] font-bold uppercase tracking-[.6px] text-dim';
+
+/** "1 partner", "8 partners" — three of these sub-labels read "1 partners". */
+function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
 
 function Stat({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
@@ -173,8 +191,13 @@ export default function AdminPage() {
    * for fresh data directly — the roles column behind the detail panel is stale
    * the moment a grant lands otherwise.
    */
+  /** When what is on screen was read, so "is this current?" has an answer. */
+  const [loadedAt, setLoadedAt] = React.useState<Date | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
+
   const load = React.useCallback(() => {
-    Promise.all([
+    setRefreshing(true);
+    return Promise.all([
       getAdminOverview(),
       getAdminInvestors(),
       getAdminPartners(),
@@ -190,16 +213,45 @@ export default function AdminPage() {
         setProducts(pr.products);
         setOrders(or.orders);
         setAudit(au.entries);
+        setLoadedAt(new Date());
+        setError(null);
       })
       .catch((err: unknown) => {
         if (!gone.current) {
           setError(err instanceof Error ? err.message : 'Could not load the network.');
         }
+      })
+      .finally(() => {
+        if (!gone.current) setRefreshing(false);
       });
   }, []);
 
   React.useEffect(() => {
-    load();
+    void load();
+  }, [load]);
+
+  /**
+   * Read again when this tab comes back to the front.
+   *
+   * The screen fetched once on mount and never again, so an administrator who
+   * onboarded a partner in one tab and came back to this one was reading numbers
+   * from before they did it. The dashboard was not wrong — it was describing a
+   * moment that had passed, while looking exactly like a live one.
+   *
+   * No polling: a timer would burn a free-tier API for nobody. What an
+   * administrator actually notices is the answer being current when they turn
+   * back to it.
+   */
+  React.useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
   }, [load]);
 
   const loading = !error && overview === null;
@@ -266,9 +318,36 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto max-w-[1200px] px-6 pb-16 pt-6 max-[680px]:px-4 max-[680px]:pt-4">
-        <h1 className="font-display text-3xl font-bold tracking-tight max-[680px]:text-2xl">
-          The network
-        </h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="font-display text-3xl font-bold tracking-tight max-[680px]:text-2xl">
+            The network
+          </h1>
+          {/* When this was read, and a way to read it again. Every figure here is
+              a count taken at a moment; without saying which moment, a dashboard
+              left open in a background tab quietly becomes a historical document
+              that still looks live. */}
+          <div className="flex items-center gap-3">
+            {loadedAt ? (
+              <span className="text-[12.5px] text-faint">
+                Read at{' '}
+                {loadedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void load()}
+              disabled={refreshing}
+            >
+              <RefreshCw
+                className={`mr-1.5 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+                aria-hidden
+              />
+              {refreshing ? 'Reading…' : 'Refresh'}
+            </Button>
+          </div>
+        </div>
         {/* The strapline explains the surface to someone seeing it for the first
             time, and on a phone it cost four lines above the content it was
             explaining. It stays for a screen reader at every size. */}
@@ -336,20 +415,26 @@ export default function AdminPage() {
           {!loading && !error && tab === 'Overview' && overview ? (
             <>
               <div className="g4">
+                {/* People, not role rows. This said "Investors" over the count
+                    of `customer` roles while the tab beside it listed everyone
+                    on the network — the same word twice on one screen, nine
+                    apart. Roles are granted on a person's first authenticated
+                    request, so anyone who signed up and has not come back holds
+                    none, and the two counts legitimately differ. */}
                 <Stat
-                  label="Investors"
-                  value={overview.people.customers}
-                  sub={`${overview.onboarding.tier2} fully verified`}
+                  label="People"
+                  value={overview.people.total}
+                  sub={`${plural(overview.people.customers, 'investor')} · ${plural(overview.people.operators, 'operator')}`}
                 />
                 <Stat
                   label="Partner operators"
                   value={overview.people.operators}
-                  sub={`${overview.partners.total} partners on the network`}
+                  sub={`${plural(overview.partners.total, 'partner')} on the network`}
                 />
                 <Stat
                   label="Products listed"
                   value={overview.products.total}
-                  sub={`${overview.partners.sandbox} partners in sandbox`}
+                  sub={`${plural(overview.partners.sandbox, 'partner')} in sandbox`}
                 />
                 <Stat
                   label="Orders"
@@ -423,7 +508,7 @@ export default function AdminPage() {
             </>
           ) : null}
 
-          {!loading && !error && tab === 'Investors' && investors ? (
+          {!loading && !error && tab === 'People' && investors ? (
             <>
               {selected ? (
                 <PersonPanel

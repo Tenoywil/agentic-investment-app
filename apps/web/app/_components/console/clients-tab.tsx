@@ -118,7 +118,10 @@ export function ClientsTab({
             figures that used to sit under it ("2,760 verifications reused",
             "0 re-verifications", "~6 days / client saved") had no source
             anywhere in the schema and are gone rather than approximated. */}
-        <Card className="border-solid border-border bg-[#f4f0e7] p-6 dark:bg-white/[0.04]">
+        {/* h-fit: three sentences beside a card holding an empty state, and the
+            grid stretched this one to match it — a paragraph floating at the
+            top of a void half the height of the screen. */}
+        <Card className="h-fit border-solid border-border bg-[#f4f0e7] p-6 dark:bg-white/[0.04]">
           <b className="font-display text-[17px]">KYC stays yours</b>
           <p className="mt-2.5 text-sm leading-normal text-dim">
             You already verified these clients. CCN links that status with their consent rather than
