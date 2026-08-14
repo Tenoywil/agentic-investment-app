@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
 import { requireAuth } from '../middleware';
+import { readOrDegrade } from '../migrations';
 
 const RISK_LABEL: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' };
 
@@ -24,35 +25,56 @@ export function opportunitiesRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
 
     const { rows, profile } = await withTenant(deps, tenant, async (tx) => {
-      const rows = await tx
-        .select({
-          id: instruments.id,
-          slug: instruments.slug,
-          abbr: instruments.abbr,
-          type: instruments.type,
-          partnerName: partners.name,
-          regulator: instruments.regulator,
-          name: instruments.name,
-          region: instruments.region,
-          metricLabel: instruments.metricLabel,
-          metric: instruments.metric,
-          minInvestmentMinor: instruments.minInvestmentMinor,
-          currency: instruments.currency,
-          term: instruments.term,
-          risk: instruments.risk,
-          description: instruments.description,
-          agentNote: instruments.agentNote,
-          blocked: instruments.blocked,
-          blockReasons: instruments.blockReasons,
-        })
-        .from(instruments)
-        .leftJoin(partners, eq(instruments.partnerId, partners.id))
-        // A paused listing is off the shelf: the firm has withdrawn it, so it
-        // is not offered at all. This is not `blocked`, which means "screened
-        // out for your suitability" and is deliberately still returned — that
-        // one renders as a refusal with reasons, and hiding it would turn an
-        // explained decision into a silent absence.
-        .where(eq(instruments.listingStatus, 'live'));
+      const columns = {
+        id: instruments.id,
+        slug: instruments.slug,
+        abbr: instruments.abbr,
+        type: instruments.type,
+        partnerName: partners.name,
+        regulator: instruments.regulator,
+        name: instruments.name,
+        region: instruments.region,
+        metricLabel: instruments.metricLabel,
+        metric: instruments.metric,
+        minInvestmentMinor: instruments.minInvestmentMinor,
+        currency: instruments.currency,
+        term: instruments.term,
+        risk: instruments.risk,
+        description: instruments.description,
+        agentNote: instruments.agentNote,
+        blocked: instruments.blocked,
+        blockReasons: instruments.blockReasons,
+      };
+      /**
+       * A paused listing is off the shelf: the firm has withdrawn it, so it is
+       * not offered at all. This is not `blocked`, which means "screened out
+       * for your suitability" and is deliberately still returned — that one
+       * renders as a refusal with reasons, and hiding it would turn an
+       * explained decision into a silent absence.
+       *
+       * On a database without `0017` the filter cannot run. Falling back to the
+       * unfiltered query is exactly the behaviour that shipped before that
+       * migration, and it is safe for the same reason it was safe then: a
+       * column that does not exist is a column nothing can be paused in. The
+       * alternative is a 500, and an empty marketplace is not a better answer
+       * than a complete one.
+       */
+      const rows = await readOrDegrade(
+        deps,
+        'the opportunities marketplace',
+        tx,
+        (t) =>
+          t
+            .select(columns)
+            .from(instruments)
+            .leftJoin(partners, eq(instruments.partnerId, partners.id))
+            .where(eq(instruments.listingStatus, 'live')),
+        (t) =>
+          t
+            .select(columns)
+            .from(instruments)
+            .leftJoin(partners, eq(instruments.partnerId, partners.id)),
+      );
       // Newest assessment wins — risk profiles are appended, never replaced.
       const [profile] = await tx
         .select({ band: riskProfiles.band })

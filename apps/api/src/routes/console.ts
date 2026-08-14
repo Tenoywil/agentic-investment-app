@@ -736,7 +736,16 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           type: input.type,
           // A short badge for the card. Derived when not given rather than
           // demanded: it is display, and an empty tile reads as a bug.
-          abbr: (input.abbr || input.name.slice(0, 6)).toUpperCase(),
+          //
+          // Punctuation and spaces are stripped before slicing. `slice(0, 6)`
+          // on the raw name gave "BARE M" for "Bare Minimum Fund" — a badge
+          // with a space in it, which wraps inside a 40px tile and reads as a
+          // rendering fault rather than an abbreviation.
+          abbr: (
+            input.abbr ||
+            input.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6) ||
+            'NEW'
+          ).toUpperCase(),
           currency: input.currency,
           minInvestmentMinor: BigInt(input.minInvestmentMinor),
           term: input.term ?? null,

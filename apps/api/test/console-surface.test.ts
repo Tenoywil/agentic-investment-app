@@ -777,6 +777,55 @@ suite('partner console data surface', () => {
     expect(sag?.name).toBe(`${tag} Renamed Investments`);
   });
 
+  /**
+   * Two products with the same name.
+   *
+   * `0017` derived the slug from the name and the firm's code, and
+   * `instruments.slug` is NOT NULL UNIQUE — so the second listing under a name
+   * raised 23505 and the console answered an unexplained 500. Worse, an
+   * operator who has just seen a failure retries, so one success made every
+   * later attempt fail. It reached production.
+   */
+  test('a firm can list two products with the same name', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const res = await list({ name: `${tag} Same Name Fund`, type: 'fund' });
+      expect(res.status).toBe(201);
+      const { product } = (await res.json()) as { product: { id: string } };
+      ids.push(product.id);
+      createdInstrumentIds.push(product.id);
+    }
+    expect(new Set(ids).size).toBe(3);
+
+    // The name is what the operator typed; only the internal key is suffixed,
+    // and it stays readable rather than becoming a UUID.
+    const rows = await db
+      .select({ slug: instruments.slug, name: instruments.name })
+      .from(instruments)
+      .where(inArray(instruments.id, ids));
+    expect(new Set(rows.map((r) => r.slug)).size).toBe(3);
+    for (const row of rows) {
+      expect(row.name).toBe(`${tag} Same Name Fund`);
+      expect(row.slug).toContain('same-name-fund');
+    }
+  });
+
+  test('a name of nothing but punctuation still produces a usable slug', async () => {
+    // `regexp_replace` + trim would leave an empty string, and slug is NOT NULL.
+    const res = await list({ name: '###', type: 'fund' });
+    // Refused by the schema's min(2)? No — '###' is three characters, so this
+    // reaches the function and must not violate NOT NULL.
+    expect(res.status).toBe(201);
+    const { product } = (await res.json()) as { product: { id: string } };
+    createdInstrumentIds.push(product.id);
+    const [row] = await db
+      .select({ slug: instruments.slug })
+      .from(instruments)
+      .where(eq(instruments.id, product.id));
+    expect(row?.slug).toBeTruthy();
+    expect(row?.slug.length).toBeGreaterThan(0);
+  });
+
   test('a product needs a name and a type CCN can act on', async () => {
     const bodies = [
       {},

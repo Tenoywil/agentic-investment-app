@@ -141,6 +141,20 @@
       "when": 1786620000000,
       "tag": "0019_settlement_detail_and_firm_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786630000000,
+      "tag": "0020_unique_instrument_slug",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786640000000,
+      "tag": "0021_listing_events_follow_instruments",
+      "breakpoints": true
     }
   ]
 }

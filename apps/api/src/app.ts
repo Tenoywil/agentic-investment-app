@@ -13,6 +13,7 @@ import {
   requireAuth,
   sessionMiddleware,
 } from './middleware';
+import { MIGRATION_PENDING, isDatabaseBehind } from './migrations';
 import { requireAdmin, requireCustomer, requirePartnerOperator, surfaceFor } from './roles';
 import { adminRoutes } from './routes/admin';
 import { agentRoutes } from './routes/agent';
@@ -51,6 +52,39 @@ export function createApp(deps: AppDeps) {
     if (!limiter) throw new Error(`unknown rate limit class ${name}`);
     return rateLimit(limiter, clientIp);
   };
+
+  /**
+   * A database behind the code answers 503 and says so, not 500.
+   *
+   * Reads degrade (services/fx.ts, the marketplace, the orders list). Writes
+   * cannot: there is no older version of `partner_upsert_instrument` to fall
+   * back to, and inventing one would mean writing the wrong table. So a write
+   * fails — but it fails *legibly*, naming the cause and the command, instead
+   * of the unexplained 500 a partner operator got when they pressed "List a
+   * product" against a database missing `0017`.
+   *
+   * 503 rather than 500 because it is exactly that: the service is
+   * temporarily unable to do this, a specific person can fix it in a minute,
+   * and it is not a bug in the request.
+   */
+  app.onError((err, c) => {
+    if (isDatabaseBehind(err)) {
+      deps.logger.error(
+        `a request needed a migration this database does not have. ${MIGRATION_PENDING}`,
+        { path: c.req.path, method: c.req.method, error: err },
+      );
+      return c.json(
+        {
+          error:
+            'This action needs a database change that has not been applied to this environment yet. Nothing was saved. Whoever deploys CCN needs to run the outstanding migrations.',
+          code: 'migration_pending',
+        },
+        503,
+      );
+    }
+    deps.logger.error('unhandled error', { path: c.req.path, method: c.req.method, error: err });
+    return c.json({ error: 'internal error' }, 500);
+  });
 
   app.use('*', secureHeaders());
   app.use('*', cors({ origin: deps.config.APP_WEB_ORIGIN, credentials: true }));

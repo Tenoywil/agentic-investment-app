@@ -1,4 +1,4 @@
-import { instruments, orders as ordersTable, partners } from '@ccn/db';
+import { type Transaction, instruments, orders as ordersTable, partners } from '@ccn/db';
 import { proposeOrderSchema } from '@ccn/domain';
 import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -6,6 +6,7 @@ import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
 import { auditAppend, createOrder } from '../db-fns';
 import { requireAuth } from '../middleware';
+import { readOrDegrade } from '../migrations';
 import { adapterFor } from '../services/adapters';
 import { loadInstrument, runGate } from '../services/gate';
 import { maskRef } from './util';
@@ -34,36 +35,76 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
   app.get('/', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    /** Everything that existed before `0019` added the settlement columns. */
+    const base = {
+      id: ordersTable.id,
+      status: ordersTable.status,
+      amountMinor: ordersTable.amountMinor,
+      currency: ordersTable.currency,
+      instrumentName: instruments.name,
+      instrumentAbbr: instruments.abbr,
+      partnerName: partners.name,
+      partnerCode: partners.code,
+      settlementEta: ordersTable.settlementEta,
+      rejectedReason: ordersTable.rejectedReason,
+      createdBy: ordersTable.createdBy,
+      createdAt: ordersTable.createdAt,
+      acceptedAt: ordersTable.acceptedAt,
+      settledAt: ordersTable.settledAt,
+    };
+    // What the firm reported when it settled. Null throughout means the firm
+    // did not report it, and the screen says nothing rather than printing a
+    // zero the firm never claimed.
+    const settlement = {
+      unitPriceMinor: ordersTable.unitPriceMinor,
+      units: ordersTable.units,
+      feeMinor: ordersTable.feeMinor,
+      externalRef: ordersTable.externalRef,
+    };
+    const mine = eq(ordersTable.userId, tenant.user.id);
+
     const rows = await withTenant(deps, tenant, (tx) =>
-      tx
-        .select({
-          id: ordersTable.id,
-          status: ordersTable.status,
-          amountMinor: ordersTable.amountMinor,
-          currency: ordersTable.currency,
-          instrumentName: instruments.name,
-          instrumentAbbr: instruments.abbr,
-          partnerName: partners.name,
-          partnerCode: partners.code,
-          settlementEta: ordersTable.settlementEta,
-          // What the firm reported when it settled. Null throughout means the
-          // firm did not report it, and the screen says nothing rather than
-          // printing a zero the firm never claimed.
-          unitPriceMinor: ordersTable.unitPriceMinor,
-          units: ordersTable.units,
-          feeMinor: ordersTable.feeMinor,
-          externalRef: ordersTable.externalRef,
-          rejectedReason: ordersTable.rejectedReason,
-          createdBy: ordersTable.createdBy,
-          createdAt: ordersTable.createdAt,
-          acceptedAt: ordersTable.acceptedAt,
-          settledAt: ordersTable.settledAt,
-        })
-        .from(ordersTable)
-        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
-        .leftJoin(partners, eq(partners.id, ordersTable.partnerId))
-        .where(eq(ordersTable.userId, tenant.user.id))
-        .orderBy(desc(ordersTable.createdAt)),
+      /**
+       * On a database without `0019` the settlement columns do not exist. The
+       * fallback drops them and serves the rest, which is what this screen
+       * showed before that migration — the four figures are absent rather than
+       * wrong, and "settled" without a price is exactly the state those rows
+       * are actually in on such a database.
+       *
+       * The two queries are written out rather than shared behind a helper:
+       * Drizzle's builder types do not survive being made generic over the
+       * column set, and a cast to make them would be a cast over the one thing
+       * this function exists to get right.
+       */
+      readOrDegrade(
+        deps,
+        'a customer\u2019s order list',
+        tx,
+        (t) =>
+          t
+            .select({ ...base, ...settlement })
+            .from(ordersTable)
+            .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+            .leftJoin(partners, eq(partners.id, ordersTable.partnerId))
+            .where(mine)
+            .orderBy(desc(ordersTable.createdAt)),
+        async (t) => {
+          const legacy = await t
+            .select(base)
+            .from(ordersTable)
+            .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+            .leftJoin(partners, eq(partners.id, ordersTable.partnerId))
+            .where(mine)
+            .orderBy(desc(ordersTable.createdAt));
+          return legacy.map((r) => ({
+            ...r,
+            unitPriceMinor: null,
+            units: null,
+            feeMinor: null,
+            externalRef: null,
+          }));
+        },
+      ),
     );
     return c.json({ orders: rows });
   });

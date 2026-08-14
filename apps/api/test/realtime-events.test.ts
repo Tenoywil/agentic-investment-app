@@ -3,8 +3,8 @@ import {
   approvals,
   connectedAccounts,
   createDb,
+  instruments,
   partners,
-  productListings,
   reconciliationItems,
   user,
 } from '@ccn/db';
@@ -84,7 +84,7 @@ suite('realtime: approvals, connections, reconciliation and listings', () => {
     await db.delete(approvals).where(eq(approvals.userId, userId));
     await db.delete(reconciliationItems).where(eq(reconciliationItems.userId, userId));
     await db.delete(connectedAccounts).where(eq(connectedAccounts.userId, userId));
-    await db.delete(productListings).where(eq(productListings.name, `${tag} listing`));
+    await db.delete(instruments).where(eq(instruments.slug, `${tag}-listing`));
     await db.delete(user).where(eq(user.id, userId));
     await handle.client.end();
   });
@@ -136,7 +136,22 @@ suite('realtime: approvals, connections, reconciliation and listings', () => {
   });
 
   test('a listing reaches the partner and never the investor', async () => {
-    await db.insert(productListings).values({ partnerId, name: `${tag} listing` });
+    /**
+     * `instruments`, not `product_listings`.
+     *
+     * 0015 put the trigger on `product_listings`; 0017 moved the console onto
+     * `instruments` and left it behind, so listing, amending and pausing a
+     * product emitted nothing at all while a dead table kept its trigger. 0021
+     * moves it. This test passed throughout — it was writing the dead table
+     * too, which is how the gap survived.
+     */
+    await db.insert(instruments).values({
+      slug: `${tag}-listing`,
+      abbr: 'LST',
+      type: 'fund',
+      partnerId,
+      name: `${tag} listing`,
+    });
 
     await waitFor(() => seen(asOperator, 'listing.insert').length > 0);
     expect(seen(asOperator, 'listing.insert')[0]).toMatchObject({
