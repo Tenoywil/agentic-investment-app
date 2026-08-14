@@ -69,7 +69,12 @@ export function OrdersTab({
       ) : null}
 
       {!ordersError && orders.length > 0 ? (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
+          {/* `relative`, so this scroller is the containing block for the
+              absolutely positioned `sr-only` labels inside the row buttons.
+              Without it those spans resolve against the page, escape this
+              element's clipping, and stretch the document's scroll area past
+              the viewport — a phone scrolled 140px sideways onto nothing. */}
           <div className="min-w-[560px]">
             <div
               className={`grid grid-cols-[2fr_1fr_0.9fr_1.3fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}

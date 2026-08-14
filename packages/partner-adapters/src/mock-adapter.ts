@@ -96,7 +96,16 @@ export function createMockAdapter(config: MockAdapterConfig): PartnerAdapter {
   };
 }
 
-/** Sample seed for a partner, resembling the prototype's data. */
+/**
+ * Sample seed for a partner, resembling the prototype's data.
+ *
+ * The chequing balance is US$6,000 rather than US$1,000. That was not a
+ * cosmetic number: `limits.cash_floor_minor` defaults to exactly US$1,000, so a
+ * client whose sandbox account held exactly US$1,000 of cash had none above
+ * their floor, and the guardrail correctly refused every order they could ever
+ * place. Two defensible numbers that happened to be equal made the whole order
+ * path unreachable for every new account on the network.
+ */
 export function mockSeed(code: string): Omit<MockAdapterConfig, 'now'> {
   return {
     code,
@@ -107,7 +116,7 @@ export function mockSeed(code: string): Omit<MockAdapterConfig, 'now'> {
         valueMinor: 1_240_000n,
         currency: 'USD',
       },
-      { instrumentSlug: null, name: 'USD Chequing', valueMinor: 100_000n, currency: 'USD' },
+      { instrumentSlug: null, name: 'USD Chequing', valueMinor: 600_000n, currency: 'USD' },
     ],
     quotes: [
       {
@@ -123,7 +132,7 @@ export function mockSeed(code: string): Omit<MockAdapterConfig, 'now'> {
         period: '2026-Q1',
         lines: [
           'GOJ USD Global Bond 2029 .......... US$12,400  +6.8%',
-          'USD Chequing ...................... US$1,000   —',
+          'USD Chequing ...................... US$6,000   —',
         ],
       },
     ],

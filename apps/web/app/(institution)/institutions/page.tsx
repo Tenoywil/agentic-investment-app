@@ -15,6 +15,7 @@ import { useMe } from '@/app/_lib/session';
 import { authClient } from '@/lib/auth-client';
 import {
   type ConsoleAuditEntry,
+  type ConsoleClient,
   type ConsoleFunnelStage,
   type ConsoleKpi,
   type ConsoleOrder,
@@ -22,6 +23,7 @@ import {
   type ConsoleReconciliationItem,
   acceptOrder,
   getAudit,
+  getClients,
   getFunnel,
   getKpis,
   getOrders,
@@ -30,6 +32,7 @@ import {
   matchReconciliation,
   rejectOrder,
   rejectReconciliation,
+  reviewClient,
   settleOrder,
   toggleProductLive,
 } from '@/lib/console-api';
@@ -64,6 +67,8 @@ export default function InstitutionsPage() {
   const [productsError, setProductsError] = useState<string | null>(null);
   const [kpis, setKpis] = useState<ConsoleKpi[]>([]);
   const [kpisError, setKpisError] = useState<string | null>(null);
+  const [clients, setClients] = useState<ConsoleClient[]>([]);
+  const [clientsError, setClientsError] = useState<string | null>(null);
   const [funnel, setFunnel] = useState<ConsoleFunnelStage[]>([]);
   const [funnelError, setFunnelError] = useState<string | null>(null);
   const [reconciliation, setReconciliation] = useState<ConsoleReconciliationItem[]>([]);
@@ -77,6 +82,8 @@ export default function InstitutionsPage() {
   const [productActionError, setProductActionError] = useState<string | null>(null);
   const [reconBusyId, setReconBusyId] = useState<string | null>(null);
   const [reconActionError, setReconActionError] = useState<string | null>(null);
+  const [clientBusyId, setClientBusyId] = useState<string | null>(null);
+  const [clientActionError, setClientActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,14 +91,16 @@ export default function InstitutionsPage() {
       // Each panel reports its own failure. One route being down must not blank
       // the other four — an operator with a broken funnel query can still work
       // their order queue.
-      const [ordersR, productsR, kpisR, funnelR, reconR, auditR] = await Promise.allSettled([
-        getOrders(),
-        getProducts(),
-        getKpis(),
-        getFunnel(),
-        getReconciliation(),
-        getAudit(50),
-      ]);
+      const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR] =
+        await Promise.allSettled([
+          getOrders(),
+          getProducts(),
+          getKpis(),
+          getClients(),
+          getFunnel(),
+          getReconciliation(),
+          getAudit(50),
+        ]);
       if (cancelled) return;
 
       if (ordersR.status === 'fulfilled') setOrders(ordersR.value.orders);
@@ -102,6 +111,9 @@ export default function InstitutionsPage() {
 
       if (kpisR.status === 'fulfilled') setKpis(kpisR.value.kpis);
       else setKpisError(errorMessage(kpisR.reason, 'Could not load KPIs.'));
+
+      if (clientsR.status === 'fulfilled') setClients(clientsR.value.clients);
+      else setClientsError(errorMessage(clientsR.reason, 'Could not load your clients.'));
 
       if (funnelR.status === 'fulfilled') setFunnel(funnelR.value.stages);
       else setFunnelError(errorMessage(funnelR.reason, 'Could not load the onboarding funnel.'));
@@ -191,6 +203,39 @@ export default function InstitutionsPage() {
       setProductActionError(errorMessage(err, 'Could not change this listing.'));
     } finally {
       setProductBusyId(null);
+    }
+  }
+
+  /**
+   * Accepting or declining a client. Not optimistic: this is the decision that
+   * opens a firm's book to a person, and showing it as done before the server
+   * has said so is the one place in this console where a lie would matter. The
+   * row moves when the transition returns, and stays put when it fails.
+   */
+  async function handleReviewClient(id: string, accept: boolean, reason?: string) {
+    setClientBusyId(id);
+    setClientActionError(null);
+    try {
+      const { status } = await reviewClient(id, accept, reason);
+      setClients((cs) =>
+        cs.map((c) =>
+          c.account_id === id
+            ? {
+                ...c,
+                status,
+                reviewed_at: new Date().toISOString(),
+                decline_reason: status === 'declined' ? (reason ?? null) : null,
+              }
+            : c,
+        ),
+      );
+      void getAudit(50)
+        .then((r) => setAudit(r.entries))
+        .catch(() => {});
+    } catch (err) {
+      setClientActionError(errorMessage(err, 'Could not record that decision.'));
+    } finally {
+      setClientBusyId(null);
     }
   }
 
@@ -320,6 +365,11 @@ export default function InstitutionsPage() {
 
         <TabsContent value="clients" className="mt-0">
           <ClientsTab
+            clients={clients}
+            clientsError={clientsError}
+            clientBusyId={clientBusyId}
+            clientActionError={clientActionError}
+            onReviewClient={handleReviewClient}
             partner={partner}
             funnel={funnel}
             funnelError={funnelError}

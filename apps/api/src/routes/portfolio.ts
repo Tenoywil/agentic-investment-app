@@ -104,19 +104,20 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         .from(partners)
         .where(eq(partners.code, code))
         .limit(1);
-      if (!partner) return { error: `no partner with code ${code}` as const, status: 400 as const };
+      if (!partner)
+        return { error: `no partner with code ${code}` as const, httpStatus: 400 as const };
       // The adapter registry would refuse this anyway; saying so is kinder than
       // a 500 from inside it.
       if (partner.agreementStatus !== 'sandbox' && partner.agreementStatus !== 'live') {
         return {
           error:
             `${partner.name} is not connectable yet — CCN's agreement with them is ${partner.agreementStatus}.` as const,
-          status: 400 as const,
+          httpStatus: 400 as const,
         };
       }
 
       const [existing] = await tx
-        .select({ id: connectedAccounts.id })
+        .select({ id: connectedAccounts.id, status: connectedAccounts.status })
         .from(connectedAccounts)
         .where(
           and(
@@ -126,18 +127,60 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         )
         .limit(1);
 
-      let accountId = existing?.id;
-      if (!accountId) {
+      // A new link is a request, not a fait accompli. CCN does not own KYC —
+      // the firm does — so nothing is read from them until an operator there has
+      // reviewed the package CCN passes across and accepted this person as their
+      // client (partner_review_client, 0014). Before that there is no
+      // relationship to read through, and holdings pulled anyway would be a
+      // firm's client data moved on nobody's authority.
+      if (!existing) {
         const [row] = await tx
           .insert(connectedAccounts)
           .values({ userId: tenant.user.id, partnerId: partner.id, label: partner.name })
           .returning({ id: connectedAccounts.id });
-        accountId = row?.id;
+        if (!row)
+          return { error: 'the account was not connected' as const, httpStatus: 400 as const };
+        await auditAppend(tx, {
+          actorType: 'user',
+          actorId: tenant.user.id,
+          userId: tenant.user.id,
+          partnerId: partner.id,
+          action: 'connected_account.requested',
+          entityType: 'connected_accounts',
+          entityId: row.id,
+          detail: { partner: partner.name, code },
+        });
+        return {
+          accountId: row.id,
+          partner: partner.name,
+          status: 'pending' as const,
+          holdings: 0,
+          refreshed: false,
+          created: true,
+        };
       }
-      if (!accountId)
-        return { error: 'the account was not connected' as const, status: 400 as const };
 
-      // The partner's own view of what this client holds.
+      const accountId = existing.id;
+      if (existing.status === 'pending') {
+        // Still waiting. Pressing the button again is not a second request,
+        // and must not read as one.
+        return {
+          accountId,
+          partner: partner.name,
+          status: 'pending' as const,
+          holdings: 0,
+          refreshed: false,
+          created: false,
+        };
+      }
+      if (existing.status === 'declined') {
+        return {
+          error: `${partner.name} did not accept this account. Their compliance desk can tell you why.`,
+          httpStatus: 409 as const,
+        };
+      }
+
+      // Accepted: the partner's own view of what this client holds.
       const { adapter } = await adapterFor(tx, code, 'read', () => Date.now());
       const pulled = await adapter.getHoldings(tenant.user.id);
 
@@ -157,6 +200,10 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         .from(holdings)
         .where(eq(holdings.connectedAccountId, accountId));
       const idByName = new Map(mine.map((h) => [h.name, h.id]));
+      // The first pull after the firm accepted this person is the link; every
+      // one after it is a refresh. `existing` no longer tells them apart —
+      // the connection is always already there by the time anything is pulled.
+      const refreshed = mine.length > 0;
 
       for (const h of pulled) {
         const already = idByName.get(h.name);
@@ -183,18 +230,31 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         actorId: tenant.user.id,
         userId: tenant.user.id,
         partnerId: partner.id,
-        action: existing ? 'connected_account.refreshed' : 'connected_account.linked',
+        action: refreshed ? 'connected_account.refreshed' : 'connected_account.linked',
         entityType: 'connected_accounts',
         entityId: accountId,
         detail: { partner: partner.name, code, holdings: pulled.length },
       });
 
-      return { accountId, partner: partner.name, holdings: pulled.length, refreshed: !!existing };
+      return {
+        accountId,
+        partner: partner.name,
+        status: 'active' as const,
+        holdings: pulled.length,
+        refreshed,
+        // The first pull after acceptance brings holdings into being; a refresh
+        // updates what is already there.
+        created: !refreshed && pulled.length > 0,
+      };
     });
 
-    if ('error' in result) return c.json({ error: result.error }, result.status);
-    deps.logger.info('investor connected an account', { user: tenant.user.id, partner: code });
-    return c.json(result, result.refreshed ? 200 : 201);
+    if ('error' in result) return c.json({ error: result.error }, result.httpStatus);
+    deps.logger.info('investor connected an account', {
+      user: tenant.user.id,
+      partner: code,
+      status: result.status,
+    });
+    return c.json(result, result.created ? 201 : 200);
   });
 
   app.get('/', async (c) => {
@@ -207,8 +267,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         ? (requested as Currency)
         : 'USD';
 
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
+    const { rows, connections } = await withTenant(deps, tenant, async (tx) => ({
+      rows: await tx
         .select({
           partnerCode: partners.code,
           partnerName: partners.name,
@@ -224,7 +284,25 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         .leftJoin(partners, eq(connectedAccounts.partnerId, partners.id))
         .leftJoin(instruments, eq(holdings.instrumentId, instruments.id))
         .where(eq(holdings.userId, tenant.user.id)),
-    );
+      /**
+       * Every link this person has, whatever its standing — because the ones
+       * that matter most to them hold nothing yet. A connection awaiting the
+       * firm's decision, or refused by it, produces no holdings and would
+       * otherwise be invisible on the screen where they went looking for it.
+       */
+      connections: await tx
+        .select({
+          code: partners.code,
+          name: partners.name,
+          status: connectedAccounts.status,
+          requestedAt: connectedAccounts.createdAt,
+          declineReason: connectedAccounts.declineReason,
+        })
+        .from(connectedAccounts)
+        .innerJoin(partners, eq(connectedAccounts.partnerId, partners.id))
+        .where(eq(connectedAccounts.userId, tenant.user.id))
+        .orderBy(connectedAccounts.createdAt),
+    }));
 
     // Group by partner; base amounts are USD minor units. `kind` and
     // `regulator` ride along because the screens were printing "· FSC-regulated"
@@ -293,6 +371,7 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
       netWorth: formatMoney(netWorth),
       netWorthMinor: netWorth.minor.toString(),
       allocation,
+      connections,
       partners: [...groups.values()].map((g) => ({
         code: g.code,
         name: g.name,

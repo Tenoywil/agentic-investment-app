@@ -5,6 +5,7 @@ import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { cn } from '@/app/_lib/utils';
 import { type Approval, getApprovals } from '@/lib/portfolio-api';
 import {
+  ArrowRightLeft,
   Compass,
   HandHeart,
   LayoutGrid,
@@ -23,6 +24,7 @@ type Key =
   | 'home'
   | 'portfolio'
   | 'opportunities'
+  | 'orders'
   | 'agent'
   | 'planning'
   | 'onboarding'
@@ -63,6 +65,10 @@ const GROUPS: NavGroup[] = [
       // `customer-agent` is not here: the tour highlights the agent panel
       // itself (the hero's right column on /home, the chat card on /agent), not
       // the link to it.
+      // Where an authorised order goes. GET /api/orders had no reader at all,
+      // so a person watched the exec dialog close and never learned whether
+      // their institution accepted, settled or declined it.
+      { key: 'orders', label: 'Orders', href: '/orders', Icon: ArrowRightLeft },
       { key: 'agent', label: 'Agent', href: '/agent', Icon: Sparkles },
     ],
   },

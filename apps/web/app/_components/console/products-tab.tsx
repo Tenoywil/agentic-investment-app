@@ -77,7 +77,12 @@ export function ProductsTab({
       ) : null}
 
       {!productsError && products.length > 0 ? (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
+          {/* `relative`, so this scroller is the containing block for the
+              absolutely positioned `sr-only` labels inside the row buttons.
+              Without it those spans resolve against the page, escape this
+              element's clipping, and stretch the document's scroll area past
+              the viewport — a phone scrolled 140px sideways onto nothing. */}
           <div className="min-w-[560px]">
             {/* Clients / AUM / Inflow columns removed: CCN computes none of
                 them, so the figures that used to fill them were invented. */}

@@ -100,6 +100,13 @@ export const sourceOfFunds = pgEnum('source_of_funds', [
 
 export const productListingStatus = pgEnum('product_listing_status', ['live', 'paused']);
 
+/**
+ * A client's standing at one partner. An investor links an account; the partner
+ * reviews the KYC package CCN passes across and accepts or declines them. CCN is
+ * not the KYC owner, so the relationship is not real until the firm says it is.
+ */
+export const connectionStatus = pgEnum('connection_status', ['pending', 'active', 'declined']);
+
 export const reconciliationStatus = pgEnum('reconciliation_status', [
   'pending',
   'matched',

@@ -1,4 +1,4 @@
-import { orders as ordersTable } from '@ccn/db';
+import { instruments, orders as ordersTable, partners } from '@ccn/db';
 import { proposeOrderSchema } from '@ccn/domain';
 import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -19,13 +19,41 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
 
+  /**
+   * The caller's own orders, newest first.
+   *
+   * Joined to the instrument and the executing partner, because the columns
+   * alone name an order by two UUIDs. This route existed and nothing consumed
+   * it: a person authorised an order and it disappeared — no screen told them
+   * whether their institution had accepted it, settled it or turned it down.
+   *
+   * LEFT on both: `instrument_id` is nullable, and an order must not vanish
+   * from its owner's list because a join found nothing.
+   */
   app.get('/', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const rows = await withTenant(deps, tenant, (tx) =>
       tx
-        .select()
+        .select({
+          id: ordersTable.id,
+          status: ordersTable.status,
+          amountMinor: ordersTable.amountMinor,
+          currency: ordersTable.currency,
+          instrumentName: instruments.name,
+          instrumentAbbr: instruments.abbr,
+          partnerName: partners.name,
+          partnerCode: partners.code,
+          settlementEta: ordersTable.settlementEta,
+          rejectedReason: ordersTable.rejectedReason,
+          createdBy: ordersTable.createdBy,
+          createdAt: ordersTable.createdAt,
+          acceptedAt: ordersTable.acceptedAt,
+          settledAt: ordersTable.settledAt,
+        })
         .from(ordersTable)
+        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+        .leftJoin(partners, eq(partners.id, ordersTable.partnerId))
         .where(eq(ordersTable.userId, tenant.user.id))
         .orderBy(desc(ordersTable.createdAt)),
     );

@@ -132,3 +132,63 @@ export async function reconcileReject(
 ): Promise<void> {
   await tx.execute(sql`select reconcile_reject(${itemId}::uuid, ${reason}::text)`);
 }
+
+/**
+ * One row of the client list a partner console shows: the person, and the KYC
+ * package CCN passes across with their consent. Columns are snake_case, like
+ * every other database function's result.
+ */
+export interface PartnerClientRow {
+  account_id: string;
+  status: 'pending' | 'active' | 'declined';
+  label: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  decline_reason: string | null;
+  user_id: string;
+  client_name: string;
+  client_email: string;
+  residency_country: string | null;
+  kyc_tier: 'none' | 'tier1' | 'tier2';
+  identity_verified: boolean;
+  compliance_confirmed: boolean;
+  risk_completed: boolean;
+  funds_confirmed: boolean;
+  is_pep: boolean;
+  tax_residency_declared: boolean;
+  sources: string[];
+  risk_band: string | null;
+  holdings_count: number;
+  holdings_value_minor: string; // bigint → string over the wire
+}
+
+/**
+ * The clients who have linked an account at the caller's firm.
+ *
+ * Takes no partner argument: the function reads `app.current_partner_id` from
+ * the transaction, so there is no id an operator could substitute for another
+ * firm's. It is the only path to a client's KYC — `kyc_status` and `user` are
+ * not readable by the app role on anyone but the caller.
+ */
+export async function partnerClients(tx: Transaction): Promise<PartnerClientRow[]> {
+  return (await tx.execute(sql`select * from partner_clients()`)) as unknown as PartnerClientRow[];
+}
+
+/**
+ * Accept or decline one pending connection. Returns the status it moved to.
+ * Throws when the connection is not this partner's, is not pending, or (on
+ * accept) when the client has no KYC at all to review.
+ */
+export async function partnerReviewClient(
+  tx: Transaction,
+  accountId: string,
+  accept: boolean,
+  reason: string | null,
+): Promise<'active' | 'declined'> {
+  const result = await tx.execute(
+    sql`select partner_review_client(${accountId}::uuid, ${accept}::boolean, ${reason}::text) as status`,
+  );
+  const row = (result as unknown as { status: 'active' | 'declined' }[])[0];
+  if (!row) throw new Error('partner_review_client returned no status');
+  return row.status;
+}

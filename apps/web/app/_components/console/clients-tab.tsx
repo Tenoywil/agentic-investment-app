@@ -3,9 +3,14 @@
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
-import type { ConsoleFunnelStage, ConsoleReconciliationItem } from '@/lib/console-api';
+import type {
+  ConsoleClient,
+  ConsoleFunnelStage,
+  ConsoleReconciliationItem,
+} from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { ArrowRightLeft, Users } from 'lucide-react';
+import { ClientReview } from './client-review';
 import {
   ROW_DIVIDER,
   TERRA_GHOST_BTN,
@@ -23,6 +28,11 @@ const FUNNEL_COLORS = ['#6b6459', '#7fb5ad', '#17786e', '#124e48'];
 
 export function ClientsTab({
   partner,
+  clients,
+  clientsError,
+  clientBusyId,
+  clientActionError,
+  onReviewClient,
   funnel,
   funnelError,
   reconciliation,
@@ -33,6 +43,11 @@ export function ClientsTab({
   onRejectItem,
 }: {
   partner: MePartner | null;
+  clients: ConsoleClient[];
+  clientsError: string | null;
+  clientBusyId: string | null;
+  clientActionError: string | null;
+  onReviewClient: (id: string, accept: boolean, reason?: string) => void;
   funnel: ConsoleFunnelStage[];
   funnelError: string | null;
   reconciliation: ConsoleReconciliationItem[];
@@ -44,6 +59,15 @@ export function ClientsTab({
 }) {
   return (
     <>
+      {/* The decision the firm actually makes, above the counts describing it. */}
+      <ClientReview
+        clients={clients}
+        clientsError={clientsError}
+        busyId={clientBusyId}
+        actionError={clientActionError}
+        onReview={onReviewClient}
+      />
+
       <div className="g-held">
         <Card className="p-6" data-tour="institution-funnel">
           <div className="flex flex-wrap items-start justify-between gap-2">

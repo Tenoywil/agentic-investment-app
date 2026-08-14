@@ -42,11 +42,26 @@ export interface AllocationSlice {
   pct: number;
 }
 
+/**
+ * A link to one institution, whatever its standing. Distinct from
+ * `partners`, which is derived from holdings — a connection awaiting the
+ * firm's decision, or refused by it, has none, and would otherwise be
+ * invisible on the screen where the investor went looking for it.
+ */
+export interface PortfolioConnection {
+  code: string;
+  name: string;
+  status: 'pending' | 'active' | 'declined';
+  requestedAt: string;
+  declineReason: string | null;
+}
+
 export interface Portfolio {
   currency: Currency;
   netWorth: string;
   netWorthMinor: string;
   allocation: AllocationSlice[];
+  connections: PortfolioConnection[];
   partners: PortfolioPartner[];
 }
 
@@ -127,9 +142,13 @@ export { regulatorLabel } from './opportunities-api';
  * The balances come from the partner's own adapter, not from here. Connecting
  * the same partner twice refreshes that account rather than adding a second.
  */
-export async function connectAccount(
-  partnerCode: string,
-): Promise<{ partner: string; holdings: number; refreshed: boolean }> {
+export async function connectAccount(partnerCode: string): Promise<{
+  partner: string;
+  /** `pending` until an operator at that firm accepts this person as a client. */
+  status: 'pending' | 'active';
+  holdings: number;
+  refreshed: boolean;
+}> {
   const res = await fetch(`${API_URL}/api/portfolio/accounts`, {
     method: 'POST',
     credentials: 'include',

@@ -99,6 +99,13 @@
       "when": 1786560000000,
       "tag": "0013_partner_lists_products",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786570000000,
+      "tag": "0014_partner_accepts_client",
+      "breakpoints": true
     }
   ]
 }

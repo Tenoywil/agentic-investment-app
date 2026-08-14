@@ -127,7 +127,9 @@ export async function seedDemoCustomer(db: Database | Transaction, userId: strin
     if (!partnerId) continue;
     const [account] = await db
       .insert(connectedAccounts)
-      .values({ userId, partnerId, label: acc.label })
+      // Established relationships: the demo customer is an existing client at
+      // each of these firms, not somebody awaiting a review.
+      .values({ userId, partnerId, label: acc.label, status: 'active', reviewedAt: new Date() })
       .returning({ id: connectedAccounts.id });
     if (!account) continue;
     await db.insert(holdings).values(

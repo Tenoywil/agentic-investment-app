@@ -504,7 +504,7 @@ export default function InstitutionsPage() {
 
         {/* Compliance */}
         <TabsContent value="compliance" className="mt-0">
-          <div className="g-agent" style={{ gridTemplateColumns: '1fr 1.3fr' }}>
+          <div className="g-agent g-agent--flip">
             <Card className="h-fit border-none bg-primary p-6 text-[#eafaf5]">
               <div className="mb-4 flex items-center gap-2.5">
                 <ShieldCheck className="h-[18px] w-[18px] text-[#8fe3c0]" />
