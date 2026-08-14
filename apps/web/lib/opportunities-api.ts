@@ -194,6 +194,15 @@ export interface MyOrder {
   partnerName: string | null;
   partnerCode: string | null;
   settlementEta: string | null;
+  /**
+   * What the executing firm reported when it settled. Null is "the firm did
+   * not tell us" and the screen says nothing rather than printing a zero,
+   * because a fee of zero is a claim and an absent fee is not.
+   */
+  unitPriceMinor: string | null;
+  units: string | null;
+  feeMinor: string | null;
+  externalRef: string | null;
   rejectedReason: string | null;
   createdBy: OrderCreatedBy;
   createdAt: string;

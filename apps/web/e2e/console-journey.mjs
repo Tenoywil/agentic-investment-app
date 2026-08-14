@@ -176,6 +176,59 @@ if (await open.count()) {
   console.log('SKIP  no client rows in this database to open');
 }
 
+// ---- accepting commits to a date, settling records the execution ----
+// Both were columns nobody wrote: `settlement_eta` since the first migration,
+// and the price/units/fee not at all — an investor was told "settled" and
+// never at what price.
+await op.getByRole('tab', { name: /order flow/i }).click();
+await op.waitForTimeout(1200);
+const acceptBtn = op.getByRole('button', { name: /^Accept / }).first();
+if (await acceptBtn.count()) {
+  await acceptBtn.click();
+  const iso = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await op.locator('input[type="date"]').first().fill(iso);
+  await op
+    .getByRole('button', { name: /^Accept$/ })
+    .first()
+    .click();
+  await op.waitForTimeout(1500);
+
+  const settleBtn = op.getByRole('button', { name: /^Settle / }).first();
+  check((await settleBtn.count()) > 0, 'an accepted order offers Settle');
+  await settleBtn.click();
+  await op.getByPlaceholder('100.25').first().fill('100.25');
+  await op.getByPlaceholder('50').first().fill('49.875');
+  await op.getByPlaceholder('TRD-88214').first().fill('TRD-88214');
+  await op.getByRole('button', { name: /confirm settled/i }).click();
+  await op.waitForTimeout(1500);
+
+  const queue = await op.locator('[data-tour="institution-orders"], main').innerText();
+  check(queue.includes('49.875 units'), 'the settled row shows the units the firm reported');
+  check(queue.includes('US$100.25'), 'the unit price shows to the cent, not rounded to US$100');
+  check(queue.includes('TRD-88214'), 'the firm’s own reference is kept on the row');
+} else {
+  console.log('SKIP  no order awaiting acceptance in this database');
+}
+
+// ---- a firm corrects its own record ----
+await op.getByRole('tab', { name: /compliance/i }).click();
+await op.waitForTimeout(1000);
+await op.getByRole('button', { name: /edit firm details/i }).click();
+const NEW_KIND = `Funds · Insurance ${Date.now() % 10000}`;
+await op
+  .locator('input')
+  .filter({ hasNot: op.locator('[type="date"]') })
+  .nth(1)
+  .fill(NEW_KIND);
+await op.getByRole('button', { name: /^Save$/ }).click();
+await op.waitForTimeout(2000);
+const compliance = await op.locator('main').innerText();
+check(compliance.includes(NEW_KIND), 'the firm’s edited details save and show');
+check(
+  compliance.includes('set by CCN') || compliance.includes('Partner code'),
+  'the console still shows the fields CCN owns',
+);
+
 // ---- the audit trail reads as English ----
 await op.getByRole('tab', { name: /compliance/i }).click();
 await op.waitForTimeout(1200);

@@ -134,6 +134,13 @@
       "when": 1786610000000,
       "tag": "0018_partner_client_detail",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786620000000,
+      "tag": "0019_settlement_detail_and_firm_profile",
+      "breakpoints": true
     }
   ]
 }

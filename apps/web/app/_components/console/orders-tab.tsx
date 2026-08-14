@@ -82,8 +82,16 @@ export function OrdersTab({
         { header: 'Currency', value: (o) => o.currency },
         { header: 'Status', value: (o) => o.status },
         { header: 'Reason if rejected', value: (o) => o.rejectedReason ?? '' },
+        // The execution, as the firm reported it. Empty means it reported
+        // nothing, which a reconciliation against their own books needs to be
+        // able to tell apart from a reported zero.
+        { header: 'Unit price (minor units)', value: (o) => o.unitPriceMinor ?? '' },
+        { header: 'Units', value: (o) => o.units ?? '' },
+        { header: 'Fee (minor units)', value: (o) => o.feeMinor ?? '' },
+        { header: 'Firm reference', value: (o) => o.externalRef ?? '' },
         { header: 'Created', value: (o) => o.createdAt },
         { header: 'Accepted', value: (o) => o.acceptedAt ?? '' },
+        { header: 'Settlement expected', value: (o) => o.settlementEta ?? '' },
         { header: 'Settled', value: (o) => o.settledAt ?? '' },
       ]),
     );

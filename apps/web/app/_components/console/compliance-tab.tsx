@@ -1,10 +1,12 @@
 'use client';
 
+import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleAuditEntry } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
-import { ScrollText, ShieldCheck } from 'lucide-react';
+import { Pencil, ScrollText, ShieldCheck } from 'lucide-react';
+import * as React from 'react';
 import {
   AUDIT_ACTOR_DOT,
   AUDIT_ACTOR_LABEL,
@@ -30,17 +32,41 @@ import { ErrorNote } from './notice';
  * or from GET /api/console/audit, and a fact the partner row does not carry
  * simply has no row. "Last audit" has no column anywhere and is gone.
  */
+/** On the navy card, so the label sits at the same contrast as the dl above. */
+const PROFILE_LABEL = 'text-[12px] font-bold uppercase tracking-[.5px] text-white/70';
+const PROFILE_FIELD =
+  'mt-1 block w-full rounded-[10px] border border-solid border-white/25 bg-white/10 px-3 py-2 text-[15px] text-white placeholder:text-white/40';
+
 export function ComplianceTab({
   partner,
   audit,
   auditError,
   loading,
+  onSaveProfile,
+  profileSaving,
+  profileError,
 }: {
   partner: MePartner | null;
   audit: ConsoleAuditEntry[];
   auditError: string | null;
   loading: boolean;
+  onSaveProfile: (input: { name: string; kind?: string; residency?: string }) => void;
+  profileSaving: boolean;
+  profileError: string | null;
 }) {
+  const [editing, setEditing] = React.useState(false);
+  const [name, setName] = React.useState(partner?.name ?? '');
+  const [kind, setKind] = React.useState(partner?.kind ?? '');
+  const [residency, setResidency] = React.useState(partner?.residency ?? '');
+
+  // `partner` arrives after the first render, so the form has to pick it up
+  // when it does rather than staying empty for whoever opens the editor first.
+  React.useEffect(() => {
+    setName(partner?.name ?? '');
+    setKind(partner?.kind ?? '');
+    setResidency(partner?.residency ?? '');
+  }, [partner]);
+
   const rows: { label: string; value: string }[] = [];
   if (partner) {
     rows.push({ label: 'Partner code', value: partner.code });
@@ -62,7 +88,78 @@ export function ComplianceTab({
           <ShieldCheck className="h-[18px] w-[18px] text-[#8fe3c0]" aria-hidden />
           <b className="font-display text-base">Agreement &amp; residency</b>
         </div>
-        {rows.length > 0 ? (
+        {editing ? (
+          /*
+           * The three fields a firm owns about itself.
+           *
+           * `partners` had an UPDATE grant and one admin-only policy, so a firm
+           * could not fix a typo in its own name — the name that appears beside
+           * every product it lists. Code, regulator and agreement status stay
+           * out: the first resolves the executing adapter, the second is a
+           * compliance claim made to investors, the third gates live routing.
+           * They are shown above and are CCN's to set.
+           */
+          <form
+            className="m-0"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSaveProfile({
+                name: name.trim(),
+                kind: kind.trim() || undefined,
+                residency: residency.trim() || undefined,
+              });
+              setEditing(false);
+            }}
+          >
+            <label className="block text-sm">
+              <span className={PROFILE_LABEL}>Firm name</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={PROFILE_FIELD}
+                required
+                minLength={2}
+              />
+            </label>
+            <label className="mt-3 block text-sm">
+              <span className={PROFILE_LABEL}>Business</span>
+              <input
+                value={kind}
+                onChange={(e) => setKind(e.target.value)}
+                className={PROFILE_FIELD}
+                placeholder="Funds · Insurance"
+              />
+            </label>
+            <label className="mt-3 block text-sm">
+              <span className={PROFILE_LABEL}>Data residency</span>
+              <input
+                value={residency}
+                onChange={(e) => setResidency(e.target.value)}
+                className={PROFILE_FIELD}
+                placeholder="Jamaica"
+              />
+            </label>
+            <p className="mb-0 mt-3 text-[12.5px] leading-relaxed text-white/70">
+              Your partner code, regulator and agreement status are set by CCN. The regulator is
+              shown to investors on every product you list, so it is not a field a console can
+              write.
+            </p>
+            <div className="mt-4 flex items-center gap-2">
+              <Button type="submit" size="sm" variant="secondary" disabled={profileSaving}>
+                {profileSaving ? 'Saving…' : 'Save'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-white hover:bg-white/10 hover:text-white"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : rows.length > 0 ? (
           <dl className="m-0">
             {rows.map((r) => (
               // gap-x only, and both sides allowed to shrink: a long business
@@ -79,6 +176,21 @@ export function ComplianceTab({
             No agreement details are recorded against this account yet.
           </p>
         )}
+
+        {profileError ? <p className="mb-0 mt-3 text-sm text-[#ffcbb0]">{profileError}</p> : null}
+
+        {partner && !editing ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="mt-3 px-0 text-white hover:bg-white/10 hover:text-white"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            Edit firm details
+          </Button>
+        ) : null}
       </Card>
 
       <Card className="p-6" data-tour="institution-audit">

@@ -122,12 +122,24 @@ suite('partner console data surface', () => {
   }
 
   beforeAll(async () => {
-    // Two partners: the caller's, and the one whose data must never leak.
+    /**
+     * Two partners: the caller's, and the one whose data must never leak.
+     *
+     * Upserting the NAME, not inserting-and-ignoring. The firm-profile test
+     * renames SAG for real — that is the feature — and with
+     * onConflictDoNothing that rename survived into the next run, where the
+     * marketplace test asserts the listing carries "Sagicor Investments". A
+     * fixture that is only correct on a fresh database is a test that passes
+     * once.
+     */
     for (const p of [
       { code: 'SAG' as const, name: 'Sagicor Investments' },
       { code: 'NCB' as const, name: 'National Commercial Bank' },
     ]) {
-      await db.insert(partners).values(p).onConflictDoNothing({ target: partners.code });
+      await db
+        .insert(partners)
+        .values(p)
+        .onConflictDoUpdate({ target: partners.code, set: { name: p.name } });
     }
     const partnerRows = await db
       .select({ id: partners.id, code: partners.code })
@@ -245,6 +257,14 @@ suite('partner console data surface', () => {
     await db.delete(instruments).where(inArray(instruments.id, createdInstrumentIds));
     if (listingId) await db.delete(instruments).where(eq(instruments.id, listingId));
     if (instrumentId) await db.delete(instruments).where(eq(instruments.id, instrumentId));
+    // Put the names back, so a file that runs after this one sees the seeded
+    // firms rather than whatever this suite renamed them to.
+    for (const p of [
+      { code: 'SAG', name: 'Sagicor Investments' },
+      { code: 'NCB', name: 'National Commercial Bank' },
+    ]) {
+      await db.update(partners).set({ name: p.name }).where(eq(partners.code, p.code));
+    }
     // audit_log is append-only by design (BEFORE UPDATE OR DELETE raises for
     // everyone, superusers included), so the two rows above stay. They are
     // namespaced by `tag`, so they cannot collide with a later run.
@@ -671,6 +691,90 @@ suite('partner console data surface', () => {
       .from(connectedAccounts)
       .where(eq(connectedAccounts.id, clientAccountId));
     expect(unchanged?.status).toBe('active');
+  });
+
+  /**
+   * The firm's own record.
+   *
+   * `partners` had an UPDATE grant and exactly one UPDATE policy — admin-only —
+   * so a firm could not fix a typo in the name that appears beside every
+   * product it lists. What matters as much as the fix is what it does not
+   * reach: the regulator is a compliance claim rendered to investors, the code
+   * resolves the executing adapter, and the agreement status gates live
+   * routing.
+   */
+  test('a firm edits its own name, and cannot touch what CCN asserts about it', async () => {
+    const before = await json<{ partner: { regulator: string | null; code: string } }>(
+      '/api/console/partner',
+      'sagOperator',
+    );
+
+    const res = await app().request('/api/console/partner', {
+      method: 'PATCH',
+      headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: `${tag} Renamed Investments`,
+        kind: 'Funds · Insurance',
+        residency: 'Jamaica',
+        // Sent and expected to be ignored — the function takes no parameter for
+        // any of them, so there is nothing for a client to reach.
+        code: 'HACK',
+        regulator: 'FSC_BARBADOS',
+        agreementStatus: 'live',
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const [row] = await db
+      .select({
+        name: partners.name,
+        kind: partners.kind,
+        residency: partners.residency,
+        code: partners.code,
+        regulator: partners.regulator,
+        agreementStatus: partners.agreementStatus,
+      })
+      .from(partners)
+      .where(eq(partners.id, sagId));
+    expect(row?.name).toBe(`${tag} Renamed Investments`);
+    expect(row?.kind).toBe('Funds · Insurance');
+    expect(row?.residency).toBe('Jamaica');
+    expect(row?.code).toBe('SAG');
+    expect(row?.regulator).toBe(before.partner.regulator as never);
+    expect(row?.agreementStatus).not.toBe('live');
+
+    // Both sides of the change are on the audit row: a firm's name is what
+    // investors see beside its products, so "from what, to what" is the
+    // question worth being able to answer.
+    const { entries } = await json<{ entries: { action: string; detail: unknown }[] }>(
+      '/api/console/audit?limit=50',
+      'sagOperator',
+    );
+    const entry = entries.find((e) => e.action === 'partner.profile_updated');
+    expect(entry).toBeTruthy();
+    const detail = entry?.detail as { from: { name: string }; to: { name: string } };
+    expect(detail.to.name).toBe(`${tag} Renamed Investments`);
+    expect(detail.from.name).not.toBe(detail.to.name);
+
+    // A nameless firm is refused, and another firm's operator changes nothing
+    // here — the partner comes from their own scope, so this edits NCB's row.
+    const blank = await app().request('/api/console/partner', {
+      method: 'PATCH',
+      headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ name: ' ' }),
+    });
+    expect(blank.status).toBe(400);
+
+    await app().request('/api/console/partner', {
+      method: 'PATCH',
+      headers: { cookie: cookies.ncbOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ name: `${tag} NCB Renamed` }),
+    });
+    const [sag] = await db
+      .select({ name: partners.name })
+      .from(partners)
+      .where(eq(partners.id, sagId));
+    expect(sag?.name).toBe(`${tag} Renamed Investments`);
   });
 
   test('a product needs a name and a type CCN can act on', async () => {

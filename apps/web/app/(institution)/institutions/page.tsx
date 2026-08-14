@@ -12,7 +12,7 @@ import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
 import { Tabs, TabsContent } from '@/app/_components/ui/tabs';
-import { useMe } from '@/app/_lib/session';
+import { useMe, useSession } from '@/app/_lib/session';
 import { useRealtime } from '@/app/_lib/use-realtime';
 import { authClient } from '@/lib/auth-client';
 import {
@@ -23,6 +23,7 @@ import {
   type ConsoleOrder,
   type ConsoleProduct,
   type ConsoleReconciliationItem,
+  type SettlementInput,
   acceptOrder,
   getAudit,
   getClients,
@@ -37,6 +38,7 @@ import {
   reviewClient,
   settleOrder,
   toggleProductLive,
+  updatePartner,
 } from '@/lib/console-api';
 import { Menu } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -59,6 +61,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  */
 export default function InstitutionsPage() {
   const me = useMe();
+  // The firm's own name comes from the session, so saving it has to refresh
+  // the session — otherwise the sidebar and every header go on showing the old
+  // one until a reload.
+  const { refresh } = useSession();
   const partner = me?.partner ?? null;
   const [tab, setTab] = useState<TabKey>('overview');
   const [signingOut, setSigningOut] = useState(false);
@@ -86,6 +92,8 @@ export default function InstitutionsPage() {
   const [reconActionError, setReconActionError] = useState<string | null>(null);
   const [clientBusyId, setClientBusyId] = useState<string | null>(null);
   const [clientActionError, setClientActionError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   /**
    * Seven reads, and until this flag existed there was no way to tell "still
@@ -199,16 +207,22 @@ export default function InstitutionsPage() {
     }
   }
 
-  /** Accept / settle / reject all return the updated row from the server. */
-  function orderTransition(
-    fn: (id: string, reason?: string) => Promise<{ order: ConsoleOrder }>,
+  /**
+   * Accept / settle / reject all return the updated row from the server.
+   *
+   * The second argument differs per transition — a settlement date, the
+   * executed figures, a reason — so it is passed through untyped here and
+   * narrowed at each call site below.
+   */
+  function orderTransition<A>(
+    fn: (id: string, arg?: A) => Promise<{ order: ConsoleOrder }>,
     fallback: string,
   ) {
-    return async (id: string, reason?: string) => {
+    return async (id: string, arg?: A) => {
       setOrderBusyId(id);
       setOrderActionError(null);
       try {
-        const { order } = await fn(id, reason);
+        const { order } = await fn(id, arg);
         setOrders((os) => os.map((o) => (o.id === id ? order : o)));
         // The transition wrote an audit row; pull the trail back into sync so
         // the compliance tab is not quietly stale.
@@ -223,18 +237,43 @@ export default function InstitutionsPage() {
     };
   }
 
-  const handleAccept = orderTransition(acceptOrder, 'Could not accept the order.');
-  const handleSettle = orderTransition(settleOrder, 'Could not settle the order.');
+  // Accepting carries the settlement date the firm commits to; settling
+  // carries what it actually executed. Both are optional at every layer.
+  const handleAccept = orderTransition<string>(acceptOrder, 'Could not accept the order.');
+  const handleSettle = orderTransition<SettlementInput>(settleOrder, 'Could not settle the order.');
   /**
    * The reason reaches the investor: `reject_order` writes `rejected_reason`,
    * `/orders` renders it, and without one they are told only that their
    * institution "did not take this order on". It was accepted by the client
    * function and the API all along and dropped right here.
    */
-  const handleReject = orderTransition(
+  const handleReject = orderTransition<string>(
     (id, reason) => rejectOrder(id, reason),
     'Could not reject the order.',
   );
+
+  /**
+   * The firm corrects its own record.
+   *
+   * Not optimistic: the name is what investors see beside every product this
+   * firm lists, and showing it as changed before the server has accepted the
+   * change would be showing a claim nobody has recorded.
+   */
+  async function handleSaveProfile(input: { name: string; kind?: string; residency?: string }) {
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      await updatePartner(input);
+      await refresh();
+      void getAudit(50)
+        .then((r) => setAudit(r.entries))
+        .catch(() => {});
+    } catch (err) {
+      setProfileError(errorMessage(err, 'Could not save your firm details.'));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   /**
    * Optimistic flip, then reconcile to whatever the server says the status now
@@ -511,6 +550,9 @@ export default function InstitutionsPage() {
             audit={audit}
             auditError={auditError}
             loading={loading}
+            onSaveProfile={handleSaveProfile}
+            profileSaving={profileSaving}
+            profileError={profileError}
           />
         </TabsContent>
       </main>

@@ -68,6 +68,15 @@ export interface ConsoleOrder {
   idempotencyKey: string;
   clientRef: string | null;
   settlementEta: string | null;
+  /**
+   * What the settling firm reported. Null is "not reported", which the screens
+   * say by leaving it out — a zero would be the firm stating there was no fee,
+   * and on a record about someone's money those are different claims.
+   */
+  unitPriceMinor: string | null;
+  units: string | null;
+  feeMinor: string | null;
+  externalRef: string | null;
   rejectedReason: string | null;
   createdBy: ConsoleActorType;
   createdAt: string;
@@ -231,6 +240,23 @@ export function getPartner(): Promise<{ partner: ConsolePartner }> {
   return consoleFetch('/partner');
 }
 
+/**
+ * The firm corrects its own record.
+ *
+ * Three fields only, and the omissions are deliberate: `code` resolves the
+ * executing adapter, `regulator` is a compliance claim rendered to investors on
+ * every deal card, and `agreementStatus` gates live order routing. The server
+ * function takes no parameter for any of them, so this path cannot reach them
+ * whatever a client sends.
+ */
+export function updatePartner(input: {
+  name: string;
+  kind?: string;
+  residency?: string;
+}): Promise<{ partner: ConsolePartner }> {
+  return consoleFetch('/partner', { method: 'PATCH', body: JSON.stringify(input) });
+}
+
 /** Real audit rows for this partner, newest first. Server clamps limit to 200. */
 export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> {
   return consoleFetch(`/audit?limit=${limit}`);
@@ -269,12 +295,44 @@ export function getOrders(
   return consoleFetch(`/orders${queryString(query)}`);
 }
 
-export function acceptOrder(id: string): Promise<{ order: ConsoleOrder }> {
-  return consoleFetch(`/orders/${id}/accept`, { method: 'POST' });
+/**
+ * Take the order onto the desk, optionally committing to a settlement date.
+ *
+ * The exec dialog tells investors the date is set by the firm on acceptance,
+ * and `settlement_eta` has existed since the first migration with no writer at
+ * all. Optional here for the same reason it is optional in the schema: a desk
+ * that cannot yet commit to a date must still be able to accept.
+ */
+export function acceptOrder(id: string, settlementEta?: string): Promise<{ order: ConsoleOrder }> {
+  return consoleFetch(`/orders/${id}/accept`, {
+    method: 'POST',
+    body: JSON.stringify(settlementEta ? { settlementEta } : {}),
+  });
 }
 
-export function settleOrder(id: string): Promise<{ order: ConsoleOrder }> {
-  return consoleFetch(`/orders/${id}/settle`, { method: 'POST' });
+/** What a firm reports about an execution. Minor units as strings. */
+export interface SettlementInput {
+  unitPriceMinor?: string;
+  units?: string;
+  feeMinor?: string;
+  externalRef?: string;
+}
+
+/**
+ * Confirm the trade back to the client, with what was actually executed.
+ *
+ * Settling used to write status, settled_at and updated_at and nothing else, so
+ * an investor was told "settled" and never at what price. Every field is
+ * optional — the alternative to an empty column is an invented number.
+ */
+export function settleOrder(
+  id: string,
+  detail?: SettlementInput,
+): Promise<{ order: ConsoleOrder }> {
+  return consoleFetch(`/orders/${id}/settle`, {
+    method: 'POST',
+    body: JSON.stringify(detail ?? {}),
+  });
 }
 
 export function rejectOrder(id: string, reason?: string): Promise<{ order: ConsoleOrder }> {

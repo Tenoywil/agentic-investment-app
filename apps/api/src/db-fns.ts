@@ -22,6 +22,11 @@ export interface OrderRow {
   idempotency_key: string;
   client_ref: string | null;
   settlement_eta: string | null;
+  /** What the firm executed, reported at settlement. Null = not reported. */
+  unit_price_minor: string | null;
+  units: string | null;
+  fee_minor: string | null;
+  external_ref: string | null;
   rejected_reason: string | null;
   created_by: 'user' | 'agent' | 'compliance' | 'system';
   created_at: string;
@@ -59,24 +64,90 @@ export async function createOrder(tx: Transaction, a: CreateOrderArgs): Promise<
   return firstRow(result);
 }
 
+/**
+ * Accept an order onto the firm's desk, optionally committing to a settlement
+ * date. The exec dialog has always told investors the firm sets that date on
+ * acceptance; until now nothing wrote it.
+ */
 export async function acceptOrder(
   tx: Transaction,
   orderId: string,
   partnerId: string,
+  settlementEta: string | null = null,
 ): Promise<OrderRow> {
   return firstRow(
-    await tx.execute(sql`select * from accept_order(${orderId}::uuid, ${partnerId}::uuid)`),
+    await tx.execute(
+      sql`select * from accept_order(${orderId}::uuid, ${partnerId}::uuid, ${settlementEta}::timestamptz)`,
+    ),
   );
+}
+
+/** What a firm reports about an execution. Every field is optional — a firm
+ *  that does not report a price still has to be able to settle, and the one
+ *  thing we must not do is invent the number that fills the column. */
+export interface SettlementDetail {
+  unitPriceMinor: bigint | null;
+  units: string | null;
+  feeMinor: bigint | null;
+  externalRef: string | null;
 }
 
 export async function settleOrder(
   tx: Transaction,
   orderId: string,
   partnerId: string,
+  detail: SettlementDetail = {
+    unitPriceMinor: null,
+    units: null,
+    feeMinor: null,
+    externalRef: null,
+  },
 ): Promise<OrderRow> {
   return firstRow(
-    await tx.execute(sql`select * from settle_order(${orderId}::uuid, ${partnerId}::uuid)`),
+    await tx.execute(
+      sql`select * from settle_order(
+        ${orderId}::uuid,
+        ${partnerId}::uuid,
+        ${detail.unitPriceMinor?.toString() ?? null}::bigint,
+        ${detail.units}::numeric,
+        ${detail.feeMinor?.toString() ?? null}::bigint,
+        ${detail.externalRef}::text
+      )`,
+    ),
   );
+}
+
+/** The `partners` row as `partner_update_profile` returns it. */
+export interface PartnerRow {
+  id: string;
+  code: string;
+  name: string;
+  kind: string | null;
+  regulator: string | null;
+  agreement_status: string;
+  residency: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * A firm corrects its own record — name, kind, residency, and nothing else.
+ *
+ * `code`, `regulator` and `agreement_status` are not parameters and cannot be
+ * reached through this path: the first is the adapter registry's key, the
+ * second is a compliance claim rendered to investors on every deal card, and
+ * the third gates live order routing.
+ */
+export async function partnerUpdateProfile(
+  tx: Transaction,
+  args: { name: string; kind: string | null; residency: string | null },
+): Promise<PartnerRow> {
+  const rows = (await tx.execute(
+    sql`select * from partner_update_profile(${args.name}::text, ${args.kind}::text, ${args.residency}::text)`,
+  )) as unknown as PartnerRow[];
+  const row = rows[0];
+  if (!row) throw new Error('partner_update_profile returned no row');
+  return row;
 }
 
 export async function rejectOrder(

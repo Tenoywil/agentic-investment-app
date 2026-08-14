@@ -3,6 +3,7 @@ import {
   boolean,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -91,7 +92,21 @@ export const orders = pgTable('orders', {
   currency: currency('currency').notNull().default('USD'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
   clientRef: text('client_ref'), // masked reference shown to partner operators, e.g. "Client ••7134"
-  settlementEta: timestamp('settlement_eta', { withTimezone: true }), // T+2
+  /** The date the executing firm commits to on acceptance. Null until then. */
+  settlementEta: timestamp('settlement_eta', { withTimezone: true }),
+  /**
+   * What the firm actually executed, recorded at settlement.
+   *
+   * All nullable and none defaulted: a firm that settles without reporting a
+   * price is one we still have to let settle, and the alternative to an empty
+   * column is an invented number on a record an investor reads. NULL is "not
+   * reported"; `feeMinor = 0` is the firm stating there was no fee.
+   */
+  unitPriceMinor: moneyMinor('unit_price_minor'),
+  units: numeric('units', { precision: 20, scale: 6 }),
+  feeMinor: moneyMinor('fee_minor'),
+  /** The firm's own reference, for reconciling against their books. */
+  externalRef: text('external_ref'),
   rejectedReason: text('rejected_reason'),
   createdBy: actorType('created_by').notNull().default('user'),
   createdAt: createdAt(),

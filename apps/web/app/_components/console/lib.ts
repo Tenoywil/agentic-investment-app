@@ -79,6 +79,21 @@ export function fmtMinor(minor: string, currency: ConsoleCurrency): string {
   return `${CURRENCY_PREFIX[currency]}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
+/**
+ * The same, to the cent.
+ *
+ * Order amounts are whole-unit figures where cents are noise. An execution
+ * price is not: rounding a unit price of 100.25 to "US$100" would misstate the
+ * number the firm reported, which is the only reason that column exists.
+ */
+export function fmtMinorExact(minor: string, currency: ConsoleCurrency): string {
+  const n = Number(minor) / 100;
+  return `${CURRENCY_PREFIX[currency]}${n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 // `fmtAumUSD` was here, formatting product_listings.aum_minor into "US$14.2M".
 // Deleted along with the column it rendered: CCN runs no AUM roll-up, so the
 // number was invented. A formatter left lying around for a metric we do not

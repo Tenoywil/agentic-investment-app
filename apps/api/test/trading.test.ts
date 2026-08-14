@@ -10,7 +10,7 @@ import {
   user,
   withRls,
 } from '@ccn/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { acceptOrder, createOrder, settleOrder } from '../src/db-fns';
 import { loadInstrument, runGate } from '../src/services/gate';
 import { startEventBridge } from '../src/ws/bridge';
@@ -228,6 +228,124 @@ suite('trading: gate → order → accept → settle + realtime', () => {
     );
     expect(accepted.status).toBe('accepted');
 
+    const settled = await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
+      settleOrder(tx, created.id, ncbId),
+    );
+    expect(settled.status).toBe('settled');
+  });
+
+  /**
+   * What the firm actually did.
+   *
+   * `settle_order` used to write status, settled_at and updated_at, so an
+   * investor was told "settled" and never at what price — a claim about their
+   * money with nothing behind it. Accepting had the mirror problem:
+   * `settlement_eta` existed from the first migration, the exec dialog told
+   * every investor the firm set it on acceptance, and nothing wrote it.
+   */
+  test('accepting commits to a date and settling records the execution', async () => {
+    const created = await withRls(db, { userId: u1, dbRole: APP }, (tx) =>
+      createOrder(tx, {
+        userId: u1,
+        partnerId: ncbId,
+        instrumentId: mmfId,
+        approvalId: null,
+        amountMinor: 500_000n,
+        currency: 'USD',
+        idempotencyKey: `${tag}-detail`,
+        clientRef: 'Client ••0002',
+        createdBy: 'user',
+      }),
+    );
+
+    const eta = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const accepted = await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
+      acceptOrder(tx, created.id, ncbId, eta),
+    );
+    expect(accepted.settlement_eta).not.toBeNull();
+    expect(new Date(accepted.settlement_eta as string).toISOString()).toBe(eta);
+
+    const settled = await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
+      settleOrder(tx, created.id, ncbId, {
+        unitPriceMinor: 10_025n,
+        units: '49.875',
+        feeMinor: 0n,
+        externalRef: 'TRD-88214',
+      }),
+    );
+    expect(settled.status).toBe('settled');
+    expect(settled.unit_price_minor).toBe('10025');
+    expect(Number(settled.units)).toBe(49.875);
+    // Zero survives as zero: the firm stating it charged no fee is a different
+    // claim from the firm not telling us, and the column has to keep them apart.
+    expect(settled.fee_minor).toBe('0');
+    expect(settled.external_ref).toBe('TRD-88214');
+
+    // The figures are on the audit row too — the columns are the current
+    // truth, the audit row is what was true at the moment of settlement.
+    const [audited] = (await db.execute(
+      sql`select detail from audit_log where entity_id = ${created.id}::uuid and action = 'order.settled'`,
+    )) as unknown as { detail: Record<string, unknown> }[];
+    expect(audited?.detail.unit_price_minor).toBe('10025');
+    expect(audited?.detail.external_ref).toBe('TRD-88214');
+  });
+
+  test('settling without a report is still allowed, and invents nothing', async () => {
+    const created = await withRls(db, { userId: u1, dbRole: APP }, (tx) =>
+      createOrder(tx, {
+        userId: u1,
+        partnerId: ncbId,
+        instrumentId: mmfId,
+        approvalId: null,
+        amountMinor: 60_000n,
+        currency: 'USD',
+        idempotencyKey: `${tag}-nodetail`,
+        clientRef: 'Client ••0003',
+        createdBy: 'user',
+      }),
+    );
+    await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
+      acceptOrder(tx, created.id, ncbId),
+    );
+    const settled = await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
+      settleOrder(tx, created.id, ncbId),
+    );
+    expect(settled.status).toBe('settled');
+    // Null, not zero. A firm that reports nothing must not have a price
+    // written on its behalf.
+    expect(settled.unit_price_minor).toBeNull();
+    expect(settled.units).toBeNull();
+    expect(settled.fee_minor).toBeNull();
+  });
+
+  test('a negative figure is refused rather than stored', async () => {
+    const created = await withRls(db, { userId: u1, dbRole: APP }, (tx) =>
+      createOrder(tx, {
+        userId: u1,
+        partnerId: ncbId,
+        instrumentId: mmfId,
+        approvalId: null,
+        amountMinor: 60_000n,
+        currency: 'USD',
+        idempotencyKey: `${tag}-negative`,
+        clientRef: 'Client ••0004',
+        createdBy: 'user',
+      }),
+    );
+    await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
+      acceptOrder(tx, created.id, ncbId),
+    );
+    await expect(
+      withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
+        settleOrder(tx, created.id, ncbId, {
+          unitPriceMinor: -1n,
+          units: null,
+          feeMinor: null,
+          externalRef: null,
+        }),
+      ),
+    ).rejects.toThrow();
+    // And the order is still acceptable-and-settleable, not stuck.
     const settled = await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
       settleOrder(tx, created.id, ncbId),
     );

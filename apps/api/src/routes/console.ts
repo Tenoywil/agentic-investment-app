@@ -6,7 +6,13 @@ import {
   partners,
   reconciliationItems,
 } from '@ccn/db';
-import { listInstrumentSchema, rejectSchema } from '@ccn/domain';
+import {
+  acceptOrderSchema,
+  listInstrumentSchema,
+  partnerProfileSchema,
+  rejectSchema,
+  settleOrderSchema,
+} from '@ccn/domain';
 import { formatMoney, money } from '@ccn/money';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
@@ -20,6 +26,7 @@ import {
   partnerClients,
   partnerReviewClient,
   partnerToggleInstrument,
+  partnerUpdateProfile,
   partnerUpsertInstrument,
   reconcileMatch,
   reconcileReject,
@@ -52,6 +59,21 @@ function raisedBy(err: unknown, fragment: string): boolean {
     } else return false;
   }
   return false;
+}
+
+/**
+ * A body that failed its schema, thrown from inside a transition so the guarded
+ * transition and the parse can share one handler. Distinguished from a database
+ * refusal because the operator's next move differs: one is a field to correct,
+ * the other is an order that is not theirs or not in that state.
+ */
+class BadRequest extends Error {
+  constructor(
+    message: string,
+    readonly issues: unknown,
+  ) {
+    super(message);
+  }
 }
 
 /** The order states a caller may filter on — the enum, not a free string. */
@@ -107,6 +129,12 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     idempotencyKey: ordersTable.idempotencyKey,
     clientRef: ordersTable.clientRef,
     settlementEta: ordersTable.settlementEta,
+    // What the firm reported at settlement. Null means it did not report the
+    // figure, which the screens say rather than filling in a zero.
+    unitPriceMinor: ordersTable.unitPriceMinor,
+    units: ordersTable.units,
+    feeMinor: ordersTable.feeMinor,
+    externalRef: ordersTable.externalRef,
     rejectedReason: ordersTable.rejectedReason,
     createdBy: ordersTable.createdBy,
     createdAt: ordersTable.createdAt,
@@ -152,6 +180,49 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     );
     if (!partner) return c.json({ error: 'partner not found' }, 404);
     return c.json({ partner });
+  });
+
+  /**
+   * The firm corrects its own record.
+   *
+   * `partners` has an UPDATE grant and exactly one UPDATE policy —
+   * `partners_admin_correct` — so an operator's transaction failed it and a
+   * firm could not fix a typo in its own name. It goes through a SECURITY
+   * DEFINER function rather than a new partner-scoped policy because RLS cannot
+   * restrict columns, and three columns must not be a firm's to set about
+   * itself: `code` resolves the executing adapter, `regulator` is a compliance
+   * claim shown to investors on every deal card, and `agreement_status` gates
+   * live order routing. They are not parameters, so this path cannot reach them.
+   */
+  app.patch('/partner', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const parsed = partnerProfileSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+    }
+
+    const row = await withTenant(deps, tenant, (tx) =>
+      partnerUpdateProfile(tx, {
+        name: parsed.data.name,
+        kind: parsed.data.kind ?? null,
+        residency: parsed.data.residency ?? null,
+      }),
+    );
+    return c.json({
+      partner: {
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        kind: row.kind,
+        regulator: row.regulator,
+        agreementStatus: row.agreement_status,
+        residency: row.residency,
+      },
+    });
   });
 
   /**
@@ -245,31 +316,63 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     return c.json({ orders: rows, total: Number(total[0]?.n ?? 0) });
   });
 
+  /**
+   * Accept or settle, each carrying what the firm is telling us.
+   *
+   * `move` runs the guarded transition inside the caller's transaction and
+   * re-reads the order afterwards, rather than returning the SECURITY DEFINER
+   * function's raw row: that row is snake_case and instrument-less, so the
+   * client used to swap a well-formed order for one whose amountMinor was
+   * `undefined` and rendered "US$NaN" the moment an operator clicked Accept.
+   */
   const transition =
-    (fn: typeof acceptOrder | typeof settleOrder) => async (c: Context<AppEnv>) => {
+    (move: (tx: Transaction, id: string, partnerId: string, body: unknown) => Promise<unknown>) =>
+    async (c: Context<AppEnv>) => {
       const tenant = c.get('tenant');
       if (!tenant) return c.json({ error: 'authentication required' }, 401);
       const scope = partnerScope(tenant);
       if ('error' in scope) return c.json(scope, 403);
       const id = c.req.param('id');
+      const body = await c.req.json().catch(() => ({}));
       try {
-        // Re-read rather than return the SECURITY DEFINER function's raw row:
-        // that row is snake_case and instrument-less, so the client used to
-        // swap a well-formed order for one whose amountMinor was `undefined`
-        // and rendered "US$NaN" the moment an operator clicked Accept.
         const order = await withTenant(deps, tenant, async (tx) => {
-          await fn(tx, id, scope.partnerId);
+          await move(tx, id, scope.partnerId, body);
           return selectOrder(tx, id, scope.partnerId);
         });
         return c.json({ order });
-      } catch {
-        // The guarded UPDATE matched no row: wrong partner or illegal transition.
+      } catch (err) {
+        // A rejected body is the operator's mistake to correct and says which
+        // field; an unmatched UPDATE is a wrong partner or an illegal
+        // transition and deliberately says neither.
+        if (err instanceof BadRequest)
+          return c.json({ error: err.message, issues: err.issues }, 400);
         return c.json({ error: 'order is not in a state you can transition' }, 409);
       }
     };
 
-  app.post('/orders/:id/accept', transition(acceptOrder));
-  app.post('/orders/:id/settle', transition(settleOrder));
+  app.post(
+    '/orders/:id/accept',
+    transition(async (tx, id, partnerId, body) => {
+      const parsed = acceptOrderSchema.safeParse(body);
+      if (!parsed.success) throw new BadRequest('invalid request', parsed.error.issues);
+      return acceptOrder(tx, id, partnerId, parsed.data.settlementEta ?? null);
+    }),
+  );
+
+  app.post(
+    '/orders/:id/settle',
+    transition(async (tx, id, partnerId, body) => {
+      const parsed = settleOrderSchema.safeParse(body);
+      if (!parsed.success) throw new BadRequest('invalid request', parsed.error.issues);
+      const d = parsed.data;
+      return settleOrder(tx, id, partnerId, {
+        unitPriceMinor: d.unitPriceMinor ?? null,
+        units: d.units ?? null,
+        feeMinor: d.feeMinor ?? null,
+        externalRef: d.externalRef ?? null,
+      });
+    }),
+  );
 
   app.post('/orders/:id/reject', async (c) => {
     const tenant = c.get('tenant');

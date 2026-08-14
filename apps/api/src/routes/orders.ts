@@ -46,6 +46,13 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
           partnerName: partners.name,
           partnerCode: partners.code,
           settlementEta: ordersTable.settlementEta,
+          // What the firm reported when it settled. Null throughout means the
+          // firm did not report it, and the screen says nothing rather than
+          // printing a zero the firm never claimed.
+          unitPriceMinor: ordersTable.unitPriceMinor,
+          units: ordersTable.units,
+          feeMinor: ordersTable.feeMinor,
+          externalRef: ordersTable.externalRef,
           rejectedReason: ordersTable.rejectedReason,
           createdBy: ordersTable.createdBy,
           createdAt: ordersTable.createdAt,
