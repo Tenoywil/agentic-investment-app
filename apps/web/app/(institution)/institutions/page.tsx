@@ -95,13 +95,31 @@ export default function InstitutionsPage() {
    */
   const [loading, setLoading] = useState(true);
 
+  /**
+   * How the order queue is narrowed. Held here rather than in the tab because
+   * `load` is what fetches, and a filter that did not reach the fetch would be
+   * a control that filters only what is already on screen — which on a bounded
+   * list is a different answer from the one it appears to give.
+   */
+  const [orderStatus, setOrderStatus] = useState('');
+  const [orderQuery, setOrderQuery] = useState('');
+  const [orderOffset, setOrderOffset] = useState(0);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [clientTotal, setClientTotal] = useState(0);
+  const ORDER_PAGE = 50;
+
   const load = useCallback(async () => {
     // Each panel reports its own failure. One route being down must not blank
     // the other four — an operator with a broken funnel query can still work
     // their order queue.
     const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR] = await Promise.allSettled(
       [
-        getOrders(),
+        getOrders({
+          status: orderStatus || undefined,
+          q: orderQuery || undefined,
+          limit: ORDER_PAGE,
+          offset: orderOffset,
+        }),
         getProducts(),
         getKpis(),
         getClients(),
@@ -113,6 +131,7 @@ export default function InstitutionsPage() {
 
     if (ordersR.status === 'fulfilled') {
       setOrders(ordersR.value.orders);
+      setOrderTotal(ordersR.value.total);
       setOrdersError(null);
     } else setOrdersError(errorMessage(ordersR.reason, 'Could not load order flow.'));
 
@@ -128,6 +147,7 @@ export default function InstitutionsPage() {
 
     if (clientsR.status === 'fulfilled') {
       setClients(clientsR.value.clients);
+      setClientTotal(clientsR.value.total);
       setClientsError(null);
     } else setClientsError(errorMessage(clientsR.reason, 'Could not load your clients.'));
 
@@ -148,7 +168,7 @@ export default function InstitutionsPage() {
     } else setAuditError(errorMessage(auditR.reason, 'Could not load the audit trail.'));
 
     setLoading(false);
-  }, []);
+  }, [orderStatus, orderQuery, orderOffset]);
 
   useEffect(() => {
     void load();
@@ -179,12 +199,15 @@ export default function InstitutionsPage() {
   }
 
   /** Accept / settle / reject all return the updated row from the server. */
-  function orderTransition(fn: (id: string) => Promise<{ order: ConsoleOrder }>, fallback: string) {
-    return async (id: string) => {
+  function orderTransition(
+    fn: (id: string, reason?: string) => Promise<{ order: ConsoleOrder }>,
+    fallback: string,
+  ) {
+    return async (id: string, reason?: string) => {
       setOrderBusyId(id);
       setOrderActionError(null);
       try {
-        const { order } = await fn(id);
+        const { order } = await fn(id, reason);
         setOrders((os) => os.map((o) => (o.id === id ? order : o)));
         // The transition wrote an audit row; pull the trail back into sync so
         // the compliance tab is not quietly stale.
@@ -201,7 +224,16 @@ export default function InstitutionsPage() {
 
   const handleAccept = orderTransition(acceptOrder, 'Could not accept the order.');
   const handleSettle = orderTransition(settleOrder, 'Could not settle the order.');
-  const handleReject = orderTransition((id) => rejectOrder(id), 'Could not reject the order.');
+  /**
+   * The reason reaches the investor: `reject_order` writes `rejected_reason`,
+   * `/orders` renders it, and without one they are told only that their
+   * institution "did not take this order on". It was accepted by the client
+   * function and the API all along and dropped right here.
+   */
+  const handleReject = orderTransition(
+    (id, reason) => rejectOrder(id, reason),
+    'Could not reject the order.',
+  );
 
   /**
    * Optimistic flip, then reconcile to whatever the server says the status now
@@ -289,11 +321,11 @@ export default function InstitutionsPage() {
     }
   }
 
-  async function handleReconReject(id: string) {
+  async function handleReconReject(id: string, reason?: string) {
     setReconBusyId(id);
     setReconActionError(null);
     try {
-      await rejectReconciliation(id);
+      await rejectReconciliation(id, reason);
       setReconciliation((items) => items.filter((i) => i.id !== id));
       void getAudit(50)
         .then((r) => setAudit(r.entries))
@@ -368,6 +400,20 @@ export default function InstitutionsPage() {
             orders={orders}
             ordersError={ordersError}
             loading={loading}
+            total={orderTotal}
+            offset={orderOffset}
+            pageSize={ORDER_PAGE}
+            status={orderStatus}
+            query={orderQuery}
+            onStatus={(v) => {
+              setOrderStatus(v);
+              setOrderOffset(0);
+            }}
+            onQuery={(v) => {
+              setOrderQuery(v);
+              setOrderOffset(0);
+            }}
+            onPage={setOrderOffset}
             orderBusyId={orderBusyId}
             orderActionError={orderActionError}
             onAccept={handleAccept}
@@ -405,6 +451,7 @@ export default function InstitutionsPage() {
             clients={clients}
             clientsError={clientsError}
             loading={loading}
+            total={clientTotal}
             clientBusyId={clientBusyId}
             clientActionError={clientActionError}
             onReviewClient={handleReviewClient}

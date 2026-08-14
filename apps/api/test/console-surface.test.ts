@@ -243,6 +243,51 @@ suite('partner console data surface', () => {
     expect(other.orders.some((o) => o.idempotencyKey.startsWith(tag))).toBe(false);
   });
 
+  test('/console/orders filters, searches and pages, and reports the real total', async () => {
+    type Body = {
+      orders: { idempotencyKey: string; status: string; instrumentName: string | null }[];
+      total: number;
+    };
+
+    // Unfiltered: the page plus a total the client cannot otherwise know once
+    // the rows are truncated.
+    const all = await json<Body>('/api/console/orders', 'sagOperator');
+    expect(all.total).toBeGreaterThanOrEqual(all.orders.length);
+    expect(all.total).toBeGreaterThan(0);
+
+    // A status the fixtures have, and one they do not: the filter has to be
+    // capable of returning nothing, or it is not filtering.
+    const created = await json<Body>('/api/console/orders?status=created', 'sagOperator');
+    expect(created.orders.every((o) => o.status === 'created')).toBe(true);
+    const expired = await json<Body>('/api/console/orders?status=expired', 'sagOperator');
+    expect(expired.orders).toEqual([]);
+    expect(expired.total).toBe(0);
+
+    // An unknown status is ignored rather than 500ing or matching nothing —
+    // the enum is the allowlist.
+    const bogus = await json<Body>('/api/console/orders?status=nonsense', 'sagOperator');
+    expect(bogus.total).toBe(all.total);
+
+    // Search hits the instrument name.
+    const hit = await json<Body>('/api/console/orders?q=GOJ', 'sagOperator');
+    expect(hit.orders.some((o) => o.idempotencyKey === `${tag}-with-instrument`)).toBe(true);
+    const miss = await json<Body>('/api/console/orders?q=zzzznotathing', 'sagOperator');
+    expect(miss.orders).toEqual([]);
+
+    // Paging: one row at a time walks the same list without repeating itself,
+    // and `total` stays the size of the whole result, not of the page.
+    const first = await json<Body>('/api/console/orders?limit=1&offset=0', 'sagOperator');
+    const second = await json<Body>('/api/console/orders?limit=1&offset=1', 'sagOperator');
+    expect(first.orders).toHaveLength(1);
+    expect(second.orders).toHaveLength(1);
+    expect(first.orders[0]?.idempotencyKey).not.toBe(second.orders[0]?.idempotencyKey);
+    expect(first.total).toBe(all.total);
+
+    // And a page is still this partner's book only.
+    const other = await json<Body>('/api/console/orders?limit=200', 'ncbOperator');
+    expect(other.orders.some((o) => o.idempotencyKey.startsWith(tag))).toBe(false);
+  });
+
   test('/console/audit returns only this partner’s rows', async () => {
     type Body = { entries: { action: string; seq: string; actorType: string }[] };
     const { entries } = await json<Body>('/api/console/audit?limit=50', 'sagOperator');

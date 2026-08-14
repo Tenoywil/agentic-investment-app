@@ -1,9 +1,11 @@
 'use client';
 
+import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleOrder } from '@/lib/console-api';
 import { ArrowRightLeft } from 'lucide-react';
+import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import { ROW_DIVIDER, fmtMinor, timeAgo, uppr } from './lib';
 import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
@@ -18,10 +20,20 @@ import { OrderAction } from './order-action';
  * instrument keeps its client reference and amount rather than inventing a
  * name for it.
  */
+const STATUSES = ['created', 'accepted', 'settled', 'rejected', 'expired'] as const;
+
 export function OrdersTab({
   orders,
   ordersError,
   loading,
+  total,
+  offset,
+  pageSize,
+  status,
+  query,
+  onStatus,
+  onQuery,
+  onPage,
   orderBusyId,
   orderActionError,
   onAccept,
@@ -31,15 +43,51 @@ export function OrdersTab({
   orders: ConsoleOrder[];
   ordersError: string | null;
   loading: boolean;
+  /** Matching the filter, not on this page — the pager needs both. */
+  total: number;
+  offset: number;
+  pageSize: number;
+  status: string;
+  query: string;
+  onStatus: (v: string) => void;
+  onQuery: (v: string) => void;
+  onPage: (offset: number) => void;
   orderBusyId: string | null;
   orderActionError: string | null;
   onAccept: (id: string) => void;
   onSettle: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, reason?: string) => void;
 }) {
+  /**
+   * Counted over this page only, and labelled as such below. They used to be
+   * counted over "every order ever", which was the same number because the
+   * route returned everything — the honest version of that line has to say
+   * what it counted.
+   */
   const pending = orders.filter((o) => o.status === 'created').length;
   const accepted = orders.filter((o) => o.status === 'accepted').length;
   const settled = orders.filter((o) => o.status === 'settled').length;
+
+  const from = total === 0 ? 0 : offset + 1;
+  const to = Math.min(offset + orders.length, total);
+
+  function exportCsv() {
+    downloadCsv(
+      datedFilename('ccn-orders'),
+      toCsv(orders, [
+        { header: 'Order id', value: (o) => o.id },
+        { header: 'Product', value: (o) => o.instrumentName ?? '' },
+        { header: 'Client ref', value: (o) => o.clientRef },
+        { header: 'Amount (minor units)', value: (o) => o.amountMinor },
+        { header: 'Currency', value: (o) => o.currency },
+        { header: 'Status', value: (o) => o.status },
+        { header: 'Reason if rejected', value: (o) => o.rejectedReason ?? '' },
+        { header: 'Created', value: (o) => o.createdAt },
+        { header: 'Accepted', value: (o) => o.acceptedAt ?? '' },
+        { header: 'Settled', value: (o) => o.settledAt ?? '' },
+      ]),
+    );
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -48,7 +96,8 @@ export function OrdersTab({
           <b className="font-display text-lg">Order flow</b>
           {ordersError || loading ? null : (
             <div className="mt-0.5 text-[13px] text-faint">
-              {pending} to accept · {accepted} to settle · {settled} settled
+              Showing {from}–{to} of {total} · {pending} to accept · {accepted} to settle ·{' '}
+              {settled} settled on this page
             </div>
           )}
         </div>
@@ -56,6 +105,44 @@ export function OrdersTab({
           Accept moves an order to your desk for execution. Settle confirms it back to the client's
           unified portfolio.
         </div>
+      </div>
+
+      {/* The controls sit above the errors so a failed page can still be
+          re-filtered rather than leaving the operator stuck on it. */}
+      <div className="flex flex-wrap items-center gap-2 px-6 pb-3.5">
+        <label className="min-w-[180px] flex-1 text-[13px]">
+          <span className="sr-only">Search orders by product or client reference</span>
+          <input
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            placeholder="Search product or client"
+            className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+          />
+        </label>
+        <label className="text-[13px]">
+          <span className="sr-only">Filter by status</span>
+          <select
+            value={status}
+            onChange={(e) => onStatus(e.target.value)}
+            className="rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+          >
+            <option value="">All statuses</option>
+            {STATUSES.map((sName) => (
+              <option key={sName} value={sName}>
+                {sName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={exportCsv}
+          disabled={orders.length === 0}
+        >
+          Export CSV
+        </Button>
       </div>
 
       {ordersError ? <ErrorNote message={ordersError} className="px-6 pb-3.5" /> : null}
@@ -117,6 +204,32 @@ export function OrdersTab({
               </div>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {!loading && !ordersError && total > orders.length ? (
+        <div className="flex items-center justify-between gap-3 px-6 pb-5 pt-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={offset === 0}
+            onClick={() => onPage(Math.max(0, offset - pageSize))}
+          >
+            Previous
+          </Button>
+          <span className="text-[12.5px] text-faint">
+            {from}–{to} of {total}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={to >= total}
+            onClick={() => onPage(offset + pageSize)}
+          >
+            Next
+          </Button>
         </div>
       ) : null}
     </Card>

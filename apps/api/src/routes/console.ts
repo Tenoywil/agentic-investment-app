@@ -51,6 +51,26 @@ function raisedBy(err: unknown, fragment: string): boolean {
   return false;
 }
 
+/** The order states a caller may filter on — the enum, not a free string. */
+const ORDER_STATUSES = ['created', 'accepted', 'settled', 'rejected', 'expired'] as const;
+
+/**
+ * `limit` and `offset` from the query string, clamped.
+ *
+ * The same shape the audit route already used and the orders and clients routes
+ * did not have at all. 200 is the ceiling rather than 500 because these rows are
+ * wide; a desk exporting more than that uses the export, which says when it has
+ * truncated.
+ */
+function readPage(c: Context<AppEnv>): { limit: number; offset: number } {
+  const rawLimit = Number.parseInt(c.req.query('limit') ?? '', 10);
+  const rawOffset = Number.parseInt(c.req.query('offset') ?? '', 10);
+  return {
+    limit: Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 50,
+    offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0,
+  };
+}
+
 export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
@@ -168,20 +188,58 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     return c.json({ entries });
   });
 
+  /**
+   * The firm's order queue — filtered, searchable and bounded.
+   *
+   * It used to take no parameters and return **every order the firm had ever
+   * received**, unbounded, on every page load and again on every realtime event.
+   * That is fine for a desk with nine orders and untenable for one with nine
+   * thousand, and it left an operator scrolling to find the one they were asked
+   * about.
+   *
+   * `total` accompanies the page because a count is the one thing the client
+   * cannot derive once the rows are truncated, and the pager needs it.
+   */
   app.get('/orders', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
+
+    const { limit, offset } = readPage(c);
+    const status = c.req.query('status');
+    const q = (c.req.query('q') ?? '').trim();
+
+    const filters = [eq(ordersTable.partnerId, scope.partnerId)];
+    if (status && (ORDER_STATUSES as readonly string[]).includes(status)) {
+      filters.push(eq(ordersTable.status, status as (typeof ORDER_STATUSES)[number]));
+    }
+    if (q) {
+      // The two things an operator is given when asked about an order: the
+      // product's name, or the masked client reference on the row.
+      filters.push(
+        sql`(${instruments.name} ilike ${`%${q}%`} or ${ordersTable.clientRef} ilike ${`%${q}%`})`,
+      );
+    }
+    const where = and(...filters);
+
+    const { rows, total } = await withTenant(deps, tenant, async (tx) => ({
+      rows: await tx
         .select(orderColumns)
         .from(ordersTable)
         .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
-        .where(eq(ordersTable.partnerId, scope.partnerId))
-        .orderBy(desc(ordersTable.createdAt)),
-    );
-    return c.json({ orders: rows });
+        .where(where)
+        .orderBy(desc(ordersTable.createdAt))
+        .limit(limit)
+        .offset(offset),
+      total: await tx
+        .select({ n: sql<string>`count(*)` })
+        .from(ordersTable)
+        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+        .where(where),
+    }));
+
+    return c.json({ orders: rows, total: Number(total[0]?.n ?? 0) });
   });
 
   const transition =
@@ -253,8 +311,29 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const clients = await withTenant(deps, tenant, (tx) => partnerClients(tx));
-    return c.json({ clients });
+
+    /**
+     * `partner_clients()` returns a table and resolves the partner from the GUC
+     * itself, so filtering happens around it rather than inside it — no change
+     * to a SECURITY DEFINER function, which is the last place to put a
+     * user-supplied string.
+     */
+    const { limit, offset } = readPage(c);
+    const status = c.req.query('status');
+    const q = (c.req.query('q') ?? '').trim();
+
+    const all = await withTenant(deps, tenant, (tx) => partnerClients(tx));
+    const filtered = all.filter((row) => {
+      if (status && row.status !== status) return false;
+      if (!q) return true;
+      const needle = q.toLowerCase();
+      return (
+        (row.client_name ?? '').toLowerCase().includes(needle) ||
+        (row.client_email ?? '').toLowerCase().includes(needle)
+      );
+    });
+
+    return c.json({ clients: filtered.slice(offset, offset + limit), total: filtered.length });
   });
 
   /**

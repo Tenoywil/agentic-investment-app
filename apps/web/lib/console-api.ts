@@ -205,8 +205,35 @@ export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> 
 
 // ---- Orders ----
 
-export function getOrders(): Promise<{ orders: ConsoleOrder[] }> {
-  return consoleFetch('/orders');
+/** How a list is narrowed. Every field optional; omitted means unfiltered. */
+export interface ConsoleQuery {
+  status?: string | undefined;
+  q?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+function queryString(query: ConsoleQuery = {}): string {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.q) params.set('q', query.q);
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.offset !== undefined) params.set('offset', String(query.offset));
+  const s = params.toString();
+  return s ? `?${s}` : '';
+}
+
+/**
+ * The order queue, a page at a time.
+ *
+ * This used to return every order the firm had ever received, unbounded, and
+ * re-fetch the lot on every realtime event. `total` is what the pager needs and
+ * the only thing it cannot work out for itself once the rows are truncated.
+ */
+export function getOrders(
+  query: ConsoleQuery = {},
+): Promise<{ orders: ConsoleOrder[]; total: number }> {
+  return consoleFetch(`/orders${queryString(query)}`);
 }
 
 export function acceptOrder(id: string): Promise<{ order: ConsoleOrder }> {
@@ -227,8 +254,10 @@ export function rejectOrder(id: string, reason?: string): Promise<{ order: Conso
 // ---- Clients ----
 
 /** This firm's clients, pending reviews first. */
-export function getClients(): Promise<{ clients: ConsoleClient[] }> {
-  return consoleFetch('/clients');
+export function getClients(
+  query: ConsoleQuery = {},
+): Promise<{ clients: ConsoleClient[]; total: number }> {
+  return consoleFetch(`/clients${queryString(query)}`);
 }
 
 /**
