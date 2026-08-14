@@ -201,3 +201,28 @@ export async function getNetworkPartners(): Promise<
   if (!res.ok) throw new Error(`request failed (${res.status})`);
   return ((await res.json()) as { partners: [] }).partners;
 }
+
+/**
+ * Ask CCN to pull the latest statements from a partner you have connected.
+ *
+ * `POST /api/ingestion/pull` has existed since the reconciliation pipeline was
+ * written and nothing called it, so the partner console's reconciliation queue —
+ * and the Match and Reject buttons on it — could never be reached through the
+ * product at all. Statement lines that match a holding update it; the ones that
+ * do not land on the firm's desk to resolve.
+ */
+export async function pullStatements(partnerCode: string): Promise<{ queued: number }> {
+  const res = await fetch(`${API_URL}/api/ingestion/pull`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ partnerCode }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.error === 'string' ? body.error : `request failed (${res.status})`,
+    );
+  }
+  return body;
+}

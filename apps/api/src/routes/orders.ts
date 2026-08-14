@@ -4,8 +4,9 @@ import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
-import { createOrder } from '../db-fns';
+import { auditAppend, createOrder } from '../db-fns';
 import { requireAuth } from '../middleware';
+import { adapterFor } from '../services/adapters';
 import { loadInstrument, runGate } from '../services/gate';
 import { maskRef } from './util';
 
@@ -71,9 +72,10 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
     const result = await withTenant(deps, tenant, async (tx) => {
       const instrument = await loadInstrument(tx, instrumentId);
       if (!instrument) return { status: 404 as const, body: { error: 'instrument not found' } };
-      if (!instrument.partnerId) {
+      if (!instrument.partnerId || !instrument.partnerCode) {
         return { status: 409 as const, body: { error: 'instrument has no executing partner' } };
       }
+      const partnerCode = instrument.partnerCode;
       const decision = await runGate(tx, {
         userId: tenant.user.id,
         instrument,
@@ -86,6 +88,7 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
           body: { decision: 'blocked', code: decision.code, reasons: decision.reasons },
         };
       }
+      const key = idempotencyKey ?? crypto.randomUUID();
       const order = await createOrder(tx, {
         userId: tenant.user.id,
         partnerId: instrument.partnerId,
@@ -93,11 +96,69 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
         approvalId: null,
         amountMinor,
         currency,
-        idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
+        idempotencyKey: key,
         clientRef: maskRef(tenant.user.id),
         createdBy: 'user',
       });
-      return { status: 201 as const, body: { decision: 'created', gate: decision.code, order } };
+
+      /**
+       * Route the instruction to the partner.
+       *
+       * `placeOrder` is the one method on the adapter port that carries the
+       * product's whole claim — "CCN routes signed instructions; the licensed
+       * firm executes, custodies and settles" — and nothing had ever called it.
+       * An order was a row in this database and a queue item a human at the firm
+       * had to notice, while the receipt told the investor CCN had routed their
+       * instruction to that firm. It had not; it had written it down.
+       *
+       * Idempotent on the same key the order carries, so a retried request
+       * cannot place a second instruction.
+       *
+       * A routing failure does not fail the request. The order exists, it is
+       * correctly in `created`, and the operator's queue is still a real path to
+       * execution — but it is audited as unrouted rather than reported as
+       * routed, because the difference is exactly the thing that was being
+       * misstated.
+       */
+      let partnerRef: string | null = null;
+      try {
+        const { adapter } = await adapterFor(tx, partnerCode, 'trade', () => Date.now());
+        const placed = await adapter.placeOrder(
+          { instrumentSlug: instrument.slug, amountMinor, currency },
+          key,
+        );
+        partnerRef = placed.partnerRef;
+        await auditAppend(tx, {
+          actorType: 'user',
+          actorId: tenant.user.id,
+          userId: tenant.user.id,
+          partnerId: instrument.partnerId,
+          action: 'order.routed',
+          entityType: 'orders',
+          entityId: order.id,
+          detail: { partnerRef, settlementEta: placed.settlementEta },
+        });
+      } catch (error) {
+        deps.logger.error(
+          'the order was created but could not be routed to the partner; it stands in their queue unrouted',
+          { orderId: order.id, partner: partnerCode, error },
+        );
+        await auditAppend(tx, {
+          actorType: 'system',
+          actorId: null,
+          userId: tenant.user.id,
+          partnerId: instrument.partnerId,
+          action: 'order.routing_failed',
+          entityType: 'orders',
+          entityId: order.id,
+          detail: { partner: partnerCode },
+        });
+      }
+
+      return {
+        status: 201 as const,
+        body: { decision: 'created', gate: decision.code, order, partnerRef },
+      };
     });
     return c.json(result.body, result.status);
   });

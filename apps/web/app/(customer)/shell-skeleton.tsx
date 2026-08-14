@@ -112,6 +112,13 @@ const ROUTES: { prefix: string; key: Key; title: string; shape: Shape; eyebrow: 
     shape: 'list',
     eyebrow: 'Caribbean Capital Gateway · private-deal matching',
   },
+  {
+    prefix: '/gateway/review',
+    key: 'gatewayReview',
+    title: 'Review queue',
+    shape: 'list',
+    eyebrow: 'Caribbean Capital Gateway · private-deal matching',
+  },
   { prefix: '/home', key: 'home', title: 'Home', shape: 'home', eyebrow: 'Loading' },
 ];
 

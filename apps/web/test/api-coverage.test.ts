@@ -38,6 +38,34 @@ const INTENTIONALLY_UNCALLED = new Map<string, string>([
     'GET /api/gateway/opportunities',
     'the investor browses scored matches, not the raw deal list; the review queue reads /admin/review-queue',
   ],
+  /*
+    The three below are one missing surface, not three loose ends: originating a
+    private deal. Somebody with a deal to place creates it, has it assessed
+    against the guardrail, and submits it for review — and there is no screen for
+    any of that, so today a deal reaches the Gateway only by being written
+    straight into the database.
+
+    That has a visible consequence worth stating plainly rather than burying:
+    `GET /matches` only scores opportunities in `approved`, so on a deployment
+    where nothing has been inserted by hand, an investor's private-deal list is
+    empty no matter how good their mandate is.
+
+    Listed here rather than left failing because a guard that is permanently red
+    stops being read. The `lists no stale exemption` test below makes each of
+    these expire on its own the moment a caller appears.
+  */
+  [
+    'POST /api/gateway/opportunities',
+    'needs a deal-origination surface, which does not exist yet — until it does, deals are inserted directly',
+  ],
+  [
+    'POST /api/gateway/opportunities/*/assess',
+    'part of the same unbuilt origination flow: the originator runs the guardrail before submitting',
+  ],
+  [
+    'POST /api/gateway/opportunities/*/submit-for-approval',
+    'part of the same unbuilt origination flow: without it nothing reaches approved, so match lists stay empty',
+  ],
 ]);
 
 /**

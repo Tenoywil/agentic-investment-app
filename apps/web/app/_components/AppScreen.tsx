@@ -1,21 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { AppSidebar } from './AppSidebar';
+import { AppSidebar, type Key } from './AppSidebar';
 import { MobileNav } from './MobileNav';
 import { VoiceAsk } from './VoiceAsk';
 
-type Key =
-  | 'home'
-  | 'portfolio'
-  | 'opportunities'
-  | 'orders'
-  | 'agent'
-  | 'planning'
-  | 'onboarding'
-  | 'gatewayMandate'
-  | 'gatewayOpportunities'
-  | 'gatewayIntroductions';
+// The shell's destinations live with the navigation that offers them.
 
 /** The investor app shell: warm sidebar + scrolling main + the Ask CCN button.
  *  `basePath="/demo"` renders the fixture-only preview shell — no auth, no

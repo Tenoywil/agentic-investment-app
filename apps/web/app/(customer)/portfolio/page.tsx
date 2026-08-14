@@ -13,6 +13,7 @@ import {
   type Portfolio,
   PortfolioApiError,
   getPortfolio,
+  pullStatements,
   regulatorLabel,
 } from '@/lib/portfolio-api';
 import { CircleAlert, Link2, ShieldCheck, Wallet } from 'lucide-react';
@@ -167,6 +168,36 @@ export default function PortfolioPage() {
 
   useRealtime(['order', 'connection'], refresh);
 
+  /**
+   * Pull the latest statements from one firm.
+   *
+   * The ingestion pipeline — statement in, holdings updated, anything unmatched
+   * queued for the firm to resolve — has existed since it was written and had no
+   * caller anywhere, so the console's reconciliation queue and its Match and
+   * Reject buttons were unreachable through the product. This is the button that
+   * feeds it, on the screen where the balances it corrects are shown.
+   */
+  const [pulling, setPulling] = useState<string | null>(null);
+  const [pullNote, setPullNote] = useState<string | null>(null);
+
+  async function handlePull(code: string) {
+    setPulling(code);
+    setPullNote(null);
+    try {
+      const { queued } = await pullStatements(code);
+      setPullNote(
+        queued === 0
+          ? 'Statements checked — nothing new to reconcile.'
+          : `Statements checked — ${queued} line${queued === 1 ? '' : 's'} sent to the firm to reconcile.`,
+      );
+      refresh();
+    } catch (err) {
+      setPullNote(err instanceof Error ? err.message : 'Could not check for statements.');
+    } finally {
+      setPulling(null);
+    }
+  }
+
   const pendingOrDeclined = (data?.connections ?? []).filter((c) => c.status !== 'active');
 
   return (
@@ -231,6 +262,8 @@ export default function PortfolioPage() {
         bank's, dated. When the rate is old, or when it is the seeded fallback
         that no bank published, the line says so rather than quietly rounding.
       */}
+      {pullNote ? <output className="mb-3 block text-[13px] text-dim">{pullNote}</output> : null}
+
       {data?.fx?.source ? (
         <p className="-mt-1 mb-4 text-[12.5px] text-faint">
           {data.fx.source === 'seed' ? (
@@ -402,6 +435,14 @@ export default function PortfolioPage() {
                         {regulatorLabel(inst.regulator)}
                       </div>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => void handlePull(inst.code)}
+                      disabled={pulling === inst.code}
+                      className="mt-1 text-[12px] font-semibold text-primary underline disabled:opacity-60"
+                    >
+                      {pulling === inst.code ? 'Checking…' : 'Check for statements'}
+                    </button>
                   </div>
                 </div>
                 {inst.holdings.map((h) => (

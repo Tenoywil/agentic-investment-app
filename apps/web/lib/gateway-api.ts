@@ -231,3 +231,47 @@ export function requestIntroduction(
 export function getIntroductions(): Promise<{ introductions: Introduction[] }> {
   return gatewayFetch('/introductions');
 }
+
+/**
+ * The analyst review queue.
+ *
+ * `analyst` and `compliance` are assignable roles on the administration surface
+ * and they granted access to no screen at all. Meanwhile an investor who
+ * requested an introduction sat at "Awaiting analyst review" indefinitely,
+ * because the endpoints that move it — this queue and the two decisions below —
+ * had no caller anywhere in the product. Three working nav links led into a loop
+ * nothing could complete.
+ */
+export interface ReviewQueue {
+  opportunities: {
+    id: string;
+    title: string | null;
+    sector: string | null;
+    jurisdiction: string | null;
+    status: string;
+    updatedAt: string;
+  }[];
+  introductions: {
+    id: string;
+    opportunityId: string;
+    status: string;
+    createdAt: string;
+  }[];
+}
+
+export function getReviewQueue(): Promise<ReviewQueue> {
+  return gatewayFetch('/admin/review-queue');
+}
+
+/** Approve an introduction, connecting the investor to the deal's counterparty. */
+export function approveIntroduction(id: string): Promise<unknown> {
+  return gatewayFetch(`/introductions/${id}/approve`, { method: 'POST', body: '{}' });
+}
+
+/** Decline it. The reason reaches the investor, so it is not optional here. */
+export function rejectIntroduction(id: string, reason: string): Promise<unknown> {
+  return gatewayFetch(`/introductions/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}

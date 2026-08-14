@@ -1,5 +1,12 @@
 import type { Transaction } from '@ccn/db';
-import { holdings, instruments, limits as limitsTable, orders, riskProfiles } from '@ccn/db';
+import {
+  holdings,
+  instruments,
+  limits as limitsTable,
+  orders,
+  partners,
+  riskProfiles,
+} from '@ccn/db';
 import type { RiskBand, RiskRating } from '@ccn/domain';
 import {
   type EngineInput,
@@ -21,6 +28,10 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 export interface LoadedInstrument {
   id: string;
   partnerId: string | null;
+  /** The partner's own identifier for this instrument, sent when routing. */
+  slug: string;
+  /** The executing firm's code, for resolving its adapter. */
+  partnerCode: string | null;
   risk: RiskRating;
   blocked: boolean;
   blockReasons: string[];
@@ -37,6 +48,8 @@ export async function loadInstrument(
     .select({
       id: instruments.id,
       partnerId: instruments.partnerId,
+      slug: instruments.slug,
+      partnerCode: partners.code,
       risk: instruments.risk,
       blocked: instruments.blocked,
       blockReasons: instruments.blockReasons,
@@ -44,11 +57,14 @@ export async function loadInstrument(
       currency: instruments.currency,
     })
     .from(instruments)
+    .leftJoin(partners, eq(partners.id, instruments.partnerId))
     .where(eq(instruments.id, instrumentId));
   if (!row) return null;
   return {
     id: row.id,
     partnerId: row.partnerId,
+    slug: row.slug,
+    partnerCode: row.partnerCode,
     risk: (row.risk ?? 'medium') as RiskRating,
     blocked: row.blocked,
     blockReasons: row.blockReasons,
