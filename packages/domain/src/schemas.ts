@@ -73,6 +73,40 @@ export const rejectSchema = z.object({
 export type RejectInput = z.infer<typeof rejectSchema>;
 
 /**
+ * POST /api/console/products — a partner lists a product, or amends one.
+ *
+ * The fields are exactly what the marketplace renders on a deal card, which is
+ * the point: the console used to capture a name and a type, and a listing made
+ * from those two showed "US$0", a blank metric and "Not rated" to every
+ * investor who opened it.
+ *
+ * `slug` and `regulator` are deliberately absent. The slug is the key holdings
+ * and reconciliation join on, so it is derived once by the database and never
+ * re-typed; the regulator is a compliance claim about the executing firm, and a
+ * console that could set it freely could claim any regulator it liked.
+ */
+export const listInstrumentSchema = z.object({
+  /** Present to amend a listing, absent to create one. */
+  id: uuidSchema.optional(),
+  name: z.string().min(2).max(140),
+  type: z.enum(['bond', 'fund', 'equity', 'real_estate', 'private']),
+  /** The short badge on the card. Derived from the name when not given. */
+  abbr: z.string().min(1).max(12).optional(),
+  currency: currencySchema.default('USD'),
+  /** Zero is allowed and means "no minimum", so this is not the positive variant. */
+  minInvestmentMinor: amountMinorSchema.default(0),
+  term: z.string().max(60).optional(),
+  /** The headline number, e.g. "8.25%" — free text because a fund's is not a bond's. */
+  metric: z.string().max(60).optional(),
+  /** What that number is, e.g. "Coupon", "Target return". */
+  metricLabel: z.string().max(60).optional(),
+  risk: z.enum(['low', 'medium', 'high']).optional(),
+  description: z.string().max(2000).optional(),
+  region: z.string().max(100).optional(),
+});
+export type ListInstrumentInput = z.infer<typeof listInstrumentSchema>;
+
+/**
  * Gateway — evidence/matching/introduction schemas. See
  * `packages/gateway-guardrail` (the deterministic decision) and
  * `packages/agent/src/gateway/matching.ts` (the deterministic score) for the

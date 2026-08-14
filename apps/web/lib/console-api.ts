@@ -90,19 +90,52 @@ export interface ConsoleReconciliationItem {
 }
 
 /**
- * A listed product. No `clients`, `aumMinor` or `trend`: CCN measures none of
- * them, the API no longer returns them, and the columns behind them held the
- * prototype's invented figures. Adding them back means building the
- * attribution first.
+ * A listed product — a row of `instruments`, the table the marketplace reads.
+ *
+ * It used to be a row of `product_listings`, a table with no relationship to
+ * the marketplace in either direction: a firm could list a fund, watch it
+ * appear here, and no investor would ever be shown it. These are the fields a
+ * deal card renders, which is why the form now asks for all of them.
+ *
+ * No `clients`, `aumMinor` or `trend`: CCN measures none of them, and the
+ * columns behind them held the prototype's invented figures.
  */
 export interface ConsoleProduct {
   id: string;
-  partnerId: string;
   name: string;
   type: string | null;
+  abbr: string;
+  currency: string;
+  /** Minor units as a string — bigint has no JSON form. */
+  minInvestmentMinor: string;
+  term: string | null;
+  metric: string | null;
+  metricLabel: string | null;
+  risk: 'low' | 'medium' | 'high' | null;
+  description: string | null;
+  region: string | null;
   status: ConsoleProductStatus;
+  /** Screened out of suitability for some investors. Not the same as paused. */
+  blocked: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What the console form sends. Mirrors `listInstrumentSchema` in @ccn/domain. */
+export interface ProductInput {
+  /** Present to amend a listing, absent to create one. */
+  id?: string;
+  name: string;
+  type: string;
+  abbr?: string;
+  currency?: string;
+  minInvestmentMinor?: string;
+  term?: string;
+  metric?: string;
+  metricLabel?: string;
+  risk?: 'low' | 'medium' | 'high';
+  description?: string;
+  region?: string;
 }
 
 /**
@@ -305,17 +338,15 @@ export function getProducts(): Promise<{ products: ConsoleProduct[] }> {
  * reconciles to that value rather than assuming its optimistic guess held.
  */
 /**
- * List a product.
+ * List a product, or amend one already listed (send its `id`).
  *
  * The console could read its catalogue and pause a listing and never create
  * one, so a newly onboarded partner signed in to an empty screen. `partnerId`
  * is deliberately absent: the server takes it from the caller's own scope, so
- * an operator lists for their firm or not at all.
+ * an operator lists for their firm or not at all. `slug` and `regulator` are
+ * absent for the same reason — the database derives one and copies the other.
  */
-export async function createProduct(input: {
-  name: string;
-  type?: string;
-}): Promise<{ product: ConsoleProduct }> {
+export async function saveProduct(input: ProductInput): Promise<{ product: ConsoleProduct }> {
   const res = await fetch(`${API_URL}/api/console/products`, {
     method: 'POST',
     credentials: 'include',

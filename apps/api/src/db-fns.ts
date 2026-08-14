@@ -192,3 +192,95 @@ export async function partnerReviewClient(
   if (!row) throw new Error('partner_review_client returned no status');
   return row.status;
 }
+
+/**
+ * One instrument as `partner_upsert_instrument` returns it.
+ *
+ * Snake_case and driver-shaped, because this is `RETURNS instruments` coming
+ * back through a raw `execute` rather than a Drizzle select: postgres.js hands
+ * back int8 as a string and timestamptz as a `Date`, and the caller maps both.
+ */
+export interface InstrumentRow {
+  id: string;
+  partner_id: string | null;
+  slug: string;
+  abbr: string;
+  type: string;
+  name: string;
+  region: string | null;
+  metric: string | null;
+  metric_label: string | null;
+  min_investment_minor: string;
+  currency: string;
+  term: string | null;
+  risk: string | null;
+  description: string | null;
+  listing_status: 'live' | 'paused';
+  blocked: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface UpsertInstrumentArgs {
+  /** Null creates; otherwise amends, and only a row this partner already owns. */
+  id: string | null;
+  name: string;
+  type: string;
+  abbr: string;
+  currency: string;
+  minInvestmentMinor: bigint;
+  term: string | null;
+  metric: string | null;
+  metricLabel: string | null;
+  risk: string | null;
+  description: string | null;
+  region: string | null;
+}
+
+/**
+ * List or amend one of the caller's own instruments.
+ *
+ * The partner comes from the transaction's GUC inside the function, never from
+ * an argument — the same shape `partner_review_client` uses, and for the same
+ * reason: `instruments` also holds the seeded reference catalogue, and a console
+ * that could name its own partner id could edit somebody else's product. The
+ * regulator and the slug are set by the function too; neither is a firm's to
+ * type.
+ */
+export async function partnerUpsertInstrument(
+  tx: Transaction,
+  args: UpsertInstrumentArgs,
+): Promise<InstrumentRow> {
+  const rows = (await tx.execute(
+    sql`select * from partner_upsert_instrument(
+      ${args.id}::uuid,
+      ${args.name}::text,
+      ${args.type}::instrument_type,
+      ${args.abbr}::text,
+      ${args.currency}::currency,
+      ${args.minInvestmentMinor.toString()}::bigint,
+      ${args.term}::text,
+      ${args.metric}::text,
+      ${args.metricLabel}::text,
+      ${args.risk}::risk_rating,
+      ${args.description}::text,
+      ${args.region}::text
+    )`,
+  )) as unknown as InstrumentRow[];
+  const row = rows[0];
+  if (!row) throw new Error('partner_upsert_instrument returned no row');
+  return row;
+}
+
+/** Take one of the caller's instruments off the marketplace, or put it back. */
+export async function partnerToggleInstrument(
+  tx: Transaction,
+  id: string,
+): Promise<'live' | 'paused'> {
+  const rows = (await tx.execute(
+    sql`select partner_toggle_instrument(${id}::uuid) as status`,
+  )) as unknown as { status: 'live' | 'paused' }[];
+  const row = rows[0];
+  if (!row) throw new Error('partner_toggle_instrument returned no row');
+  return row.status;
+}

@@ -16,6 +16,7 @@ import {
   connectionStatus,
   currency,
   instrumentType,
+  listingStatus,
   planningStatus,
   productListingStatus,
   regulator,
@@ -67,6 +68,8 @@ export const instruments = pgTable('instruments', {
   risk: riskRating('risk'),
   description: text('description'),
   agentNote: text('agent_note'),
+  /** Whether the marketplace offers it. Set by the listing partner's console. */
+  listingStatus: listingStatus('listing_status').notNull().default('live'),
   blocked: boolean('blocked').notNull().default(false),
   blockReasons: text('block_reasons').array().notNull().default([]),
   createdAt: createdAt(),

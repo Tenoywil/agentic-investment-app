@@ -46,7 +46,13 @@ export function opportunitiesRoutes(deps: AppDeps): Hono<AppEnv> {
           blockReasons: instruments.blockReasons,
         })
         .from(instruments)
-        .leftJoin(partners, eq(instruments.partnerId, partners.id));
+        .leftJoin(partners, eq(instruments.partnerId, partners.id))
+        // A paused listing is off the shelf: the firm has withdrawn it, so it
+        // is not offered at all. This is not `blocked`, which means "screened
+        // out for your suitability" and is deliberately still returned — that
+        // one renders as a refusal with reasons, and hiding it would turn an
+        // explained decision into a silent absence.
+        .where(eq(instruments.listingStatus, 'live'));
       // Newest assessment wins — risk profiles are appended, never replaced.
       const [profile] = await tx
         .select({ band: riskProfiles.band })

@@ -247,6 +247,8 @@ export default function InstitutionsPage() {
    * cold API.
    */
   const [listingOpen, setListingOpen] = useState(false);
+  /** The listing being amended. Undefined while `listingOpen` means "create". */
+  const [editingProduct, setEditingProduct] = useState<ConsoleProduct | undefined>(undefined);
 
   /** The phone navigation sheet; on a desktop this element is the rail. */
   const navRef = useRef<HTMLDialogElement>(null);
@@ -424,9 +426,20 @@ export default function InstitutionsPage() {
 
         {listingOpen ? (
           <ListProductDialog
-            onClose={() => setListingOpen(false)}
-            onListed={(product) => {
-              setProducts((ps) => [product, ...ps]);
+            product={editingProduct}
+            onClose={() => {
+              setListingOpen(false);
+              setEditingProduct(undefined);
+            }}
+            onSaved={(product) => {
+              // An amend replaces its row in place; a new listing goes to the
+              // top. Keyed on the id the server returned rather than on
+              // whether the dialog thought it was editing.
+              setProducts((ps) =>
+                ps.some((p) => p.id === product.id)
+                  ? ps.map((p) => (p.id === product.id ? product : p))
+                  : [product, ...ps],
+              );
               void getAudit(50)
                 .then((r) => setAudit(r.entries))
                 .catch(() => {});
@@ -436,7 +449,14 @@ export default function InstitutionsPage() {
 
         <TabsContent value="products" className="mt-0">
           <ProductsTab
-            onList={() => setListingOpen(true)}
+            onList={() => {
+              setEditingProduct(undefined);
+              setListingOpen(true);
+            }}
+            onEdit={(product) => {
+              setEditingProduct(product);
+              setListingOpen(true);
+            }}
             products={products}
             productsError={productsError}
             loading={loading}

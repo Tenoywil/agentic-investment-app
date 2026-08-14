@@ -37,6 +37,12 @@ export interface LoadedInstrument {
   blockReasons: string[];
   minInvestmentMinor: bigint;
   currency: Currency;
+  /**
+   * Whether the listing firm still offers it. Distinct from `blocked`: blocked
+   * is about this investor's suitability and comes back with reasons, paused is
+   * the firm having taken the product off the shelf for everyone.
+   */
+  listingStatus: 'live' | 'paused';
 }
 
 /** Fetch the instrument a proposal targets, or null if it does not exist. */
@@ -55,6 +61,7 @@ export async function loadInstrument(
       blockReasons: instruments.blockReasons,
       minInvestmentMinor: instruments.minInvestmentMinor,
       currency: instruments.currency,
+      listingStatus: instruments.listingStatus,
     })
     .from(instruments)
     .leftJoin(partners, eq(partners.id, instruments.partnerId))
@@ -70,6 +77,7 @@ export async function loadInstrument(
     blockReasons: row.blockReasons,
     minInvestmentMinor: row.minInvestmentMinor,
     currency: row.currency as Currency,
+    listingStatus: row.listingStatus,
   };
 }
 
