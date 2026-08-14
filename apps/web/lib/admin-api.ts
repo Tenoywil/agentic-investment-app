@@ -10,7 +10,8 @@ import { API_URL } from './config';
  */
 
 export interface AdminOverview {
-  people: { customers: number; operators: number; admins: number };
+  /** `total` is people; the other three count how many hold each role. */
+  people: { total: number; customers: number; operators: number; admins: number };
   onboarding: { started: number; tierNone: number; tier1: number; tier2: number };
   partners: { total: number; live: number; sandbox: number };
   products: { total: number };

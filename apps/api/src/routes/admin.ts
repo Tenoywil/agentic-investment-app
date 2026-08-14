@@ -11,7 +11,7 @@ import {
   userProfiles,
   userRoles,
 } from '@ccn/db';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
@@ -125,13 +125,28 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
 
     const data = await withTenant(deps, tenant, async (tx) => {
+      /**
+       * `total` is people; the other three are roles held.
+       *
+       * The screen used to print the `customer` role count under the word
+       * "Investors" while the tab beside it listed every person on the network —
+       * two numbers, the same noun, nine apart. They differ for an ordinary
+       * reason: roles are granted lazily on a user's first authenticated
+       * request, so somebody who has signed up and not come back yet holds no
+       * role row at all. Counting people and counting roles are both worth
+       * knowing; calling them the same thing is what was wrong.
+       *
+       * `count(distinct user_id)` on the roles, not `count(*)`: one person may
+       * hold the same role at two partners.
+       */
       const [roleCounts] = (await tx.execute(sql`
         select
-          count(*) filter (where role = 'customer')          as customers,
-          count(*) filter (where role = 'partner_operator')  as operators,
-          count(*) filter (where role = 'admin')             as admins
+          (select count(*) from "user")                                       as total,
+          count(distinct user_id) filter (where role = 'customer')            as customers,
+          count(distinct user_id) filter (where role = 'partner_operator')    as operators,
+          count(distinct user_id) filter (where role = 'admin')               as admins
         from user_roles
-      `)) as unknown as [{ customers: string; operators: string; admins: string }];
+      `)) as unknown as [{ total: string; customers: string; operators: string; admins: string }];
 
       const [orderCounts] = (await tx.execute(sql`
         select
@@ -174,6 +189,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     const n = (v: unknown) => Number(v ?? 0);
     return c.json({
       people: {
+        total: n(data.roleCounts?.total),
         customers: n(data.roleCounts?.customers),
         operators: n(data.roleCounts?.operators),
         admins: n(data.roleCounts?.admins),
@@ -210,15 +226,20 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const limit = Math.min(Number(c.req.query('limit') ?? 100), 500);
 
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
+    /**
+     * People first, roles second — two queries rather than one join with a
+     * LIMIT on it. The join fans out one row per role held, so the limit was
+     * counting rows and not people: a handful of operators bound to two
+     * partners each would silently push real people off the end of a list whose
+     * whole purpose is to be complete.
+     */
+    const { people, roles } = await withTenant(deps, tenant, async (tx) => {
+      const found = await tx
         .select({
           id: user.id,
           name: user.name,
           email: user.email,
           createdAt: user.createdAt,
-          role: userRoles.role,
-          partnerId: userRoles.partnerId,
           kycTier: kycStatus.tier,
           identityVerified: kycStatus.identityVerified,
           complianceConfirmed: kycStatus.complianceConfirmed,
@@ -227,25 +248,41 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
           residency: userProfiles.residencyCountry,
         })
         .from(user)
-        .leftJoin(userRoles, eq(userRoles.userId, user.id))
         .leftJoin(kycStatus, eq(kycStatus.userId, user.id))
         .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
         .orderBy(desc(user.createdAt))
-        .limit(limit),
-    );
+        .limit(limit);
+      const ids = found.map((p) => p.id);
+      return {
+        people: found,
+        roles: ids.length
+          ? await tx
+              .select({
+                userId: userRoles.userId,
+                role: userRoles.role,
+                partnerId: userRoles.partnerId,
+              })
+              .from(userRoles)
+              .where(inArray(userRoles.userId, ids))
+          : [],
+      };
+    });
 
-    // One row per person, with every role they hold — the join above fans out.
-    const byId = new Map<string, Record<string, unknown> & { roles: string[] }>();
-    for (const r of rows) {
-      const existing = byId.get(r.id);
-      if (existing) {
-        if (r.role && !existing.roles.includes(r.role)) existing.roles.push(r.role);
-        continue;
-      }
-      const { role, ...rest } = r;
-      byId.set(r.id, { ...rest, roles: role ? [role] : [] });
+    const held = new Map<string, { roles: string[]; partnerId: string | null }>();
+    for (const r of roles) {
+      const entry = held.get(r.userId) ?? { roles: [], partnerId: null };
+      if (!entry.roles.includes(r.role)) entry.roles.push(r.role);
+      entry.partnerId = entry.partnerId ?? r.partnerId;
+      held.set(r.userId, entry);
     }
-    return c.json({ investors: [...byId.values()] });
+
+    return c.json({
+      investors: people.map((p) => ({
+        ...p,
+        roles: held.get(p.id)?.roles ?? [],
+        partnerId: held.get(p.id)?.partnerId ?? null,
+      })),
+    });
   });
 
   /** Every partner, and what each is actually offering. */
