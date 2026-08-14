@@ -12,6 +12,7 @@ import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
 import { Tabs, TabsContent } from '@/app/_components/ui/tabs';
 import { useMe } from '@/app/_lib/session';
+import { useRealtime } from '@/app/_lib/use-realtime';
 import { authClient } from '@/lib/auth-client';
 import {
   type ConsoleAuditEntry,
@@ -37,7 +38,7 @@ import {
   toggleProductLive,
 } from '@/lib/console-api';
 import { Menu } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * The partner console: a dark-navy shell (Warm-themed shadcn) with Radix Tabs
@@ -85,50 +86,83 @@ export default function InstitutionsPage() {
   const [clientBusyId, setClientBusyId] = useState<string | null>(null);
   const [clientActionError, setClientActionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // Each panel reports its own failure. One route being down must not blank
-      // the other four — an operator with a broken funnel query can still work
-      // their order queue.
-      const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR] =
-        await Promise.allSettled([
-          getOrders(),
-          getProducts(),
-          getKpis(),
-          getClients(),
-          getFunnel(),
-          getReconciliation(),
-          getAudit(50),
-        ]);
-      if (cancelled) return;
+  /**
+   * Seven reads, and until this flag existed there was no way to tell "still
+   * loading" from "nothing there". Every panel rendered its empty state in the
+   * meantime, so opening the console told an operator they had no orders, no
+   * clients and no referrals — three confident claims about their business,
+   * made before a single response had arrived.
+   */
+  const [loading, setLoading] = useState(true);
 
-      if (ordersR.status === 'fulfilled') setOrders(ordersR.value.orders);
-      else setOrdersError(errorMessage(ordersR.reason, 'Could not load order flow.'));
+  const load = useCallback(async () => {
+    // Each panel reports its own failure. One route being down must not blank
+    // the other four — an operator with a broken funnel query can still work
+    // their order queue.
+    const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR] = await Promise.allSettled(
+      [
+        getOrders(),
+        getProducts(),
+        getKpis(),
+        getClients(),
+        getFunnel(),
+        getReconciliation(),
+        getAudit(50),
+      ],
+    );
 
-      if (productsR.status === 'fulfilled') setProducts(productsR.value.products);
-      else setProductsError(errorMessage(productsR.reason, 'Could not load products.'));
+    if (ordersR.status === 'fulfilled') {
+      setOrders(ordersR.value.orders);
+      setOrdersError(null);
+    } else setOrdersError(errorMessage(ordersR.reason, 'Could not load order flow.'));
 
-      if (kpisR.status === 'fulfilled') setKpis(kpisR.value.kpis);
-      else setKpisError(errorMessage(kpisR.reason, 'Could not load KPIs.'));
+    if (productsR.status === 'fulfilled') {
+      setProducts(productsR.value.products);
+      setProductsError(null);
+    } else setProductsError(errorMessage(productsR.reason, 'Could not load products.'));
 
-      if (clientsR.status === 'fulfilled') setClients(clientsR.value.clients);
-      else setClientsError(errorMessage(clientsR.reason, 'Could not load your clients.'));
+    if (kpisR.status === 'fulfilled') {
+      setKpis(kpisR.value.kpis);
+      setKpisError(null);
+    } else setKpisError(errorMessage(kpisR.reason, 'Could not load KPIs.'));
 
-      if (funnelR.status === 'fulfilled') setFunnel(funnelR.value.stages);
-      else setFunnelError(errorMessage(funnelR.reason, 'Could not load the onboarding funnel.'));
+    if (clientsR.status === 'fulfilled') {
+      setClients(clientsR.value.clients);
+      setClientsError(null);
+    } else setClientsError(errorMessage(clientsR.reason, 'Could not load your clients.'));
 
-      if (reconR.status === 'fulfilled') setReconciliation(reconR.value.items);
-      else
-        setReconciliationError(errorMessage(reconR.reason, 'Could not load reconciliation items.'));
+    if (funnelR.status === 'fulfilled') {
+      setFunnel(funnelR.value.stages);
+      setFunnelError(null);
+    } else setFunnelError(errorMessage(funnelR.reason, 'Could not load the onboarding funnel.'));
 
-      if (auditR.status === 'fulfilled') setAudit(auditR.value.entries);
-      else setAuditError(errorMessage(auditR.reason, 'Could not load the audit trail.'));
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (reconR.status === 'fulfilled') {
+      setReconciliation(reconR.value.items);
+      setReconciliationError(null);
+    } else
+      setReconciliationError(errorMessage(reconR.reason, 'Could not load reconciliation items.'));
+
+    if (auditR.status === 'fulfilled') {
+      setAudit(auditR.value.entries);
+      setAuditError(null);
+    } else setAuditError(errorMessage(auditR.reason, 'Could not load the audit trail.'));
+
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  /**
+   * The console is a queue someone sits in front of. Everything that fills it is
+   * done by somebody else — an investor authorising an order, a person asking to
+   * become a client, a statement arriving — and none of it reached an open
+   * console until the page was reloaded. The rail's "to accept" badge was only
+   * ever as fresh as the last page load, which is the one number an operator
+   * treats as a to-do list.
+   */
+  useRealtime(['order', 'connection', 'reconciliation', 'listing'], load);
 
   /** The only way off this surface. An operator cannot switch to the investor
    *  app — the API refuses customer routes for them — so the control that
@@ -320,6 +354,7 @@ export default function InstitutionsPage() {
             kpisError={kpisError}
             orders={orders}
             ordersError={ordersError}
+            loading={loading}
             orderBusyId={orderBusyId}
             orderActionError={orderActionError}
             onAccept={handleAccept}
@@ -332,6 +367,7 @@ export default function InstitutionsPage() {
           <OrdersTab
             orders={orders}
             ordersError={ordersError}
+            loading={loading}
             orderBusyId={orderBusyId}
             orderActionError={orderActionError}
             onAccept={handleAccept}
@@ -357,6 +393,7 @@ export default function InstitutionsPage() {
             onList={() => setListingOpen(true)}
             products={products}
             productsError={productsError}
+            loading={loading}
             productBusyId={productBusyId}
             productActionError={productActionError}
             onToggleLive={handleToggleProductLive}
@@ -367,6 +404,7 @@ export default function InstitutionsPage() {
           <ClientsTab
             clients={clients}
             clientsError={clientsError}
+            loading={loading}
             clientBusyId={clientBusyId}
             clientActionError={clientActionError}
             onReviewClient={handleReviewClient}
@@ -383,7 +421,12 @@ export default function InstitutionsPage() {
         </TabsContent>
 
         <TabsContent value="compliance" className="mt-0">
-          <ComplianceTab partner={partner} audit={audit} auditError={auditError} />
+          <ComplianceTab
+            partner={partner}
+            audit={audit}
+            auditError={auditError}
+            loading={loading}
+          />
         </TabsContent>
       </main>
     </Tabs>

@@ -5,6 +5,7 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleOrder } from '@/lib/console-api';
 import { ArrowRightLeft } from 'lucide-react';
 import { ROW_DIVIDER, fmtMinor, timeAgo, uppr } from './lib';
+import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
 
@@ -20,6 +21,7 @@ import { OrderAction } from './order-action';
 export function OrdersTab({
   orders,
   ordersError,
+  loading,
   orderBusyId,
   orderActionError,
   onAccept,
@@ -28,6 +30,7 @@ export function OrdersTab({
 }: {
   orders: ConsoleOrder[];
   ordersError: string | null;
+  loading: boolean;
   orderBusyId: string | null;
   orderActionError: string | null;
   onAccept: (id: string) => void;
@@ -43,7 +46,7 @@ export function OrdersTab({
       <div className="flex flex-wrap items-center justify-between gap-2.5 px-6 pb-3.5 pt-5">
         <div>
           <b className="font-display text-lg">Order flow</b>
-          {ordersError ? null : (
+          {ordersError || loading ? null : (
             <div className="mt-0.5 text-[13px] text-faint">
               {pending} to accept · {accepted} to settle · {settled} settled
             </div>
@@ -58,7 +61,9 @@ export function OrdersTab({
       {ordersError ? <ErrorNote message={ordersError} className="px-6 pb-3.5" /> : null}
       {orderActionError ? <ErrorNote message={orderActionError} className="px-6 pb-3.5" /> : null}
 
-      {!ordersError && orders.length === 0 ? (
+      {loading && !ordersError ? <RowsSkeleton rows={4} label="Loading your order flow" /> : null}
+
+      {!loading && !ordersError && orders.length === 0 ? (
         <div className="px-6 pb-6">
           <EmptyState
             icon={ArrowRightLeft}
@@ -68,7 +73,7 @@ export function OrdersTab({
         </div>
       ) : null}
 
-      {!ordersError && orders.length > 0 ? (
+      {!loading && !ordersError && orders.length > 0 ? (
         <div className="relative overflow-x-auto">
           {/* `relative`, so this scroller is the containing block for the
               absolutely positioned `sr-only` labels inside the row buttons.

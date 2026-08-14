@@ -15,6 +15,7 @@ import {
   regulatorLabel,
   timeAgo,
 } from './lib';
+import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
 /**
@@ -32,10 +33,12 @@ export function ComplianceTab({
   partner,
   audit,
   auditError,
+  loading,
 }: {
   partner: MePartner | null;
   audit: ConsoleAuditEntry[];
   auditError: string | null;
+  loading: boolean;
 }) {
   const rows: { label: string; value: string }[] = [];
   if (partner) {
@@ -86,7 +89,9 @@ export function ComplianceTab({
 
         {auditError ? <ErrorNote message={auditError} className="mb-3" /> : null}
 
-        {!auditError && audit.length === 0 ? (
+        {loading && !auditError ? <RowsSkeleton rows={4} label="Loading the audit trail" /> : null}
+
+        {!loading && !auditError && audit.length === 0 ? (
           <EmptyState
             icon={ScrollText}
             title="No audited activity yet"

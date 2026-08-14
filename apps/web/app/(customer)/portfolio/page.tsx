@@ -5,6 +5,7 @@ import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
+import { useRealtime } from '@/app/_lib/use-realtime';
 import { cn } from '@/app/_lib/utils';
 import {
   type AllocationSlice,
@@ -146,6 +147,25 @@ export default function PortfolioPage() {
       signal.cancelled = true;
     };
   }, [load]);
+
+  /**
+   * The realtime refresh is deliberately not `load`: that one raises the
+   * skeleton, and replacing a screen somebody is reading with grey boxes
+   * because a partner settled an order elsewhere is a worse experience than the
+   * staleness it fixes. This swaps the numbers underneath them instead.
+   *
+   * Both events matter here. A settled order changes what they hold; a
+   * connection decision is the thing a new investor is actually waiting on, and
+   * until now the only way to discover the firm had accepted them was to reload
+   * a screen that gave them no reason to think anything had changed.
+   */
+  const refresh = useCallback(() => {
+    void getPortfolio(currency)
+      .then(setData)
+      .catch(() => {});
+  }, [currency]);
+
+  useRealtime(['order', 'connection'], refresh);
 
   const pendingOrDeclined = (data?.connections ?? []).filter((c) => c.status !== 'active');
 

@@ -20,6 +20,7 @@ import {
   isSandbox,
   timeAgo,
 } from './lib';
+import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { SandboxBadge } from './sandbox-badge';
 
@@ -30,6 +31,7 @@ export function ClientsTab({
   partner,
   clients,
   clientsError,
+  loading,
   clientBusyId,
   clientActionError,
   onReviewClient,
@@ -45,6 +47,7 @@ export function ClientsTab({
   partner: MePartner | null;
   clients: ConsoleClient[];
   clientsError: string | null;
+  loading: boolean;
   clientBusyId: string | null;
   clientActionError: string | null;
   onReviewClient: (id: string, accept: boolean, reason?: string) => void;
@@ -63,6 +66,7 @@ export function ClientsTab({
       <ClientReview
         clients={clients}
         clientsError={clientsError}
+        loading={loading}
         busyId={clientBusyId}
         actionError={clientActionError}
         onReview={onReviewClient}
@@ -82,7 +86,11 @@ export function ClientsTab({
 
           {funnelError ? <ErrorNote message={funnelError} /> : null}
 
-          {!funnelError && funnel.length === 0 ? (
+          {loading && !funnelError ? (
+            <RowsSkeleton rows={3} label="Loading the onboarding pipeline" />
+          ) : null}
+
+          {!loading && !funnelError && funnel.length === 0 ? (
             <EmptyState
               icon={Users}
               title="No referrals yet"
@@ -147,7 +155,11 @@ export function ClientsTab({
         {reconciliationError ? <ErrorNote message={reconciliationError} className="mb-3" /> : null}
         {reconActionError ? <ErrorNote message={reconActionError} className="mb-3" /> : null}
 
-        {!reconciliationError && reconciliation.length === 0 ? (
+        {loading && !reconciliationError ? (
+          <RowsSkeleton rows={2} label="Loading reconciliation items" />
+        ) : null}
+
+        {!loading && !reconciliationError && reconciliation.length === 0 ? (
           <EmptyState
             icon={ArrowRightLeft}
             title="Nothing to reconcile"

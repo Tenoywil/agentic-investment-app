@@ -4,10 +4,11 @@ import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Skeleton, SkeletonRegion } from '@/app/_components/ui/skeleton';
+import { useRealtime } from '@/app/_lib/use-realtime';
 import { cn } from '@/app/_lib/utils';
 import { type MyOrder, getMyOrders } from '@/lib/opportunities-api';
 import { ArrowRightLeft, CircleAlert } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * What happened to the orders you authorised.
@@ -83,20 +84,29 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<MyOrder[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    getMyOrders()
-      .then((r) => {
-        if (!cancelled) setOrders(r.orders);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : 'Could not load your orders.');
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    try {
+      const r = await getMyOrders();
+      setOrders(r.orders);
+      setError(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not load your orders.');
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  /**
+   * This screen exists to be watched. Every transition on it — accepted,
+   * settled, declined — is made by someone else, at their desk, minutes or days
+   * later, and until the stream was connected the only way to learn about one
+   * was to reload the page. Someone who authorised an order and stayed on this
+   * screen would have watched "Routed" indefinitely while their institution had
+   * already settled it.
+   */
+  useRealtime(['order'], load);
 
   const open = orders?.filter((o) => o.status === 'created' || o.status === 'accepted') ?? [];
 

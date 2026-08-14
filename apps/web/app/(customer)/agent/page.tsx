@@ -10,6 +10,7 @@ import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/ske
 import { Switch } from '@/app/_components/ui/switch';
 import { useSheetDismiss } from '@/app/_lib/sheet';
 import { useDictation, useNarration } from '@/app/_lib/speech';
+import { useRealtime } from '@/app/_lib/use-realtime';
 import { cn } from '@/app/_lib/utils';
 import {
   AgentApiError,
@@ -467,6 +468,22 @@ export default function AgentPage() {
         setApprovalsState('error');
       });
   }, []);
+
+  /**
+   * The approvals panel is the human-in-the-loop half of the product, and it was
+   * a snapshot taken when the screen mounted. A card raised while somebody sat
+   * on this page — the exact situation the panel exists for — did not appear
+   * until they navigated away and came back.
+   *
+   * Only the approvals reload. The conversation above them is appended to by the
+   * stream of the turn being typed, and refetching history mid-answer would
+   * replace a partly streamed reply with the shorter version stored so far.
+   */
+  useRealtime(['approval'], () => {
+    void getApprovals()
+      .then(({ approvals: rows }) => setApprovals(rows.filter((a) => a.status === 'pending')))
+      .catch(() => {});
+  });
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
