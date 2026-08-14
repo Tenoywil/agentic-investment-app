@@ -105,14 +105,18 @@ export interface ConsoleProduct {
   updatedAt: string;
 }
 
+/**
+ * A KPI tile, computed from the partner's own rows rather than read from a
+ * table. `partner_kpis` had a reader and no writer, so these never appeared at
+ * all; they are derived server-side now, which is also why there is no id from
+ * a database or a createdAt to show.
+ */
 export interface ConsoleKpi {
   id: string;
-  partnerId: string;
   label: string;
-  value: string; // already display-formatted, e.g. "US$4.2M" — do not reparse
+  value: string; // already display-formatted, e.g. "US$4,200" — do not reparse
   sub: string | null;
   sortOrder: number;
-  createdAt: string;
 }
 
 /**
@@ -148,14 +152,14 @@ export interface ConsoleClient {
   holdings_value_minor: string;
 }
 
+/** One stage of the referral funnel, computed from connected accounts. */
 export interface ConsoleFunnelStage {
   id: string;
-  partnerId: string;
   label: string;
   count: number;
+  /** Share of everyone who asked to connect, not of the previous stage. */
   pct: number;
   sortOrder: number;
-  createdAt: string;
 }
 
 export class ConsoleApiError extends Error {

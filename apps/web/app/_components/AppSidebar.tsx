@@ -20,7 +20,15 @@ import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-type Key =
+/**
+ * Every destination the investor shell can be on.
+ *
+ * Exported because AppScreen used to keep a second hand-written copy of this
+ * union, and the two quietly stopped agreeing the moment a route was added —
+ * the same failure `navGroupsFor` documents for the nav list itself. One
+ * definition, imported.
+ */
+export type Key =
   | 'home'
   | 'portfolio'
   | 'opportunities'
@@ -30,7 +38,8 @@ type Key =
   | 'onboarding'
   | 'gatewayMandate'
   | 'gatewayOpportunities'
-  | 'gatewayIntroductions';
+  | 'gatewayIntroductions'
+  | 'gatewayReview';
 
 /**
  * Nav items carry no counts. Each one used to ship a hardcoded badge (4, 8, 2)
@@ -94,6 +103,16 @@ const GROUPS: NavGroup[] = [
         label: 'Introductions',
         href: '/gateway/introductions',
         Icon: HandHeart,
+      },
+      // Visible to everyone, useful to analysts and compliance. The screen
+      // itself says who it is for rather than the rail hiding it: `useMe()`
+      // resolves after the nav renders, and a link that appears a beat late is
+      // a worse tell than one that explains itself on arrival.
+      {
+        key: 'gatewayReview',
+        label: 'Review queue',
+        href: '/gateway/review',
+        Icon: ShieldCheck,
       },
     ],
   },

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  date,
   integer,
   numeric,
   pgTable,
@@ -113,7 +114,14 @@ export const holdings = pgTable('holdings', {
   updatedAt: updatedAt(),
 });
 
-/** FX rates against a USD base. Reference data. */
+/**
+ * FX rates against a USD base, as published by the region's central banks.
+ *
+ * One current row per pair. `asOf` is the publisher's own date for the rate —
+ * not when it was fetched — so a screen can say how old the number is instead of
+ * implying it is live. `source` names who published it; `'seed'` marks the
+ * fallback rows that no bank stands behind.
+ */
 export const fxRates = pgTable(
   'fx_rates',
   {
@@ -121,6 +129,10 @@ export const fxRates = pgTable(
     baseCurrency: currency('base_currency').notNull().default('USD'),
     quoteCurrency: currency('quote_currency').notNull(),
     rate: numeric('rate', { precision: 18, scale: 6 }).notNull(),
+    /** The publisher's date for this rate. Null on a seeded fallback. */
+    asOf: date('as_of'),
+    /** Who published it, e.g. `BOJ`, `CBTT`, or `seed`. */
+    source: text('source'),
     createdAt: createdAt(),
   },
   (t) => [unique('fx_rates_base_quote_uq').on(t.baseCurrency, t.quoteCurrency)],

@@ -6,6 +6,7 @@ import type { ConsoleKpi, ConsoleOrder } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { ArrowRightLeft, LayoutGrid } from 'lucide-react';
 import { ROW_DIVIDER, SUCCESS_TEXT, fmtMinor, isSandbox, timeAgo, uppr } from './lib';
+import { RowsSkeleton, TilesSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
 import { SandboxBadge } from './sandbox-badge';
@@ -25,6 +26,7 @@ export function OverviewTab({
   kpisError,
   orders,
   ordersError,
+  loading,
   orderBusyId,
   orderActionError,
   onAccept,
@@ -36,6 +38,7 @@ export function OverviewTab({
   kpisError: string | null;
   orders: ConsoleOrder[];
   ordersError: string | null;
+  loading: boolean;
   orderBusyId: string | null;
   orderActionError: string | null;
   onAccept: (id: string) => void;
@@ -58,7 +61,9 @@ export function OverviewTab({
         </div>
       ) : null}
 
-      {hasMetrics ? (
+      {loading && !hasMetrics ? (
+        <TilesSkeleton tiles={4} label="Loading your metrics" />
+      ) : hasMetrics ? (
         <div className="g4" data-tour="institution-kpis">
           {kpis.map((k, i) => (
             <Card key={k.id} className="p-5">
@@ -95,6 +100,7 @@ export function OverviewTab({
           ) : null}
         </div>
       ) : (
+        !loading &&
         !kpisError &&
         !ordersError && (
           <EmptyState
@@ -118,7 +124,11 @@ export function OverviewTab({
           {ordersError ? <ErrorNote message={ordersError} className="mb-3" /> : null}
           {orderActionError ? <ErrorNote message={orderActionError} className="mb-3" /> : null}
 
-          {!ordersError && orders.length === 0 ? (
+          {loading && !ordersError ? (
+            <RowsSkeleton rows={3} label="Loading the order queue" />
+          ) : null}
+
+          {!loading && !ordersError && orders.length === 0 ? (
             <EmptyState
               icon={ArrowRightLeft}
               title="No orders yet"

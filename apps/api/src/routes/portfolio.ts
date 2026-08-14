@@ -7,6 +7,7 @@ import { withTenant } from '../context';
 import { auditAppend } from '../db-fns';
 import { requireAuth } from '../middleware';
 import { adapterFor } from '../services/adapters';
+import { loadFxTable } from '../services/fx';
 
 /** Display names for the instrument_type enum, plus the `other` bucket used for
  *  holdings not yet matched to a catalogue instrument. */
@@ -267,7 +268,14 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         ? (requested as Currency)
         : 'USD';
 
-    const { rows, connections } = await withTenant(deps, tenant, async (tx) => ({
+    const { rows, connections, fx } = await withTenant(deps, tenant, async (tx) => ({
+      /**
+       * The rates the region's central banks published, not the constants in
+       * @ccn/money. Read inside the same transaction as the holdings so a
+       * refresh landing mid-request cannot value one partner's line at today's
+       * rate and another's at yesterday's.
+       */
+      fx: await loadFxTable(tx),
       rows: await tx
         .select({
           partnerCode: partners.code,
@@ -278,6 +286,10 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
           valueMinor: holdings.valueMinor,
           ret: holdings.returnLabel,
           instrumentType: instruments.type,
+          // When this balance was last pulled from the partner. The column has
+          // always been written on every refresh and never read, so no screen
+          // could say how old the figure it was showing actually was.
+          updatedAt: holdings.updatedAt,
         })
         .from(holdings)
         .leftJoin(connectedAccounts, eq(holdings.connectedAccountId, connectedAccounts.id))
@@ -318,6 +330,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         regulator: string | null;
         totalMinor: bigint;
         holdings: unknown[];
+        /** The oldest `updated_at` on this card's holdings — see below. */
+        updatedAt: Date | null;
       }
     >();
     // Allocation by asset class, derived from each holding's instrument type.
@@ -338,17 +352,23 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         regulator: r.partnerRegulator ?? null,
         totalMinor: 0n,
         holdings: [],
+        updatedAt: null,
       };
       group.totalMinor += r.valueMinor;
+      // The oldest line decides what the card can claim: a partner card is only
+      // as current as its least recently refreshed holding.
+      if (r.updatedAt && (!group.updatedAt || r.updatedAt < group.updatedAt)) {
+        group.updatedAt = r.updatedAt;
+      }
       group.holdings.push({
         name: r.holdingName,
-        value: formatMoney(convert(money(r.valueMinor, 'USD'), display)),
+        value: formatMoney(convert(money(r.valueMinor, 'USD'), display, fx.table)),
         ret: r.ret,
       });
       groups.set(key, group);
     }
 
-    const netWorth = convert(money(netWorthMinor, 'USD'), display);
+    const netWorth = convert(money(netWorthMinor, 'USD'), display, fx.table);
     // Percentages are of net worth, computed in minor units (integer maths, no
     // float drift) and rounded to one decimal. They will not always sum to
     // exactly 100 — that is rounding, not a missing slice, so the UI must not
@@ -358,7 +378,7 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
       .map(([type, valueMinor]) => ({
         type,
         label: ASSET_CLASS_LABELS[type] ?? 'Other',
-        value: formatMoney(convert(money(valueMinor, 'USD'), display)),
+        value: formatMoney(convert(money(valueMinor, 'USD'), display, fx.table)),
         valueMinor: valueMinor.toString(),
         pct:
           netWorthMinor === 0n
@@ -368,6 +388,12 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
 
     return c.json({
       currency: display,
+      /**
+       * Which bank published the rate this screen converted at, and when. A
+       * converted figure without them is a number the reader has no way to
+       * date, which is how the hardcoded table went unnoticed for months.
+       */
+      fx: fx.rates.find((r) => r.currency === display) ?? null,
       netWorth: formatMoney(netWorth),
       netWorthMinor: netWorth.minor.toString(),
       allocation,
@@ -377,7 +403,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         name: g.name,
         kind: g.kind,
         regulator: g.regulator,
-        total: formatMoney(convert(money(g.totalMinor, 'USD'), display)),
+        total: formatMoney(convert(money(g.totalMinor, 'USD'), display, fx.table)),
+        asOf: g.updatedAt ? g.updatedAt.toISOString() : null,
         holdings: g.holdings,
       })),
     });

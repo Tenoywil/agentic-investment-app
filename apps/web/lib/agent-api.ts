@@ -127,6 +127,27 @@ export function rejectApproval(id: string, reason?: string): Promise<{ ok: true 
   });
 }
 
+/**
+ * A move the agent prepared and the Limits Engine ruled on.
+ *
+ * The agent has no tool that can create an order, an approval or a transfer —
+ * that boundary is asserted on every turn — so a proposal arrives here as
+ * something to show a person, never as something already done. Raising the
+ * approval card takes a human tap, and approving it takes a second one.
+ */
+export interface AgentProposal {
+  instrumentId: string;
+  name: string;
+  /** Pre-formatted by @ccn/money server-side, e.g. "US$2,500". */
+  amount: string;
+  /** The same amount in minor units — what an approval is raised with. */
+  amountMinor: string;
+  decision: 'auto_act' | 'requires_approval' | 'blocked';
+  code: string;
+  reasons: string[];
+  summary: string;
+}
+
 export interface StreamAgentMessageCallbacks {
   /** Called for each text chunk as it arrives, in order — append, don't replace. */
   onDelta: (delta: string) => void;
@@ -134,6 +155,8 @@ export interface StreamAgentMessageCallbacks {
   onDone: () => void;
   /** Called if the upstream agent fails mid-stream, or the request/transport itself fails. */
   onError: (message: string) => void;
+  /** Called for each move the agent prepared this turn, after the text. */
+  onProposal?: (proposal: AgentProposal) => void;
 }
 
 const DEFAULT_STREAM_ERROR = 'the agent is temporarily unavailable';
@@ -184,6 +207,8 @@ function parseSseFrame(rawFrame: string): SseFrame | null {
  * this endpoint is a POST with a JSON body. Recognized events:
  *   - "message" (the default, no explicit `event:` line): data is
  *     `{"delta": "..."}` — one text chunk, appended via onDelta.
+ *   - "proposal": data is an AgentProposal — a move the agent prepared, which
+ *     the screen offers as a card the reader can send to their approvals.
  *   - "error": data is `{"error": "..."}` — upstream failure, via onError.
  *   - "done": data is the literal string `[DONE]` (not JSON) — end of stream.
  * The server always sends a final "done" event, including right after an
@@ -193,7 +218,7 @@ function parseSseFrame(rawFrame: string): SseFrame | null {
  */
 export async function streamAgentMessage(
   message: string,
-  { onDelta, onDone, onError }: StreamAgentMessageCallbacks,
+  { onDelta, onDone, onError, onProposal }: StreamAgentMessageCallbacks,
 ): Promise<void> {
   let res: Response;
   try {
@@ -230,6 +255,15 @@ export async function streamAgentMessage(
       }
       return;
     }
+    if (frame.event === 'proposal') {
+      try {
+        const parsed = JSON.parse(frame.data) as AgentProposal;
+        if (parsed && typeof parsed.instrumentId === 'string') onProposal?.(parsed);
+      } catch {
+        // A malformed proposal frame costs a card, not the answer above it.
+      }
+      return;
+    }
     if (frame.event === 'done') {
       // data is the literal string "[DONE]", not JSON — nothing to parse.
       sawDone = true;
@@ -263,4 +297,39 @@ export async function streamAgentMessage(
   } finally {
     if (!sawDone) onDone();
   }
+}
+
+/**
+ * Raise an approval card from a proposal the agent prepared.
+ *
+ * `POST /api/approvals` has existed since the approval routes were written and
+ * nothing called it. The only writer of an approval row was the demo seed, which
+ * runs for addresses in DEMO_CUSTOMER_EMAILS — so the loop the whole product is
+ * built around, and which the approvals panel on this screen exists to serve,
+ * could not occur for any real account.
+ *
+ * A person raises the card, and a person then approves it. Two taps, two
+ * decisions, and the agent holds neither: its tool set cannot write, and the
+ * approve path re-runs the Limits Engine before an order is created.
+ */
+export async function createApproval(input: {
+  instrumentId: string;
+  amountMinor: string;
+  title: string;
+  body?: string;
+}): Promise<{ approval: { id: string } }> {
+  const res = await fetch(`${API_URL}/api/approvals`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...input, type: 'investment_rec' }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new AgentApiError(
+      typeof body?.error === 'string' ? body.error : 'Could not raise that for approval.',
+      res.status,
+    );
+  }
+  return body;
 }

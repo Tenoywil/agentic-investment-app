@@ -1,11 +1,12 @@
 /**
  * Marks a panel whose figures come from a sandbox partner's book.
  *
- * The KPI tiles, the onboarding funnel and the per-listing AUM are genuine
- * `partner_kpis` / `kyc_funnel_stages` / `product_listings` rows — but for a
- * partner whose agreement status is `sandbox`, i.e. a rehearsal book rather
- * than a settled one. Saying so is the difference between a demo and a claim.
- * A partner with no rows at all gets an <EmptyState> instead, never this.
+ * The KPI tiles and the onboarding funnel are computed from this partner's own
+ * connections, holdings and orders — real rows, correctly counted. What makes
+ * them illustrative is the book they are counted from: a partner whose agreement
+ * status is `sandbox` is rehearsing, and its balances come from the sandbox
+ * adapter rather than from a settled account at the firm. Saying so is the
+ * difference between a demo and a claim.
  */
 export function SandboxBadge() {
   return (

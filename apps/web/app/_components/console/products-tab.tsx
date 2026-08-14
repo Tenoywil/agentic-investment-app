@@ -7,6 +7,7 @@ import { Switch } from '@/app/_components/ui/switch';
 import type { ConsoleProduct } from '@/lib/console-api';
 import { Boxes, Plus } from 'lucide-react';
 import { ROW_DIVIDER, uppr } from './lib';
+import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
 /**
@@ -24,6 +25,7 @@ import { ErrorNote } from './notice';
 export function ProductsTab({
   products,
   productsError,
+  loading,
   productBusyId,
   productActionError,
   onToggleLive,
@@ -31,6 +33,7 @@ export function ProductsTab({
 }: {
   products: ConsoleProduct[];
   productsError: string | null;
+  loading: boolean;
   productBusyId: string | null;
   productActionError: string | null;
   onToggleLive: (id: string) => void;
@@ -60,7 +63,9 @@ export function ProductsTab({
         <ErrorNote message={productActionError} className="px-6 pb-3.5" />
       ) : null}
 
-      {!productsError && products.length === 0 ? (
+      {loading && !productsError ? <RowsSkeleton rows={3} label="Loading your products" /> : null}
+
+      {!loading && !productsError && products.length === 0 ? (
         <div className="px-6 pb-6">
           <EmptyState
             icon={Boxes}
@@ -76,7 +81,7 @@ export function ProductsTab({
         </div>
       ) : null}
 
-      {!productsError && products.length > 0 ? (
+      {!loading && !productsError && products.length > 0 ? (
         <div className="relative overflow-x-auto">
           {/* `relative`, so this scroller is the containing block for the
               absolutely positioned `sr-only` labels inside the row buttons.

@@ -82,14 +82,22 @@ export function submitIdentity(input: SubmitIdentityInput): Promise<{ ok: true }
   return onboardingFetch('/identity', { method: 'POST', body: JSON.stringify(input) });
 }
 
-/** The three DECLARATIONS checkboxes; the schema requires all three literal
- *  `true`, so this takes no parameters — call it only once every checkbox is
- *  checked. */
-export function submitCompliance(): Promise<{ ok: true }> {
+/**
+ * The declarations, as answered.
+ *
+ * This used to take no parameters and post `{true, true, true}` — because the
+ * schema demanded three literal `true`s, the form's checkboxes decided only
+ * whether the button was enabled, and nothing the reader ticked was ever sent.
+ * The PEP answer is now theirs, and it reaches the column the partner console
+ * reads.
+ */
+export function submitCompliance(input: {
+  isPoliticallyExposed: boolean;
+}): Promise<{ ok: true }> {
   return onboardingFetch('/compliance', {
     method: 'POST',
     body: JSON.stringify({
-      notPoliticallyExposed: true,
+      isPoliticallyExposed: input.isPoliticallyExposed,
       taxResidencyDeclared: true,
       risksUnderstood: true,
     }),

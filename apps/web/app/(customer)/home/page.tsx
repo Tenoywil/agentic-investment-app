@@ -6,6 +6,7 @@ import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { useMe } from '@/app/_lib/session';
+import { useRealtime } from '@/app/_lib/use-realtime';
 import { cn } from '@/app/_lib/utils';
 import {
   type AgentMessage,
@@ -29,7 +30,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 // "How your agent works" is fixed illustrative UI chrome — a static explainer
 // of the pipeline every action goes through, not per-user data. There's no
@@ -203,6 +204,26 @@ export default function HomePage() {
   const [agentMessages, setAgentMessages] = useState<AgentMessage[] | null>(null);
   const [agentLoading, setAgentLoading] = useState(true);
   const [agentError, setAgentError] = useState<string | null>(null);
+
+  /**
+   * Home is the screen someone leaves open. Its net worth moves when an order
+   * settles at a partner, and its approvals panel is the product's whole
+   * premise — a card that appears when the agent needs a decision. Both were
+   * frozen at whatever they read when the tab was opened.
+   */
+  const reload = useCallback(() => {
+    void getPortfolio()
+      .then(setPortfolio)
+      .catch(() => {});
+    void getApprovals()
+      .then(({ approvals: rows }) => setApprovals(rows))
+      .catch(() => {});
+    void getAgentHistory()
+      .then(({ messages }) => setAgentMessages(messages))
+      .catch(() => {});
+  }, []);
+
+  useRealtime(['order', 'approval', 'connection'], reload);
 
   useEffect(() => {
     let cancelled = false;

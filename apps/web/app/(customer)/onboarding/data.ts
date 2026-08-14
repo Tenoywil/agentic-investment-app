@@ -28,10 +28,43 @@ export const ONB_SUBS = [
 
 export const ONB_LABELS = ['Identity', 'Compliance', 'Risk', 'Funds'];
 
-export const DECLARATIONS = [
-  'I am not a Politically Exposed Person (PEP)',
-  'I confirm my tax residency and will report income where required',
-  'I understand investments carry risk and may lose value',
+/**
+ * The declarations, and whether each one has to be true to continue.
+ *
+ * The PEP item used to read "I am not a Politically Exposed Person" and was
+ * required — so the only way through onboarding was to declare you were not one,
+ * and `is_pep` was written as `false` for every person on the network. A PEP had
+ * no way to say so, and the partner console's "Politically exposed" chip could
+ * never appear on any client. That is not a screening control; it is a control
+ * that cannot fail.
+ *
+ * Turned around, it is answerable: checking it declares that you ARE one, and it
+ * does not block. Being a PEP is not disqualifying — it is something the firm
+ * that carries the KYC obligation needs told, which is exactly what CCN is for.
+ */
+export interface Declaration {
+  id: 'pep' | 'taxResidency' | 'risk';
+  text: string;
+  /** False for a disclosure: it is recorded either way and blocks nothing. */
+  mustBeTrue: boolean;
+}
+
+export const DECLARATIONS: Declaration[] = [
+  {
+    id: 'taxResidency',
+    text: 'I confirm my tax residency and will report income where required',
+    mustBeTrue: true,
+  },
+  {
+    id: 'risk',
+    text: 'I understand investments carry risk and may lose value',
+    mustBeTrue: true,
+  },
+  {
+    id: 'pep',
+    text: 'I am a Politically Exposed Person (PEP), or a close associate or family member of one',
+    mustBeTrue: false,
+  },
 ];
 
 export const SOURCES: { id: string; label: string }[] = [

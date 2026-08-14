@@ -7,6 +7,7 @@ import type { ConsoleClient } from '@/lib/console-api';
 import { Check, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
 import * as React from 'react';
 import { ROW_DIVIDER, TERRA_GHOST_BTN, fmtMinor, timeAgo } from './lib';
+import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
 /**
@@ -88,12 +89,14 @@ function StatusChip({ status }: { status: ConsoleClient['status'] }) {
 export function ClientReview({
   clients,
   clientsError,
+  loading,
   busyId,
   actionError,
   onReview,
 }: {
   clients: ConsoleClient[];
   clientsError: string | null;
+  loading: boolean;
   busyId: string | null;
   actionError: string | null;
   onReview: (id: string, accept: boolean, reason?: string) => void;
@@ -252,7 +255,9 @@ export function ClientReview({
       {clientsError ? <ErrorNote message={clientsError} className="mb-3" /> : null}
       {actionError ? <ErrorNote message={actionError} className="mb-3" /> : null}
 
-      {!clientsError && clients.length === 0 ? (
+      {loading && !clientsError ? <RowsSkeleton rows={2} label="Loading client requests" /> : null}
+
+      {!loading && !clientsError && clients.length === 0 ? (
         <EmptyState
           icon={UserRoundCheck}
           title="Nobody has asked yet"

@@ -506,7 +506,11 @@ function ExecDialog({
                       />
                     </div>
                     <span className="text-[12.5px] text-faint">
-                      Minimum {opp.min} · from your {opp.currency} wallet
+                      {/* There is no wallet. CCN holds no money — cash is a holding
+                          in the account you connected at the executing firm, and
+                          naming a CCN-held balance contradicted the one line this
+                          product cannot afford to be loose about. */}
+                      Minimum {opp.min} · from your {opp.currency} cash at {opp.partner}
                     </span>
                   </div>
                 </div>
@@ -516,7 +520,11 @@ function ExecDialog({
                 </div>
                 <div className="flex justify-between px-4 py-3.5">
                   <span className="text-sm text-dim">Settlement</span>
-                  <span className="text-sm font-semibold">T+2 · {opp.currency} wallet</span>
+                  {/* "T+2" was asserted here as though it had been computed. Nothing
+                      computes a settlement date at this point: the order is routed,
+                      and the firm sets `settlement_eta` when it accepts. The Orders
+                      screen shows that date once it is a real one. */}
+                  <span className="text-sm font-semibold">Set by {opp.partner} on acceptance</span>
                 </div>
               </div>
               {me && <ComplianceChecks onboarding={me.onboarding} band={band} />}
@@ -537,8 +545,9 @@ function ExecDialog({
               <div className="font-display text-[21px] font-bold">Instruction submitted</div>
               <p className="mx-auto mb-[18px] mt-2 max-w-[330px] text-[14.5px] leading-snug text-dim">
                 CCN routed your {formatMinor(order.amount_minor, order.currency)} instruction to{' '}
-                {opp.partner}, who executes, custodies and settles it (T+2). CCN never holds your
-                money. Projections are estimates, not guarantees.
+                {opp.partner}, who executes, custodies and settles it. They confirm the settlement
+                date when they accept it, and you can follow it on your Orders screen. CCN never
+                holds your money. Projections are estimates, not guarantees.
               </p>
               <div className="mx-auto max-w-[320px] rounded-xl bg-[#f4f0e7] dark:bg-white/[0.04] px-4 py-3.5 text-left">
                 <div className="flex justify-between py-1 text-[13.5px]">
@@ -594,9 +603,21 @@ function ExecDialog({
                 )}
               </div>
             ) : (
-              <Button size="lg" className="flex-1" onClick={onClose}>
-                Done
-              </Button>
+              <>
+                {/*
+                  The receipt used to end at "Done", which closed the dialog and
+                  left the person exactly where they started, holding a reference
+                  number for something they had no route to. Their order now has
+                  a life of its own — routed, accepted, settled — and the screen
+                  that tells them so is one tap away.
+                */}
+                <Button variant="outline" size="lg" onClick={onClose}>
+                  Done
+                </Button>
+                <Button size="lg" className="flex-1" asChild>
+                  <Link href="/orders">Follow this order</Link>
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -636,7 +657,16 @@ export default function OpportunitiesPage() {
 
   const opps = opportunities.map(toOpp);
   const TRADEABLE = opps.filter((o) => !o.blocked);
-  const BLOCKED = opps.find((o) => o.blocked) ?? null;
+  /**
+   * Every screened-out instrument, not the first one.
+   *
+   * This was `.find()`, and `TRADEABLE` excludes all blocked instruments — so a
+   * catalogue with two flagged deals rendered exactly one of them and the other
+   * appeared nowhere at all: not in the grid, not in this section, not in any
+   * filter count. The one place the product explains what it refuses and why was
+   * silently dropping refusals.
+   */
+  const BLOCKED = opps.filter((o) => o.blocked);
   const shown = filter === 'All' ? TRADEABLE : TRADEABLE.filter((o) => o.type === filter);
   const count = (f: Kind | 'All') =>
     f === 'All' ? TRADEABLE.length : TRADEABLE.filter((o) => o.type === f).length;
@@ -725,7 +755,7 @@ export default function OpportunitiesPage() {
 
           {/* What your agent screens out — the guardrail the product is built around.
               Hidden entirely when nothing in the live catalog is currently flagged. */}
-          {BLOCKED && (
+          {BLOCKED.length > 0 && (
             <>
               <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
                 What your agent screens out
@@ -733,33 +763,38 @@ export default function OpportunitiesPage() {
               <p className="mb-3.5 text-sm text-dim">
                 Listed so you can see exactly what fails your suitability profile, and why.
               </p>
-              <Card
-                className="flex flex-wrap items-start gap-4 border-[#ecd2c2] dark:border-[#5a3f2e] p-[22px]"
-                style={{ borderLeft: '4px solid #c56a3e' }}
-              >
-                <span className="grid h-10 w-10 flex-none place-items-center rounded-[10px] bg-[#f2e7de] font-mono text-xs font-bold text-[#7d4f36]">
-                  {BLOCKED.abbr}
-                </span>
-                <div className="min-w-[240px] flex-1">
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <span className="text-[12.5px] font-bold uppercase tracking-[.6px] text-[#7d4f36]">
-                      {BLOCKED.type}
+              <div className="flex flex-col gap-3">
+                {BLOCKED.map((b) => (
+                  <Card
+                    key={b.id}
+                    className="flex flex-wrap items-start gap-4 border-[#ecd2c2] dark:border-[#5a3f2e] p-[22px]"
+                    style={{ borderLeft: '4px solid #c56a3e' }}
+                  >
+                    <span className="grid h-10 w-10 flex-none place-items-center rounded-[10px] bg-[#f2e7de] font-mono text-xs font-bold text-[#7d4f36]">
+                      {b.abbr}
                     </span>
-                    <Badge variant="terra">Screened out</Badge>
-                  </div>
-                  <div className="mb-1 text-[13px] text-faint">{BLOCKED.region}</div>
-                  <div className="mb-2 font-display text-lg font-bold leading-tight">
-                    {BLOCKED.name}
-                  </div>
-                  <p className="text-sm leading-snug text-dim">{BLOCKED.agentNote}</p>
-                </div>
-                <Button
-                  className="flex-none bg-terra text-white hover:bg-terra/90"
-                  onClick={() => setSelected(BLOCKED)}
-                >
-                  Why the agent flags this
-                </Button>
-              </Card>
+                    <div className="min-w-[240px] flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <span className="text-[12.5px] font-bold uppercase tracking-[.6px] text-[#7d4f36]">
+                          {b.type}
+                        </span>
+                        <Badge variant="terra">Screened out</Badge>
+                      </div>
+                      <div className="mb-1 text-[13px] text-faint">{b.region}</div>
+                      <div className="mb-2 font-display text-lg font-bold leading-tight">
+                        {b.name}
+                      </div>
+                      <p className="text-sm leading-snug text-dim">{b.agentNote}</p>
+                    </div>
+                    <Button
+                      className="flex-none bg-terra text-white hover:bg-terra/90"
+                      onClick={() => setSelected(b)}
+                    >
+                      Why the agent flags this
+                    </Button>
+                  </Card>
+                ))}
+              </div>
             </>
           )}
 

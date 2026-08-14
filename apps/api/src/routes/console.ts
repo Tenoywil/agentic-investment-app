@@ -2,15 +2,14 @@ import type { Transaction } from '@ccn/db';
 import {
   auditLog,
   instruments,
-  kycFunnelStages,
   orders as ordersTable,
-  partnerKpis,
   partners,
   productListings,
   reconciliationItems,
 } from '@ccn/db';
 import { rejectSchema } from '@ccn/domain';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { formatMoney, money } from '@ccn/money';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import type { AppDeps, AppEnv, TenantContext } from '../context';
 import { withTenant } from '../context';
@@ -515,34 +514,130 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     return c.json({ status });
   });
 
+  /**
+   * The firm's numbers, computed from its own rows.
+   *
+   * This read `partner_kpis`, a table with no writer anywhere in the product —
+   * the seed leaves it empty on purpose (packages/db/src/seed.ts) after the
+   * invented "Referred AUM US$48.2M" and "1,284 funded clients" were removed
+   * from the prototype. Leaving them out was the right call. Leaving a reader
+   * pointed at an empty table was not: the tiles never appeared, the tour step
+   * that describes them narrated a grid that could not exist, and an operator
+   * had no way to see the business CCN was sending them.
+   *
+   * So they are derived instead, from the four things this partner genuinely
+   * owns: who asked to become their client, who they accepted, what those
+   * clients hold with them, and what CCN has routed. Nothing here is a figure
+   * the database cannot answer for.
+   */
   app.get('/kpis', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
-        .select()
-        .from(partnerKpis)
-        .where(eq(partnerKpis.partnerId, scope.partnerId))
-        .orderBy(asc(partnerKpis.sortOrder)),
+
+    const [row] = await withTenant(
+      deps,
+      tenant,
+      async (tx) =>
+        // A single statement rather than four round trips, and every count scoped
+        // to this partner — RLS would enforce it anyway, and saying so in the
+        // query keeps the intent legible next to the numbers.
+        (await tx.execute(sql`
+        select
+          (select count(*) from connected_accounts
+             where partner_id = ${scope.partnerId} and status = 'active')      as active_clients,
+          (select count(*) from connected_accounts
+             where partner_id = ${scope.partnerId} and status = 'pending')     as pending_clients,
+          (select coalesce(sum(h.value_minor), 0) from holdings h
+             join connected_accounts ca on ca.id = h.connected_account_id
+             where ca.partner_id = ${scope.partnerId} and ca.status = 'active') as aum_minor,
+          (select count(*) from orders
+             where partner_id = ${scope.partnerId} and status = 'settled')     as settled_orders
+      `)) as unknown as [Record<string, string>],
     );
-    return c.json({ kpis: rows });
+
+    const aumMinor = BigInt(row?.aum_minor ?? '0');
+    const kpis = [
+      {
+        id: 'active-clients',
+        label: 'Clients you accepted',
+        value: String(row?.active_clients ?? 0),
+        sub: `${row?.pending_clients ?? 0} awaiting your review`,
+        sortOrder: 0,
+      },
+      {
+        id: 'aum',
+        label: 'Held by CCN-referred clients',
+        value: formatMoney(money(aumMinor, 'USD')),
+        sub: 'Across the accounts you have accepted',
+        sortOrder: 1,
+      },
+      {
+        id: 'settled',
+        label: 'Orders settled',
+        value: String(row?.settled_orders ?? 0),
+        sub: 'Routed by CCN, executed by you',
+        sortOrder: 2,
+      },
+    ];
+    return c.json({ kpis });
   });
 
+  /**
+   * Where a referred client stops.
+   *
+   * Same story as the KPIs: this read `kyc_funnel_stages`, which nothing writes,
+   * so "No referrals yet" was permanent regardless of how many people had asked
+   * to connect. The real funnel is short and every stage is a column this
+   * database already holds — a request, a completed self-declaration, the firm's
+   * own decision, and whether anything was ever funded into the account.
+   */
   app.get('/funnel', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
-        .select()
-        .from(kycFunnelStages)
-        .where(eq(kycFunnelStages.partnerId, scope.partnerId))
-        .orderBy(asc(kycFunnelStages.sortOrder)),
+
+    const [row] = await withTenant(
+      deps,
+      tenant,
+      async (tx) =>
+        (await tx.execute(sql`
+        select
+          count(*)                                                          as requested,
+          count(*) filter (where k.funds_confirmed)                         as declared,
+          count(*) filter (where ca.status = 'active')                      as accepted,
+          count(*) filter (where ca.status = 'active' and h.held > 0)       as funded
+        from connected_accounts ca
+        left join kyc_status k on k.user_id = ca.user_id
+        left join lateral (
+          select count(*) as held from holdings
+           where connected_account_id = ca.id
+        ) h on true
+        where ca.partner_id = ${scope.partnerId}
+      `)) as unknown as [Record<string, string>],
     );
-    return c.json({ stages: rows });
+
+    const requested = Number(row?.requested ?? 0);
+    const stage = (id: string, label: string, count: number, sortOrder: number) => ({
+      id,
+      label,
+      count,
+      // Of the top of the funnel, not of the previous stage: an operator reading
+      // "31%" wants to know what share of everyone who asked got there.
+      pct: requested === 0 ? 0 : Math.round((count / requested) * 100),
+      sortOrder,
+    });
+
+    return c.json({
+      stages: [
+        stage('requested', 'Asked to connect', requested, 0),
+        stage('declared', 'Completed declarations', Number(row?.declared ?? 0), 1),
+        stage('accepted', 'Accepted by you', Number(row?.accepted ?? 0), 2),
+        stage('funded', 'Holding assets', Number(row?.funded ?? 0), 3),
+      ],
+    });
   });
 
   return app;

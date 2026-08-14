@@ -16,6 +16,8 @@ import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
 import { auditAppend } from '../db-fns';
+import { createOutboundGuard } from '../security';
+import { refreshFxRates } from '../services/fx';
 
 /**
  * Administration: one read across the whole network.
@@ -798,6 +800,48 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
       planningProducts: Number(counts?.planning_products ?? 0),
       fxRates: Number(counts?.fx_rates ?? 0),
     });
+  });
+
+  /**
+   * Pull today's rates from the central banks that publish them.
+   *
+   * The currency switcher used to convert at three bigints compiled into
+   * @ccn/money from the prototype, because every `convert()` call omitted the
+   * optional table and the seeded `fx_rates` rows were read by nothing. CCN
+   * routes orders and holds no money, so the rate it shows should be the
+   * publisher's, with the publisher's date on it.
+   *
+   * A source that cannot be reached is reported, not papered over: the stored
+   * rate stays exactly as it was and the portfolio screen shows it as stale.
+   * Substituting a plausible number is the failure this replaced.
+   *
+   * Also runs on a schedule; this is the button for when someone needs it now.
+   */
+  app.post('/fx/refresh', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+
+    const result = await refreshFxRates(deps, createOutboundGuard(deps.config).fetch);
+
+    await withTenant(deps, tenant, (tx) =>
+      auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: null,
+        action: 'fx_rates.refreshed',
+        entityType: 'fx_rates',
+        entityId: null,
+        detail: { updated: result.updated, failed: result.failed.map((f) => f.source) },
+      }),
+    );
+
+    deps.logger.info('administrator refreshed fx rates', {
+      actor: tenant.user.id,
+      updated: result.updated,
+      failed: result.failed.length,
+    });
+    return c.json(result);
   });
 
   /** One person's audit trail, newest first — what they did and what was done to them. */

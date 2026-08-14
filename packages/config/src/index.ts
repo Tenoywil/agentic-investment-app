@@ -86,6 +86,15 @@ const serverSchema = z.object({
   GATEWAY_MODEL_GENERAL: z.string().default(''),
   GATEWAY_MODEL_LOW: z.string().default(''),
 
+  // FX. Rates come from the central banks that publish them daily — CCN routes
+  // orders and holds no money, so it has no rate of its own to quote. These are
+  // overridable because a published page moves and a wrong URL must be
+  // correctable with an environment variable rather than a deploy; empty means
+  // "use the default in @ccn/fx-rates/sources". A source that cannot be reached
+  // leaves the stored rate in place and the screen reports it as stale.
+  FX_BOJ_URL: z.string().default(''),
+  FX_CBTT_URL: z.string().default(''),
+
   // Crypto
   FIELD_ENCRYPTION_KEY: z.string().min(1),
 

@@ -204,3 +204,19 @@ export async function setAdminInvestorRoles(
   }
   return body;
 }
+
+/**
+ * Pull today's USD rates from the central banks that publish them.
+ *
+ * Conversion used to run on constants compiled into @ccn/money; it reads
+ * `fx_rates` now, so something has to fill that table. A scheduled job does, and
+ * this is the manual trigger. A publisher that cannot be reached comes back in
+ * `failed` and leaves its stored rate untouched — the portfolio screen then
+ * reports that rate as stale, which is true, rather than substituting a guess.
+ */
+export const refreshAdminFxRates = () =>
+  send<{ updated: string[]; failed: { source: string; error: string }[] }>(
+    '/fx/refresh',
+    'POST',
+    {},
+  );

@@ -94,6 +94,10 @@ export function createApp(deps: AppDeps) {
   app.use('/api/opportunities/*', requireCustomer(deps));
   app.use('/api/planning/*', requireCustomer(deps));
   app.use('/api/onboarding/*', requireCustomer(deps));
+  // Ingestion pulls statements for the CALLING user from their own partner, so
+  // it belongs to the customer surface. It was the one /api group with no
+  // surface guard at all — an operator or an administrator could reach it.
+  app.use('/api/ingestion/*', requireCustomer(deps));
   app.use('/api/limits/*', requireCustomer(deps));
   // The gateway is the investor-facing private-deal product, so it belongs to
   // the customer surface. Its analyst/compliance review endpoints still work:

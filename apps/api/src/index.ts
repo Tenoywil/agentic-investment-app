@@ -8,6 +8,7 @@ import { createOutboundGuard } from './security';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
 import { type Registration, WsHub } from './ws/hub';
+import { handleSse } from './ws/sse';
 
 /**
  * Composition root: validate config (fail-fast), open the DB pool, wire Better
@@ -188,6 +189,14 @@ const server = Bun.serve<WsData>({
     const url = new URL(req.url);
 
     // WebSocket upgrade — validate the session, pin the tenant onto the socket.
+    //
+    // Not reachable from the browser, and deliberately so. Every API call must be
+    // same-origin or the Better Auth cookie is third-party and never sent (see
+    // apps/web/lib/config.ts), which means going through the web app's
+    // `/api/:path*` rewrite — and an HTTP rewrite does not carry an `Upgrade`
+    // handshake. This endpoint is for a client that can hold its own credential:
+    // a native app, or an operator tool. Browsers use /api/sse below, which is
+    // ordinary HTTP streaming and proxies fine.
     if (url.pathname === '/ws') {
       const tenant = await resolveTenant(deps, req.headers);
       if (!tenant) return new Response('unauthorized', { status: 401 });
@@ -197,29 +206,10 @@ const server = Bun.serve<WsData>({
         : new Response('upgrade failed', { status: 500 });
     }
 
-    // SSE fallback — same events, for networks that block WebSockets.
-    if (url.pathname === '/sse') {
-      const tenant = await resolveTenant(deps, req.headers);
-      if (!tenant) return new Response('unauthorized', { status: 401 });
-      const sub = { userId: tenant.user.id, partnerId: tenant.partnerId };
-      let entry: Registration | null = null;
-      const stream = new ReadableStream({
-        start(controller) {
-          const enc = new TextEncoder();
-          entry = hub.add({ send: (d) => controller.enqueue(enc.encode(`data: ${d}\n\n`)) }, sub);
-        },
-        cancel() {
-          if (entry) hub.remove(entry);
-        },
-      });
-      return new Response(stream, {
-        headers: {
-          'content-type': 'text/event-stream',
-          'cache-control': 'no-cache',
-          connection: 'keep-alive',
-        },
-      });
-    }
+    // The browser's realtime transport. Under /api/ so the web app's rewrite
+    // forwards it and the session cookie stays first-party. The handler lives in
+    // ./ws/sse.ts so it can be tested; this is only the route.
+    if (url.pathname === '/api/sse') return handleSse(deps, hub, req);
 
     return app.fetch(req, srv);
   },

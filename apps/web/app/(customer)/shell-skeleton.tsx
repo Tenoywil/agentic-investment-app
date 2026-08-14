@@ -78,6 +78,13 @@ const ROUTES: { prefix: string; key: Key; title: string; shape: Shape; eyebrow: 
     eyebrow: 'Cover, retirement, property and legacy planning across borders',
   },
   {
+    prefix: '/orders',
+    key: 'orders',
+    title: 'Your orders',
+    shape: 'list',
+    eyebrow: 'Executed and settled by the institution that holds them',
+  },
+  {
     prefix: '/onboarding',
     key: 'onboarding',
     title: 'Onboarding',
@@ -102,6 +109,13 @@ const ROUTES: { prefix: string; key: Key; title: string; shape: Shape; eyebrow: 
     prefix: '/gateway/introductions',
     key: 'gatewayIntroductions',
     title: 'Introductions',
+    shape: 'list',
+    eyebrow: 'Caribbean Capital Gateway · private-deal matching',
+  },
+  {
+    prefix: '/gateway/review',
+    key: 'gatewayReview',
+    title: 'Review queue',
     shape: 'list',
     eyebrow: 'Caribbean Capital Gateway · private-deal matching',
   },

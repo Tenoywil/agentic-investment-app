@@ -16,6 +16,7 @@
     "@ccn/config": "workspace:*",
     "@ccn/db": "workspace:*",
     "@ccn/domain": "workspace:*",
+    "@ccn/fx-rates": "workspace:*",
     "@ccn/gateway-guardrail": "workspace:*",
     "@ccn/limits-engine": "workspace:*",
     "@ccn/money": "workspace:*",

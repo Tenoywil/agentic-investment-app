@@ -3,7 +3,8 @@
 import { useMe } from '@/app/_lib/session';
 import { cn } from '@/app/_lib/utils';
 import { authClient } from '@/lib/auth-client';
-import { ChevronsUpDown, HelpCircle, LogOut, Moon, Sun } from 'lucide-react';
+import { ChevronsUpDown, HelpCircle, LogOut, Moon, ShieldCheck, Sun } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 import { useTourAvailable } from './tour/tour';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -184,6 +185,24 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
                 <HelpCircle className="h-[17px] w-[17px] text-dim" aria-hidden />
                 Replay tour
               </button>
+            ) : null}
+
+            {/*
+              The only route into /admin.
+
+              The administration surface has never been linked from anywhere.
+              The single occurrence of the string in the whole app was a fallback
+              destination inside an error screen, so an administrator's way in
+              was to know the URL and type it. It is shown only to accounts that
+              hold the role, which comes from ADMIN_EMAILS and cannot be granted
+              in-product, so this reveals nothing to anyone who could not already
+              open it.
+            */}
+            {(me?.roles ?? []).includes('admin') ? (
+              <Link href="/admin" role="menuitem" className={ITEM} onClick={() => setOpen(false)}>
+                <ShieldCheck className="h-[17px] w-[17px] text-dim" aria-hidden />
+                Administration
+              </Link>
             ) : null}
 
             <button
