@@ -153,19 +153,21 @@ export default function LandingPage() {
             regional opportunities, screens them for suitability, clears compliance, and executes on
             your approval.
           </p>
+          {/* Sign-up is the primary everywhere on this page: the hero used to
+              fill the demo button and outline Google, and the footer pair did
+              the opposite — the same two actions, opposite emphasis. */}
           <div className="mt-7 flex flex-wrap gap-3">
             <Button
-              variant="outline"
               size="lg"
               onClick={google}
               disabled={pending}
               aria-busy={pending}
-              className="gap-[11px] text-base shadow-[0_1px_2px_rgba(30,20,10,0.05)]"
+              className="gap-[11px] text-base"
             >
               <GoogleG />
               {pending ? 'Connecting to Google…' : 'Continue with Google'}
             </Button>
-            <Button size="lg" onClick={demo} className="text-base">
+            <Button variant="outline" size="lg" onClick={demo} className="text-base">
               See a live demo →
             </Button>
           </div>

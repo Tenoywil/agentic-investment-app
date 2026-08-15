@@ -181,7 +181,7 @@ export default function AgentPage() {
       <div className="g-agent">
         {/* Chat */}
         <Card className="flex flex-col overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-border px-5 py-[18px]">
+          <div className="flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px]">
             <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
               <Sparkles className="h-5 w-5" aria-hidden />
             </span>
@@ -334,7 +334,7 @@ export default function AgentPage() {
                 key={r.label}
                 className={cn(
                   'flex items-center gap-3 py-3',
-                  i === 0 ? '' : 'border-t border-border',
+                  i === 0 ? '' : 'border-t border-solid border-x-0 border-b-0 border-border',
                 )}
               >
                 <div className="min-w-0 flex-1">
