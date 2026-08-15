@@ -185,6 +185,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'reconciliation.rejected': 'Statement line rejected',
   'reconciliation.pulled': 'Statements pulled for reconciliation',
   'funds.settled': 'Settled funds confirmed',
+  'onboarding.document_uploaded': 'KYC document uploaded',
   'funding.declared': 'Client declared funds sent',
   'withdrawal.requested': 'Client requested a withdrawal',
   'withdrawal.paid': 'Withdrawal paid',

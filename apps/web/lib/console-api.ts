@@ -393,15 +393,33 @@ export interface ConsoleClientHolding {
  * behind them, the orders this firm has taken for the person, and their own
  * thread of the firm's audit log.
  */
+/** One KYC document in the package this person consented to share. */
+export interface ConsoleClientDocument {
+  id: string;
+  step: 'identity' | 'compliance' | 'risk' | 'funds';
+  label: string;
+  mime: string | null;
+  createdAt: string;
+}
+
 export interface ConsoleClientDetail {
   client: ConsoleClient;
   holdings: ConsoleClientHolding[];
   orders: ConsoleOrder[];
   audit: ConsoleAuditEntry[];
+  /** What stands behind the declarations. Empty = they uploaded nothing yet,
+   *  and the review screen says so rather than hiding the section. */
+  documents: ConsoleClientDocument[];
 }
 
 export function getClient(accountId: string): Promise<ConsoleClientDetail> {
   return consoleFetch(`/clients/${accountId}`);
+}
+
+/** Download target for one document — a plain link; the session cookie rides
+ *  on navigation. Serves with Content-Disposition: attachment. */
+export function clientDocumentUrl(accountId: string, docId: string): string {
+  return `${API_URL}/api/console/clients/${accountId}/documents/${docId}`;
 }
 
 /**

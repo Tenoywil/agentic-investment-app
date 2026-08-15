@@ -3,6 +3,7 @@ import {
   auditLog,
   connectedAccounts,
   instruments,
+  kycDocuments,
   orders as ordersTable,
   partners,
   reconciliationItems,
@@ -515,13 +516,61 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         .where(and(eq(auditLog.partnerId, scope.partnerId), eq(auditLog.userId, client.user_id)))
         .orderBy(desc(auditLog.seq))
         .limit(50);
-      return { client, holdings, orders: clientOrders, audit: history };
+      // The documents behind the declarations (0027). Metadata only here — the
+      // bytes come one at a time from /clients/:id/documents/:docId. The
+      // partner-read policy admits them because this person is the firm's
+      // pending/active client, which is exactly when a desk reviews KYC.
+      const documents = await tx
+        .select({
+          id: kycDocuments.id,
+          step: kycDocuments.step,
+          label: kycDocuments.label,
+          mime: kycDocuments.mime,
+          createdAt: kycDocuments.createdAt,
+        })
+        .from(kycDocuments)
+        .where(eq(kycDocuments.userId, client.user_id))
+        .orderBy(desc(kycDocuments.createdAt));
+      return { client, holdings, orders: clientOrders, audit: history, documents };
     });
 
     // Not found and not-yours are the same answer, so an account id cannot be
     // probed by watching which one comes back.
     if (!detail) return c.json({ error: 'client not found' }, 404);
     return c.json(detail);
+  });
+
+  /**
+   * One KYC document's bytes, for the reviewing desk. The account id scopes it:
+   * the document must belong to the person behind that account, and the
+   * account must be this firm's — both resolved through partner_clients, which
+   * only returns the caller's own book. RLS backs the same claim underneath.
+   */
+  app.get('/clients/:id/documents/:docId', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const accountId = c.req.param('id');
+
+    const doc = await withTenant(deps, tenant, async (tx) => {
+      const client = (await partnerClients(tx)).find((row) => row.account_id === accountId);
+      if (!client) return null;
+      const [row] = await tx
+        .select({ mime: kycDocuments.mime, bytes: kycDocuments.bytes, label: kycDocuments.label })
+        .from(kycDocuments)
+        .where(
+          and(eq(kycDocuments.id, c.req.param('docId')), eq(kycDocuments.userId, client.user_id)),
+        );
+      return row ?? null;
+    });
+    if (!doc?.bytes) return c.json({ error: 'document not found' }, 404);
+    return new Response(new Uint8Array(doc.bytes), {
+      headers: {
+        'Content-Type': doc.mime ?? 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${doc.label.replace(/[^\w. -]/g, '_')}"`,
+      },
+    });
   });
 
   /**

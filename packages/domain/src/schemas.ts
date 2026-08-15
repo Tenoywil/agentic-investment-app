@@ -368,3 +368,20 @@ export const onboardingFundsSchema = z.object({
   sources: z.array(z.enum(['investment', 'salary', 'business', 'other'])).min(1),
 });
 export type OnboardingFundsInput = z.infer<typeof onboardingFundsSchema>;
+
+/**
+ * POST /api/onboarding/documents — a KYC document, file included.
+ *
+ * `data` is base64 of at most 2MB (the table's CHECK enforces the decoded
+ * size; the length ceiling here refuses obvious oversends before decoding).
+ * The mime allowlist is the set a compliance desk can actually open, and what
+ * the two byte-serving routes will echo as Content-Type — nothing executable
+ * ever comes back with a renderable type.
+ */
+export const kycDocumentSchema = z.object({
+  step: z.enum(['identity', 'compliance', 'risk', 'funds']),
+  label: z.string().min(1).max(140),
+  mime: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+  data: z.string().min(1).max(2_900_000),
+});
+export type KycDocumentInput = z.infer<typeof kycDocumentSchema>;

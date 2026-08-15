@@ -1,4 +1,13 @@
-import { boolean, integer, jsonb, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  customType,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { user } from './auth';
 import {
   appRole,
@@ -84,7 +93,15 @@ export const kycStatus = pgTable('kyc_status', {
   updatedAt: updatedAt(),
 });
 
-/** Metadata for a KYC/source-of-funds document; the file itself is in Storage. */
+/**
+ * A KYC / source-of-funds document, file included (0027).
+ *
+ * `storage_path` is the fossil of a Storage-bucket design that was never
+ * built; rows written since 0027 carry the bytes themselves (≤2MB, enforced by
+ * a CHECK), so the file inherits this table's RLS — owner, CCN admin, and the
+ * firm the owner is a pending/active client of — instead of a bucket ACL that
+ * could disagree with it. `step` doubles as the document kind.
+ */
 export const kycDocuments = pgTable('kyc_documents', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id')
@@ -92,6 +109,8 @@ export const kycDocuments = pgTable('kyc_documents', {
     .references(() => user.id, { onDelete: 'cascade' }),
   step: kycStep('step').notNull(),
   label: text('label').notNull(),
-  storagePath: text('storage_path').notNull(), // private bucket key; short-TTL signed URLs only
+  storagePath: text('storage_path'), // legacy; null on rows that carry bytes
+  mime: text('mime'),
+  bytes: customType<{ data: Uint8Array }>({ dataType: () => 'bytea' })('bytes'),
   createdAt: createdAt(),
 });
