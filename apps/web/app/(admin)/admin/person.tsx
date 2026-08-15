@@ -1,7 +1,14 @@
 'use client';
 
+import {
+  AUDIT_ACTOR_LABEL,
+  auditActionLabel,
+  fmtMinor,
+  timeAgo,
+} from '@/app/_components/console/lib';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
+import { useMe } from '@/app/_lib/session';
 import { useSheetDismiss } from '@/app/_lib/sheet';
 import {
   type AdminAuditEntry,
@@ -11,45 +18,62 @@ import {
   getAdminInvestorActivity,
   setAdminInvestorRoles,
 } from '@/lib/admin-api';
+import type { ConsoleActorType, ConsoleCurrency } from '@/lib/console-api';
 import { CircleAlert, X } from 'lucide-react';
 import * as React from 'react';
 
 /**
- * One person, in full: what they hold, where they are in onboarding, every
- * audited thing that has happened to them, and the one control that changes
- * anything on this surface — their roles.
+ * One person, in full: who they are on the network right now, what they hold,
+ * where they are in onboarding, everything audited against them, and the one
+ * control that changes anything on this surface — their roles.
  *
- * Presented in a dialog rather than inline above the table. Inline, opening a
- * person pushed the list down by the height of the whole panel, so the row you
- * clicked left the screen and the tabs and heading scrolled away with it — you
- * lost your place in the list every time you looked at somebody. A modal keeps
- * the list exactly where it was underneath, and closing it puts you back on the
- * row you came from.
+ * Current roles are ALWAYS stated, first, as badges — administrators included.
+ * The previous version replaced an administrator's whole roles section with a
+ * paragraph about ADMIN_EMAILS, so opening the one account most admins look at
+ * first (their own) showed no roles at all: the panel about roles was the one
+ * place you could not read them.
  *
- * <dialog>.showModal() rather than a div with role="dialog": the top layer, the
- * backdrop, Escape and focus containment are the browser's then, not four
- * things for this file to get wrong. On a phone the same element becomes a
- * bottom sheet with a swipe to dismiss (see .app-modal in globals.css), because
- * a centred desktop modal on a 390px screen is how this panel would end up
- * unreadable at the size it matters most.
+ * Editing follows what the server actually enforces, no tighter:
+ *  - your own roles cannot be changed (the server refuses; the panel says so
+ *    instead of offering a Save that fails)
+ *  - the `admin` grant itself is never offered — ADMIN_EMAILS alone grants it,
+ *    and the API filters it out of every edit in both directions — but an
+ *    administrator's OTHER roles are editable like anyone else's, because the
+ *    server explicitly preserves the admin row through such an edit.
  *
- * Roles are edited as a whole set rather than added and removed one at a time.
- * They decide which product someone sees, so "make this person an operator for
- * JMMB" is a single intention, and stepping through it as two edits would leave
- * a window where they hold both surfaces or neither.
+ * Presented in a dialog rather than inline above the table, so opening a
+ * person does not scroll the list you were working through off the screen.
+ * <dialog>.showModal() supplies the top layer, backdrop, Escape and focus
+ * containment; on a phone it becomes a bottom sheet (.app-modal).
  *
- * `admin` is not offered. It is granted by the ADMIN_EMAILS environment
- * variable alone, and the API and the database both refuse it here — so a
- * compromised administrator cannot promote a second one, or quietly remove a
- * colleague. Showing a checkbox that the server would reject would be worse
- * than showing none, so the reason is stated instead.
+ * Roles are edited as a whole set rather than added and removed one at a time:
+ * "make this person an operator for JMMB" is a single intention, and two edits
+ * would leave a window where they hold both surfaces or neither.
  */
 
-const ASSIGNABLE = ['customer', 'partner_operator', 'compliance', 'analyst'] as const;
+/** What each role opens, in words a person granting it can act on. */
+const ASSIGNABLE: { role: string; label: string; note: string }[] = [
+  { role: 'customer', label: 'Customer', note: 'The investor app — portfolio, marketplace, agent' },
+  {
+    role: 'partner_operator',
+    label: 'Partner operator',
+    note: "A firm's console — orders, clients, listings. Must be bound to the firm",
+  },
+  { role: 'compliance', label: 'Compliance', note: 'Oversight surfaces, read-only' },
+  { role: 'analyst', label: 'Analyst', note: 'The private-markets review queue' },
+];
+
 const LABEL = 'text-[12px] font-bold uppercase tracking-[.6px] text-dim';
 
-function money(minor: string, currency: string): string {
-  return `${currency} ${(Number(minor) / 100).toLocaleString()}`;
+/** "partner operator · SAG" — the binding is the fact, not the role alone. */
+function roleBadgeText(
+  r: { role: string; partnerId: string | null },
+  partners: AdminPartner[],
+): string {
+  const base = r.role.replace(/_/g, ' ');
+  if (r.role !== 'partner_operator' || !r.partnerId) return base;
+  const code = partners.find((p) => p.id === r.partnerId)?.code;
+  return code ? `${base} · ${code}` : base;
 }
 
 export function PersonPanel({
@@ -64,6 +88,7 @@ export function PersonPanel({
   /** Lets the list behind this refresh the roles column after a change. */
   onChanged: () => void;
 }) {
+  const me = useMe();
   const [detail, setDetail] = React.useState<AdminInvestorDetail | null>(null);
   const [activity, setActivity] = React.useState<AdminAuditEntry[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -130,17 +155,10 @@ export function PersonPanel({
     if (!el) return;
     if (!el.open) el.showModal();
 
-    /**
-     * Dismiss on a backdrop click.
-     *
-     * A click on the backdrop lands on the dialog element itself; a click on
-     * anything inside lands on a descendant, and that distinction is the whole
-     * behaviour. Bound here rather than as an onClick prop because a click
-     * handler on a JSX element is required to carry a keyboard handler beside
-     * it — a rule that exists to catch interactive divs, and one there is no
-     * honest way to satisfy for a backdrop, which has no keyboard equivalent
-     * and needs none: Escape already closes a modal dialog natively.
-     */
+    // Dismiss on a backdrop click: a click on the backdrop lands on the dialog
+    // element itself, a click inside lands on a descendant. Bound here rather
+    // than as an onClick prop because a backdrop has no keyboard equivalent —
+    // Escape already closes a modal dialog natively.
     const onBackdrop = (e: MouseEvent) => {
       if (e.target === el) el.close();
     };
@@ -161,6 +179,7 @@ export function PersonPanel({
   }, [onClose]);
 
   const isAdmin = detail?.roles.some((r) => r.role === 'admin') ?? false;
+  const isSelf = me !== null && me.user.id === id;
 
   function toggle(role: string) {
     setSaved(false);
@@ -173,6 +192,7 @@ export function PersonPanel({
     setAdminInvestorRoles(id, roles, roles.includes('partner_operator') ? partnerCode : undefined)
       .then((res) => {
         setRoles(res.roles.map((r) => r.role).filter((r) => r !== 'admin'));
+        setDetail((d) => (d ? { ...d, roles: res.roles } : d));
         setSaved(true);
         onChanged();
         return getAdminInvestorActivity(id).then((a) => setActivity(a.entries));
@@ -201,6 +221,20 @@ export function PersonPanel({
             {detail?.user.name || 'This person'}
           </h2>
           <div className="truncate text-[13.5px] text-dim">{detail?.user.email ?? ''}</div>
+          {/* What this person IS, before any control that changes it. */}
+          {detail ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {detail.roles.length === 0 ? (
+                <span className="text-[12.5px] text-faint">No roles yet — investor by default</span>
+              ) : (
+                detail.roles.map((r) => (
+                  <Badge key={r.role} variant={r.role === 'admin' ? 'default' : 'secondary'}>
+                    {roleBadgeText(r, partners)}
+                  </Badge>
+                ))
+              )}
+            </div>
+          ) : null}
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={close} aria-label="Close">
           <X className="h-4 w-4" aria-hidden />
@@ -220,25 +254,35 @@ export function PersonPanel({
         {detail ? (
           <div className="g2">
             <div>
-              <div className={LABEL}>Roles</div>
-              {isAdmin ? (
+              <div className={LABEL}>Change roles</div>
+              {isSelf ? (
                 <p className="mt-2 text-[13.5px] leading-relaxed text-dim">
-                  This account is an administrator. Administrator access is granted by the
-                  ADMIN_EMAILS environment variable and cannot be changed from here — so no one who
-                  reaches this screen can create another administrator, or remove one.
+                  These are your own roles, and no administrator can change their own — the server
+                  refuses it, so a compromised account cannot widen its reach. Another administrator
+                  can change them for you.
                 </p>
               ) : (
                 <>
-                  <div className="mt-2 flex flex-col gap-2">
-                    {ASSIGNABLE.map((role) => (
-                      <label key={role} className="flex items-center gap-2.5 text-[14.5px]">
+                  {isAdmin ? (
+                    <p className="mt-2 text-[13px] leading-relaxed text-faint">
+                      The administrator grant itself is set by the ADMIN_EMAILS environment variable
+                      and cannot be granted or removed here. Their other roles can be changed as
+                      usual — the admin grant survives the edit.
+                    </p>
+                  ) : null}
+                  <div className="mt-2 flex flex-col gap-2.5">
+                    {ASSIGNABLE.map(({ role, label, note }) => (
+                      <label key={role} className="flex items-start gap-2.5">
                         <input
                           type="checkbox"
                           checked={roles.includes(role)}
                           onChange={() => toggle(role)}
-                          className="h-4 w-4"
+                          className="mt-0.5 h-4 w-4"
                         />
-                        {role.replace('_', ' ')}
+                        <span className="min-w-0">
+                          <span className="block text-[14.5px] font-semibold">{label}</span>
+                          <span className="block text-[12.5px] text-faint">{note}</span>
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -258,7 +302,7 @@ export function PersonPanel({
 
                   {roles.includes('partner_operator') && partners.length > 0 ? (
                     <label className="mt-3 block text-[13.5px]">
-                      <span className={LABEL}>Partner</span>
+                      <span className={LABEL}>Their firm</span>
                       <select
                         value={partnerCode}
                         onChange={(e) => {
@@ -278,7 +322,7 @@ export function PersonPanel({
                         surface, so this would look like the grant silently
                         failed. The server refuses it; saying so here is kinder. */}
                       <span className="mt-1 block text-[12.5px] text-faint">
-                        An operator must be bound to a partner, or they see the investor app.
+                        An operator must be bound to a firm, or they see the investor app.
                       </span>
                     </label>
                   ) : null}
@@ -334,8 +378,8 @@ export function PersonPanel({
                     {detail.holdings.map((h) => (
                       <li key={h.id} className="flex justify-between gap-4">
                         <span className="min-w-0 truncate text-dim">{h.name}</span>
-                        <span className="flex-none font-semibold">
-                          {money(h.valueMinor, h.currency)}
+                        <span className="flex-none font-mono font-semibold">
+                          {fmtMinor(h.valueMinor, h.currency as ConsoleCurrency)}
                         </span>
                       </li>
                     ))}
@@ -350,15 +394,25 @@ export function PersonPanel({
                 Appended by the database and never rewritten.
               </p>
               {activity && activity.length > 0 ? (
-                <ul className="mt-2 max-h-[420px] space-y-2 overflow-y-auto pr-1 text-[13.5px]">
+                <ul className="mt-2 max-h-[420px] space-y-2.5 overflow-y-auto pr-1 text-[13.5px]">
                   {activity.map((a) => (
                     <li
                       key={a.id}
-                      className="flex flex-wrap items-baseline justify-between gap-2 border-0 border-b border-solid border-border pb-1.5"
+                      className="border-0 border-b border-solid border-border pb-2 last:border-b-0"
                     >
-                      <span className="font-semibold">{a.action}</span>
-                      <span className="text-faint">{new Date(a.createdAt).toLocaleString()}</span>
-                      <Badge variant="secondary">{a.actorType ?? '—'}</Badge>
+                      {/* English, not the raw audit key: "Console access
+                          changed", never "user_roles.changed" — this reads to
+                          the same person the console's own audit trail was
+                          de-jargoned for. */}
+                      <div className="font-semibold">{auditActionLabel(a.action)}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12.5px] text-faint">
+                        <span>
+                          {a.actorType
+                            ? (AUDIT_ACTOR_LABEL[a.actorType as ConsoleActorType] ?? a.actorType)
+                            : '—'}
+                        </span>
+                        <span>· {timeAgo(a.createdAt)}</span>
+                      </div>
                     </li>
                   ))}
                 </ul>
