@@ -161,20 +161,21 @@ export default function AgentPage() {
   return (
     <AppScreen active="agent" basePath="/demo">
       <PageHead
-        eyebrow="Discovers, screens and coordinates execution, always on your approval"
+        eyebrow="It finds and checks investments for you — nothing happens without your yes"
         title="Your Capital Agent"
       />
 
-      <div className="-mt-2.5 mb-2 flex flex-wrap items-center gap-4 text-sm text-dim">
-        {STATS.map((s) => (
+      {/* One quiet line, matching the live screen's header. */}
+      <div className="-mt-2.5 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-dim">
+        <span className="flex items-center gap-1.5 font-bold text-teal2">
+          <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
+          Live
+        </span>
+        {STATS.slice(0, 2).map((s) => (
           <span key={s.t}>
-            <b className={cn('font-mono', s.cls)}>{s.n}</b> {s.t}
+            · <b className={cn('font-mono', s.cls)}>{s.n}</b> {s.t}
           </span>
         ))}
-      </div>
-      <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
-        <span className="h-2 w-2 rounded-full bg-success" />
-        Live · monitoring the region
       </div>
 
       <div className="g-agent">

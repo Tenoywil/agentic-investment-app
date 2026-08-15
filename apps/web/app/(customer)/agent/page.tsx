@@ -53,10 +53,17 @@ import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 
 
 type ChatEntry = { role: 'agent' | 'user'; text: string };
 
+/**
+ * Plain questions, not analyst shorthand. "Rebalance ideas" assumes the reader
+ * knows what rebalancing is; the person this product serves may be meeting
+ * these words for the first time, and a chip they don't understand is a
+ * feature they never use.
+ */
 const SUGGESTIONS: { label: string }[] = [
+  { label: 'What am I invested in?' },
+  { label: 'What should I look at next?' },
+  { label: 'Find me an income deal' },
   { label: 'Summarize my week' },
-  { label: 'Rebalance ideas' },
-  { label: 'Best income deal?' },
 ];
 
 /** Render agent replies' <b>…</b> emphasis (if any) without dangerouslySetInnerHTML. */
@@ -89,9 +96,19 @@ function InlineError({ children }: { children: ReactNode }) {
   );
 }
 
+const CURRENCY_PREFIX: Record<string, string> = {
+  USD: 'US$',
+  JMD: 'J$',
+  TTD: 'TT$',
+  GYD: 'G$',
+  BBD: 'Bds$',
+  XCD: 'EC$',
+  BSD: 'B$',
+};
+
 function formatMoney(minor: string, currency: string): string {
   const n = Number(minor) / 100;
-  const prefix = currency === 'USD' ? 'US$' : `${currency} `;
+  const prefix = CURRENCY_PREFIX[currency] ?? `${currency} `;
   return `${prefix}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
@@ -219,30 +236,27 @@ function AgentStats() {
     };
   }, []);
 
-  const stats: { n: number; cls: string; t: string }[] = [];
-  if (instruments !== null) {
-    stats.push({
-      n: instruments,
-      cls: 'text-foreground',
-      t: instruments === 1 ? 'instrument monitored' : 'instruments monitored',
-    });
-  }
-  if (partners !== null) {
-    stats.push({
-      n: partners,
-      cls: 'text-teal2',
-      t: partners === 1 ? 'institution you hold with' : 'institutions you hold with',
-    });
-  }
-  if (stats.length === 0) return null;
-
+  // One quiet line: live status plus the two real counts, replacing the
+  // stacked stats row + mint status pill that together took three lines of
+  // header before the conversation began.
   return (
-    <div className="-mt-2.5 mb-2 flex flex-wrap items-center gap-4 text-sm text-dim">
-      {stats.map((s) => (
-        <span key={s.t}>
-          <b className={cn('font-mono', s.cls)}>{s.n}</b> {s.t}
+    <div className="-mt-2.5 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-dim">
+      <span className="flex items-center gap-1.5 font-bold text-teal2">
+        <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
+        Live
+      </span>
+      {instruments !== null && (
+        <span>
+          · watching <b className="font-mono text-foreground">{instruments}</b>{' '}
+          {instruments === 1 ? 'product' : 'products'} on the marketplace
         </span>
-      ))}
+      )}
+      {partners !== null && partners > 0 && (
+        <span>
+          · <b className="font-mono text-teal2">{partners}</b>{' '}
+          {partners === 1 ? 'institution' : 'institutions'} you hold with
+        </span>
+      )}
     </div>
   );
 }
@@ -619,15 +633,10 @@ export default function AgentPage() {
           removed — so the page keeps its h1 and its landmark structure. */}
       <div className="agent-preamble">
         <PageHead
-          eyebrow="Discovers, screens and coordinates execution, always on your approval"
+          eyebrow="It finds and checks investments for you — nothing happens without your yes"
           title="Your Capital Agent"
         />
-
         <AgentStats />
-        <div className="mb-[18px] inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[13.5px] font-bold text-teal2">
-          <span className="h-2 w-2 rounded-full bg-success" />
-          Live · monitoring the region
-        </div>
       </div>
 
       <div className="g-agent">
@@ -705,8 +714,10 @@ export default function AgentPage() {
             // A fixed height, not a range. Between min-h and max-h the log grew with
             // every message: the card got taller as the agent streamed, pushing the
             // composer down under the cursor and resizing the whole two-column row
-            // around it. The conversation scrolls inside a box that does not move.
-            className="agent-chat__log flex h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            // around it. The conversation scrolls inside a box that does not move —
+            // but "fixed" is per-viewport, not 440px everywhere: on a tall desktop
+            // that left half the screen empty under a cramped log.
+            className="agent-chat__log flex h-[clamp(400px,58vh,660px)] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
             {historyState === 'loading' && (
               <SkeletonRegion label="Loading your conversation" className="flex flex-col gap-3.5">
@@ -732,8 +743,8 @@ export default function AgentPage() {
                 </span>
                 <p className="text-[15px] font-bold">Say hello to your Capital Agent</p>
                 <p className="max-w-[320px] text-[13.5px] leading-relaxed text-dim">
-                  Ask about income opportunities, rebalancing, idle cash, or how approvals and
-                  custody work. It only prepares — you approve every action.
+                  Ask what you're invested in, what's worth a look, or how anything here works. It
+                  prepares the move — you say yes or no, every time.
                 </p>
               </div>
             )}
@@ -810,7 +821,7 @@ export default function AgentPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 disabled={sending}
-                placeholder="Ask your agent about income, rebalancing, or a specific deal…"
+                placeholder="Ask anything about your money…"
                 className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint disabled:opacity-60"
               />
               {dictation.supported && (
