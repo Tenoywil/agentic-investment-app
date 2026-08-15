@@ -5,7 +5,16 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleKpi, ConsoleOrder } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { ArrowRightLeft, CheckCheck, LayoutGrid } from 'lucide-react';
-import { ROW_DIVIDER, SUCCESS_TEXT, fmtMinor, isSandbox, timeAgo, uppr } from './lib';
+import {
+  ORDER_AGING_DAYS,
+  ROW_DIVIDER,
+  SUCCESS_TEXT,
+  daysSince,
+  fmtMinor,
+  isSandbox,
+  timeAgo,
+  uppr,
+} from './lib';
 import { RowsSkeleton, TilesSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
@@ -22,6 +31,7 @@ export function OverviewTab({
   orderActionError,
   pendingReviews,
   pendingReconciliation,
+  pendingWithdrawals,
   onGoTab,
   onAccept,
   onSettle,
@@ -39,6 +49,8 @@ export function OverviewTab({
   pendingReviews: number;
   /** Statement lines waiting to be matched. */
   pendingReconciliation: number;
+  /** Clients asking for money back, undecided. */
+  pendingWithdrawals: number;
   /** Jump to another tab — the overview points at work, the tabs hold it. */
   onGoTab: (tab: 'orders' | 'clients' | 'compliance') => void;
   onAccept: (id: string) => void;
@@ -185,10 +197,23 @@ export function OverviewTab({
             const pendingOrders = ordersError
               ? 0
               : orders.filter((o) => o.status === 'created').length;
+            // The oldest undecided order, because "3 to accept" reads the same
+            // whether they arrived an hour ago or a week ago — and the desk
+            // should feel the difference.
+            const oldestWait = ordersError
+              ? 0
+              : Math.max(
+                  0,
+                  ...orders
+                    .filter((o) => o.status === 'created')
+                    .map((o) => daysSince(o.createdAt)),
+                );
             const rows: { n: number; what: string; go: 'orders' | 'clients'; cta: string }[] = [
               {
                 n: pendingOrders,
-                what: pendingOrders === 1 ? 'order to accept' : 'orders to accept',
+                what: `${pendingOrders === 1 ? 'order to accept' : 'orders to accept'}${
+                  oldestWait >= ORDER_AGING_DAYS ? ` — oldest waiting ${oldestWait} days` : ''
+                }`,
                 go: 'orders' as const,
                 cta: 'Open the order flow',
               },
@@ -206,6 +231,15 @@ export function OverviewTab({
                     : 'statement lines to reconcile',
                 go: 'clients' as const,
                 cta: 'Reconcile',
+              },
+              {
+                n: pendingWithdrawals,
+                what:
+                  pendingWithdrawals === 1
+                    ? 'withdrawal awaiting your decision'
+                    : 'withdrawals awaiting your decision',
+                go: 'clients' as const,
+                cta: 'Decide',
               },
             ].filter((r) => r.n > 0);
             if (rows.length === 0) {

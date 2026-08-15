@@ -503,10 +503,13 @@ export default function AdminPage() {
                   value={overview.people.total}
                   sub={`${plural(overview.people.customers, 'investor')} · ${plural(overview.people.operators, 'operator')}`}
                 />
+                {/* The big number is the network, the sub-line is who runs it —
+                    this used to read backwards ("Partner operators: 1 · 8
+                    partners on the network"). */}
                 <Stat
-                  label="Partner operators"
-                  value={overview.people.operators}
-                  sub={`${plural(overview.partners.total, 'partner')} on the network`}
+                  label="Partners on the network"
+                  value={overview.partners.total}
+                  sub={plural(overview.people.operators, 'operator account')}
                 />
                 <Stat
                   label="Products on the marketplace"

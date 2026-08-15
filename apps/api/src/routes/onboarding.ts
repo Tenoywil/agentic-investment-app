@@ -1,11 +1,12 @@
-import { kycStatus, riskProfiles, user, userProfiles } from '@ccn/db';
+import { kycDocuments, kycStatus, riskProfiles, user, userProfiles } from '@ccn/db';
 import {
+  kycDocumentSchema,
   onboardingComplianceSchema,
   onboardingFundsSchema,
   onboardingIdentitySchema,
   onboardingRiskSchema,
 } from '@ccn/domain';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
@@ -221,6 +222,102 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
       });
     });
     return c.json({ ok: true, tier: 'tier2' });
+  });
+
+  /**
+   * A KYC document, file included.
+   *
+   * The table has existed since 0000 as metadata pointing at a Storage bucket
+   * nobody built, so the KYC package a firm reviews carried declarations with
+   * nothing behind them. The bytes live in the row now (≤2MB, CHECK-enforced),
+   * under the same RLS as everything else about the person: the owner, CCN
+   * admin, and the firm they are a pending/active client of.
+   */
+  app.post('/documents', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const parsed = kycDocumentSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success)
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(parsed.data.data), (ch) => ch.charCodeAt(0));
+    } catch {
+      return c.json({ error: 'the file data is not valid base64' }, 400);
+    }
+    if (bytes.length === 0) return c.json({ error: 'the file is empty' }, 400);
+    if (bytes.length > 2 * 1024 * 1024) {
+      return c.json({ error: 'documents are capped at 2MB — send a smaller scan' }, 413);
+    }
+
+    const id = await withTenant(deps, tenant, async (tx) => {
+      const [row] = await tx
+        .insert(kycDocuments)
+        .values({
+          userId: tenant.user.id,
+          step: parsed.data.step,
+          label: parsed.data.label,
+          mime: parsed.data.mime,
+          bytes,
+        })
+        .returning({ id: kycDocuments.id });
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: null,
+        action: 'onboarding.document_uploaded',
+        entityType: 'kyc_documents',
+        entityId: row?.id ?? null,
+        detail: { step: parsed.data.step, label: parsed.data.label, size: bytes.length },
+      });
+      return row?.id ?? null;
+    });
+    return c.json({ id }, 201);
+  });
+
+  /** The caller's own documents — metadata only, never the bytes in a list. */
+  app.get('/documents', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({
+          id: kycDocuments.id,
+          step: kycDocuments.step,
+          label: kycDocuments.label,
+          mime: kycDocuments.mime,
+          createdAt: kycDocuments.createdAt,
+        })
+        .from(kycDocuments)
+        .where(eq(kycDocuments.userId, tenant.user.id))
+        .orderBy(desc(kycDocuments.createdAt)),
+    );
+    return c.json({ documents: rows });
+  });
+
+  /** One document's bytes, for the owner. Firms read through the console. */
+  app.get('/documents/:id', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const [row] = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({ mime: kycDocuments.mime, bytes: kycDocuments.bytes, label: kycDocuments.label })
+        .from(kycDocuments)
+        .where(
+          and(eq(kycDocuments.id, c.req.param('id')), eq(kycDocuments.userId, tenant.user.id)),
+        ),
+    );
+    if (!row?.bytes) return c.json({ error: 'document not found' }, 404);
+    return new Response(new Uint8Array(row.bytes), {
+      headers: {
+        'Content-Type': row.mime ?? 'application/octet-stream',
+        // Attachment, not inline: nothing a person uploaded executes or renders
+        // in this origin's context.
+        'Content-Disposition': `attachment; filename="${row.label.replace(/[^\w. -]/g, '_')}"`,
+      },
+    });
   });
 
   return app;

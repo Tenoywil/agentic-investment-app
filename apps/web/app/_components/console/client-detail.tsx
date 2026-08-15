@@ -7,17 +7,18 @@ import {
   type ConsoleClient,
   type ConsoleClientDetail,
   type ConsoleCurrency,
+  clientDocumentUrl,
   confirmFunds,
   getClient,
 } from '@/lib/console-api';
-import { Boxes, CircleAlert, X } from 'lucide-react';
+import { Boxes, CircleAlert, FileText, X } from 'lucide-react';
 import * as React from 'react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import {
-  AUDIT_ACTOR_LABEL,
   ROW_DIVIDER,
   TERRA_GHOST_BTN,
   auditActionLabel,
+  auditActorLine,
   auditEntityLabel,
   auditReason,
   errorMessage,
@@ -54,6 +55,14 @@ const TIER_LABEL: Record<string, string> = {
 };
 
 const FUNDS_CURRENCIES: ConsoleCurrency[] = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
+
+/** What each document kind is FOR, in the reviewer's vocabulary. */
+const DOC_STEP_LABEL: Record<string, string> = {
+  identity: 'Identity',
+  compliance: 'Address & tax',
+  risk: 'Risk',
+  funds: 'Source of funds',
+};
 
 export function ClientDetailDialog({
   client,
@@ -261,6 +270,46 @@ export function ClientDetailDialog({
               )}
             </section>
 
+            {/* The documents behind the declarations. A desk deciding whether
+                to accept someone needs what they can look at, not only what
+                the person ticked — and when there is nothing, the section says
+                so instead of leaving the reviewer to wonder where to look. */}
+            <section className="mt-6">
+              <b className="font-display text-[15px]">KYC documents</b>
+              {(detail.documents ?? []).length === 0 ? (
+                <p className="mt-1.5 text-[13px] text-faint">
+                  None uploaded. Their KYC package carries declarations only — if your review needs
+                  documents, ask them to add them under Finish onboarding.
+                </p>
+              ) : (
+                <div className="mt-2">
+                  {(detail.documents ?? []).map((d) => (
+                    <div
+                      key={d.id}
+                      className={`flex items-center gap-2.5 py-2.5 ${ROW_DIVIDER} last:border-b-0`}
+                    >
+                      <FileText className="h-4 w-4 flex-none text-faint" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13.5px] font-bold">{d.label}</div>
+                        <div className="text-[12px] text-faint">
+                          {DOC_STEP_LABEL[d.step] ?? d.step} · {timeAgo(d.createdAt)}
+                        </div>
+                      </div>
+                      {/* A plain download link: the session cookie rides on the
+                          navigation, and the API serves attachment-disposition. */}
+                      <a
+                        href={clientDocumentUrl(client.account_id, d.id)}
+                        download
+                        className="text-[13px] font-bold text-teal2 underline-offset-4 hover:underline"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
             {/* Funding settles between the client and this firm, off-platform.
                 This is the firm's confirmation that it landed — the one write
                 that moves the client's cash balance here. Active clients only:
@@ -366,7 +415,8 @@ export function ClientDetailDialog({
                       <div key={a.id} className={`py-2.5 ${ROW_DIVIDER} last:border-b-0`}>
                         <div className="text-[13.5px]">{auditActionLabel(a.action)}</div>
                         <div className="text-[12px] text-faint">
-                          {AUDIT_ACTOR_LABEL[a.actorType]}
+                          {/* By name: "accepted, by whom" is one fact. */}
+                          <span className="font-semibold text-dim">{auditActorLine(a)}</span>
                           {entity ? ` · ${entity}` : ''} · {timeAgo(a.createdAt)}
                         </div>
                         {why ? <div className="text-[12px] italic text-dim">{why}</div> : null}

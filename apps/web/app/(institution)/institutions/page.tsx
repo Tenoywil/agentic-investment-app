@@ -23,8 +23,10 @@ import {
   type ConsoleOrder,
   type ConsoleProduct,
   type ConsoleReconciliationItem,
+  type ConsoleWithdrawal,
   type SettlementInput,
   acceptOrder,
+  decideWithdrawal,
   getAudit,
   getClients,
   getFunnel,
@@ -32,6 +34,7 @@ import {
   getOrders,
   getProducts,
   getReconciliation,
+  getWithdrawals,
   matchReconciliation,
   pullReconciliation,
   rejectOrder,
@@ -82,6 +85,8 @@ export default function InstitutionsPage() {
   const [funnelError, setFunnelError] = useState<string | null>(null);
   const [reconciliation, setReconciliation] = useState<ConsoleReconciliationItem[]>([]);
   const [reconciliationError, setReconciliationError] = useState<string | null>(null);
+  const [withdrawals, setWithdrawals] = useState<ConsoleWithdrawal[]>([]);
+  const [withdrawalsError, setWithdrawalsError] = useState<string | null>(null);
   const [audit, setAudit] = useState<ConsoleAuditEntry[]>([]);
   const [auditError, setAuditError] = useState<string | null>(null);
 
@@ -91,6 +96,8 @@ export default function InstitutionsPage() {
   const [productActionError, setProductActionError] = useState<string | null>(null);
   const [reconBusyId, setReconBusyId] = useState<string | null>(null);
   const [reconActionError, setReconActionError] = useState<string | null>(null);
+  const [withdrawalBusyId, setWithdrawalBusyId] = useState<string | null>(null);
+  const [withdrawalActionError, setWithdrawalActionError] = useState<string | null>(null);
   const [clientBusyId, setClientBusyId] = useState<string | null>(null);
   const [clientActionError, setClientActionError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -143,8 +150,8 @@ export default function InstitutionsPage() {
     // Each panel reports its own failure. One route being down must not blank
     // the other four — an operator with a broken funnel query can still work
     // their order queue.
-    const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR] = await Promise.allSettled(
-      [
+    const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR, withdrawalsR] =
+      await Promise.allSettled([
         getOrders({
           status: orderStatus || undefined,
           q: orderQuery || undefined,
@@ -157,8 +164,8 @@ export default function InstitutionsPage() {
         getFunnel(),
         getReconciliation(),
         getAudit(50),
-      ],
-    );
+        getWithdrawals(),
+      ]);
 
     if (ordersR.status === 'fulfilled') {
       setOrders(ordersR.value.orders);
@@ -198,6 +205,12 @@ export default function InstitutionsPage() {
       setAuditError(null);
     } else setAuditError(errorMessage(auditR.reason, 'Could not load the audit trail.'));
 
+    if (withdrawalsR.status === 'fulfilled') {
+      setWithdrawals(withdrawalsR.value.withdrawals);
+      setWithdrawalsError(null);
+    } else
+      setWithdrawalsError(errorMessage(withdrawalsR.reason, 'Could not load withdrawal requests.'));
+
     setLoading(false);
   }, [orderStatus, orderQuery, orderOffset]);
 
@@ -213,7 +226,7 @@ export default function InstitutionsPage() {
    * ever as fresh as the last page load, which is the one number an operator
    * treats as a to-do list.
    */
-  useRealtime(['order', 'connection', 'reconciliation', 'listing'], load);
+  useRealtime(['order', 'connection', 'reconciliation', 'listing', 'withdrawal'], load);
 
   /** The only way off this surface. An operator cannot switch to the investor
    *  app — the API refuses customer routes for them — so the control that
@@ -388,6 +401,44 @@ export default function InstitutionsPage() {
     }
   }
 
+  /**
+   * Decide a withdrawal. Not optimistic: paying moves CCN's record of the
+   * client's cash, and the server may refuse — an order can settle between the
+   * request and the decision, leaving the recorded cash short. The row updates
+   * when the server has actually recorded the decision.
+   */
+  async function handleDecideWithdrawal(
+    id: string,
+    input: { paid: true; reference?: string } | { paid: false; reason: string },
+  ) {
+    setWithdrawalBusyId(id);
+    setWithdrawalActionError(null);
+    try {
+      await decideWithdrawal(id, input);
+      const now = new Date().toISOString();
+      setWithdrawals((ws) =>
+        ws.map((w) =>
+          w.id === id
+            ? {
+                ...w,
+                status: input.paid ? ('paid' as const) : ('declined' as const),
+                reference: input.paid ? (input.reference ?? null) : w.reference,
+                reason: input.paid ? w.reason : input.reason,
+                decidedAt: now,
+              }
+            : w,
+        ),
+      );
+      void getAudit(50)
+        .then((r) => setAudit(r.entries))
+        .catch(() => {});
+    } catch (err) {
+      setWithdrawalActionError(errorMessage(err, 'Could not record that decision.'));
+    } finally {
+      setWithdrawalBusyId(null);
+    }
+  }
+
   async function handleReconReject(id: string, reason?: string) {
     setReconBusyId(id);
     setReconActionError(null);
@@ -458,6 +509,9 @@ export default function InstitutionsPage() {
             orderActionError={orderActionError}
             pendingReviews={clientsError ? 0 : clients.filter((c) => c.status === 'pending').length}
             pendingReconciliation={reconciliationError ? 0 : reconciliation.length}
+            pendingWithdrawals={
+              withdrawalsError ? 0 : withdrawals.filter((w) => w.status === 'pending').length
+            }
             onGoTab={(t) => setTab(t)}
             onAccept={handleAccept}
             onSettle={handleSettle}
@@ -569,6 +623,11 @@ export default function InstitutionsPage() {
             onPull={handlePullStatements}
             pulling={pulling}
             pullNote={pullNote}
+            withdrawals={withdrawals}
+            withdrawalsError={withdrawalsError}
+            withdrawalBusyId={withdrawalBusyId}
+            withdrawalActionError={withdrawalActionError}
+            onDecideWithdrawal={handleDecideWithdrawal}
           />
         </TabsContent>
 

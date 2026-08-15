@@ -18,16 +18,19 @@ import { cn } from '@/app/_lib/utils';
 import { authClient } from '@/lib/auth-client';
 import { CORRIDOR_COUNTRIES, OTHER_COUNTRIES } from '@/lib/countries';
 import {
+  type KycDocument,
   type KycStatus,
   type SourceOfFunds,
   formatRiskBand,
+  getKycDocuments,
   getOnboardingStatus,
   submitCompliance,
   submitFunds,
   submitIdentity,
   submitRisk,
+  uploadKycDocument,
 } from '@/lib/onboarding-api';
-import { ArrowRight, Check, CircleAlert, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, CircleAlert, FileText, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import type * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -690,9 +693,111 @@ function DoneStep({ band }: { band: string }) {
           </li>
         ))}
       </ul>
+      <DocumentUploads />
       <Button asChild className="mt-6">
         <Link href="/portfolio">Connect an account</Link>
       </Button>
+    </div>
+  );
+}
+
+/** What each upload slot asks for, in the reader's words. `compliance` is the
+ *  address-and-tax step, so it holds the proof-of-address document. */
+const DOC_SLOTS: { step: KycDocument['step']; label: string; hint: string }[] = [
+  { step: 'identity', label: 'Photo ID', hint: 'Passport or national ID' },
+  { step: 'compliance', label: 'Proof of address', hint: 'Utility bill or bank statement' },
+  { step: 'funds', label: 'Source of funds', hint: 'Payslip or account statement' },
+];
+
+/**
+ * Optional document uploads, offered at the moment they become useful: the
+ * next thing that happens is a firm reviewing this person, and a reviewer
+ * with documents to look at decides faster than one with declarations alone.
+ * Optional because CCN is not the KYC owner — the firm may collect its own.
+ */
+function DocumentUploads() {
+  const [docs, setDocs] = useState<KycDocument[]>([]);
+  const [busyStep, setBusyStep] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getKycDocuments()
+      .then((r) => setDocs(r.documents))
+      .catch(() => {});
+  }, []);
+
+  async function onPick(step: KycDocument['step'], file: File | undefined) {
+    if (!file) return;
+    setBusyStep(step);
+    setError(null);
+    try {
+      const { id } = await uploadKycDocument({ step, file });
+      setDocs((ds) => [
+        {
+          id,
+          step,
+          label: file.name,
+          mime: file.type,
+          createdAt: new Date().toISOString(),
+        },
+        ...ds,
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not upload that file.');
+    } finally {
+      setBusyStep(null);
+    }
+  }
+
+  return (
+    <div className="mx-auto mt-6 max-w-[400px] rounded-xl bg-[#f4f0e7] px-4 py-4 text-left dark:bg-white/[0.04]">
+      <b className="font-display text-[14.5px]">Speed up the firm&rsquo;s review</b>
+      <p className="mb-3 mt-1 text-[12.5px] leading-relaxed text-dim">
+        Optional. The firm you connect to reviews you before accepting — documents give their desk
+        something to verify against. JPG, PNG or PDF, up to 2MB each.
+      </p>
+      <div className="flex flex-col gap-2">
+        {DOC_SLOTS.map((slot) => {
+          const uploaded = docs.find((d) => d.step === slot.step);
+          return (
+            <label
+              key={slot.step}
+              className="flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-solid border-border bg-card px-3 py-2.5"
+            >
+              {uploaded ? (
+                <Check className="h-4 w-4 flex-none text-success" aria-hidden />
+              ) : (
+                <FileText className="h-4 w-4 flex-none text-faint" aria-hidden />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-bold">{slot.label}</span>
+                <span className="block truncate text-[12px] text-faint">
+                  {uploaded ? uploaded.label : slot.hint}
+                </span>
+              </span>
+              <span className="text-[12.5px] font-bold text-teal2">
+                {busyStep === slot.step ? 'Uploading…' : uploaded ? 'Replace' : 'Add'}
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                className="sr-only"
+                disabled={busyStep !== null}
+                onChange={(e) => {
+                  void onPick(slot.step, e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          );
+        })}
+      </div>
+      {error ? (
+        <p className="mb-0 mt-2 flex items-center gap-1.5 text-[12.5px] text-[#a44e20] dark:text-terra">
+          <CircleAlert className="h-3.5 w-3.5 flex-none" aria-hidden />
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

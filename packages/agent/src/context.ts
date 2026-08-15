@@ -1,6 +1,7 @@
 import { RISK_RANK, type RiskRating, fitsSuitability } from '@ccn/domain';
 import { type LimitsDecision, evaluate } from '@ccn/limits-engine';
 import { type Currency, convert, formatMoney, money } from '@ccn/money';
+import { type StageTrace, runProposalPipeline } from './pipeline';
 import type { AgentSnapshot, SnapshotInstrument } from './snapshot';
 
 /**
@@ -17,6 +18,10 @@ export interface AgentContext {
   searchOpportunities(input: SearchInput): OpportunityView[];
   scoreSuitability(input: { instrumentId: string }): SuitabilityView;
   proposeMove(input: { instrumentId: string; amountMinor: number }): ProposalView;
+  /** Run the three-specialist pipeline (research → suitability → coordination)
+   *  over the whole marketplace snapshot. Read/propose only, like everything
+   *  here — the outcome is a recommendation with its working shown. */
+  scoutMarketplace(): Promise<ScoutView>;
   explain(input: { topic: ExplainTopic }): { topic: ExplainTopic; explanation: string };
 }
 
@@ -88,6 +93,19 @@ export interface ActivityView {
   }[];
   approvals: { title: string; amount: string | null; waitingSince: string }[];
   connections: { partner: string; status: string; state: string }[];
+}
+
+/** The pipeline's outcome for the chat: the stages' visible records plus the
+ *  chosen candidate (or none), ready for the model to narrate faithfully. */
+export interface ScoutView {
+  trace: StageTrace[];
+  proposal: {
+    instrumentId: string;
+    name: string;
+    partner: string | null;
+    amount: string;
+    decision: string;
+  } | null;
 }
 
 export type ExplainTopic = 'safety' | 'fees' | 'kyc' | 'how_it_works' | 'limits';
@@ -327,6 +345,74 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
         reasons,
         requiresHumanApproval: true,
         summary,
+      };
+    },
+
+    /**
+     * The three-specialist pipeline over the snapshot — the same stages the
+     * background sweep runs, gated by the same Limits Engine, with the same
+     * visible trace. The chat's gate is the snapshot-backed evaluate; the
+     * sweep's is the DB-backed one; the pipeline cannot tell them apart.
+     */
+    async scoutMarketplace() {
+      const candidates = snapshot.instruments
+        .filter((i) => !i.blocked)
+        .map((i) => ({
+          instrumentId: i.id,
+          name: i.name,
+          partnerName: i.partnerName,
+          risk: i.risk,
+          minInvestmentMinor: i.minInvestmentMinor,
+          currency: i.currency as string,
+        }));
+      const outcome = await runProposalPipeline({
+        candidates,
+        excluded: new Set<string>(),
+        fmt: (minor, currency) => formatMoney(money(minor, currency as Currency)),
+        gate: (c, amountMinor) => {
+          const inst = byId.get(c.instrumentId);
+          if (!inst) return { decision: 'blocked' as const, reasons: ['Instrument not found.'] };
+          const decision = evaluate({
+            proposal: {
+              amountMinor,
+              currency: inst.currency,
+              instrument: {
+                risk: inst.risk,
+                minInvestmentMinor: inst.minInvestmentMinor,
+                blocked: inst.blocked,
+                blockReasons: inst.blockReasons,
+              },
+              isFxTransfer: false,
+              fxSpreadBps: 0,
+            },
+            limits: snapshot.limits,
+            portfolio: {
+              cashMinor: snapshot.portfolio.cashMinor,
+              portfolioTotalMinor: snapshot.portfolio.netWorthMinor,
+              currentPositionMinor: positionFor(c.instrumentId),
+              spentTodayMinor: snapshot.portfolio.spentTodayMinor,
+            },
+            band: snapshot.band,
+          });
+          if (decision.decision === 'blocked') {
+            return { decision: 'blocked' as const, reasons: decision.reasons };
+          }
+          return { decision: decision.decision, code: decision.code };
+        },
+      });
+      return {
+        trace: outcome.trace,
+        proposal: outcome.chosen
+          ? {
+              instrumentId: outcome.chosen.candidate.instrumentId,
+              name: outcome.chosen.candidate.name,
+              partner: outcome.chosen.candidate.partnerName,
+              amount: formatMoney(
+                money(outcome.chosen.amountMinor, outcome.chosen.candidate.currency as Currency),
+              ),
+              decision: outcome.chosen.verdict.decision,
+            }
+          : null,
       };
     },
 

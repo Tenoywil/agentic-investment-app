@@ -13,7 +13,12 @@ const buttonVariants = cva(
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-border bg-card text-foreground hover:bg-mint hover:text-teal2',
+        // `border-solid` is load-bearing: preflight is off, so without it the
+        // border-style stays `none` and the outline variant's border has never
+        // painted anywhere in the product — every outline button was passing
+        // as bare text on any surface that shares its background colour.
+        outline:
+          'border border-solid border-border bg-card text-foreground hover:bg-mint hover:text-teal2',
         secondary: 'bg-mint text-teal2 hover:bg-mint/80',
         ghost: 'hover:bg-mint hover:text-teal2',
         link: 'text-teal2 underline-offset-4 hover:underline',

@@ -115,6 +115,54 @@ export function submitFunds(sources: SourceOfFunds[]): Promise<{ ok: true; tier:
   return onboardingFetch('/funds', { method: 'POST', body: JSON.stringify({ sources }) });
 }
 
+/** One uploaded KYC document — metadata only; the bytes are fetched by id. */
+export interface KycDocument {
+  id: string;
+  step: 'identity' | 'compliance' | 'risk' | 'funds';
+  label: string;
+  mime: string | null;
+  createdAt: string;
+}
+
+/**
+ * Upload a KYC document (≤2MB; jpeg/png/webp/pdf). The file goes to the
+ * firm's reviewing desk with the rest of the KYC package — it is what stands
+ * behind the wizard's declarations.
+ */
+export async function uploadKycDocument(input: {
+  step: KycDocument['step'];
+  file: File;
+}): Promise<{ id: string }> {
+  if (input.file.size > 2 * 1024 * 1024) {
+    throw new OnboardingApiError('Documents are capped at 2MB — send a smaller scan.', 413);
+  }
+  const buf = new Uint8Array(await input.file.arrayBuffer());
+  let binary = '';
+  // Chunked: String.fromCharCode(...2MB) blows the argument limit.
+  for (let i = 0; i < buf.length; i += 0x8000) {
+    binary += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  }
+  return onboardingFetch('/documents', {
+    method: 'POST',
+    body: JSON.stringify({
+      step: input.step,
+      label: input.file.name.slice(0, 140),
+      mime: input.file.type,
+      data: btoa(binary),
+    }),
+  });
+}
+
+export function getKycDocuments(): Promise<{ documents: KycDocument[] }> {
+  return onboardingFetch('/documents');
+}
+
+/** Where the owner downloads one document back. A plain link target — the
+ *  session cookie rides on navigation, so no fetch wrapper is needed. */
+export function kycDocumentUrl(id: string): string {
+  return `${API_URL}/api/onboarding/documents/${id}`;
+}
+
 /** Format a DB risk_band enum value ('low_moderate') as the wizard's display
  *  string ('Low Moderate') — same mapping as data.ts's local `riskBand()`. */
 export function formatRiskBand(band: RiskBand): string {

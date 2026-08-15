@@ -9,15 +9,18 @@ import type {
   ConsoleClient,
   ConsoleFunnelStage,
   ConsoleReconciliationItem,
+  ConsoleWithdrawal,
 } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
-import { ArrowRightLeft, Users } from 'lucide-react';
+import { ArrowRightLeft, Banknote, Users } from 'lucide-react';
 import { ClientReview } from './client-review';
 import {
   ROW_DIVIDER,
+  SUCCESS_TEXT,
   TERRA_GHOST_BTN,
   TERRA_TEXT,
   fmtMinor,
+  fmtMinorExact,
   guessParsedHolding,
   isSandbox,
   timeAgo,
@@ -50,6 +53,11 @@ export function ClientsTab({
   onPull,
   pulling,
   pullNote,
+  withdrawals,
+  withdrawalsError,
+  withdrawalBusyId,
+  withdrawalActionError,
+  onDecideWithdrawal,
 }: {
   partner: MePartner | null;
   clients: ConsoleClient[];
@@ -77,6 +85,14 @@ export function ClientsTab({
   onPull: () => void;
   pulling: boolean;
   pullNote: string | null;
+  withdrawals: ConsoleWithdrawal[];
+  withdrawalsError: string | null;
+  withdrawalBusyId: string | null;
+  withdrawalActionError: string | null;
+  onDecideWithdrawal: (
+    id: string,
+    input: { paid: true; reference?: string } | { paid: false; reason: string },
+  ) => void;
 }) {
   /**
    * Which reconciliation line is being asked about. `reconcile_reject` records
@@ -86,6 +102,16 @@ export function ClientsTab({
    */
   const [reconRejecting, setReconRejecting] = React.useState<string | null>(null);
   const [reconReason, setReconReason] = React.useState('');
+
+  /**
+   * Which withdrawal is being decided, and which way. Paying asks for an
+   * optional payment reference; declining requires the words the client will
+   * read. One text field serves both, cleared whenever the form closes.
+   */
+  const [wdDeciding, setWdDeciding] = React.useState<{ id: string; paid: boolean } | null>(null);
+  const [wdText, setWdText] = React.useState('');
+  const pendingWithdrawals = withdrawals.filter((w) => w.status === 'pending');
+  const decidedWithdrawals = withdrawals.filter((w) => w.status !== 'pending').slice(0, 5);
 
   return (
     <>
@@ -290,6 +316,186 @@ export function ClientsTab({
             </div>
           );
         })}
+      </Card>
+
+      {/* Money out. The mirror of the reconciliation queue above: clients ask
+          for money back on their portfolio screen, the firm pays off-platform
+          and records it here — which is when CCN's record of their cash falls —
+          or declines with words the client will actually read. */}
+      <Card className="mt-[18px] p-6">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+          <b className="font-display text-lg">Withdrawal requests</b>
+          {pendingWithdrawals.length > 0 ? (
+            <span className={`text-sm font-bold ${TERRA_TEXT}`}>
+              {pendingWithdrawals.length} awaiting your decision
+            </span>
+          ) : null}
+        </div>
+        <div className="mb-4 text-[13px] text-faint">
+          Clients asking for money back. Pay off-platform, then record it here with your payment
+          reference — or decline with a reason they can act on.
+        </div>
+
+        {withdrawalsError ? <ErrorNote message={withdrawalsError} className="mb-3" /> : null}
+        {withdrawalActionError ? (
+          <ErrorNote message={withdrawalActionError} className="mb-3" />
+        ) : null}
+
+        {loading && !withdrawalsError ? (
+          <RowsSkeleton rows={2} label="Loading withdrawal requests" />
+        ) : null}
+
+        {!loading && !withdrawalsError && withdrawals.length === 0 ? (
+          <EmptyState
+            icon={Banknote}
+            title="No withdrawal requests"
+            body="When a client asks for money back from their portfolio screen, the request queues here for your decision."
+          />
+        ) : null}
+
+        {pendingWithdrawals.map((w) => {
+          const busy = withdrawalBusyId === w.id;
+          const deciding = wdDeciding?.id === w.id ? wdDeciding : null;
+          return (
+            <div
+              key={w.id}
+              className={`flex flex-wrap items-center gap-3 py-3.5 last:border-b-0 ${ROW_DIVIDER}`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14.5px] font-bold">{w.clientName}</div>
+                <div className="text-[12.5px] text-faint">Requested {timeAgo(w.createdAt)}</div>
+              </div>
+              <div className="text-right">
+                <span className="block font-mono text-sm font-bold">
+                  {fmtMinor(w.amountMinor, w.currency)}
+                </span>
+                {/* The figures frozen when the client asked. "Pay" is the net
+                    the firm actually transfers; fee + GCT stay with the firm. */}
+                {Number(w.feeMinor) + Number(w.gctMinor) > 0 ? (
+                  <span className="block text-[11.5px] text-faint">
+                    fee {fmtMinorExact(w.feeMinor, w.currency)}
+                    {Number(w.gctMinor) > 0
+                      ? ` · GCT ${fmtMinorExact(w.gctMinor, w.currency)}`
+                      : ''}{' '}
+                    · pay {fmtMinorExact(w.netMinor, w.currency)}
+                  </span>
+                ) : null}
+              </div>
+              {deciding ? (
+                <form
+                  className="flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const text = wdText.trim();
+                    if (deciding.paid) {
+                      onDecideWithdrawal(w.id, { paid: true, reference: text || undefined });
+                    } else {
+                      // `required` on the input enforces this; the guard is for
+                      // whitespace-only entries the attribute lets through.
+                      if (!text) return;
+                      onDecideWithdrawal(w.id, { paid: false, reason: text });
+                    }
+                    setWdDeciding(null);
+                    setWdText('');
+                  }}
+                >
+                  <label className="min-w-[180px] flex-1 text-[13px]">
+                    <span className="sr-only">
+                      {deciding.paid
+                        ? 'Payment reference (optional)'
+                        : 'Why this withdrawal is being declined'}
+                    </span>
+                    <input
+                      value={wdText}
+                      onChange={(e) => setWdText(e.target.value)}
+                      placeholder={
+                        deciding.paid
+                          ? 'Payment reference (optional)'
+                          : 'Why — the client reads this'
+                      }
+                      required={!deciding.paid}
+                      className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                    />
+                  </label>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant={deciding.paid ? 'default' : 'ghost'}
+                    className={deciding.paid ? undefined : TERRA_GHOST_BTN}
+                    disabled={busy}
+                  >
+                    {busy ? 'Recording…' : deciding.paid ? 'Record as paid' : 'Decline'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setWdDeciding(null);
+                      setWdText('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </form>
+              ) : (
+                <div className="flex gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={TERRA_GHOST_BTN}
+                    disabled={busy}
+                    onClick={() => {
+                      setWdDeciding({ id: w.id, paid: false });
+                      setWdText('');
+                    }}
+                  >
+                    Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setWdDeciding({ id: w.id, paid: true });
+                      setWdText('');
+                    }}
+                  >
+                    Pay
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {decidedWithdrawals.length > 0 ? (
+          <div className="mt-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-faint">
+              Recently decided
+            </div>
+            {decidedWithdrawals.map((w) => (
+              <div
+                key={w.id}
+                className={`flex flex-wrap items-center gap-3 py-2.5 last:border-b-0 ${ROW_DIVIDER}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13.5px]">{w.clientName}</div>
+                  <div
+                    className={`text-[12.5px] ${w.status === 'paid' ? SUCCESS_TEXT : TERRA_TEXT}`}
+                  >
+                    {w.status === 'paid'
+                      ? `Paid${w.reference ? ` · ref ${w.reference}` : ''}`
+                      : `Declined${w.reason ? ` · ${w.reason}` : ''}`}
+                    {w.decidedAt ? ` · ${timeAgo(w.decidedAt)}` : ''}
+                  </div>
+                </div>
+                <span className="min-w-[78px] text-right font-mono text-[13px] font-bold text-dim">
+                  {fmtMinor(w.amountMinor, w.currency)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </Card>
     </>
   );

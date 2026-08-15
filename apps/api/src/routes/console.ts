@@ -3,13 +3,17 @@ import {
   auditLog,
   connectedAccounts,
   instruments,
+  kycDocuments,
   orders as ordersTable,
   partners,
   reconciliationItems,
+  user as userTable,
+  withdrawalRequests,
 } from '@ccn/db';
 import {
   acceptOrderSchema,
   confirmFundsSchema,
+  decideWithdrawalSchema,
   listInstrumentSchema,
   partnerProfileSchema,
   rejectSchema,
@@ -27,6 +31,7 @@ import {
   partnerClientHoldings,
   partnerClients,
   partnerConfirmFunds,
+  partnerDecideWithdrawal,
   partnerReviewClient,
   partnerToggleInstrument,
   partnerUpdateProfile,
@@ -37,6 +42,7 @@ import {
   settleOrder,
 } from '../db-fns';
 import { requireAuth } from '../middleware';
+import { renderContractNote } from '../services/contract-note';
 import { pullStatements } from '../services/ingestion';
 import { maskRef } from './util';
 
@@ -176,6 +182,10 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           regulator: partners.regulator,
           agreementStatus: partners.agreementStatus,
           residency: partners.residency,
+          fundingInstructions: partners.fundingInstructions,
+          withdrawalFeeFlatMinor: partners.withdrawalFeeFlatMinor,
+          withdrawalFeeBps: partners.withdrawalFeeBps,
+          gctBps: partners.gctBps,
         })
         .from(partners)
         // `partners_read` is USING (true) — reference data is readable by every
@@ -215,6 +225,11 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         name: parsed.data.name,
         kind: parsed.data.kind ?? null,
         residency: parsed.data.residency ?? null,
+        // undefined = the form did not touch them; the function keeps them.
+        fundingInstructions: parsed.data.fundingInstructions ?? null,
+        withdrawalFeeFlatMinor: parsed.data.withdrawalFeeFlatMinor ?? null,
+        withdrawalFeeBps: parsed.data.withdrawalFeeBps ?? null,
+        gctBps: parsed.data.gctBps ?? null,
       }),
     );
     return c.json({
@@ -226,6 +241,10 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         regulator: row.regulator,
         agreementStatus: row.agreement_status,
         residency: row.residency,
+        fundingInstructions: row.funding_instructions,
+        withdrawalFeeFlatMinor: row.withdrawal_fee_flat_minor,
+        withdrawalFeeBps: row.withdrawal_fee_bps,
+        gctBps: row.gct_bps,
       },
     });
   });
@@ -256,10 +275,17 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           action: auditLog.action,
           entityType: auditLog.entityType,
           actorType: auditLog.actorType,
+          // WHO. `actor_id` has been written since the first migration and
+          // never read, so every decision rendered as an anonymous "Operator"
+          // — a compliance officer could see that a client was accepted and a
+          // withdrawal paid, and not by whom, which is the first question a
+          // review asks. LEFT join: system and agent rows have no person.
+          actorName: userTable.name,
           detail: auditLog.detail,
           createdAt: auditLog.createdAt,
         })
         .from(auditLog)
+        .leftJoin(userTable, eq(userTable.id, auditLog.actorId))
         .where(eq(auditLog.partnerId, scope.partnerId))
         .orderBy(desc(auditLog.seq))
         .limit(limit),
@@ -319,6 +345,77 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     }));
 
     return c.json({ orders: rows, total: Number(total[0]?.n ?? 0) });
+  });
+
+  /**
+   * The contract note for one settled order — the desk's copy, from the SAME
+   * renderer as the client's, so the two parties cannot hold different
+   * accounts of the same trade. Scoped to the firm's own book; not-yours and
+   * not-found are the same 404.
+   */
+  app.get('/orders/:id/contract-note', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const [row] = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({
+          id: ordersTable.id,
+          status: ordersTable.status,
+          amountMinor: ordersTable.amountMinor,
+          currency: ordersTable.currency,
+          unitPriceMinor: ordersTable.unitPriceMinor,
+          units: ordersTable.units,
+          feeMinor: ordersTable.feeMinor,
+          externalRef: ordersTable.externalRef,
+          clientRef: ordersTable.clientRef,
+          createdAt: ordersTable.createdAt,
+          acceptedAt: ordersTable.acceptedAt,
+          settledAt: ordersTable.settledAt,
+          instrumentName: instruments.name,
+          instrumentAbbr: instruments.abbr,
+          partnerName: partners.name,
+          partnerCode: partners.code,
+          regulator: partners.regulator,
+          clientName: userTable.name,
+          clientEmail: userTable.email,
+        })
+        .from(ordersTable)
+        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+        .leftJoin(partners, eq(partners.id, ordersTable.partnerId))
+        .leftJoin(userTable, eq(userTable.id, ordersTable.userId))
+        .where(
+          and(eq(ordersTable.id, c.req.param('id')), eq(ordersTable.partnerId, scope.partnerId)),
+        ),
+    );
+    if (!row) return c.json({ error: 'order not found' }, 404);
+    if (row.status !== 'settled') {
+      return c.json({ error: 'A contract note is issued when the order settles.' }, 409);
+    }
+    return c.html(
+      renderContractNote({
+        orderId: row.id,
+        clientName: row.clientName ?? 'Client',
+        clientEmail: row.clientEmail ?? '—',
+        partnerName: row.partnerName ?? 'Executing firm',
+        partnerCode: row.partnerCode ?? '—',
+        regulator: row.regulator,
+        instrumentName: row.instrumentName,
+        instrumentAbbr: row.instrumentAbbr,
+        amountMinor: row.amountMinor,
+        currency: row.currency,
+        unitPriceMinor: row.unitPriceMinor,
+        units: row.units,
+        feeMinor: row.feeMinor,
+        externalRef: row.externalRef,
+        clientRef: row.clientRef,
+        createdAt: row.createdAt,
+        acceptedAt: row.acceptedAt,
+        settledAt: row.settledAt,
+      }),
+    );
   });
 
   /**
@@ -492,20 +589,71 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           action: auditLog.action,
           entityType: auditLog.entityType,
           actorType: auditLog.actorType,
+          // The deciding person's name — "accepted, by whom" is one fact.
+          actorName: userTable.name,
           detail: auditLog.detail,
           createdAt: auditLog.createdAt,
         })
         .from(auditLog)
+        .leftJoin(userTable, eq(userTable.id, auditLog.actorId))
         .where(and(eq(auditLog.partnerId, scope.partnerId), eq(auditLog.userId, client.user_id)))
         .orderBy(desc(auditLog.seq))
         .limit(50);
-      return { client, holdings, orders: clientOrders, audit: history };
+      // The documents behind the declarations (0027). Metadata only here — the
+      // bytes come one at a time from /clients/:id/documents/:docId. The
+      // partner-read policy admits them because this person is the firm's
+      // pending/active client, which is exactly when a desk reviews KYC.
+      const documents = await tx
+        .select({
+          id: kycDocuments.id,
+          step: kycDocuments.step,
+          label: kycDocuments.label,
+          mime: kycDocuments.mime,
+          createdAt: kycDocuments.createdAt,
+        })
+        .from(kycDocuments)
+        .where(eq(kycDocuments.userId, client.user_id))
+        .orderBy(desc(kycDocuments.createdAt));
+      return { client, holdings, orders: clientOrders, audit: history, documents };
     });
 
     // Not found and not-yours are the same answer, so an account id cannot be
     // probed by watching which one comes back.
     if (!detail) return c.json({ error: 'client not found' }, 404);
     return c.json(detail);
+  });
+
+  /**
+   * One KYC document's bytes, for the reviewing desk. The account id scopes it:
+   * the document must belong to the person behind that account, and the
+   * account must be this firm's — both resolved through partner_clients, which
+   * only returns the caller's own book. RLS backs the same claim underneath.
+   */
+  app.get('/clients/:id/documents/:docId', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const accountId = c.req.param('id');
+
+    const doc = await withTenant(deps, tenant, async (tx) => {
+      const client = (await partnerClients(tx)).find((row) => row.account_id === accountId);
+      if (!client) return null;
+      const [row] = await tx
+        .select({ mime: kycDocuments.mime, bytes: kycDocuments.bytes, label: kycDocuments.label })
+        .from(kycDocuments)
+        .where(
+          and(eq(kycDocuments.id, c.req.param('docId')), eq(kycDocuments.userId, client.user_id)),
+        );
+      return row ?? null;
+    });
+    if (!doc?.bytes) return c.json({ error: 'document not found' }, 404);
+    return new Response(new Uint8Array(doc.bytes), {
+      headers: {
+        'Content-Type': doc.mime ?? 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${doc.label.replace(/[^\w. -]/g, '_')}"`,
+      },
+    });
   });
 
   /**
@@ -611,6 +759,91 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
       }
       if (raisedBy(err, 'not a client of this partner')) {
         return c.json({ error: 'that client is not one of yours' }, 404);
+      }
+      throw err;
+    }
+  });
+
+  /**
+   * Money on its way out of the firm: the withdrawal queue.
+   *
+   * Requests the firm's clients have raised, pending first. The decision is
+   * the firm's alone — `partner_decide_withdrawal` pays (and decrements the
+   * recorded cash) or declines with a reason the client reads.
+   */
+  app.get('/withdrawals', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const rows = await withTenant(deps, tenant, async (tx) => {
+      const clients = await partnerClients(tx);
+      const nameByUser = new Map(clients.map((r) => [r.user_id, r.client_name]));
+      const list = await tx
+        .select()
+        .from(withdrawalRequests)
+        .where(eq(withdrawalRequests.partnerId, scope.partnerId))
+        .orderBy(
+          sql`case ${withdrawalRequests.status} when 'pending' then 0 else 1 end`,
+          desc(withdrawalRequests.createdAt),
+        )
+        .limit(50);
+      return list.map((w) => ({
+        id: w.id,
+        clientName: nameByUser.get(w.userId) ?? 'A client',
+        accountId: w.connectedAccountId,
+        amountMinor: w.amountMinor.toString(),
+        feeMinor: w.feeMinor.toString(),
+        gctMinor: w.gctMinor.toString(),
+        // What the firm actually pays out: the client's amount less charges.
+        netMinor: (w.amountMinor - w.feeMinor - w.gctMinor).toString(),
+        currency: w.currency,
+        status: w.status,
+        reason: w.reason,
+        reference: w.reference,
+        createdAt: w.createdAt,
+        decidedAt: w.decidedAt,
+      }));
+    });
+    return c.json({ withdrawals: rows });
+  });
+
+  app.post('/withdrawals/:id/decide', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const parsed = decideWithdrawalSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success)
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+
+    try {
+      const row = await withTenant(deps, tenant, (tx) =>
+        partnerDecideWithdrawal(tx, {
+          requestId: c.req.param('id'),
+          paid: parsed.data.paid,
+          reason: parsed.data.reason ?? null,
+          reference: parsed.data.reference ?? null,
+        }),
+      );
+      deps.logger.info('partner decided a withdrawal', {
+        partner: scope.partnerId,
+        status: row.status,
+      });
+      return c.json({ withdrawal: { ...row, amount_minor: row.amount_minor.toString() } });
+    } catch (err) {
+      if (raisedBy(err, 'no longer covers')) {
+        return c.json(
+          {
+            error:
+              "CCN's record of this client's cash no longer covers the amount — an order may have settled first. Record their funding, or decline with the reason.",
+          },
+          409,
+        );
+      }
+      if (raisedBy(err, 'is not pending')) {
+        return c.json({ error: 'that request is not pending at your firm' }, 409);
       }
       throw err;
     }

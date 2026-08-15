@@ -5,6 +5,7 @@
  * logic (tools, context, prompt discipline, cache) is pure and unit-tested; the
  * gateway call is a thin adapter (run.ts).
  */
+export * from './pipeline';
 export * from './snapshot';
 export * from './context';
 export * from './prompt';

@@ -237,3 +237,12 @@ export interface MyOrder {
 export function getMyOrders(): Promise<{ orders: MyOrder[] }> {
   return apiFetch('/api/orders');
 }
+
+/**
+ * The contract note for a settled order — a printable page served by the API.
+ * A plain link target (open in a new tab); the session cookie rides on the
+ * navigation, and the server refuses any order that has not settled.
+ */
+export function contractNoteUrl(orderId: string): string {
+  return `${API_URL}/api/orders/${orderId}/contract-note`;
+}

@@ -295,7 +295,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
       }}
     >
       <DialogContent className="gap-0 p-0 font-sans text-foreground">
-        <DialogHeader className="flex-row items-start gap-3 border-b border-[#ece6da] p-[22px] pr-14">
+        <DialogHeader className="flex-row items-start gap-3 border-b border-solid border-x-0 border-t-0 border-[#ece6da] p-[22px] pr-14">
           <span
             className="grid h-11 w-11 flex-none place-items-center rounded-xl font-mono text-sm font-bold"
             style={{ background: t.tint, color: t.ink }}
@@ -426,11 +426,11 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 Review &amp; authorize
               </div>
               <div className="mb-3.5 overflow-hidden rounded-xl border border-border">
-                <div className="flex justify-between border-b border-[#ece6da] px-4 py-3.5">
+                <div className="flex justify-between border-b border-solid border-x-0 border-t-0 border-[#ece6da] px-4 py-3.5">
                   <span className="text-sm text-dim">Instrument</span>
                   <span className="max-w-[60%] text-right text-sm font-semibold">{opp.name}</span>
                 </div>
-                <div className="flex items-start justify-between border-b border-[#ece6da] px-4 py-3.5">
+                <div className="flex items-start justify-between border-b border-solid border-x-0 border-t-0 border-[#ece6da] px-4 py-3.5">
                   <label htmlFor={`${titleId}-amt`} className="pt-2 text-sm text-dim">
                     Amount
                   </label>
@@ -455,7 +455,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                     </span>
                   </div>
                 </div>
-                <div className="flex justify-between border-b border-[#ece6da] px-4 py-3.5">
+                <div className="flex justify-between border-b border-solid border-x-0 border-t-0 border-[#ece6da] px-4 py-3.5">
                   <span className="text-sm text-dim">Executing partner</span>
                   <span className="text-sm font-semibold">{opp.partner}</span>
                 </div>

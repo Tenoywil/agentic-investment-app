@@ -121,6 +121,27 @@ export function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
+/** Whole days since an ISO timestamp. */
+export function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
+
+/**
+ * An order still waiting for acceptance after this many days is aging on the
+ * desk. Investors are told "the firm is reviewing it"; past this point that
+ * sentence is wearing thin, and the console should feel it before the client
+ * phones.
+ */
+export const ORDER_AGING_DAYS = 2;
+
+/**
+ * An accepted client is due periodic re-review after this many days — the
+ * annual KYC refresh cadence a regulated book runs on. Computed from
+ * `reviewed_at`, the date the firm actually decided, not from anything
+ * invented.
+ */
+export const KYC_REVIEW_DUE_DAYS = 365;
+
 /* ---- partner enums ------------------------------------------------------ */
 
 const REGULATOR_LABELS: Record<string, string> = {
@@ -185,6 +206,11 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'reconciliation.rejected': 'Statement line rejected',
   'reconciliation.pulled': 'Statements pulled for reconciliation',
   'funds.settled': 'Settled funds confirmed',
+  'onboarding.document_uploaded': 'KYC document uploaded',
+  'funding.declared': 'Client declared funds sent',
+  'withdrawal.requested': 'Client requested a withdrawal',
+  'withdrawal.paid': 'Withdrawal paid',
+  'withdrawal.declined': 'Withdrawal declined',
   'agent.proposed': 'Agent proposed an investment',
   'instrument.listed': 'Product listed',
   'instrument.updated': 'Product details amended',
@@ -204,6 +230,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'client.reinstated': 'Client reinstated',
   'partner.onboarded': 'Firm onboarded to CCN',
   'partner.changed': 'Firm record changed by CCN',
+  'partner.profile_updated': 'Firm corrected its own record',
   'user_roles.changed': 'Console access changed',
   'fx_rates.refreshed': 'Exchange rates refreshed',
   'reference_data.loaded': 'Reference data loaded',
@@ -240,6 +267,7 @@ const AUDIT_ENTITY_LABELS: Record<string, string> = {
   product_listings: 'Product listing',
   connected_accounts: 'Client account',
   reconciliation_items: 'Statement line',
+  withdrawal_requests: 'Withdrawal',
   approvals: 'Approval',
   holdings: 'Holding',
   partners: 'Firm',
@@ -271,6 +299,39 @@ export const AUDIT_ACTOR_LABEL: Record<ConsoleActorType, string> = {
   compliance: 'Compliance',
   system: 'System',
 };
+
+/**
+ * WHO did it, by name when the log knows one.
+ *
+ * `actor_id` has been on every audit row since the first migration and the
+ * console never read it, so a desk's whole record of decisions was signed
+ * "Operator" — which is no signature at all when three people share the desk.
+ * The fallback is the actor-type word, never a guessed person.
+ */
+export function auditActorLine(a: { actorType: ConsoleActorType; actorName?: string | null }) {
+  return a.actorName ?? AUDIT_ACTOR_LABEL[a.actorType];
+}
+
+/**
+ * The audit actions that are somebody's DECISION — a person answerable for a
+ * client's money or standing did something. What the "Decisions only" view
+ * filters to: acceptance, KYC standing, money in, money out, executions.
+ */
+export const DECISION_ACTIONS = new Set([
+  'client.accepted',
+  'client.declined',
+  'client.revoked',
+  'client.reinstated',
+  'funds.settled',
+  'withdrawal.paid',
+  'withdrawal.declined',
+  'reconciliation.matched',
+  'reconciliation.rejected',
+  'order.accepted',
+  'order.settled',
+  'order.rejected',
+  'partner.profile_updated',
+]);
 
 /** `detail` is untyped JSONB. The only field worth surfacing is a rejection
  *  reason, and only when it really is a string. */

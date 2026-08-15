@@ -12,12 +12,23 @@ import {
   type Currency,
   type Portfolio,
   PortfolioApiError,
+  type PortfolioPartner,
   getPortfolio,
   pullStatements,
   regulatorLabel,
+  requestWithdrawal,
+  sendFundingNotice,
 } from '@/lib/portfolio-api';
-import { CircleAlert, Link2, ShieldCheck, Wallet } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  CircleAlert,
+  Link2,
+  ShieldCheck,
+  Wallet,
+  X,
+} from 'lucide-react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ConnectAccountDialog } from './connect-account';
 
 /**
@@ -41,6 +52,26 @@ const FALLBACK_STYLES = [
 const DEFAULT_STYLE = { tint: '#e7edf8', color: '#1a4aa0' };
 
 const CURRENCY_OPTIONS: Currency[] = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
+
+/** Symbol prefixes for the withdraw dialog's charge estimate, which is
+ *  computed client-side as the person types. Everything the server sends
+ *  arrives pre-formatted; this is the one figure that must react per keypress. */
+const CCY_PREFIX: Record<Currency, string> = {
+  USD: 'US$',
+  JMD: 'J$',
+  TTD: 'TT$',
+  GYD: 'G$',
+  BBD: 'Bds$',
+  XCD: 'EC$',
+  BSD: 'B$',
+};
+
+function fmtEstimate(minor: number, ccy: Currency): string {
+  return `${CCY_PREFIX[ccy]}${(minor / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
 
 // Slice colours per instrument_type; the percentages come from the API, which
 // derives them from real holdings joined to their instrument.
@@ -93,6 +124,218 @@ function AllocationBreakdown({ slices }: { slices: AllocationSlice[] }) {
 
 function partnerStyle(code: string, index: number): { tint: string; color: string } {
   return PARTNER_STYLE[code] ?? FALLBACK_STYLES[index % FALLBACK_STYLES.length] ?? DEFAULT_STYLE;
+}
+
+/**
+ * Money in, money out — one dialog, two modes.
+ *
+ * Funding: shows the firm's own instructions (or says the firm has not
+ * provided them), then takes an "I've sent it" declaration that lands in the
+ * firm's reconciliation queue — the screen says plainly that nothing is
+ * credited until the firm confirms.
+ *
+ * Withdrawing: an amount in a currency the account holds cash in. The firm
+ * decides; the request is visible on this screen until it does.
+ */
+function MoneyDialog({
+  partner,
+  mode,
+  onClose,
+  onDone,
+}: {
+  partner: PortfolioPartner;
+  mode: 'fund' | 'withdraw';
+  onClose: () => void;
+  /** A sentence for the page's status line, and a refresh behind it. */
+  onDone: (note: string) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [amt, setAmt] = useState('');
+  const [currency, setCurrency] = useState<Currency>('USD');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The charge estimate, recomputed per keypress with the same integer
+   * arithmetic the database uses (truncating division, GCT on the fee). An
+   * estimate because the server freezes the authoritative figures when the
+   * request is recorded — but computed identically, so they only differ if the
+   * firm changes its rates in the seconds in between.
+   */
+  const amtMajor = Number.parseFloat(amt.replace(/[^0-9.]/g, ''));
+  const estAmtMinor = Number.isFinite(amtMajor) && amtMajor > 0 ? Math.round(amtMajor * 100) : 0;
+  const estFeeMinor =
+    mode === 'withdraw' && estAmtMinor > 0
+      ? Number(partner.withdrawalFeeFlatMinor) +
+        Math.floor((estAmtMinor * partner.withdrawalFeeBps) / 10000)
+      : 0;
+  const estGctMinor = Math.floor((estFeeMinor * partner.gctBps) / 10000);
+  const estNetMinor = estAmtMinor - estFeeMinor - estGctMinor;
+
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (el && !el.open) el.showModal();
+    const onBackdrop = (e: MouseEvent) => {
+      if (e.target === el) el?.close();
+    };
+    el?.addEventListener('click', onBackdrop);
+    return () => el?.removeEventListener('click', onBackdrop);
+  }, []);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const major = Number.parseFloat(amt.replace(/[^0-9.]/g, ''));
+    if (!Number.isFinite(major) || major <= 0) {
+      setError('Enter the amount.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const input = {
+      partnerCode: partner.code,
+      amountMinor: String(Math.round(major * 100)),
+      currency,
+    };
+    try {
+      if (mode === 'fund') {
+        await sendFundingNotice(input);
+        onDone(
+          `Told ${partner.name} you've sent money. It appears in your balance once their desk confirms it settled — nothing is credited before that.`,
+        );
+      } else {
+        await requestWithdrawal(input);
+        onDone(
+          `Asked ${partner.name} to pay out. The request stays here until they decide, and your balance changes only when they confirm it's paid.`,
+        );
+      }
+      dialogRef.current?.close();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send that. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <dialog ref={dialogRef} className="app-modal" aria-labelledby={titleId} onClose={onClose}>
+      <div className="flex flex-none items-start justify-between gap-3 border-0 border-b border-solid border-border px-[22px] py-4">
+        <div className="min-w-0">
+          <h2 id={titleId} className="font-display text-lg font-bold">
+            {mode === 'fund' ? `Add money at ${partner.name}` : `Withdraw from ${partner.name}`}
+          </h2>
+          <div className="text-[13.5px] text-dim">
+            {mode === 'fund'
+              ? 'The transfer happens between you and the firm — CCN never holds your money.'
+              : `The firm pays you directly${partner.cash ? ` · ${partner.cash} cash available` : ''}.`}
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => dialogRef.current?.close()}
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-[22px] py-[18px]">
+        {mode === 'fund' ? (
+          <div className="mb-4 rounded-xl bg-[#f4f0e7] px-4 py-3.5 dark:bg-white/[0.04]">
+            <div className="mb-1 text-[12px] font-bold uppercase tracking-[.5px] text-dim">
+              How to send it
+            </div>
+            {partner.fundingInstructions ? (
+              <p className="m-0 whitespace-pre-line text-sm leading-relaxed">
+                {partner.fundingInstructions}
+              </p>
+            ) : (
+              <p className="m-0 text-sm leading-relaxed text-dim">
+                {partner.name} hasn't published transfer instructions here yet — use the account
+                details they gave you directly. Once the money settles with them, their desk
+                confirms it and it appears in your balance.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        <form className="flex flex-wrap items-end gap-2" onSubmit={submit}>
+          <label className="flex w-[150px] flex-col gap-1 text-[12.5px] font-semibold">
+            {mode === 'fund' ? 'Amount you sent' : 'Amount'}
+            <input
+              value={amt}
+              onChange={(e) => setAmt(e.target.value)}
+              inputMode="decimal"
+              placeholder="1,000"
+              disabled={busy}
+              className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-right font-mono text-[14px] font-bold text-foreground"
+            />
+          </label>
+          <label className="flex w-[92px] flex-col gap-1 text-[12.5px] font-semibold">
+            Currency
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as Currency)}
+              disabled={busy}
+              className="block h-[38px] w-full rounded-[10px] border border-solid border-border bg-card px-2 text-[13.5px] font-semibold text-foreground"
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button type="submit" size="sm" disabled={busy}>
+            {busy ? 'Sending…' : mode === 'fund' ? "I've sent it" : 'Request withdrawal'}
+          </Button>
+        </form>
+        {/* What the firm's charges do to this amount, before the person asks.
+            Shown only when the firm charges anything — a "US$0.00 fee" line
+            would be noise dressed as disclosure. */}
+        {mode === 'withdraw' && estAmtMinor > 0 && estFeeMinor + estGctMinor > 0 ? (
+          <div className="mt-3 rounded-xl bg-[#f4f0e7] px-4 py-3 text-[13px] leading-relaxed dark:bg-white/[0.04]">
+            {estNetMinor > 0 ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-dim">{partner.name}&rsquo;s fee</span>
+                  <span className="font-mono">{fmtEstimate(estFeeMinor, currency)}</span>
+                </div>
+                {estGctMinor > 0 ? (
+                  <div className="flex justify-between">
+                    <span className="text-dim">GCT on the fee</span>
+                    <span className="font-mono">{fmtEstimate(estGctMinor, currency)}</span>
+                  </div>
+                ) : null}
+                <div className="mt-1 flex justify-between border-0 border-t border-solid border-border pt-1 font-bold">
+                  <span>You receive about</span>
+                  <span className="font-mono">{fmtEstimate(estNetMinor, currency)}</span>
+                </div>
+              </>
+            ) : (
+              <span className="text-[#a44e20] dark:text-terra">
+                The firm&rsquo;s charges ({fmtEstimate(estFeeMinor + estGctMinor, currency)}) would
+                consume this amount — ask for more, or contact {partner.name}.
+              </span>
+            )}
+          </div>
+        ) : null}
+        {error ? (
+          <p className="mt-2.5 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+            <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+            {error}
+          </p>
+        ) : null}
+        <p className="mb-0 mt-3 text-[12.5px] leading-relaxed text-faint">
+          {mode === 'fund'
+            ? 'This tells the firm to look out for your transfer. Their desk confirms it settled; nothing is credited on your say-so.'
+            : 'One request at a time per account. If the firm declines, it tells you why here. Charges are fixed when you ask — a rate change later never changes a request already made.'}
+        </p>
+      </div>
+    </dialog>
+  );
 }
 
 export default function PortfolioPage() {
@@ -166,7 +409,15 @@ export default function PortfolioPage() {
       .catch(() => {});
   }, [currency]);
 
-  useRealtime(['order', 'connection'], refresh);
+  // `withdrawal` too: the firm deciding one is exactly the moment this screen
+  // is being watched for.
+  useRealtime(['order', 'connection', 'withdrawal'], refresh);
+
+  /** The money dialog — funding instructions or a withdrawal request. */
+  const [money, setMoney] = useState<{
+    partner: PortfolioPartner;
+    mode: 'fund' | 'withdraw';
+  } | null>(null);
 
   /**
    * Pull the latest statements from one firm.
@@ -385,6 +636,53 @@ export default function PortfolioPage() {
         />
       )}
 
+      {money ? (
+        <MoneyDialog
+          partner={money.partner}
+          mode={money.mode}
+          onClose={() => setMoney(null)}
+          onDone={(note) => {
+            setPullNote(note);
+            refresh();
+          }}
+        />
+      ) : null}
+
+      {/* What happened to money on its way out. Decided requests carry the
+          firm's reference or its reason — the investor's record. */}
+      {data?.withdrawals.some((w) => w.status !== 'pending') ? (
+        <Card className="mb-4 p-[18px]">
+          <b className="font-display text-[15px]">Recent withdrawals</b>
+          <ul className="m-0 mt-2 list-none p-0">
+            {(data?.withdrawals ?? [])
+              .filter((w) => w.status !== 'pending')
+              .slice(0, 3)
+              .map((w) => (
+                <li
+                  key={w.id}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 border-0 border-t border-solid border-border py-2 first:border-t-0"
+                >
+                  <span className="text-sm">
+                    <b className="font-mono">{w.amount}</b> from {w.partnerCode}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-[13px]',
+                      w.status === 'paid' ? 'text-success-ink' : 'text-[#a44e20] dark:text-terra',
+                    )}
+                  >
+                    {w.status === 'paid'
+                      ? // The net is the money that actually arrived; naming it
+                        // beside the gross is the fee disclosure, after the fact.
+                        `Paid ${w.fee || w.gct ? `${w.net} after charges` : ''}${w.reference ? ` · ref ${w.reference}` : ''}`.trim()
+                      : `Declined${w.reason ? ` — ${w.reason}` : ''}`}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </Card>
+      ) : null}
+
       {connecting ? (
         <ConnectAccountDialog
           onClose={() => setConnecting(false)}
@@ -466,6 +764,41 @@ export default function PortfolioPage() {
                       {pulling === inst.code ? 'Checking…' : 'Check for statements'}
                     </button>
                   </div>
+                </div>
+
+                {/* Money moves here, per firm — funding and withdrawal are
+                    relationships with THIS institution, not with CCN. */}
+                <div className="mb-1 flex flex-wrap items-center gap-2 border-0 border-t border-solid border-border pt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setMoney({ partner: inst, mode: 'fund' })}
+                  >
+                    <ArrowDownToLine className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                    Add money
+                  </Button>
+                  {(() => {
+                    const pendingHere = (data?.withdrawals ?? []).find(
+                      (w) => w.partnerCode === inst.code && w.status === 'pending',
+                    );
+                    return pendingHere ? (
+                      <span className="text-[12.5px] text-dim">
+                        Withdrawal of {pendingHere.amount} pending with the firm
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!inst.cash}
+                        onClick={() => setMoney({ partner: inst, mode: 'withdraw' })}
+                      >
+                        <ArrowUpFromLine className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                        Withdraw
+                      </Button>
+                    );
+                  })()}
                 </div>
                 {inst.holdings.map((h, i) => (
                   <div

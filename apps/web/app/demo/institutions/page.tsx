@@ -303,7 +303,9 @@ export default function InstitutionsPage() {
                 Orders arrive here when a CCN client approves a deal in your products. You execute,
                 custody and settle each one.
               </p>
-              <div className={`flex justify-between border-b border-border pb-2.5 ${uppr}`}>
+              <div
+                className={`flex justify-between border-b border-solid border-x-0 border-t-0 border-border pb-2.5 ${uppr}`}
+              >
                 <span>Product · Client</span>
                 <span className="flex gap-10">
                   <span>Amount</span>
@@ -311,7 +313,10 @@ export default function InstitutionsPage() {
                 </span>
               </div>
               {orders.slice(0, 3).map((o) => (
-                <div key={o.id} className="flex items-center gap-3 border-b border-border py-3.5">
+                <div
+                  key={o.id}
+                  className="flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border py-3.5"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="text-[14.5px] font-bold">{o.product}</div>
                     <div className="text-[12.5px] text-faint">
@@ -374,7 +379,7 @@ export default function InstitutionsPage() {
             <div className="overflow-x-auto">
               <div className="min-w-[520px]">
                 <div
-                  className={`grid grid-cols-[2.2fr_1.1fr_1fr_1.1fr] border-b border-border px-6 pb-2 ${uppr}`}
+                  className={`grid grid-cols-[2.2fr_1.1fr_1fr_1.1fr] border-b border-solid border-x-0 border-t-0 border-border px-6 pb-2 ${uppr}`}
                 >
                   <span>Product</span>
                   <span>Client</span>
@@ -384,7 +389,7 @@ export default function InstitutionsPage() {
                 {orders.map((o) => (
                   <div
                     key={o.id}
-                    className="grid grid-cols-[2.2fr_1.1fr_1fr_1.1fr] items-center border-b border-border px-6 py-3.5"
+                    className="grid grid-cols-[2.2fr_1.1fr_1fr_1.1fr] items-center border-b border-solid border-x-0 border-t-0 border-border px-6 py-3.5"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-sm font-bold">{o.product}</div>
@@ -417,7 +422,7 @@ export default function InstitutionsPage() {
             <div className="overflow-x-auto">
               <div className="min-w-[560px]">
                 <div
-                  className={`grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] border-b border-border px-6 pb-2 ${uppr}`}
+                  className={`grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] border-b border-solid border-x-0 border-t-0 border-border px-6 pb-2 ${uppr}`}
                 >
                   <span>Product</span>
                   <span className="text-right">Clients</span>
@@ -428,7 +433,7 @@ export default function InstitutionsPage() {
                 {PRODUCTS.map((p) => (
                   <div
                     key={p.name}
-                    className="grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] items-center border-b border-border px-6 py-3.5"
+                    className="grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] items-center border-b border-solid border-x-0 border-t-0 border-border px-6 py-3.5"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-sm font-bold">{p.name}</div>
@@ -527,7 +532,10 @@ export default function InstitutionsPage() {
               <b className="font-display text-[17px]">Live audit trail</b>
               <div className="mt-3">
                 {AUDIT.map((a) => (
-                  <div key={a.action} className="flex gap-2.5 border-b border-border py-2.5">
+                  <div
+                    key={a.action}
+                    className="flex gap-2.5 border-b border-solid border-x-0 border-t-0 border-border py-2.5"
+                  >
                     <span
                       className="mt-[5px] h-[9px] w-[9px] flex-none rounded-full"
                       style={{ background: a.dot }}

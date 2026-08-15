@@ -39,6 +39,21 @@ export interface ConsolePartner {
   regulator: string | null;
   agreementStatus: ConsoleAgreementStatus | null;
   residency: string | null;
+  /**
+   * What the firm tells its clients about how to send money in — wire details,
+   * branch reference format, whatever the firm chooses to say. Rendered
+   * verbatim in the investor's "Add money" dialog. Null = never provided, and
+   * the investor screen says so honestly instead of inventing bank details.
+   */
+  fundingInstructions: string | null;
+  /**
+   * Withdrawal charges (0026). The flat fee is minor units as a string; the
+   * rates are basis points (100 = 1%). GCT is levied on the fee, not the
+   * principal, and every request freezes these at request time.
+   */
+  withdrawalFeeFlatMinor: string;
+  withdrawalFeeBps: number;
+  gctBps: number;
 }
 
 /** One row of the immutable, hash-chained audit log, scoped to this partner.
@@ -49,6 +64,13 @@ export interface ConsoleAuditEntry {
   action: string;
   entityType: string | null;
   actorType: ConsoleActorType;
+  /**
+   * WHO. The name behind `actor_id` — the operator who accepted the client or
+   * paid the withdrawal, or the client who asked. Null for system and agent
+   * rows, and for rows older than the column being written; the screen then
+   * falls back to the actor-type word rather than inventing a person.
+   */
+  actorName: string | null;
   detail: unknown;
   createdAt: string;
 }
@@ -253,6 +275,12 @@ export function updatePartner(input: {
   name: string;
   kind?: string;
   residency?: string;
+  /** Omit = keep what is stored; empty string = clear it. */
+  fundingInstructions?: string;
+  /** Withdrawal charges. Omit any of them = keep the stored value. */
+  withdrawalFeeFlatMinor?: string;
+  withdrawalFeeBps?: number;
+  gctBps?: number;
 }): Promise<{ partner: ConsolePartner }> {
   return consoleFetch('/partner', { method: 'PATCH', body: JSON.stringify(input) });
 }
@@ -335,6 +363,12 @@ export function settleOrder(
   });
 }
 
+/** The desk's copy of a settled order's contract note — a printable page from
+ *  the same renderer as the client's. Plain link target, new tab. */
+export function consoleContractNoteUrl(orderId: string): string {
+  return `${API_URL}/api/console/orders/${orderId}/contract-note`;
+}
+
 export function rejectOrder(id: string, reason?: string): Promise<{ order: ConsoleOrder }> {
   return consoleFetch(`/orders/${id}/reject`, {
     method: 'POST',
@@ -372,15 +406,33 @@ export interface ConsoleClientHolding {
  * behind them, the orders this firm has taken for the person, and their own
  * thread of the firm's audit log.
  */
+/** One KYC document in the package this person consented to share. */
+export interface ConsoleClientDocument {
+  id: string;
+  step: 'identity' | 'compliance' | 'risk' | 'funds';
+  label: string;
+  mime: string | null;
+  createdAt: string;
+}
+
 export interface ConsoleClientDetail {
   client: ConsoleClient;
   holdings: ConsoleClientHolding[];
   orders: ConsoleOrder[];
   audit: ConsoleAuditEntry[];
+  /** What stands behind the declarations. Empty = they uploaded nothing yet,
+   *  and the review screen says so rather than hiding the section. */
+  documents: ConsoleClientDocument[];
 }
 
 export function getClient(accountId: string): Promise<ConsoleClientDetail> {
   return consoleFetch(`/clients/${accountId}`);
+}
+
+/** Download target for one document — a plain link; the session cookie rides
+ *  on navigation. Serves with Content-Disposition: attachment. */
+export function clientDocumentUrl(accountId: string, docId: string): string {
+  return `${API_URL}/api/console/clients/${accountId}/documents/${docId}`;
 }
 
 /**
@@ -416,6 +468,52 @@ export function confirmFunds(
   input: { amountMinor: string; currency: ConsoleCurrency; reference?: string },
 ): Promise<{ holdingId: string }> {
   return consoleFetch(`/clients/${accountId}/funds`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+// ---- Withdrawals ----
+
+/** One client request for money back, as the desk sees it. */
+export interface ConsoleWithdrawal {
+  id: string;
+  clientName: string;
+  accountId: string;
+  amountMinor: string; // raw minor units, numeric string
+  /** The firm's fee and the GCT on it, frozen when the client asked. */
+  feeMinor: string;
+  gctMinor: string;
+  /** amount − fee − GCT: the figure the firm actually pays the client. */
+  netMinor: string;
+  currency: ConsoleCurrency;
+  status: 'pending' | 'paid' | 'declined';
+  /** The firm's words when it declined. */
+  reason: string | null;
+  /** The firm's payment reference when it paid. */
+  reference: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+/** The withdrawal queue, pending first. Server caps at 50 rows. */
+export function getWithdrawals(): Promise<{ withdrawals: ConsoleWithdrawal[] }> {
+  return consoleFetch('/withdrawals');
+}
+
+/**
+ * Decide a withdrawal. Paying decrements CCN's record of the client's cash at
+ * this firm — the actual transfer happens off-platform, like funding does —
+ * and the optional reference is the firm's own payment trace. Declining
+ * requires a reason, because "no" with no words is not something a client can
+ * act on. A 409 means CCN's cash record no longer covers the amount (an order
+ * may have settled first): record the client's funding, or decline.
+ */
+export function decideWithdrawal(
+  id: string,
+  input: { paid: true; reference?: string } | { paid: false; reason: string },
+): Promise<{ withdrawal: unknown }> {
+  return consoleFetch(`/withdrawals/${id}/decide`, {
     method: 'POST',
     body: JSON.stringify(input),
   });

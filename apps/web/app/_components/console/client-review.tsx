@@ -6,7 +6,14 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleClient } from '@/lib/console-api';
 import { Check, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
 import * as React from 'react';
-import { ROW_DIVIDER, TERRA_GHOST_BTN, fmtMinor, timeAgo } from './lib';
+import {
+  KYC_REVIEW_DUE_DAYS,
+  ROW_DIVIDER,
+  TERRA_GHOST_BTN,
+  daysSince,
+  fmtMinor,
+  timeAgo,
+} from './lib';
 import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
@@ -126,6 +133,16 @@ export function ClientReview({
               {c.residency_country ? ` · ${c.residency_country}` : ''} · asked{' '}
               {timeAgo(c.requested_at)}
             </div>
+            {/* Periodic re-review, from the date the firm actually decided.
+                An annual KYC refresh is the cadence a regulated book runs on,
+                and a cue computed from reviewed_at is a fact, not a nag. */}
+            {c.status === 'active' &&
+            c.reviewed_at &&
+            daysSince(c.reviewed_at) >= KYC_REVIEW_DUE_DAYS ? (
+              <div className="text-[12.5px] font-bold text-[#a44e20] dark:text-terra">
+                Periodic KYC review due — accepted {daysSince(c.reviewed_at)} days ago
+              </div>
+            ) : null}
           </div>
           <div className="flex items-start gap-2">
             <div className="text-right">
