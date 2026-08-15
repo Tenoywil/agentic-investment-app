@@ -821,6 +821,10 @@ export default function AgentPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 disabled={sending}
+                // The browser's autofill dropdown has no place over a chat:
+                // it floats old one-word messages ("hi", "hello") between the
+                // person and the conversation they are typing into.
+                autoComplete="off"
                 placeholder="Ask anything about your money…"
                 className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint disabled:opacity-60"
               />

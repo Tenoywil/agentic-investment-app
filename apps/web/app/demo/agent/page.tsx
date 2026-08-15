@@ -268,7 +268,8 @@ export default function AgentPage() {
                 id={inputId}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Ask your agent about income, rebalancing, or a specific deal…"
+                autoComplete="off"
+                placeholder="Ask anything about your money…"
                 className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint"
               />
               <Button
