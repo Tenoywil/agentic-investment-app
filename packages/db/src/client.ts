@@ -31,6 +31,19 @@ export function createDb(
 ): DbHandle {
   const client = postgres(connectionString, {
     max: 10,
+    /**
+     * No server-side prepared statements, ever.
+     *
+     * Production reaches Supabase through its transaction-mode pooler, which
+     * hands each transaction whatever backend connection is free. A statement
+     * prepared on one backend does not exist on the next, so queries failed
+     * intermittently in production with `prepared statement "..." does not
+     * exist` — a 500 that depended on pool scheduling and reproduced nowhere
+     * else. postgres.js documents `prepare: false` as required behind such
+     * poolers; the per-query parse cost is noise next to a request that
+     * sometimes cannot run at all.
+     */
+    prepare: false,
     ...options,
   });
   const db = drizzle(client, { schema });

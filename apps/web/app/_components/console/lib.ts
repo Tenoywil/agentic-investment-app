@@ -185,6 +185,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'reconciliation.rejected': 'Statement line rejected',
   'reconciliation.pulled': 'Statements pulled for reconciliation',
   'funds.settled': 'Settled funds confirmed',
+  'agent.proposed': 'Agent proposed an investment',
   'instrument.listed': 'Product listed',
   'instrument.updated': 'Product details amended',
   'instrument.live': 'Product put back on the marketplace',

@@ -95,6 +95,12 @@ const serverSchema = z.object({
   FX_BOJ_URL: z.string().default(''),
   FX_CBTT_URL: z.string().default(''),
 
+  // The agent's background sweep: how often it scans the live marketplace
+  // against each investor's own limits and raises approval cards for fits.
+  // 0 disables it. Started only from the API's composition root, never from
+  // createApp, so tests get no timers.
+  AGENT_SWEEP_INTERVAL_MS: z.coerce.number().int().nonnegative().default(600_000),
+
   // Crypto
   FIELD_ENCRYPTION_KEY: z.string().min(1),
 
