@@ -21,7 +21,7 @@ import { API_URL } from './config';
  * display-formatted (e.g. "US$4.2M") — render it as-is, never reparse it.
  */
 
-export type ConsoleCurrency = 'USD' | 'JMD' | 'TTD';
+export type ConsoleCurrency = 'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD';
 export type ConsoleOrderStatus = 'created' | 'accepted' | 'settled' | 'rejected' | 'expired';
 export type ConsoleActorType = 'user' | 'agent' | 'compliance' | 'system';
 export type ConsoleProductStatus = 'live' | 'paused';
@@ -400,6 +400,24 @@ export function reviewClient(
   return consoleFetch(`/clients/${id}/${accept ? 'accept' : 'decline'}`, {
     method: 'POST',
     body: JSON.stringify(!accept && reason ? { reason } : {}),
+  });
+}
+
+/**
+ * Confirm that a client's off-platform funding has settled.
+ *
+ * The money moved between the investor and the firm — a wire, a branch deposit
+ * — and CCN never touched it. This records the firm's confirmation: the
+ * client's cash balance at this firm grows by the stated amount and shows on
+ * their portfolio at once, with the firm's own reference on the audit trail.
+ */
+export function confirmFunds(
+  accountId: string,
+  input: { amountMinor: string; currency: ConsoleCurrency; reference?: string },
+): Promise<{ holdingId: string }> {
+  return consoleFetch(`/clients/${accountId}/funds`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }
 

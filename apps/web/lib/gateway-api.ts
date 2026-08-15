@@ -10,7 +10,7 @@ import { API_URL } from './config';
  */
 
 export type Ordinal = 'low' | 'medium' | 'high';
-export type Currency = 'USD' | 'JMD' | 'TTD';
+export type Currency = 'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD';
 
 export interface Mandate {
   userId: string;

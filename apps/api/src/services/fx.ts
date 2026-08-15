@@ -106,7 +106,7 @@ export async function loadFxTable(tx: AnyTx, now: Date = new Date()): Promise<Fx
   const table: FxTable = { ...DEFAULT_FX };
   const rates: RateMeta[] = [];
 
-  for (const currency of ['USD', 'JMD', 'TTD'] as const) {
+  for (const currency of CURRENCIES) {
     if (currency === 'USD') {
       // The base. Always exactly one, never stale, nobody publishes it.
       rates.push({ currency, asOf: null, source: null, stale: false, unavailable: false });

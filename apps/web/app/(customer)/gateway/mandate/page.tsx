@@ -29,7 +29,7 @@ const ORDINALS: { value: Ordinal; label: string }[] = [
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
 ];
-const CURRENCIES: Currency[] = ['USD', 'JMD', 'TTD'];
+const CURRENCIES: Currency[] = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
 
 interface FormState {
   countries: string;
@@ -278,29 +278,23 @@ function MandateForm({
         </div>
       </div>
 
-      <fieldset className="m-0 mb-4 min-w-0 border-0 p-0">
-        <legend className={LEGEND}>Currency</legend>
-        <div className="flex gap-2.5">
+      <div className="mb-4 flex flex-col gap-1.5">
+        {/* A dropdown, not a chip row: seven currencies as flex-1 radio chips
+            wrapped badly on a phone and crowded even on a desktop. */}
+        <Label htmlFor="mandate-currency">Currency</Label>
+        <select
+          id="mandate-currency"
+          value={form.currency}
+          onChange={(e) => setForm({ ...form, currency: e.target.value as Currency })}
+          className="h-10 w-full max-w-[220px] rounded-md border border-solid border-input bg-card px-3 text-sm font-semibold text-foreground"
+        >
           {CURRENCIES.map((c) => (
-            <label
-              key={c}
-              className={cn(
-                'flex-1 cursor-pointer rounded-md border px-3 py-2.5 text-center text-sm font-semibold',
-                form.currency === c ? 'border-primary bg-mint text-teal2' : 'border-input text-dim',
-              )}
-            >
-              <input
-                type="radio"
-                name="currency"
-                className="sr-only"
-                checked={form.currency === c}
-                onChange={() => setForm({ ...form, currency: c })}
-              />
+            <option key={c} value={c}>
               {c}
-            </label>
+            </option>
           ))}
-        </div>
-      </fieldset>
+        </select>
+      </div>
 
       <fieldset className="m-0 min-w-0 border-0 p-0">
         <legend className={LEGEND}>Preferences</legend>

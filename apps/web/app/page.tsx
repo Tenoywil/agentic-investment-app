@@ -4,6 +4,7 @@ import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
+import { getMe, landingPathFor } from '@/lib/me-api';
 import {
   CircleAlert,
   LineChart,
@@ -13,6 +14,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 function GoogleG() {
   return (
@@ -79,6 +81,24 @@ export default function LandingPage() {
   const router = useRouter();
   const { start: google, pending, slow, error } = useGoogleSignIn();
   const demo = () => router.push('/demo/home');
+
+  /**
+   * Somebody already signed in does not belong on the marketing page. Landing
+   * on `/` used to strand them here — the app was reachable only by knowing to
+   * type /home — which read as broken navigation. A failed check means "not
+   * signed in" and the page simply stays.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    getMe()
+      .then((me) => {
+        if (!cancelled) router.replace(landingPathFor(me));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
@@ -202,7 +222,7 @@ export default function LandingPage() {
               Every partner you connect, in one view
             </div>
             <div className="mt-2 text-[13.5px] text-[#eafaf5]/80">
-              Net worth and allocation, in USD, JMD or TTD.
+              Net worth and allocation, in USD, JMD, TTD, GYD and more.
             </div>
           </div>
           <div className="mt-3.5 flex items-start gap-2.5 rounded-[11px] border border-border bg-[#fbfaf6] dark:bg-white/[0.02] px-3.5 py-[13px]">

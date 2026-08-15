@@ -32,10 +32,19 @@ export interface ParsedHolding {
   returnLabel?: string;
 }
 
-const SYMBOL_TO_CURRENCY: Record<string, Currency> = { US$: 'USD', J$: 'JMD', TT$: 'TTD' };
+const SYMBOL_TO_CURRENCY: Record<string, Currency> = {
+  US$: 'USD',
+  J$: 'JMD',
+  TT$: 'TTD',
+  G$: 'GYD',
+  Bds$: 'BBD',
+  EC$: 'XCD',
+  B$: 'BSD',
+};
 
-// Amount like "US$12,400" / "J$1,000.50" / "TT$3,500".
-const AMOUNT_RE = /(US\$|J\$|TT\$)\s?([\d,]+(?:\.\d{1,2})?)/;
+// Amount like "US$12,400" / "J$1,000.50" / "TT$3,500". Longer symbols first so
+// "Bds$" is not read as "B$" plus stray letters.
+const AMOUNT_RE = /(Bds\$|US\$|EC\$|TT\$|J\$|G\$|B\$)\s?([\d,]+(?:\.\d{1,2})?)/;
 
 /**
  * Parse statement lines into holdings. A line contributes a holding only if it

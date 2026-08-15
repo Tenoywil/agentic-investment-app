@@ -2,6 +2,7 @@
 
 import { AccountMenu } from '@/app/_components/AccountMenu';
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
+import { useMaybeMe } from '@/app/_lib/session';
 import { cn } from '@/app/_lib/utils';
 import { type Approval, getApprovals } from '@/lib/portfolio-api';
 import {
@@ -53,20 +54,23 @@ export interface NavGroup {
   items: { key: Key; label: string; href: string; Icon: LucideIcon; tour?: string }[];
 }
 
+/**
+ * Two groups, not four. The rail used to open with four uppercase group
+ * headings over eleven links — "OVERVIEW" labelling two items, "INVEST"
+ * labelling three — which read as a sitemap, not a place to go. The daily
+ * screens are one unlabelled list in the order a person uses them; the
+ * private-markets gateway keeps its heading because it is genuinely a
+ * different room.
+ */
 const GROUPS: NavGroup[] = [
   {
-    label: 'Overview',
+    label: '',
     items: [
       { key: 'home', label: 'Home', href: '/home', Icon: LayoutGrid },
       { key: 'portfolio', label: 'Portfolio', href: '/portfolio', Icon: LineChart },
-    ],
-  },
-  {
-    label: 'Invest',
-    items: [
       {
         key: 'opportunities',
-        label: 'Opportunities',
+        label: 'Invest',
         href: '/opportunities',
         Icon: TrendingUp,
         tour: 'customer-opportunities',
@@ -77,19 +81,19 @@ const GROUPS: NavGroup[] = [
       // Where an authorised order goes. GET /api/orders had no reader at all,
       // so a person watched the exec dialog close and never learned whether
       // their institution accepted, settled or declined it.
-      { key: 'orders', label: 'Orders', href: '/orders', Icon: ArrowRightLeft },
-      { key: 'agent', label: 'Agent', href: '/agent', Icon: Sparkles },
-    ],
-  },
-  {
-    label: 'Plan',
-    items: [
+      { key: 'orders', label: 'My orders', href: '/orders', Icon: ArrowRightLeft },
+      { key: 'agent', label: 'Your agent', href: '/agent', Icon: Sparkles },
       { key: 'planning', label: 'Planning', href: '/planning', Icon: ShieldCheck },
-      { key: 'onboarding', label: 'Onboarding', href: '/onboarding', Icon: UserPlus },
+      /**
+       * Onboarding leaves the rail once it is finished — a permanent link to a
+       * completed one-time flow is the strongest "this is a demo" tell the rail
+       * had. `navGroupsFor` drops it when the session says it is complete.
+       */
+      { key: 'onboarding', label: 'Finish onboarding', href: '/onboarding', Icon: UserPlus },
     ],
   },
   {
-    label: 'Gateway',
+    label: 'Private markets',
     items: [
       { key: 'gatewayMandate', label: 'Mandate', href: '/gateway/mandate', Icon: Target },
       {
@@ -127,14 +131,17 @@ const CARD_TITLE = 'mb-1 min-h-[24px] font-display text-base font-semibold';
 const CARD_BODY = 'mb-3 min-h-[38px] text-[13.5px] leading-snug opacity-80';
 
 /**
- * The agent card, live surface: how many approvals are actually waiting on you.
- * It used to read "6 opportunities matched / 2 actions ready for your approval
- * this week" on every screen for every user, including one who had just signed
- * up. Zero is a real answer here and is written as one.
+ * The agent's presence in the rail: loud only when something actually waits.
+ *
+ * This used to be a full navy card on every screen — "Checking with your
+ * agent…", a two-line body, a peach button — narrating the agent's idle state
+ * to somebody trying to read their portfolio. An assistant with nothing to say
+ * should take up one quiet line; the tall card with the button now appears only
+ * when approvals are genuinely waiting on the person, which is the one moment
+ * it earns the space.
  */
 export function AgentCard() {
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
-  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,47 +150,46 @@ export function AgentCard() {
         if (!cancelled) setApprovals(rows);
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        // Quietly: the rail is not the place to report a fetch failure, and the
+        // compact row below already links to the agent screen, which is.
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const pending = approvals?.filter((a) => a.status === 'pending').length ?? null;
+  const pending = approvals?.filter((a) => a.status === 'pending').length ?? 0;
+
+  if (pending === 0) {
+    return (
+      <Link
+        href="/agent"
+        className="app-sidebar__agentcard mb-3 flex items-center gap-2.5 rounded-[13px] border border-solid border-border px-3 py-[11px] text-[14px] font-semibold text-dim no-underline hover:text-foreground"
+      >
+        <span className="h-[7px] w-[7px] flex-none rounded-full bg-success" aria-hidden />
+        <span className="flex-1 whitespace-nowrap">Your agent</span>
+        <span className="whitespace-nowrap text-[12px] font-normal text-faint">
+          nothing waiting
+        </span>
+      </Link>
+    );
+  }
 
   return (
     <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5] dark:bg-[#124e48]">
       <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
         <span className="h-[7px] w-[7px] rounded-full bg-peach" />
-        Your agent · live
+        Your agent
       </div>
-      {pending === null ? (
-        <>
-          <div className={CARD_TITLE}>{failed ? 'Your agent' : 'Checking with your agent…'}</div>
-          <div className={CARD_BODY}>
-            {failed
-              ? 'Open the agent to see what needs a decision.'
-              : 'Looking for anything waiting on your decision.'}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className={CARD_TITLE}>
-            {pending === 0 ? 'Nothing waiting on you' : `${pending} waiting on you`}
-          </div>
-          <div className={CARD_BODY}>
-            {pending === 0
-              ? 'Anything needing your approval will appear here.'
-              : `${pending === 1 ? 'One action is' : `${pending} actions are`} ready for your approval.`}
-          </div>
-        </>
-      )}
+      <div className={CARD_TITLE}>{pending} waiting on you</div>
+      <div className={CARD_BODY}>
+        {pending === 1 ? 'One action is' : `${pending} actions are`} ready for your approval.
+      </div>
       <Link
         href="/agent"
         className="block rounded-[11px] bg-peach py-[11px] text-center text-[15px] font-bold text-[#3a2415] no-underline"
       >
-        {pending !== null && pending > 0 ? 'Review with agent' : 'Open your agent'}
+        Review with agent
       </Link>
     </div>
   );
@@ -221,11 +227,19 @@ export function DemoAgentCard({ basePath }: { basePath: string }) {
  * navigation, and a second hand-written copy of this list is how the two would
  * quietly stop agreeing about what the product contains.
  */
-export function navGroupsFor(basePath: string): NavGroup[] {
-  if (!basePath) return GROUPS;
-  return GROUPS.filter((g) => g.label !== 'Gateway').map((g) =>
-    g.label === 'Plan' ? { ...g, items: g.items.filter((i) => i.key !== 'onboarding') } : g,
-  );
+export function navGroupsFor(basePath: string, showOnboarding = false): NavGroup[] {
+  if (basePath) {
+    // The demo shell: no Gateway (live-only) and no Onboarding (it IS the real
+    // signup flow, not something to preview).
+    return GROUPS.filter((g) => g.label !== 'Private markets').map((g) => ({
+      ...g,
+      items: g.items.filter((i) => i.key !== 'onboarding'),
+    }));
+  }
+  if (showOnboarding) return GROUPS;
+  // A finished (or still-loading) one-time flow gets no permanent link. Only a
+  // session known to be mid-onboarding shows the way back into it.
+  return GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => i.key !== 'onboarding') }));
 }
 
 /** One group's links. Shared by the rail and the drawer. */
@@ -243,10 +257,14 @@ export function NavLinks({
   return (
     <>
       {groups.map((g) => (
-        <div key={g.label}>
-          <div className="px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
-            {g.label}
-          </div>
+        <div key={g.label || 'main'}>
+          {/* The main list carries no heading — labelling "Home, Portfolio,
+              Invest" as OVERVIEW/INVEST read as a sitemap, not navigation. */}
+          {g.label ? (
+            <div className="mt-2 border-0 border-t border-solid border-border px-2.5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[1.6px] text-faint">
+              {g.label}
+            </div>
+          ) : null}
           {g.items.map(({ key, label, href, Icon, tour }) => {
             const on = key === active;
             return (
@@ -275,7 +293,9 @@ export function AppSidebar({
   active,
   basePath = '',
 }: { active: Key | 'institutions'; basePath?: string }) {
-  const groups = navGroupsFor(basePath);
+  // Tolerates the demo shell, which mounts this rail with no session provider.
+  const me = useMaybeMe();
+  const groups = navGroupsFor(basePath, me !== null && !me.onboarding.complete);
 
   return (
     <nav
@@ -304,7 +324,10 @@ export function AppSidebar({
           scrolling the page, and on a screen short enough it never appeared at
           all. Confining the overflow to the links keeps everything that is not a
           link on screen at every viewport height. */}
-      <div className="app-sidebar__scroll -mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+      {/* overscroll-contain: without it a wheel or trackpad scroll that ends
+          inside the rail chains into the page behind it, so the whole screen
+          lurches the moment the short nav list runs out — felt as jitter. */}
+      <div className="app-sidebar__scroll -mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
         <NavLinks groups={groups} active={active} basePath={basePath} withTourTargets={!basePath} />
       </div>
 

@@ -9,6 +9,7 @@ import {
 } from '@ccn/db';
 import {
   acceptOrderSchema,
+  confirmFundsSchema,
   listInstrumentSchema,
   partnerProfileSchema,
   rejectSchema,
@@ -25,6 +26,7 @@ import {
   auditAppend,
   partnerClientHoldings,
   partnerClients,
+  partnerConfirmFunds,
   partnerReviewClient,
   partnerToggleInstrument,
   partnerUpdateProfile,
@@ -561,6 +563,58 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
 
   app.post('/clients/:id/accept', review(true));
   app.post('/clients/:id/decline', review(false));
+
+  /**
+   * The firm confirms a client's funding has settled.
+   *
+   * Funding an account happens between the investor and the firm — a wire, a
+   * branch deposit — never through CCN, which holds no money. What was missing
+   * was the confirmation: nothing on the platform could say the money landed,
+   * so a freshly funded client showed an empty balance until the next statement
+   * cycle. This is the firm's one write for that fact. The client's cash at
+   * this firm (a holding with no instrument) grows by the stated amount, the
+   * investor sees it on their portfolio, and the audit trail carries the firm's
+   * own reference.
+   */
+  app.post('/clients/:id/funds', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const parsed = confirmFundsSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success)
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+
+    const accountId = c.req.param('id');
+    try {
+      const holdingId = await withTenant(deps, tenant, (tx) =>
+        partnerConfirmFunds(tx, {
+          accountId,
+          amountMinor: parsed.data.amountMinor,
+          currency: parsed.data.currency,
+          reference: parsed.data.reference ?? null,
+        }),
+      );
+      deps.logger.info('partner confirmed settled funds', {
+        partner: scope.partnerId,
+        account: accountId,
+        currency: parsed.data.currency,
+      });
+      return c.json({ holdingId });
+    } catch (err) {
+      if (raisedBy(err, 'is not active')) {
+        return c.json(
+          { error: 'This client is not active, so settled funds cannot be recorded yet.' },
+          409,
+        );
+      }
+      if (raisedBy(err, 'not a client of this partner')) {
+        return c.json({ error: 'that client is not one of yours' }, 404);
+      }
+      throw err;
+    }
+  });
 
   // ---- Reconciliation (clients & KYC tab): match ingested statement lines ----
 

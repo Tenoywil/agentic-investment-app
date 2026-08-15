@@ -7,6 +7,7 @@ import {
   type ConsoleClient,
   type ConsoleClientDetail,
   type ConsoleCurrency,
+  confirmFunds,
   getClient,
 } from '@/lib/console-api';
 import { Boxes, CircleAlert, X } from 'lucide-react';
@@ -52,6 +53,8 @@ const TIER_LABEL: Record<string, string> = {
   tier2: 'Tier 2',
 };
 
+const FUNDS_CURRENCIES: ConsoleCurrency[] = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
+
 export function ClientDetailDialog({
   client,
   busy,
@@ -73,6 +76,15 @@ export function ClientDetailDialog({
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [revoking, setRevoking] = React.useState(false);
   const [reason, setReason] = React.useState('');
+
+  // Settled-funds form. The funding itself happened off-platform, between the
+  // client and this firm; this records the firm's confirmation that it landed.
+  const [fundsAmt, setFundsAmt] = React.useState('');
+  const [fundsCurrency, setFundsCurrency] = React.useState<ConsoleCurrency>('USD');
+  const [fundsRef, setFundsRef] = React.useState('');
+  const [fundsBusy, setFundsBusy] = React.useState(false);
+  const [fundsNote, setFundsNote] = React.useState<string | null>(null);
+  const [fundsError, setFundsError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     openerRef.current = document.activeElement as HTMLElement | null;
@@ -117,6 +129,36 @@ export function ClientDetailDialog({
   const holdings = detail?.holdings ?? [];
   const orders = detail?.orders ?? [];
   const audit = detail?.audit ?? [];
+
+  async function submitFunds(e: React.FormEvent) {
+    e.preventDefault();
+    const major = Number.parseFloat(fundsAmt.replace(/[^0-9.]/g, ''));
+    if (!Number.isFinite(major) || major <= 0) {
+      setFundsError('Enter the settled amount.');
+      return;
+    }
+    setFundsBusy(true);
+    setFundsError(null);
+    setFundsNote(null);
+    try {
+      await confirmFunds(client.account_id, {
+        amountMinor: String(Math.round(major * 100)),
+        currency: fundsCurrency,
+        reference: fundsRef.trim() || undefined,
+      });
+      setFundsNote(
+        `Recorded. ${client.client_name}'s cash balance with you now reflects it, and they can see it on their portfolio.`,
+      );
+      setFundsAmt('');
+      setFundsRef('');
+      // Re-read so the cash line and the audit row this just wrote appear.
+      setDetail(await getClient(client.account_id));
+    } catch (err) {
+      setFundsError(errorMessage(err, 'Could not record the settled funds.'));
+    } finally {
+      setFundsBusy(false);
+    }
+  }
 
   function exportHoldings() {
     downloadCsv(
@@ -218,6 +260,66 @@ export function ClientDetailDialog({
                 </div>
               )}
             </section>
+
+            {/* Funding settles between the client and this firm, off-platform.
+                This is the firm's confirmation that it landed — the one write
+                that moves the client's cash balance here. Active clients only:
+                money cannot settle into a relationship that does not exist. */}
+            {client.status === 'active' ? (
+              <section className="mt-6">
+                <b className="font-display text-[15px]">Record settled funds</b>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-faint">
+                  When money this client sent you has settled — a wire, a branch deposit — record it
+                  here. Their cash balance with your firm updates at once, on their portfolio too.
+                  CCN never holds or moves the money.
+                </p>
+                <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={submitFunds}>
+                  <label className="flex w-[130px] flex-col gap-1 text-[12.5px] font-semibold">
+                    Amount
+                    <input
+                      value={fundsAmt}
+                      onChange={(e) => setFundsAmt(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="10,000"
+                      disabled={fundsBusy}
+                      className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-right font-mono text-[14px] font-bold text-foreground"
+                    />
+                  </label>
+                  <label className="flex w-[92px] flex-col gap-1 text-[12.5px] font-semibold">
+                    Currency
+                    <select
+                      value={fundsCurrency}
+                      onChange={(e) => setFundsCurrency(e.target.value as ConsoleCurrency)}
+                      disabled={fundsBusy}
+                      className="block h-[38px] w-full rounded-[10px] border border-solid border-border bg-card px-2 text-[13.5px] font-semibold text-foreground"
+                    >
+                      {FUNDS_CURRENCIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex min-w-[150px] flex-1 flex-col gap-1 text-[12.5px] font-semibold">
+                    Your reference (optional)
+                    <input
+                      value={fundsRef}
+                      onChange={(e) => setFundsRef(e.target.value)}
+                      placeholder="Wire id, receipt no."
+                      disabled={fundsBusy}
+                      className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                    />
+                  </label>
+                  <Button type="submit" size="sm" disabled={fundsBusy}>
+                    {fundsBusy ? 'Recording…' : 'Confirm settled'}
+                  </Button>
+                </form>
+                {fundsError ? <ErrorNote message={fundsError} className="mt-2" /> : null}
+                {fundsNote ? (
+                  <output className="mt-2 block text-[12.5px] text-success-ink">{fundsNote}</output>
+                ) : null}
+              </section>
+            ) : null}
 
             <section className="mt-6">
               <b className="font-display text-[15px]">Orders they placed with you</b>

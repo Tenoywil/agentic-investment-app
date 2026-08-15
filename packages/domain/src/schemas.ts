@@ -6,7 +6,7 @@ import { z } from 'zod';
  * invalid body never touches the database or the Limits Engine.
  */
 
-export const currencySchema = z.enum(['USD', 'JMD', 'TTD']);
+export const currencySchema = z.enum(['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD']);
 
 /**
  * Minor units off the wire: a non-negative integer sent as a JSON number or a
@@ -120,6 +120,21 @@ export const settleOrderSchema = z.object({
   externalRef: z.string().min(1).max(120).optional(),
 });
 export type SettleOrderInput = z.infer<typeof settleOrderSchema>;
+
+/**
+ * POST /api/console/clients/:id/funds — the firm confirms settled funding.
+ *
+ * The money moved between the investor and the firm, off-platform; what CCN
+ * records is the firm's statement that it landed. Amount and currency are the
+ * firm's words about its own books, `reference` is theirs to reconcile by.
+ */
+export const confirmFundsSchema = z.object({
+  amountMinor: positiveAmountMinorSchema,
+  currency: currencySchema.default('USD'),
+  /** The firm's own reference — a wire id, a receipt number. */
+  reference: z.string().min(1).max(120).optional(),
+});
+export type ConfirmFundsInput = z.infer<typeof confirmFundsSchema>;
 
 /**
  * PATCH /api/console/partner — a firm corrects its own record.

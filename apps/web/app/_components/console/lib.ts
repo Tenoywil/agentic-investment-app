@@ -72,7 +72,15 @@ export const ROW_DIVIDER = 'border-x-0 border-t-0 border-b border-solid border-b
 
 /* ---- formatting --------------------------------------------------------- */
 
-const CURRENCY_PREFIX: Record<ConsoleCurrency, string> = { USD: 'US$', JMD: 'J$', TTD: 'TT$' };
+const CURRENCY_PREFIX: Record<ConsoleCurrency, string> = {
+  USD: 'US$',
+  JMD: 'J$',
+  TTD: 'TT$',
+  GYD: 'G$',
+  BBD: 'Bds$',
+  XCD: 'EC$',
+  BSD: 'B$',
+};
 
 export function fmtMinor(minor: string, currency: ConsoleCurrency): string {
   const n = Number(minor) / 100;
@@ -176,6 +184,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'reconciliation.matched': 'Statement line matched to a holding',
   'reconciliation.rejected': 'Statement line rejected',
   'reconciliation.pulled': 'Statements pulled for reconciliation',
+  'funds.settled': 'Settled funds confirmed',
   'instrument.listed': 'Product listed',
   'instrument.updated': 'Product details amended',
   'instrument.live': 'Product put back on the marketplace',
@@ -288,14 +297,16 @@ export function guessParsedHolding(parsed: unknown): ParsedHoldingGuess | null {
   if (
     typeof p.name !== 'string' ||
     typeof p.valueMinor !== 'string' ||
-    (p.currency !== 'USD' && p.currency !== 'JMD' && p.currency !== 'TTD')
+    typeof p.currency !== 'string' ||
+    !(p.currency in CURRENCY_PREFIX)
   ) {
     return null;
   }
   return {
     name: p.name,
     valueMinor: p.valueMinor,
-    currency: p.currency,
+    // Safe: membership in CURRENCY_PREFIX is exactly what ConsoleCurrency means.
+    currency: p.currency as ConsoleCurrency,
     returnLabel: typeof p.returnLabel === 'string' ? p.returnLabel : undefined,
   };
 }

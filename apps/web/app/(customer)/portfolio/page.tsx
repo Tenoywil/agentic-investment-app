@@ -40,7 +40,7 @@ const FALLBACK_STYLES = [
 ];
 const DEFAULT_STYLE = { tint: '#e7edf8', color: '#1a4aa0' };
 
-const CURRENCY_OPTIONS: Currency[] = ['USD', 'JMD', 'TTD'];
+const CURRENCY_OPTIONS: Currency[] = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
 
 // Slice colours per instrument_type; the percentages come from the API, which
 // derives them from real holdings joined to their instrument.
@@ -217,25 +217,22 @@ export default function PortfolioPage() {
               <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
               Connect an account
             </Button>
-            <fieldset className="m-0 flex min-w-0 items-center gap-1 rounded-xl border border-solid border-border bg-card p-1">
-              <legend className="sr-only">Display currency</legend>
-              {CURRENCY_OPTIONS.map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => setCurrency(code)}
-                  aria-pressed={currency === code}
-                  className={cn(
-                    'rounded-lg px-3 py-1.5 font-sans text-[13px] font-bold transition-colors',
-                    currency === code
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-dim hover:text-foreground',
-                  )}
-                >
-                  {code}
-                </button>
-              ))}
-            </fieldset>
+            {/* A dropdown, not a chip-per-currency row: at seven supported
+                currencies the chips outgrew the header, on a phone especially. */}
+            <label className="flex items-center gap-1.5">
+              <span className="sr-only">Display currency</span>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as Currency)}
+                className="h-9 rounded-xl border border-solid border-border bg-card px-2.5 font-sans text-[13px] font-bold text-foreground"
+              >
+                {CURRENCY_OPTIONS.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+            </label>
             {data ? (
               <div className="flex items-baseline gap-2 rounded-xl border border-solid border-border bg-mint px-4 py-2.5">
                 <b className="font-display text-xl">{data.netWorth}</b>
@@ -302,8 +299,11 @@ export default function PortfolioPage() {
         </output>
       ) : null}
 
-      {loading && (
+      {loading && !data && (
         // Mirrors the real shape: the allocation bar, then one row per partner.
+        // Only before the FIRST load: switching currency or refetching must not
+        // blank a screen somebody is reading into grey boxes — the numbers swap
+        // in place when the new read lands.
         <SkeletonRegion label="Loading your portfolio">
           <SkeletonCard lines={2} className="mb-4" />
           <div className="flex flex-col gap-3">
@@ -439,6 +439,14 @@ export default function PortfolioPage() {
                   </div>
                   <div className="text-right">
                     <div className="font-mono text-[15px] font-bold">{inst.total}</div>
+                    {/* The balance at this firm, as distinct from the header's
+                        net worth: cash settled with one partner is not spendable
+                        at another, so it is stated per card. */}
+                    {inst.cash && (
+                      <div className="text-[12px] font-semibold text-teal2">
+                        {inst.cash} cash available
+                      </div>
+                    )}
                     {/* This partner's regulator, from the partners table.
                         Previously every institution carried a static
                         "· FSC-regulated", true of the seeded Jamaican partners

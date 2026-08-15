@@ -522,6 +522,38 @@ function ExecDialog({
                 </div>
               ) : null}
 
+              {/* The amount lives here, on the first screen, not hidden behind
+                  "Continue". Opening the card and seeing no way to say how much
+                  read as "you cannot choose" — the one thing an order dialog
+                  must never imply. */}
+              {!blocked && (
+                <div className="mb-4 flex items-start justify-between rounded-xl border border-border px-4 py-3.5">
+                  <label htmlFor={`${titleId}-amt0`} className="pt-2 text-sm font-semibold">
+                    Amount to invest
+                  </label>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="relative">
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm font-bold text-dim"
+                      >
+                        {currencySymbol(opp.currency)}
+                      </span>
+                      <Input
+                        id={`${titleId}-amt0`}
+                        value={amt}
+                        onChange={(e) => setAmt(e.target.value)}
+                        inputMode="numeric"
+                        className="h-10 w-[150px] pl-11 text-right font-mono font-bold"
+                      />
+                    </div>
+                    <span className="text-right text-[12.5px] text-faint">
+                      Minimum {opp.min} · adjust to any amount above it
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 text-[13.5px] text-dim">
                 <ShieldCheck className="h-3.5 w-3.5 flex-none text-success" aria-hidden />
                 Executed by {opp.partner}
@@ -635,9 +667,25 @@ function ExecDialog({
                 Close — understood
               </Button>
             ) : step === 0 ? (
-              <Button size="lg" className="flex-1" onClick={() => setStep(1)}>
-                Continue to authorize
-              </Button>
+              <div className="flex flex-1 flex-col items-stretch gap-1.5">
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={amtNum <= 0 || amtNum < minMajor(opp)}
+                  onClick={() => setStep(1)}
+                >
+                  {amtNum > 0 ? `Continue with ${amtFmt}` : 'Continue to authorize'}
+                </Button>
+                {amtNum <= 0 ? (
+                  <p className="text-center text-[12.5px] text-dim">
+                    Enter the amount you want to invest above.
+                  </p>
+                ) : amtNum < minMajor(opp) ? (
+                  <p className="text-center text-[12.5px] text-dim">
+                    This product's minimum is {opp.min}.
+                  </p>
+                ) : null}
+              </div>
             ) : step === 1 ? (
               <div className="flex flex-1 flex-col items-stretch gap-1.5">
                 <Button

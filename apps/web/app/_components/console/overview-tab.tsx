@@ -4,21 +4,12 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleKpi, ConsoleOrder } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
-import { ArrowRightLeft, LayoutGrid } from 'lucide-react';
+import { ArrowRightLeft, CheckCheck, LayoutGrid } from 'lucide-react';
 import { ROW_DIVIDER, SUCCESS_TEXT, fmtMinor, isSandbox, timeAgo, uppr } from './lib';
 import { RowsSkeleton, TilesSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
 import { SandboxBadge } from './sandbox-badge';
-
-/** Static explainer copy — CCN's own product argument, not a claim about any
- *  partner's numbers. Chrome, and it stays. */
-const WHY = [
-  'Qualified, KYC-cleared demand into products you already run',
-  'Diaspora reach without building cross-border onboarding',
-  'Your name and regulator on every deal card, no channel conflict',
-  'You keep execution, custody and settlement under your license',
-];
 
 export function OverviewTab({
   partner,
@@ -29,6 +20,9 @@ export function OverviewTab({
   loading,
   orderBusyId,
   orderActionError,
+  pendingReviews,
+  pendingReconciliation,
+  onGoTab,
   onAccept,
   onSettle,
   onReject,
@@ -41,6 +35,12 @@ export function OverviewTab({
   loading: boolean;
   orderBusyId: string | null;
   orderActionError: string | null;
+  /** Clients awaiting this desk's review. */
+  pendingReviews: number;
+  /** Statement lines waiting to be matched. */
+  pendingReconciliation: number;
+  /** Jump to another tab — the overview points at work, the tabs hold it. */
+  onGoTab: (tab: 'orders' | 'clients' | 'compliance') => void;
   onAccept: (id: string) => void;
   onSettle: (id: string) => void;
   onReject: (id: string, reason?: string) => void;
@@ -175,31 +175,70 @@ export function OverviewTab({
           ) : null}
         </Card>
 
-        <div className="flex flex-col gap-[18px]">
-          {/* text-white throughout: see compliance-tab — in the dark theme
-              --primary is a mid teal that nothing dimmer than white clears
-              4.5:1 against. */}
-          <Card className="border-none bg-primary p-[22px] text-white">
-            <div className={`mb-3.5 font-mono ${uppr} text-white`}>Why this flow matters</div>
-            <ul className="m-0 list-none p-0">
-              {WHY.map((w) => (
-                <li key={w} className="mb-3 flex gap-2.5 text-[14.5px] leading-normal">
-                  <span aria-hidden className="flex-none font-bold">
-                    +
-                  </span>
-                  <span>{w}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-          <Card className="p-[22px]">
-            <b className="font-display text-[17px]">The line CCN never crosses</b>
-            <p className="mt-2 text-sm leading-relaxed text-dim">
-              CCN holds no client money, executes nothing and never becomes custodian. The regulated
-              duties stay with you; CCN routes signed instructions and keeps the audit trail.
-            </p>
-          </Card>
-        </div>
+        {/* What actually needs the desk today. This column used to hold CCN's
+            product pitch and its "line we never cross" statement — copy for a
+            prospect, furniture at a working desk. That prose now lives on the
+            Compliance tab; the overview points at work. */}
+        <Card className="h-fit p-[22px]">
+          <b className="font-display text-lg">Needs you now</b>
+          {(() => {
+            const pendingOrders = ordersError
+              ? 0
+              : orders.filter((o) => o.status === 'created').length;
+            const rows: { n: number; what: string; go: 'orders' | 'clients'; cta: string }[] = [
+              {
+                n: pendingOrders,
+                what: pendingOrders === 1 ? 'order to accept' : 'orders to accept',
+                go: 'orders' as const,
+                cta: 'Open the order flow',
+              },
+              {
+                n: pendingReviews,
+                what: pendingReviews === 1 ? 'client awaiting review' : 'clients awaiting review',
+                go: 'clients' as const,
+                cta: 'Review clients',
+              },
+              {
+                n: pendingReconciliation,
+                what:
+                  pendingReconciliation === 1
+                    ? 'statement line to reconcile'
+                    : 'statement lines to reconcile',
+                go: 'clients' as const,
+                cta: 'Reconcile',
+              },
+            ].filter((r) => r.n > 0);
+            if (rows.length === 0) {
+              return (
+                <p className="mt-2 flex items-center gap-2 text-sm text-dim">
+                  <CheckCheck className={`h-4 w-4 flex-none ${SUCCESS_TEXT}`} aria-hidden />
+                  Nothing is waiting on your desk.
+                </p>
+              );
+            }
+            return (
+              <ul className="m-0 mt-2 list-none p-0">
+                {rows.map((r) => (
+                  <li
+                    key={r.what}
+                    className={`flex items-center justify-between gap-3 py-3 ${ROW_DIVIDER} last:border-b-0`}
+                  >
+                    <span className="text-[14.5px]">
+                      <b className="font-mono">{r.n}</b> {r.what}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onGoTab(r.go)}
+                      className="text-[13.5px] font-bold text-teal2 underline-offset-4 hover:underline"
+                    >
+                      {r.cta}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+        </Card>
       </div>
     </>
   );

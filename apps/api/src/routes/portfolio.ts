@@ -284,6 +284,10 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
           partnerRegulator: partners.regulator,
           holdingName: holdings.name,
           valueMinor: holdings.valueMinor,
+          holdingCurrency: holdings.currency,
+          // Null = not matched to a catalogue instrument. Cash — money the firm
+          // confirmed settled, waiting to be invested — is exactly this shape.
+          instrumentId: holdings.instrumentId,
           ret: holdings.returnLabel,
           instrumentType: instruments.type,
           // When this balance was last pulled from the partner. The column has
@@ -329,6 +333,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         kind: string | null;
         regulator: string | null;
         totalMinor: bigint;
+        /** Uninvested money at this firm — holdings with no instrument. */
+        cashMinor: bigint;
         holdings: unknown[];
         /** The oldest `updated_at` on this card's holdings — see below. */
         updatedAt: Date | null;
@@ -353,9 +359,13 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
     const byClass = new Map<string, bigint>();
     let netWorthMinor = 0n;
     for (const r of rows) {
-      netWorthMinor += r.valueMinor;
+      // A holding is stored in its own currency — a firm settles a GYD wire in
+      // GYD. Everything aggregates in USD minor units, converted per line, so
+      // one JMD money-market line no longer counts as 157× itself.
+      const usdMinor = convert(money(r.valueMinor, r.holdingCurrency), 'USD', fx.table).minor;
+      netWorthMinor += usdMinor;
       const cls = r.instrumentType ?? 'other';
-      byClass.set(cls, (byClass.get(cls) ?? 0n) + r.valueMinor);
+      byClass.set(cls, (byClass.get(cls) ?? 0n) + usdMinor);
       const key = r.partnerCode ?? 'UNKNOWN';
       const group = groups.get(key) ?? {
         code: key,
@@ -363,10 +373,12 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         kind: r.partnerKind ?? null,
         regulator: r.partnerRegulator ?? null,
         totalMinor: 0n,
+        cashMinor: 0n,
         holdings: [],
         updatedAt: null,
       };
-      group.totalMinor += r.valueMinor;
+      group.totalMinor += usdMinor;
+      if (r.instrumentId === null) group.cashMinor += usdMinor;
       // The oldest line decides what the card can claim: a partner card is only
       // as current as its least recently refreshed holding.
       if (r.updatedAt && (!group.updatedAt || r.updatedAt < group.updatedAt)) {
@@ -374,7 +386,7 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
       }
       group.holdings.push({
         name: r.holdingName,
-        value: formatMoney(convert(money(r.valueMinor, 'USD'), display, fx.table)),
+        value: formatMoney(convert(money(r.valueMinor, r.holdingCurrency), display, fx.table)),
         ret: r.ret,
       });
       groups.set(key, group);
@@ -422,6 +434,17 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         kind: g.kind,
         regulator: g.regulator,
         total: formatMoney(convert(money(g.totalMinor, 'USD'), display, fx.table)),
+        /**
+         * The uninvested balance at this firm, distinct from the total: an
+         * investor's "balance" is per partner — money settled with NCB is not
+         * spendable at Sagicor — while the header's net worth is the sum of
+         * everything everywhere. Null when this firm holds no cash line at all,
+         * which renders differently from a zero balance.
+         */
+        cash:
+          g.cashMinor > 0n
+            ? formatMoney(convert(money(g.cashMinor, 'USD'), display, fx.table))
+            : null,
         asOf: g.updatedAt ? g.updatedAt.toISOString() : null,
         holdings: g.holdings,
       })),

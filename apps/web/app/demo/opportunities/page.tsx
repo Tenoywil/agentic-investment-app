@@ -383,6 +383,36 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 </div>
               )}
 
+              {/* Same shape as the live flow: the amount is adjustable on the
+                  first screen, before anything reads like a commitment. */}
+              {!blocked && (
+                <div className="mb-4 flex items-start justify-between rounded-xl border border-border px-4 py-3.5">
+                  <label htmlFor={`${titleId}-amt0`} className="pt-2 text-sm font-semibold">
+                    Amount to invest
+                  </label>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="relative">
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm font-bold text-dim"
+                      >
+                        US$
+                      </span>
+                      <Input
+                        id={`${titleId}-amt0`}
+                        value={amt}
+                        onChange={(e) => setAmt(e.target.value)}
+                        inputMode="numeric"
+                        className="h-10 w-[150px] pl-11 text-right font-mono font-bold"
+                      />
+                    </div>
+                    <span className="text-right text-[12.5px] text-faint">
+                      Minimum {opp.min} · adjust to any amount above it
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 text-[13.5px] text-dim">
                 <ShieldCheck className="h-3.5 w-3.5 flex-none text-success" aria-hidden />
                 Executed by {opp.partner} · Regulated by {opp.regulator}
@@ -499,9 +529,21 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 Close — understood
               </Button>
             ) : step === 0 ? (
-              <Button size="lg" className="flex-1" onClick={() => setStep(1)}>
-                Continue to authorize
-              </Button>
+              <div className="flex flex-1 flex-col items-stretch gap-1.5">
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={amtNum < minValue(opp)}
+                  onClick={() => setStep(1)}
+                >
+                  {amtNum > 0 ? `Continue with ${amtFmt}` : 'Continue to authorize'}
+                </Button>
+                {amtNum > 0 && amtNum < minValue(opp) && (
+                  <p className="text-center text-[12.5px] text-dim">
+                    This product's minimum is {opp.min}.
+                  </p>
+                )}
+              </div>
             ) : step === 1 ? (
               <Button
                 size="lg"

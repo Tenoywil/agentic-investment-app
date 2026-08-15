@@ -10,15 +10,42 @@
  * `fmt()` (whole-major-unit, en-US grouped).
  */
 
-export type Currency = 'USD' | 'JMD' | 'TTD';
+export type Currency = 'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD';
 
-export const CURRENCIES: readonly Currency[] = ['USD', 'JMD', 'TTD'] as const;
+export const CURRENCIES: readonly Currency[] = [
+  'USD',
+  'JMD',
+  'TTD',
+  'GYD',
+  'BBD',
+  'XCD',
+  'BSD',
+] as const;
 
-/** Minor units per major unit. All three corridor currencies use cents. */
+/** Minor units per major unit. All corridor currencies use cents. */
 export const MINOR_PER_MAJOR = 100n;
 
 /** Display symbol per currency (matches the prototype's `cursym`). */
-export const SYMBOL: Record<Currency, string> = { USD: 'US$', JMD: 'J$', TTD: 'TT$' };
+export const SYMBOL: Record<Currency, string> = {
+  USD: 'US$',
+  JMD: 'J$',
+  TTD: 'TT$',
+  GYD: 'G$',
+  BBD: 'Bds$',
+  XCD: 'EC$',
+  BSD: 'B$',
+};
+
+/** Full name per currency, for pickers where a code alone is unhelpful. */
+export const CURRENCY_NAME: Record<Currency, string> = {
+  USD: 'US dollar',
+  JMD: 'Jamaican dollar',
+  TTD: 'Trinidad & Tobago dollar',
+  GYD: 'Guyanese dollar',
+  BBD: 'Barbadian dollar',
+  XCD: 'Eastern Caribbean dollar',
+  BSD: 'Bahamian dollar',
+};
 
 /** A money amount: integer minor units + its currency. Immutable. */
 export interface Money {
@@ -39,6 +66,13 @@ export const DEFAULT_FX: FxTable = {
   USD: 1_000_000n,
   JMD: 157_200_000n,
   TTD: 6_790_000n,
+  // The four below are long-standing pegs (GYD is managed near 209), so the
+  // seeded fallback is less wrong for them than for a floating rate — but a
+  // screen still reports `seed` rows as unpublished and stale.
+  GYD: 209_000_000n,
+  BBD: 2_000_000n,
+  XCD: 2_700_000n,
+  BSD: 1_000_000n,
 };
 
 function isCurrency(x: string): x is Currency {

@@ -34,6 +34,11 @@ export interface AdminInvestor {
   riskCompleted: boolean | null;
   fundsConfirmed: boolean | null;
   residency: string | null;
+  /** How many positions they hold across all partners. */
+  holdingsCount: number;
+  /** Sum of their USD-denominated holdings, minor units. Non-USD lines are in
+   *  the count but not this sum — mixing currencies unconverted would lie. */
+  usdValueMinor: string;
 }
 
 export interface AdminPartner {

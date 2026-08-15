@@ -380,10 +380,18 @@ const PLANNING = [
   },
 ];
 
+// `source: 'seed'` is what lets every screen say "fallback rate, no bank
+// published this" — a null source renders as nothing at all, which reads like
+// a real rate. asOf stays null: nobody published these on any date.
 const FX = [
-  { quoteCurrency: 'USD' as const, rate: '1.000000' },
-  { quoteCurrency: 'JMD' as const, rate: '157.200000' },
-  { quoteCurrency: 'TTD' as const, rate: '6.790000' },
+  { quoteCurrency: 'USD' as const, rate: '1.000000', source: 'seed' },
+  { quoteCurrency: 'JMD' as const, rate: '157.200000', source: 'seed' },
+  { quoteCurrency: 'TTD' as const, rate: '6.790000', source: 'seed' },
+  // Pegged (or managed, for GYD) currencies with no central-bank fetcher yet.
+  { quoteCurrency: 'GYD' as const, rate: '209.000000', source: 'seed' },
+  { quoteCurrency: 'BBD' as const, rate: '2.000000', source: 'seed' },
+  { quoteCurrency: 'XCD' as const, rate: '2.700000', source: 'seed' },
+  { quoteCurrency: 'BSD' as const, rate: '1.000000', source: 'seed' },
 ];
 
 /** Insert the catalog. Safe to run repeatedly, and on a live database. */

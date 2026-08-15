@@ -11,7 +11,7 @@ import { API_URL } from './config';
  * approvals is a generic ledger route shared with the console.
  */
 
-export type Currency = 'USD' | 'JMD' | 'TTD';
+export type Currency = 'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD';
 
 export interface Holding {
   name: string;
@@ -28,6 +28,12 @@ export interface PortfolioPartner {
    *  carries none — render nothing rather than claiming a regulator. */
   regulator: string | null;
   total: string;
+  /**
+   * The uninvested balance at this firm — money the firm confirmed settled and
+   * not yet invested. Pre-formatted like `total`. Null when the firm holds no
+   * cash line for this investor, which is different from a zero balance.
+   */
+  cash: string | null;
   /**
    * When this firm's balances were last pulled, ISO. Null when nothing here has
    * ever been refreshed. Taken from the *oldest* holding on the card, because a
