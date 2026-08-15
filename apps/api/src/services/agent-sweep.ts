@@ -1,3 +1,4 @@
+import { runProposalPipeline } from '@ccn/agent';
 import { withRls } from '@ccn/db';
 import {
   agentMessages,
@@ -137,7 +138,9 @@ async function sweepOne(
         .where(and(eq(connectedAccounts.userId, userId), eq(connectedAccounts.status, 'active'))),
     ]);
     const excluded = new Set(
-      [...recentApprovals, ...recentOrders].map((r) => r.instrumentId).filter(Boolean),
+      [...recentApprovals, ...recentOrders]
+        .map((r) => r.instrumentId)
+        .filter((id): id is string => id !== null),
     );
     const partnerIds = activeAccounts.map((a) => a.partnerId);
     if (partnerIds.length === 0) return false;
@@ -158,9 +161,17 @@ async function sweepOne(
      * then smallest minimum: the background agent leads with the gentlest
      * viable idea and lets the person ask for more.
      */
-    const candidates = await tx
-      .select({ id: instruments.id })
+    const universe = await tx
+      .select({
+        id: instruments.id,
+        name: instruments.name,
+        risk: instruments.risk,
+        minInvestmentMinor: instruments.minInvestmentMinor,
+        currency: instruments.currency,
+        partnerName: partners.name,
+      })
       .from(instruments)
+      .leftJoin(partners, eq(partners.id, instruments.partnerId))
       .where(
         and(
           eq(instruments.listingStatus, 'live'),
@@ -169,92 +180,110 @@ async function sweepOne(
           sql`${instruments.minInvestmentMinor} > 0`,
         ),
       )
-      .orderBy(
-        sql`case ${instruments.risk} when 'low' then 0 when 'medium' then 1 else 2 end`,
-        instruments.minInvestmentMinor,
-      )
       .limit(CANDIDATES_PER_USER);
 
-    for (const c of candidates) {
-      if (excluded.has(c.id)) continue;
-      const instrument = await loadInstrument(tx, c.id, deps.logger);
-      if (!instrument || instrument.listingStatus !== 'live' || instrument.blocked) continue;
-
-      const amountMinor = instrument.minInvestmentMinor;
-      const decision = await runGate(tx, {
-        userId,
-        instrument,
-        amountMinor,
-        currency: instrument.currency,
-      });
-      // Blocked candidates are simply not for this person. Both passing
-      // decisions become an approval — the background agent asks, always.
-      if (decision.decision === 'blocked') continue;
-
-      const [detail] = await tx
-        .select({ name: instruments.name, risk: instruments.risk, partner: partners.name })
-        .from(instruments)
-        .leftJoin(partners, eq(partners.id, instruments.partnerId))
-        .where(eq(instruments.id, c.id));
-      const name = detail?.name ?? 'A listed product';
-      const amount = fmtMinor(amountMinor, instrument.currency);
-      const limits = await loadLimits(tx, userId);
-
-      const body = [
-        `Found by your agent while scanning the marketplace against your limits: ${name}`,
-        detail?.partner ? ` at ${detail.partner}` : '',
-        detail?.risk ? `, ${RISK_WORD[detail.risk] ?? detail.risk} risk` : '',
-        `. The minimum is ${amount}, from your cash`,
-        limits.cashFloorEnabled
-          ? `, and it clears your ${fmtMinor(limits.cashFloorMinor, instrument.currency)} cash floor`
-          : '',
-        '. Nothing happens unless you approve.',
-      ].join('');
-
-      const [card] = await tx
-        .insert(approvals)
-        .values({
+    /**
+     * The three-specialist pipeline — the SAME stages and trace the chat's
+     * scout_marketplace tool runs, with the DB-backed gate injected instead of
+     * the snapshot one. Research ranks, suitability screens through the
+     * person's own limits, coordination sizes and routes; every verdict lands
+     * in the trace the approval carries.
+     */
+    const outcome = await runProposalPipeline({
+      candidates: universe.map((c) => ({
+        instrumentId: c.id,
+        name: c.name,
+        partnerName: c.partnerName,
+        risk: c.risk,
+        minInvestmentMinor: c.minInvestmentMinor,
+        currency: c.currency,
+      })),
+      excluded,
+      fmt: fmtMinor,
+      gate: async (c, amountMinor) => {
+        const instrument = await loadInstrument(tx, c.instrumentId, deps.logger);
+        if (!instrument || instrument.listingStatus !== 'live' || instrument.blocked) {
+          return { decision: 'blocked', reasons: ['No longer live on the marketplace.'] };
+        }
+        const decision = await runGate(tx, {
           userId,
-          type: 'investment_rec',
-          instrumentId: c.id,
-          title: `${name} · ${amount}`,
-          body,
+          instrument,
           amountMinor,
-          currency: instrument.currency as Currency,
-          snapshot: {
-            source: 'background_sweep',
-            decision: decision.decision,
-            code: decision.code,
-          },
-        })
-        .returning({ id: approvals.id });
-
-      // The finding, in the person's own conversation — so opening the agent
-      // shows what it did while they were away, in its own words.
-      await tx.insert(agentMessages).values({
-        userId,
-        role: 'agent',
-        content: `While you were away I scanned the marketplace against your limits and found ${name}${detail?.partner ? ` at ${detail.partner}` : ''}. I've put it in your approvals — ${amount} minimum, and it stays there until you decide.`,
-      });
-
-      await auditAppend(tx, {
-        actorType: 'agent',
-        actorId: null,
-        userId,
-        partnerId: instrument.partnerId,
-        action: 'agent.proposed',
-        entityType: 'approval',
-        entityId: card?.id ?? null,
-        detail: {
-          instrument: name,
-          amount_minor: amountMinor.toString(),
           currency: instrument.currency,
-          decision: decision.decision,
+        });
+        return decision.decision === 'blocked'
+          ? { decision: 'blocked', reasons: decision.reasons }
+          : { decision: decision.decision, code: decision.code };
+      },
+    });
+    if (!outcome.chosen) return false;
+
+    const { candidate, amountMinor, verdict } = outcome.chosen;
+    const name = candidate.name;
+    const amount = fmtMinor(amountMinor, candidate.currency);
+    const limits = await loadLimits(tx, userId);
+    const [instrumentRow] = await tx
+      .select({ partnerId: instruments.partnerId })
+      .from(instruments)
+      .where(eq(instruments.id, candidate.instrumentId));
+
+    const body = [
+      `Found by your agent's pipeline — research scanned the marketplace, suitability screened it against your limits, coordination sized it: ${name}`,
+      candidate.partnerName ? ` at ${candidate.partnerName}` : '',
+      candidate.risk ? `, ${RISK_WORD[candidate.risk] ?? candidate.risk} risk` : '',
+      `. The minimum is ${amount}, from your cash`,
+      limits.cashFloorEnabled
+        ? `, and it clears your ${fmtMinor(limits.cashFloorMinor, candidate.currency)} cash floor`
+        : '',
+      '. Nothing happens unless you approve.',
+    ].join('');
+
+    const [card] = await tx
+      .insert(approvals)
+      .values({
+        userId,
+        type: 'investment_rec',
+        instrumentId: candidate.instrumentId,
+        title: `${name} · ${amount}`,
+        body,
+        amountMinor,
+        currency: candidate.currency as Currency,
+        snapshot: {
+          source: 'background_sweep',
+          decision: verdict.decision,
+          code: verdict.code,
+          // "How this was decided": the stages' own records, verdicts on the
+          // losers included. Rendered on the approval card.
+          trace: outcome.trace,
         },
-      });
-      return true;
-    }
-    return false;
+      })
+      .returning({ id: approvals.id });
+
+    // The finding, in the person's own conversation — so opening the agent
+    // shows what it did while they were away, in its own words.
+    await tx.insert(agentMessages).values({
+      userId,
+      role: 'agent',
+      content: `While you were away my research agent scanned the marketplace, the suitability check screened the shortlist against your limits, and ${name}${candidate.partnerName ? ` at ${candidate.partnerName}` : ''} came through. I've put it in your approvals — ${amount} minimum, with the full stage-by-stage reasoning on the card. It stays there until you decide.`,
+    });
+
+    await auditAppend(tx, {
+      actorType: 'agent',
+      actorId: null,
+      userId,
+      partnerId: instrumentRow?.partnerId ?? null,
+      action: 'agent.proposed',
+      entityType: 'approval',
+      entityId: card?.id ?? null,
+      detail: {
+        instrument: name,
+        amount_minor: amountMinor.toString(),
+        currency: candidate.currency,
+        decision: verdict.decision,
+        stages: outcome.trace.map((t) => `${t.agent}: ${t.summary}`),
+      },
+    });
+    return true;
   });
 }
 

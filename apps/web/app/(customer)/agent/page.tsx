@@ -112,6 +112,33 @@ function formatMoney(minor: string, currency: string): string {
   return `${prefix}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
+/**
+ * The pipeline trace off an approval's snapshot, read defensively: `snapshot`
+ * is untyped JSONB, and cards raised before the pipeline existed carry none.
+ * A malformed entry drops rather than rendering a half-claim about how a
+ * recommendation about someone's money was made.
+ */
+function decisionTrace(
+  snapshot: unknown,
+): { agent: string; summary: string; detail: string[] }[] | null {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const t = (snapshot as Record<string, unknown>).trace;
+  if (!Array.isArray(t)) return null;
+  const rows = t
+    .filter(
+      (r): r is Record<string, unknown> =>
+        !!r && typeof r === 'object' && typeof (r as Record<string, unknown>).summary === 'string',
+    )
+    .map((r) => ({
+      agent: typeof r.agent === 'string' ? r.agent : 'Agent',
+      summary: r.summary as string,
+      detail: Array.isArray(r.detail)
+        ? r.detail.filter((d): d is string => typeof d === 'string')
+        : [],
+    }));
+  return rows.length > 0 ? rows : null;
+}
+
 function formatWhen(iso: string): string {
   const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (diffMin < 1) return 'Just now';
@@ -1016,6 +1043,37 @@ export default function AgentPage() {
                         {formatMoney(a.amountMinor, a.currency)}
                       </p>
                     )}
+                    {(() => {
+                      // "How this was decided": the pipeline's own stage records,
+                      // stored on the approval when it was raised. Absent on
+                      // cards from before the pipeline existed — then no claim
+                      // is rendered, rather than a reconstructed one.
+                      const trace = decisionTrace(a.snapshot);
+                      if (!trace) return null;
+                      return (
+                        <details className="mb-3 rounded-lg bg-muted/60 px-3 py-2">
+                          <summary className="cursor-pointer text-[12.5px] font-bold text-dim">
+                            How this was decided · {trace.length} stage
+                            {trace.length === 1 ? '' : 's'}
+                          </summary>
+                          <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
+                            {trace.map((s) => (
+                              <li key={s.agent} className="text-[12.5px] leading-snug">
+                                <b className="text-foreground">{s.agent}</b>{' '}
+                                <span className="text-dim">{s.summary}</span>
+                                {s.detail.length > 0 ? (
+                                  <ul className="m-0 mt-0.5 list-disc pl-4 text-faint">
+                                    {s.detail.map((d) => (
+                                      <li key={d}>{d}</li>
+                                    ))}
+                                  </ul>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ol>
+                        </details>
+                      );
+                    })()}
                     {actionError && (
                       <div className="mb-3">
                         <InlineError>{actionError}</InlineError>

@@ -167,6 +167,14 @@ suite('agent background sweep', () => {
     expect(card?.body).toContain('Nothing happens unless you approve');
     expect((card?.snapshot as { source?: string })?.source).toBe('background_sweep');
 
+    // "How this was decided": the three-specialist pipeline's stage records
+    // ride on the approval, coordination included since something was chosen.
+    const trace = (
+      card?.snapshot as { trace?: { stage: string; agent: string; summary: string }[] }
+    )?.trace;
+    expect(trace?.map((t) => t.stage)).toEqual(['research', 'suitability', 'coordination']);
+    expect(trace?.[1]?.summary).toContain('band');
+
     const notes = await db
       .select({ content: agentMessages.content })
       .from(agentMessages)

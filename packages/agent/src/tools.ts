@@ -18,6 +18,7 @@ export const TOOL_NAMES = [
   'search_opportunities',
   'score_suitability',
   'propose_move',
+  'run_pipeline',
   'explain',
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
@@ -85,6 +86,12 @@ export function buildTools(ctx: AgentContext): ToolSet {
         amountMinor: z.number().int().positive().describe('amount in minor units (cents)'),
       }),
       execute: async (input) => ctx.proposeMove(input),
+    }),
+    run_pipeline: tool({
+      description:
+        'Run the full three-specialist pipeline — research ranks the live marketplace, suitability screens every shortlisted product through the deterministic Limits Engine, and coordination sizes the best fit and routes it for approval. Returns the visible stage-by-stage trace plus the chosen candidate (or none). Use this when the user asks what they should invest in, or asks you to look for something for them. Narrate the stages faithfully from the trace; never invent a stage outcome.',
+      inputSchema: z.object({}),
+      execute: async () => ctx.scoutMarketplace(),
     }),
     explain: tool({
       description:
