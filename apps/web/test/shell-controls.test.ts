@@ -139,7 +139,10 @@ describe('app shell controls', () => {
   test('the phone drawer renders the same nav definition as the rail', () => {
     const mobile = code(join(SHELL, 'MobileNav.tsx'));
     expect(mobile).toContain("from './AppSidebar'");
-    expect(mobile).toContain('navGroupsFor(basePath)');
+    // The call gained a second argument (hide "Finish onboarding" once
+    // complete); what matters here is that BOTH surfaces call the one
+    // definition, not the exact arity.
+    expect(mobile).toContain('navGroupsFor(basePath');
     expect(mobile).toContain('<NavLinks');
 
     // One list, exported for both. A second literal array of destinations in
