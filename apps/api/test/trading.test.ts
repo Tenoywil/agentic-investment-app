@@ -232,6 +232,27 @@ suite('trading: gate → order → accept → settle + realtime', () => {
       settleOrder(tx, created.id, ncbId),
     );
     expect(settled.status).toBe('settled');
+
+    /**
+     * Settlement moves the money (0024). Before it, an order the platform
+     * itself routed settled into nothing: no position appeared and cash never
+     * fell, so investing looked like a story whose ending never arrived. The
+     * US$400 MMF order becomes a US$400 MMF holding, and the cash it was paid
+     * from drops from US$5,000 to US$4,600.
+     */
+    const rows = await db
+      .select({
+        instrumentId: holdings.instrumentId,
+        valueMinor: holdings.valueMinor,
+        name: holdings.name,
+      })
+      .from(holdings)
+      .where(eq(holdings.userId, u1));
+    const position = rows.find((h) => h.instrumentId === mmfId);
+    expect(position?.valueMinor).toBe(40_000n);
+    expect(position?.name).toBe('NCB Money Market');
+    const cash = rows.find((h) => h.instrumentId === null);
+    expect(cash?.valueMinor).toBe(460_000n);
   });
 
   /**

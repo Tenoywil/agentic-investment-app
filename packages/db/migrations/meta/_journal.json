@@ -169,6 +169,13 @@
       "when": 1786660000000,
       "tag": "0023_settled_funds_and_currencies",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786670000000,
+      "tag": "0024_settlement_moves_money",
+      "breakpoints": true
     }
   ]
 }
