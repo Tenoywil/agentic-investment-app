@@ -6,6 +6,7 @@ import { createAuth, resolveAuthBaseUrl } from './auth';
 import { createLogger } from './logger';
 import { checkMigrations } from './migrations';
 import { createOutboundGuard } from './security';
+import { startAgentSweep } from './services/agent-sweep';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
 import { type Registration, WsHub } from './ws/hub';
@@ -188,6 +189,14 @@ await checkMigrations(deps);
 
 const hub = new WsHub();
 await startEventBridge(client, hub);
+
+/**
+ * The agent's background half: scan the live marketplace against each
+ * investor's own limits and raise approval cards for what fits. The one part
+ * of "discovers, screens and coordinates" that must not wait for a person to
+ * open the chat. It proposes only — nothing moves money without an approval.
+ */
+startAgentSweep(deps);
 
 /** Per-connection state: the tenant (fixed at upgrade) and its hub registration. */
 interface WsData {
