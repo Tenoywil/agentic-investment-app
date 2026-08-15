@@ -34,6 +34,18 @@ export interface PortfolioPartner {
    * cash line for this investor, which is different from a zero balance.
    */
   cash: string | null;
+  /** The firm's own instructions for sending money in. Null = not provided. */
+  fundingInstructions: string | null;
+  /**
+   * The firm's withdrawal charges, as raw settings so the Withdraw dialog can
+   * show a live "you'll receive ~X" as the person types. Flat fee in minor
+   * units (string); rates in basis points. GCT applies to the fee, not the
+   * principal — and the server recomputes and freezes the real figures at
+   * request time, so this is an estimate, never the record.
+   */
+  withdrawalFeeFlatMinor: string;
+  withdrawalFeeBps: number;
+  gctBps: number;
   /**
    * When this firm's balances were last pulled, ISO. Null when nothing here has
    * ever been refreshed. Taken from the *oldest* holding on the card, because a
@@ -109,6 +121,33 @@ export interface Portfolio {
   allocation: AllocationSlice[];
   connections: PortfolioConnection[];
   partners: PortfolioPartner[];
+  /** Money on its way out, newest first. A `pending` one gates that card's
+   *  Withdraw button; decided ones carry the firm's reference or reason. */
+  withdrawals: PortfolioWithdrawal[];
+}
+
+export interface PortfolioWithdrawal {
+  id: string;
+  partnerCode: string;
+  amountMinor: string;
+  /** Pre-formatted, e.g. "US$500". */
+  amount: string;
+  /** The firm's fee and the GCT on it, frozen at request time. Null when the
+   *  firm charges nothing — render no charge line rather than "US$0". */
+  feeMinor: string;
+  fee: string | null;
+  gctMinor: string;
+  gct: string | null;
+  /** Pre-formatted amount − fee − GCT: what actually reaches the client. */
+  net: string;
+  currency: Currency;
+  status: 'pending' | 'paid' | 'declined';
+  /** The firm's words when it declined. */
+  reason: string | null;
+  /** The firm's payment reference when it paid. */
+  reference: string | null;
+  createdAt: string;
+  decidedAt: string | null;
 }
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
@@ -167,6 +206,34 @@ export function getPortfolio(currency?: Currency): Promise<Portfolio> {
 
 export function getApprovals(): Promise<{ approvals: Approval[] }> {
   return apiFetch('/api/approvals');
+}
+
+/**
+ * "I've sent the money." Lands in the firm's reconciliation queue for a human
+ * to confirm — nothing is credited on the investor's say-so, and the screen
+ * should say exactly that.
+ */
+export function sendFundingNotice(input: {
+  partnerCode: string;
+  amountMinor: string;
+  currency: Currency;
+}): Promise<{ ok: true }> {
+  return apiFetch('/api/portfolio/funding-notice', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Ask the firm for money back. The firm decides; cash falls when it pays. */
+export function requestWithdrawal(input: {
+  partnerCode: string;
+  amountMinor: string;
+  currency: Currency;
+}): Promise<{ withdrawal: unknown }> {
+  return apiFetch('/api/portfolio/withdrawals', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function getAgentHistory(): Promise<{ messages: AgentMessage[] }> {

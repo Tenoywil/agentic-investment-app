@@ -6,10 +6,12 @@ import {
   orders as ordersTable,
   partners,
   reconciliationItems,
+  withdrawalRequests,
 } from '@ccn/db';
 import {
   acceptOrderSchema,
   confirmFundsSchema,
+  decideWithdrawalSchema,
   listInstrumentSchema,
   partnerProfileSchema,
   rejectSchema,
@@ -27,6 +29,7 @@ import {
   partnerClientHoldings,
   partnerClients,
   partnerConfirmFunds,
+  partnerDecideWithdrawal,
   partnerReviewClient,
   partnerToggleInstrument,
   partnerUpdateProfile,
@@ -176,6 +179,10 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           regulator: partners.regulator,
           agreementStatus: partners.agreementStatus,
           residency: partners.residency,
+          fundingInstructions: partners.fundingInstructions,
+          withdrawalFeeFlatMinor: partners.withdrawalFeeFlatMinor,
+          withdrawalFeeBps: partners.withdrawalFeeBps,
+          gctBps: partners.gctBps,
         })
         .from(partners)
         // `partners_read` is USING (true) — reference data is readable by every
@@ -215,6 +222,11 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         name: parsed.data.name,
         kind: parsed.data.kind ?? null,
         residency: parsed.data.residency ?? null,
+        // undefined = the form did not touch them; the function keeps them.
+        fundingInstructions: parsed.data.fundingInstructions ?? null,
+        withdrawalFeeFlatMinor: parsed.data.withdrawalFeeFlatMinor ?? null,
+        withdrawalFeeBps: parsed.data.withdrawalFeeBps ?? null,
+        gctBps: parsed.data.gctBps ?? null,
       }),
     );
     return c.json({
@@ -226,6 +238,10 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         regulator: row.regulator,
         agreementStatus: row.agreement_status,
         residency: row.residency,
+        fundingInstructions: row.funding_instructions,
+        withdrawalFeeFlatMinor: row.withdrawal_fee_flat_minor,
+        withdrawalFeeBps: row.withdrawal_fee_bps,
+        gctBps: row.gct_bps,
       },
     });
   });
@@ -611,6 +627,91 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
       }
       if (raisedBy(err, 'not a client of this partner')) {
         return c.json({ error: 'that client is not one of yours' }, 404);
+      }
+      throw err;
+    }
+  });
+
+  /**
+   * Money on its way out of the firm: the withdrawal queue.
+   *
+   * Requests the firm's clients have raised, pending first. The decision is
+   * the firm's alone — `partner_decide_withdrawal` pays (and decrements the
+   * recorded cash) or declines with a reason the client reads.
+   */
+  app.get('/withdrawals', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const rows = await withTenant(deps, tenant, async (tx) => {
+      const clients = await partnerClients(tx);
+      const nameByUser = new Map(clients.map((r) => [r.user_id, r.client_name]));
+      const list = await tx
+        .select()
+        .from(withdrawalRequests)
+        .where(eq(withdrawalRequests.partnerId, scope.partnerId))
+        .orderBy(
+          sql`case ${withdrawalRequests.status} when 'pending' then 0 else 1 end`,
+          desc(withdrawalRequests.createdAt),
+        )
+        .limit(50);
+      return list.map((w) => ({
+        id: w.id,
+        clientName: nameByUser.get(w.userId) ?? 'A client',
+        accountId: w.connectedAccountId,
+        amountMinor: w.amountMinor.toString(),
+        feeMinor: w.feeMinor.toString(),
+        gctMinor: w.gctMinor.toString(),
+        // What the firm actually pays out: the client's amount less charges.
+        netMinor: (w.amountMinor - w.feeMinor - w.gctMinor).toString(),
+        currency: w.currency,
+        status: w.status,
+        reason: w.reason,
+        reference: w.reference,
+        createdAt: w.createdAt,
+        decidedAt: w.decidedAt,
+      }));
+    });
+    return c.json({ withdrawals: rows });
+  });
+
+  app.post('/withdrawals/:id/decide', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const parsed = decideWithdrawalSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success)
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+
+    try {
+      const row = await withTenant(deps, tenant, (tx) =>
+        partnerDecideWithdrawal(tx, {
+          requestId: c.req.param('id'),
+          paid: parsed.data.paid,
+          reason: parsed.data.reason ?? null,
+          reference: parsed.data.reference ?? null,
+        }),
+      );
+      deps.logger.info('partner decided a withdrawal', {
+        partner: scope.partnerId,
+        status: row.status,
+      });
+      return c.json({ withdrawal: { ...row, amount_minor: row.amount_minor.toString() } });
+    } catch (err) {
+      if (raisedBy(err, 'no longer covers')) {
+        return c.json(
+          {
+            error:
+              "CCN's record of this client's cash no longer covers the amount — an order may have settled first. Record their funding, or decline with the reason.",
+          },
+          409,
+        );
+      }
+      if (raisedBy(err, 'is not pending')) {
+        return c.json({ error: 'that request is not pending at your firm' }, 409);
       }
       throw err;
     }

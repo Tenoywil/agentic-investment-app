@@ -21,6 +21,7 @@ import {
   productListingStatus,
   regulator,
   riskRating,
+  withdrawalStatus,
 } from './enums';
 import { createdAt, moneyMinor, updatedAt } from './helpers';
 
@@ -40,6 +41,15 @@ export const partners = pgTable('partners', {
   regulator: regulator('regulator'),
   agreementStatus: agreementStatus('agreement_status').notNull().default('prospect'),
   residency: text('residency'),
+  /** The firm's own instructions for funding an account (bank, account,
+   *  reference). Free text; shown to its accepted clients. */
+  fundingInstructions: text('funding_instructions'),
+  /** Flat per-withdrawal fee in minor units of the withdrawal currency. */
+  withdrawalFeeFlatMinor: moneyMinor('withdrawal_fee_flat_minor').notNull().default(sql`0`),
+  /** Percentage fee on the withdrawal amount, basis points (100 = 1%). */
+  withdrawalFeeBps: integer('withdrawal_fee_bps').notNull().default(0),
+  /** Consumption tax (e.g. Jamaica's GCT) applied to the fee, basis points. */
+  gctBps: integer('gct_bps').notNull().default(0),
   color: text('color'),
   tint: text('tint'),
   createdAt: createdAt(),
@@ -95,6 +105,39 @@ export const connectedAccounts = pgTable('connected_accounts', {
   status: connectionStatus('status').notNull().default('pending'),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
   declineReason: text('decline_reason'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * Withdrawal requests: the investor asks their firm for money back; the firm
+ * pays or declines. Rows are written ONLY through `request_withdrawal` and
+ * `partner_decide_withdrawal` (0025) — the app role has SELECT alone. Paying
+ * decrements the recorded cash holding, mirroring `partner_confirm_funds`.
+ */
+export const withdrawalRequests = pgTable('withdrawal_requests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  partnerId: uuid('partner_id')
+    .notNull()
+    .references(() => partners.id),
+  connectedAccountId: uuid('connected_account_id')
+    .notNull()
+    .references(() => connectedAccounts.id, { onDelete: 'cascade' }),
+  amountMinor: moneyMinor('amount_minor').notNull(),
+  /** The firm's fee, frozen at request time from its settings then (0026). */
+  feeMinor: moneyMinor('fee_minor').notNull().default(sql`0`),
+  /** Consumption tax on the fee, frozen at request time. */
+  gctMinor: moneyMinor('gct_minor').notNull().default(sql`0`),
+  currency: currency('currency').notNull().default('USD'),
+  status: withdrawalStatus('status').notNull().default('pending'),
+  /** The firm's words when it declines; the investor reads them. */
+  reason: text('reason'),
+  /** The firm's payment reference when it pays. */
+  reference: text('reference'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

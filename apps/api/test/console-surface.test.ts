@@ -807,9 +807,9 @@ suite('partner console data surface', () => {
     );
     const entry = entries.find((e) => e.action === 'partner.profile_updated');
     expect(entry).toBeTruthy();
-    const detail = entry?.detail as { from: { name: string }; to: { name: string } };
-    expect(detail.to.name).toBe(`${tag} Renamed Investments`);
-    expect(detail.from.name).not.toBe(detail.to.name);
+    const detail = entry?.detail as { before: { name: string }; after: { name: string } };
+    expect(detail.after.name).toBe(`${tag} Renamed Investments`);
+    expect(detail.before.name).not.toBe(detail.after.name);
 
     // A nameless firm is refused, and another firm's operator changes nothing
     // here — the partner comes from their own scope, so this edits NCB's row.

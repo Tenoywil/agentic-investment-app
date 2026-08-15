@@ -176,6 +176,20 @@
       "when": 1786670000000,
       "tag": "0024_settlement_moves_money",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786680000000,
+      "tag": "0025_money_in_and_out",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786690000000,
+      "tag": "0026_withdrawal_charges",
+      "breakpoints": true
     }
   ]
 }

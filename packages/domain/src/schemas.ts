@@ -148,8 +148,58 @@ export const partnerProfileSchema = z.object({
   name: z.string().min(2).max(140),
   kind: z.string().max(80).optional(),
   residency: z.string().max(100).optional(),
+  /** How a client funds an account with this firm, in the firm's own words.
+   *  Omitted = unchanged; empty string = cleared. */
+  fundingInstructions: z.string().max(2000).optional(),
+  /**
+   * Withdrawal charges (0026). All omitted = unchanged. The flat fee is minor
+   * units as a digit string (bigint has no JSON form); the two rates are basis
+   * points — 100 = 1%, so Jamaica's 15% GCT is 1500.
+   */
+  withdrawalFeeFlatMinor: z
+    .string()
+    .regex(/^\d{1,15}$/, 'minor units as a digit string')
+    .optional(),
+  withdrawalFeeBps: z.number().int().min(0).max(10000).optional(),
+  gctBps: z.number().int().min(0).max(10000).optional(),
 });
 export type PartnerProfileInput = z.infer<typeof partnerProfileSchema>;
+
+/**
+ * POST /api/portfolio/withdrawals — the investor asks their firm for money
+ * back. The firm decides; recorded cash falls only when it confirms it paid.
+ */
+export const withdrawalRequestSchema = z.object({
+  partnerCode: z.string().min(2).max(12),
+  amountMinor: positiveAmountMinorSchema,
+  currency: currencySchema.default('USD'),
+});
+export type WithdrawalRequestInput = z.infer<typeof withdrawalRequestSchema>;
+
+/** POST /api/console/withdrawals/:id/decide — pay it or decline it (with a
+ *  reason the client will read). */
+export const decideWithdrawalSchema = z
+  .object({
+    paid: z.boolean(),
+    reason: z.string().min(1).max(300).optional(),
+    reference: z.string().min(1).max(120).optional(),
+  })
+  .refine((v) => v.paid || (v.reason ?? '').trim().length > 0, {
+    message: 'declining needs a reason the client will read',
+  });
+export type DecideWithdrawalInput = z.infer<typeof decideWithdrawalSchema>;
+
+/**
+ * POST /api/portfolio/funding-notice — "I've sent the money." Lands in the
+ * firm's existing reconciliation queue for human confirmation; nothing is
+ * credited until the desk matches it.
+ */
+export const fundingNoticeSchema = z.object({
+  partnerCode: z.string().min(2).max(12),
+  amountMinor: positiveAmountMinorSchema,
+  currency: currencySchema.default('USD'),
+});
+export type FundingNoticeInput = z.infer<typeof fundingNoticeSchema>;
 
 /**
  * POST /api/console/products — a partner lists a product, or amends one.

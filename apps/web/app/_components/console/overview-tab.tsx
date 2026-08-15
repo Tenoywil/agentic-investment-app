@@ -22,6 +22,7 @@ export function OverviewTab({
   orderActionError,
   pendingReviews,
   pendingReconciliation,
+  pendingWithdrawals,
   onGoTab,
   onAccept,
   onSettle,
@@ -39,6 +40,8 @@ export function OverviewTab({
   pendingReviews: number;
   /** Statement lines waiting to be matched. */
   pendingReconciliation: number;
+  /** Clients asking for money back, undecided. */
+  pendingWithdrawals: number;
   /** Jump to another tab — the overview points at work, the tabs hold it. */
   onGoTab: (tab: 'orders' | 'clients' | 'compliance') => void;
   onAccept: (id: string) => void;
@@ -206,6 +209,15 @@ export function OverviewTab({
                     : 'statement lines to reconcile',
                 go: 'clients' as const,
                 cta: 'Reconcile',
+              },
+              {
+                n: pendingWithdrawals,
+                what:
+                  pendingWithdrawals === 1
+                    ? 'withdrawal awaiting your decision'
+                    : 'withdrawals awaiting your decision',
+                go: 'clients' as const,
+                cta: 'Decide',
               },
             ].filter((r) => r.n > 0);
             if (rows.length === 0) {

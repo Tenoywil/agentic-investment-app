@@ -126,27 +126,89 @@ export interface PartnerRow {
   regulator: string | null;
   agreement_status: string;
   residency: string | null;
+  funding_instructions: string | null;
+  /** bigint column; postgres.js returns it as a string. */
+  withdrawal_fee_flat_minor: string;
+  withdrawal_fee_bps: number;
+  gct_bps: number;
   created_at: Date;
   updated_at: Date;
 }
 
 /**
- * A firm corrects its own record — name, kind, residency, and nothing else.
+ * A firm corrects its own record — name, kind, residency, and (0025) the
+ * funding instructions its clients see. Nothing else.
  *
  * `code`, `regulator` and `agreement_status` are not parameters and cannot be
  * reached through this path: the first is the adapter registry's key, the
  * second is a compliance claim rendered to investors on every deal card, and
- * the third gates live order routing.
+ * the third gates live order routing. `fundingInstructions: null` leaves the
+ * stored instructions untouched; an empty string clears them.
  */
 export async function partnerUpdateProfile(
   tx: Transaction,
-  args: { name: string; kind: string | null; residency: string | null },
+  args: {
+    name: string;
+    kind: string | null;
+    residency: string | null;
+    fundingInstructions?: string | null;
+    /** Minor units as a digit string; null/undefined keeps the stored value. */
+    withdrawalFeeFlatMinor?: string | null;
+    withdrawalFeeBps?: number | null;
+    gctBps?: number | null;
+  },
 ): Promise<PartnerRow> {
   const rows = (await tx.execute(
-    sql`select * from partner_update_profile(${args.name}::text, ${args.kind}::text, ${args.residency}::text)`,
+    sql`select * from partner_update_profile(${args.name}::text, ${args.kind}::text, ${args.residency}::text, ${args.fundingInstructions ?? null}::text, ${args.withdrawalFeeFlatMinor ?? null}::bigint, ${args.withdrawalFeeBps ?? null}::integer, ${args.gctBps ?? null}::integer)`,
   )) as unknown as PartnerRow[];
   const row = rows[0];
   if (!row) throw new Error('partner_update_profile returned no row');
+  return row;
+}
+
+/** A `withdrawal_requests` row as the functions return it (snake_case). */
+export interface WithdrawalRow {
+  id: string;
+  user_id: string;
+  partner_id: string;
+  connected_account_id: string;
+  amount_minor: string;
+  /** The firm's fee and the tax on it, frozen at request time (0026). */
+  fee_minor: string;
+  gct_minor: string;
+  currency: string;
+  status: 'pending' | 'paid' | 'declined';
+  reason: string | null;
+  reference: string | null;
+  decided_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** The investor asks their firm for money back. Nothing is deducted here —
+ *  cash falls when the firm confirms it actually paid. */
+export async function requestWithdrawal(
+  tx: Transaction,
+  args: { accountId: string; amountMinor: bigint; currency: string },
+): Promise<WithdrawalRow> {
+  const rows = (await tx.execute(
+    sql`select * from request_withdrawal(${args.accountId}::uuid, ${args.amountMinor.toString()}::bigint, ${args.currency}::currency)`,
+  )) as unknown as WithdrawalRow[];
+  const row = rows[0];
+  if (!row) throw new Error('request_withdrawal returned no row');
+  return row;
+}
+
+/** The firm pays or declines. Paying decrements the recorded cash holding. */
+export async function partnerDecideWithdrawal(
+  tx: Transaction,
+  args: { requestId: string; paid: boolean; reason?: string | null; reference?: string | null },
+): Promise<WithdrawalRow> {
+  const rows = (await tx.execute(
+    sql`select * from partner_decide_withdrawal(${args.requestId}::uuid, ${args.paid}::boolean, ${args.reason ?? null}::text, ${args.reference ?? null}::text)`,
+  )) as unknown as WithdrawalRow[];
+  const row = rows[0];
+  if (!row) throw new Error('partner_decide_withdrawal returned no row');
   return row;
 }
 

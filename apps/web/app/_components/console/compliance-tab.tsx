@@ -51,7 +51,15 @@ export function ComplianceTab({
   audit: ConsoleAuditEntry[];
   auditError: string | null;
   loading: boolean;
-  onSaveProfile: (input: { name: string; kind?: string; residency?: string }) => void;
+  onSaveProfile: (input: {
+    name: string;
+    kind?: string;
+    residency?: string;
+    fundingInstructions?: string;
+    withdrawalFeeFlatMinor?: string;
+    withdrawalFeeBps?: number;
+    gctBps?: number;
+  }) => void;
   profileSaving: boolean;
   profileError: string | null;
 }) {
@@ -59,6 +67,23 @@ export function ComplianceTab({
   const [name, setName] = React.useState(partner?.name ?? '');
   const [kind, setKind] = React.useState(partner?.kind ?? '');
   const [residency, setResidency] = React.useState(partner?.residency ?? '');
+  const [funding, setFunding] = React.useState(partner?.fundingInstructions ?? '');
+  // The charge settings edit in human units — dollars and percent — and
+  // convert to minor units / basis points on save. Held as strings so a
+  // half-typed "1." does not fight the input.
+  const [feeFlat, setFeeFlat] = React.useState('');
+  const [feePct, setFeePct] = React.useState('');
+  const [gctPct, setGctPct] = React.useState('');
+
+  const chargesFromPartner = React.useCallback((p: MePartner | null) => {
+    setFeeFlat(
+      p && Number(p.withdrawalFeeFlatMinor) > 0
+        ? String(Number(p.withdrawalFeeFlatMinor) / 100)
+        : '',
+    );
+    setFeePct(p && p.withdrawalFeeBps > 0 ? String(p.withdrawalFeeBps / 100) : '');
+    setGctPct(p && p.gctBps > 0 ? String(p.gctBps / 100) : '');
+  }, []);
 
   // `partner` arrives after the first render, so the form has to pick it up
   // when it does rather than staying empty for whoever opens the editor first.
@@ -66,7 +91,16 @@ export function ComplianceTab({
     setName(partner?.name ?? '');
     setKind(partner?.kind ?? '');
     setResidency(partner?.residency ?? '');
-  }, [partner]);
+    setFunding(partner?.fundingInstructions ?? '');
+    chargesFromPartner(partner);
+  }, [partner, chargesFromPartner]);
+
+  /** "2.5" → 250 (percent to basis points), clamped and NaN-safe. */
+  const toBps = (pct: string): number => {
+    const n = Number.parseFloat(pct);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return Math.min(10000, Math.round(n * 100));
+  };
 
   const rows: { label: string; value: string }[] = [];
   if (partner) {
@@ -77,6 +111,20 @@ export function ComplianceTab({
     const agreement = agreementLabel(partner.agreementStatus);
     if (agreement) rows.push({ label: 'Partner agreement', value: agreement });
     if (partner.residency) rows.push({ label: 'Data residency', value: partner.residency });
+    // Charges are always shown, "None" included: a client-facing charge whose
+    // absence the firm cannot see is one it cannot know it forgot to set.
+    const feeBits: string[] = [];
+    if (Number(partner.withdrawalFeeFlatMinor) > 0)
+      feeBits.push(`${(Number(partner.withdrawalFeeFlatMinor) / 100).toFixed(2)} flat`);
+    if (partner.withdrawalFeeBps > 0) feeBits.push(`${partner.withdrawalFeeBps / 100}%`);
+    rows.push({
+      label: 'Withdrawal fee',
+      value: feeBits.length > 0 ? feeBits.join(' + ') : 'None',
+    });
+    rows.push({
+      label: 'GCT on the fee',
+      value: partner.gctBps > 0 ? `${partner.gctBps / 100}%` : 'None',
+    });
   }
 
   return (
@@ -108,6 +156,16 @@ export function ComplianceTab({
                 name: name.trim(),
                 kind: kind.trim() || undefined,
                 residency: residency.trim() || undefined,
+                // Always sent: an emptied field clears the stored instructions,
+                // which is a decision the firm is allowed to make.
+                fundingInstructions: funding.trim(),
+                // Same for charges: an emptied field is "we charge nothing",
+                // sent as zero rather than omitted-and-kept.
+                withdrawalFeeFlatMinor: String(
+                  Math.max(0, Math.round((Number.parseFloat(feeFlat) || 0) * 100)),
+                ),
+                withdrawalFeeBps: toBps(feePct),
+                gctBps: toBps(gctPct),
               });
               setEditing(false);
             }}
@@ -140,6 +198,65 @@ export function ComplianceTab({
                 placeholder="Jamaica"
               />
             </label>
+            <label className="mt-3 block text-sm">
+              <span className={PROFILE_LABEL}>Funding instructions</span>
+              <textarea
+                value={funding}
+                onChange={(e) => setFunding(e.target.value)}
+                className={`${PROFILE_FIELD} min-h-[96px] resize-y font-sans leading-relaxed`}
+                maxLength={2000}
+                placeholder={
+                  'e.g. Wire to First Caribbean a/c 0012345 (SWIFT FCIBJMKN), reference your CCN email.'
+                }
+              />
+              <span className="mt-1 block text-[12px] leading-snug text-white/60">
+                Shown word-for-word in your clients&rsquo; &ldquo;Add money&rdquo; dialog. Leave it
+                empty and they are told to contact you for instructions instead.
+              </span>
+            </label>
+            {/* Withdrawal charges. Edited in dollars and percent; stored as
+                minor units and basis points. GCT applies to the fee — the tax
+                on your service — not to the client's principal. */}
+            <fieldset className="m-0 mt-3 border-0 p-0">
+              <legend className={`${PROFILE_LABEL} p-0`}>Withdrawal charges</legend>
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                <label className="block text-sm">
+                  <span className="text-[11px] text-white/60">Flat fee</span>
+                  <input
+                    value={feeFlat}
+                    onChange={(e) => setFeeFlat(e.target.value)}
+                    className={PROFILE_FIELD}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-[11px] text-white/60">% of amount</span>
+                  <input
+                    value={feePct}
+                    onChange={(e) => setFeePct(e.target.value)}
+                    className={PROFILE_FIELD}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-[11px] text-white/60">GCT % on fee</span>
+                  <input
+                    value={gctPct}
+                    onChange={(e) => setGctPct(e.target.value)}
+                    className={PROFILE_FIELD}
+                    inputMode="decimal"
+                    placeholder="15"
+                  />
+                </label>
+              </div>
+              <span className="mt-1 block text-[12px] leading-snug text-white/60">
+                Shown to clients before they request a withdrawal, and frozen on each request when
+                it is made — a later change here never reprices a request already on your desk. The
+                flat fee is in the withdrawal&rsquo;s own currency; GCT is charged on your fee.
+              </span>
+            </fieldset>
             <p className="mb-0 mt-3 text-[12.5px] leading-relaxed text-white/70">
               Your partner code, regulator and agreement status are set by CCN. The regulator is
               shown to investors on every product you list, so it is not a field a console can
@@ -161,17 +278,38 @@ export function ComplianceTab({
             </div>
           </form>
         ) : rows.length > 0 ? (
-          <dl className="m-0">
-            {rows.map((r) => (
-              // gap-x only, and both sides allowed to shrink: a long business
-              // description used to push its own value past the card's right
-              // edge rather than wrap inside it.
-              <div key={r.label} className="flex flex-wrap justify-between gap-x-4 py-1.5 text-sm">
-                <dt className="min-w-0">{r.label}</dt>
-                <dd className="m-0 min-w-0 text-right font-bold">{r.value}</dd>
-              </div>
-            ))}
-          </dl>
+          <>
+            <dl className="m-0">
+              {rows.map((r) => (
+                // gap-x only, and both sides allowed to shrink: a long business
+                // description used to push its own value past the card's right
+                // edge rather than wrap inside it.
+                <div
+                  key={r.label}
+                  className="flex flex-wrap justify-between gap-x-4 py-1.5 text-sm"
+                >
+                  <dt className="min-w-0">{r.label}</dt>
+                  <dd className="m-0 min-w-0 text-right font-bold">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {/* What clients read in their "Add money" dialog. Rendered here so
+                the firm sees exactly the words it is publishing, or the honest
+                gap where words should be. */}
+            <div className="mt-3">
+              <div className={PROFILE_LABEL}>Funding instructions</div>
+              {partner?.fundingInstructions ? (
+                <p className="mb-0 mt-1 whitespace-pre-wrap rounded-[10px] bg-white/10 px-3 py-2 text-[13.5px] leading-relaxed">
+                  {partner.fundingInstructions}
+                </p>
+              ) : (
+                <p className="mb-0 mt-1 text-[13px] leading-relaxed text-white/70">
+                  None provided yet — clients pressing &ldquo;Add money&rdquo; are told to contact
+                  your firm for instructions. Add wire details here and they see them instead.
+                </p>
+              )}
+            </div>
+          </>
         ) : (
           <p className="m-0 text-sm leading-relaxed">
             No agreement details are recorded against this account yet.

@@ -19,6 +19,13 @@ export interface MePartner {
   regulator: string | null;
   agreementStatus: string | null;
   residency: string | null;
+  /** What the firm tells clients about sending money in. Null = not provided. */
+  fundingInstructions: string | null;
+  /** Withdrawal charges (0026): flat fee in minor units (bigint → string on
+   *  the wire), percentage fee and consumption tax in basis points. */
+  withdrawalFeeFlatMinor: string;
+  withdrawalFeeBps: number;
+  gctBps: number;
 }
 
 export interface MeOnboarding {

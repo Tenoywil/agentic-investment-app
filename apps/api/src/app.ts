@@ -171,6 +171,10 @@ export function createApp(deps: AppDeps) {
               regulator: partners.regulator,
               agreementStatus: partners.agreementStatus,
               residency: partners.residency,
+              fundingInstructions: partners.fundingInstructions,
+              withdrawalFeeFlatMinor: partners.withdrawalFeeFlatMinor,
+              withdrawalFeeBps: partners.withdrawalFeeBps,
+              gctBps: partners.gctBps,
             })
             .from(partners)
             .where(eq(partners.id, tenant.partnerId))
