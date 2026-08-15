@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/app/_components/ui/button';
-import type { ConsoleOrder, SettlementInput } from '@/lib/console-api';
+import { type ConsoleOrder, type SettlementInput, consoleContractNoteUrl } from '@/lib/console-api';
 import * as React from 'react';
 import { SUCCESS_TEXT, TERRA_GHOST_BTN, TERRA_OUTLINE_BTN, TERRA_TEXT, fmtMinorExact } from './lib';
 
@@ -88,6 +88,16 @@ export function OrderAction({
               .join(' · ')}
           </div>
         ) : null}
+        {/* The desk's copy of the client's contract note — one renderer, one
+            record of the trade. Opens printable in a new tab. */}
+        <a
+          href={consoleContractNoteUrl(order.id)}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-0.5 inline-block text-[12.5px] font-bold text-teal2 underline-offset-4 hover:underline"
+        >
+          Contract note
+        </a>
       </div>
     );
   }

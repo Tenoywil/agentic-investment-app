@@ -6,8 +6,8 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import { Skeleton, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { useRealtime } from '@/app/_lib/use-realtime';
 import { cn } from '@/app/_lib/utils';
-import { type MyOrder, getMyOrders } from '@/lib/opportunities-api';
-import { ArrowRightLeft, CircleAlert } from 'lucide-react';
+import { type MyOrder, contractNoteUrl, getMyOrders } from '@/lib/opportunities-api';
+import { ArrowRightLeft, CircleAlert, FileText } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -232,6 +232,19 @@ export default function OrdersPage() {
                       Authorised {when(o.createdAt)}
                       {o.createdBy === 'agent' ? ' · proposed by your agent' : ''}
                     </div>
+                    {/* The document a settled order leaves behind — printable,
+                        same renderer as the firm's own copy. */}
+                    {o.status === 'settled' ? (
+                      <a
+                        href={contractNoteUrl(o.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-bold text-teal2 underline-offset-4 hover:underline"
+                      >
+                        <FileText className="h-3.5 w-3.5" aria-hidden />
+                        Contract note
+                      </a>
+                    ) : null}
                   </div>
                   <b className="flex-none font-mono text-[15px]">
                     {money(o.amountMinor, o.currency)}

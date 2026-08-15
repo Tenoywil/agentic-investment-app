@@ -7,6 +7,7 @@ import {
   orders as ordersTable,
   partners,
   reconciliationItems,
+  user as userTable,
   withdrawalRequests,
 } from '@ccn/db';
 import {
@@ -41,6 +42,7 @@ import {
   settleOrder,
 } from '../db-fns';
 import { requireAuth } from '../middleware';
+import { renderContractNote } from '../services/contract-note';
 import { pullStatements } from '../services/ingestion';
 import { maskRef } from './util';
 
@@ -336,6 +338,77 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
     }));
 
     return c.json({ orders: rows, total: Number(total[0]?.n ?? 0) });
+  });
+
+  /**
+   * The contract note for one settled order — the desk's copy, from the SAME
+   * renderer as the client's, so the two parties cannot hold different
+   * accounts of the same trade. Scoped to the firm's own book; not-yours and
+   * not-found are the same 404.
+   */
+  app.get('/orders/:id/contract-note', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const [row] = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({
+          id: ordersTable.id,
+          status: ordersTable.status,
+          amountMinor: ordersTable.amountMinor,
+          currency: ordersTable.currency,
+          unitPriceMinor: ordersTable.unitPriceMinor,
+          units: ordersTable.units,
+          feeMinor: ordersTable.feeMinor,
+          externalRef: ordersTable.externalRef,
+          clientRef: ordersTable.clientRef,
+          createdAt: ordersTable.createdAt,
+          acceptedAt: ordersTable.acceptedAt,
+          settledAt: ordersTable.settledAt,
+          instrumentName: instruments.name,
+          instrumentAbbr: instruments.abbr,
+          partnerName: partners.name,
+          partnerCode: partners.code,
+          regulator: partners.regulator,
+          clientName: userTable.name,
+          clientEmail: userTable.email,
+        })
+        .from(ordersTable)
+        .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
+        .leftJoin(partners, eq(partners.id, ordersTable.partnerId))
+        .leftJoin(userTable, eq(userTable.id, ordersTable.userId))
+        .where(
+          and(eq(ordersTable.id, c.req.param('id')), eq(ordersTable.partnerId, scope.partnerId)),
+        ),
+    );
+    if (!row) return c.json({ error: 'order not found' }, 404);
+    if (row.status !== 'settled') {
+      return c.json({ error: 'A contract note is issued when the order settles.' }, 409);
+    }
+    return c.html(
+      renderContractNote({
+        orderId: row.id,
+        clientName: row.clientName ?? 'Client',
+        clientEmail: row.clientEmail ?? '—',
+        partnerName: row.partnerName ?? 'Executing firm',
+        partnerCode: row.partnerCode ?? '—',
+        regulator: row.regulator,
+        instrumentName: row.instrumentName,
+        instrumentAbbr: row.instrumentAbbr,
+        amountMinor: row.amountMinor,
+        currency: row.currency,
+        unitPriceMinor: row.unitPriceMinor,
+        units: row.units,
+        feeMinor: row.feeMinor,
+        externalRef: row.externalRef,
+        clientRef: row.clientRef,
+        createdAt: row.createdAt,
+        acceptedAt: row.acceptedAt,
+        settledAt: row.settledAt,
+      }),
+    );
   });
 
   /**

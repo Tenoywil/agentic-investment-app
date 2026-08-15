@@ -356,6 +356,12 @@ export function settleOrder(
   });
 }
 
+/** The desk's copy of a settled order's contract note — a printable page from
+ *  the same renderer as the client's. Plain link target, new tab. */
+export function consoleContractNoteUrl(orderId: string): string {
+  return `${API_URL}/api/console/orders/${orderId}/contract-note`;
+}
+
 export function rejectOrder(id: string, reason?: string): Promise<{ order: ConsoleOrder }> {
   return consoleFetch(`/orders/${id}/reject`, {
     method: 'POST',
