@@ -155,6 +155,13 @@
       "when": 1786640000000,
       "tag": "0021_listing_events_follow_instruments",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786650000000,
+      "tag": "0022_admin_instrument_correct",
+      "breakpoints": true
     }
   ]
 }

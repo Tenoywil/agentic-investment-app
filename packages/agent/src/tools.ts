@@ -13,6 +13,7 @@ import type { AgentContext } from './context';
 /** Every tool this agent may ever hold. Asserted read-only at startup and in CI. */
 export const TOOL_NAMES = [
   'get_portfolio',
+  'get_activity',
   'get_limits',
   'search_opportunities',
   'score_suitability',
@@ -49,6 +50,12 @@ export function buildTools(ctx: AgentContext): ToolSet {
         "Get the user's unified portfolio: net worth, cash, and holdings across partners.",
       inputSchema: z.object({}),
       execute: async () => ctx.getPortfolio(),
+    }),
+    get_activity: tool({
+      description:
+        "Get the user's own in-flight activity: each of their orders with where it stands and what happens next, anything waiting on their approval, and the status of each institution connection. Use this for questions like 'where is my order', 'has the firm accepted me yet', or 'what's waiting on me'.",
+      inputSchema: z.object({}),
+      execute: async () => ctx.getActivity(),
     }),
     get_limits: tool({
       description: "Get the user's guardrail limits (what the agent may do alone).",

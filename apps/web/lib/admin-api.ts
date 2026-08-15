@@ -14,7 +14,7 @@ export interface AdminOverview {
   people: { total: number; customers: number; operators: number; admins: number };
   onboarding: { started: number; tierNone: number; tier1: number; tier2: number };
   partners: { total: number; live: number; sandbox: number };
-  products: { total: number };
+  products: { total: number; live: number; paused: number };
   orders: { total: number; created: number; accepted: number; settled: number; rejected: number };
   approvals: { pending: number };
 }
@@ -26,6 +26,8 @@ export interface AdminInvestor {
   createdAt: string;
   roles: string[];
   partnerId: string | null;
+  /** The firm's code when they hold partner_operator — "SAG", not a uuid. */
+  partnerCode: string | null;
   kycTier: string | null;
   identityVerified: boolean | null;
   complianceConfirmed: boolean | null;
@@ -46,11 +48,26 @@ export interface AdminPartner {
   orders: number;
 }
 
+/**
+ * One marketplace listing — a row of `instruments`, the table investors see
+ * and the console writes. This read `product_listings` until the audit found
+ * that table has had no writer since 0017: the admin was reviewing a catalogue
+ * frozen at the prototype while the real one changed underneath.
+ */
 export interface AdminProduct {
   id: string;
   name: string;
   type: string | null;
-  status: string | null;
+  status: 'live' | 'paused' | null;
+  /** Screened out of suitability — a different fact from paused. */
+  blocked: boolean;
+  risk: string | null;
+  metric: string | null;
+  metricLabel: string | null;
+  minInvestmentMinor: string;
+  currency: string;
+  updatedAt: string;
+  partnerId: string | null;
   partnerName: string | null;
   partnerCode: string | null;
 }
@@ -63,6 +80,8 @@ export interface AdminOrder {
   createdAt: string;
   partnerName: string | null;
   investorEmail: string | null;
+  /** The product, so a row is not a pair of uuids. Null when the order has none. */
+  instrumentName: string | null;
 }
 
 export interface AdminAuditEntry {
@@ -72,6 +91,9 @@ export interface AdminAuditEntry {
   entityType: string | null;
   entityId: string | null;
   actorType: string | null;
+  /** Who the action concerned, and what the writer recorded about it. */
+  subjectEmail?: string | null;
+  detail?: unknown;
   createdAt: string;
 }
 
@@ -98,13 +120,37 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const getAdminOverview = () => get<AdminOverview>('/overview');
-export const getAdminInvestors = () => get<{ investors: AdminInvestor[] }>('/investors?limit=200');
+export const getAdminInvestors = (q = '') =>
+  get<{ investors: AdminInvestor[] }>(
+    `/investors?limit=200${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+  );
 export const getAdminPartners = () => get<{ partners: AdminPartner[] }>('/partners');
 export const getAdminProducts = () => get<{ products: AdminProduct[] }>('/products');
 export const getAdminOrders = () => get<{ orders: AdminOrder[] }>('/orders?limit=100');
 export const getAdminAudit = () => get<{ entries: AdminAuditEntry[] }>('/audit?limit=100');
 
 export const getAdminInvestor = (id: string) => get<AdminInvestorDetail>(`/investors/${id}`);
+
+/**
+ * Take a listing off the marketplace, or put it back — the network's takedown
+ * control. The server flips `listing_status` and nothing else, audits who did
+ * it, and the pause gates the marketplace and both order paths exactly as the
+ * firm's own switch does.
+ */
+export async function toggleAdminProduct(id: string): Promise<{ status: 'live' | 'paused' }> {
+  const res = await fetch(`${API_URL}/api/admin/products/${id}/toggle`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.error === 'string' ? body.error : `request failed (${res.status})`,
+    );
+  }
+  return body as { status: 'live' | 'paused' };
+}
 export const getAdminInvestorActivity = (id: string) =>
   get<{ entries: AdminAuditEntry[] }>(`/investors/${id}/activity?limit=100`);
 

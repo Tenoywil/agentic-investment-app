@@ -12,6 +12,7 @@ import type { AgentSnapshot, SnapshotInstrument } from './snapshot';
  */
 export interface AgentContext {
   getPortfolio(): PortfolioView;
+  getActivity(): ActivityView;
   getLimits(): LimitsView;
   searchOpportunities(input: SearchInput): OpportunityView[];
   scoreSuitability(input: { instrumentId: string }): SuitabilityView;
@@ -71,6 +72,24 @@ export interface ProposalView {
   requiresHumanApproval: boolean;
   summary: string;
 }
+/**
+ * The caller's own activity, each item carrying a sentence saying where it
+ * stands and what happens next. The agent could research and propose and then
+ * had nothing to say at the moment a person actually worries — after they act.
+ * The sentences are composed here, deterministically, so the process the model
+ * narrates is the process the product runs and not an improvisation over ids.
+ */
+export interface ActivityView {
+  orders: {
+    name: string;
+    amount: string;
+    status: string;
+    state: string;
+  }[];
+  approvals: { title: string; amount: string | null; waitingSince: string }[];
+  connections: { partner: string; status: string; state: string }[];
+}
+
 export type ExplainTopic = 'safety' | 'fees' | 'kyc' | 'how_it_works' | 'limits';
 
 const EXPLANATIONS: Record<ExplainTopic, string> = {
@@ -114,7 +133,61 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
 
   const fmt = (minor: bigint): string => formatMoney(money(minor, display));
 
+  const day = (iso: string): string =>
+    new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
   return {
+    getActivity() {
+      const a = snapshot.activity;
+      return {
+        orders: a.orders.map((o) => {
+          const name = o.instrumentName ?? 'an instrument';
+          const firm = o.partnerName ?? 'the executing firm';
+          let state: string;
+          switch (o.status) {
+            case 'created':
+              state = `Routed to ${firm} on ${day(o.createdAt)}; waiting for their desk to accept it.`;
+              break;
+            case 'accepted':
+              state = o.settlementEta
+                ? `${firm} accepted it and expects to settle it around ${day(o.settlementEta)}.`
+                : `${firm} accepted it and is executing; they set the settlement date when known.`;
+              break;
+            case 'settled': {
+              const at = o.unitPriceMinor !== null ? ` at ${fmt(o.unitPriceMinor)} per unit` : '';
+              state = `Settled${o.settledAt ? ` on ${day(o.settledAt)}` : ''} by ${firm}${at}. The position appears in the portfolio once the firm next reports it.`;
+              break;
+            }
+            case 'rejected':
+              state = o.rejectedReason
+                ? `${firm} declined it: ${o.rejectedReason}`
+                : `${firm} declined it without giving a reason.`;
+              break;
+            default:
+              state = 'It expired before the firm acted on it.';
+          }
+          return { name, amount: fmt(o.amountMinor), status: o.status, state };
+        }),
+        approvals: a.approvals.map((ap) => ({
+          title: ap.title,
+          amount: ap.amountMinor !== null ? fmt(ap.amountMinor) : null,
+          waitingSince: day(ap.createdAt),
+        })),
+        connections: a.connections.map((cn) => ({
+          partner: cn.partner,
+          status: cn.status,
+          state:
+            cn.status === 'pending'
+              ? `${cn.partner}'s compliance desk is still reviewing the request from ${day(cn.requestedAt)}. Nothing is read from them until they accept.`
+              : cn.status === 'active'
+                ? `${cn.partner} accepted the connection; their positions are read into the portfolio.`
+                : cn.declineReason
+                  ? `${cn.partner} declined: ${cn.declineReason}`
+                  : `${cn.partner} declined the connection.`,
+        })),
+      };
+    },
+
     getPortfolio() {
       return {
         netWorth: fmt(snapshot.portfolio.netWorthMinor),

@@ -48,7 +48,7 @@ const [partner] = await db
   .where(eq(partners.code, PARTNER_CODE));
 if (!partner) throw new Error(`no partner ${PARTNER_CODE}; run the seed first`);
 
-for (const role of ['operator', 'investor'] as const) {
+for (const role of ['operator', 'investor', 'admin'] as const) {
   const email = `e2e-${role}@example.com`;
   const [existing] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
   const id =
@@ -69,7 +69,9 @@ for (const role of ['operator', 'investor'] as const) {
     .values(
       role === 'operator'
         ? { userId: id, role: 'partner_operator' as const, partnerId: partner.id }
-        : { userId: id, role: 'customer' as const },
+        : role === 'admin'
+          ? { userId: id, role: 'admin' as const }
+          : { userId: id, role: 'customer' as const },
     );
 
   const token = `e2e-${role}-token`;

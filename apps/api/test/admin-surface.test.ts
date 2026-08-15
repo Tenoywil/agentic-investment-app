@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { loadServerConfig } from '@ccn/config';
-import { createDb, holdings, partners, session, user, userRoles, withRls } from '@ccn/db';
+import {
+  createDb,
+  holdings,
+  instruments,
+  partners,
+  session,
+  user,
+  userRoles,
+  withRls,
+} from '@ccn/db';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { createApp } from '../src/app';
 import { createAuth } from '../src/auth';
@@ -153,6 +162,69 @@ suite('administration surface', () => {
    * who are not them. A guard that returned only the caller's own data would
    * pass every status-code test above and be useless.
    */
+  /**
+   * The products the administrator reviews are the products investors see.
+   *
+   * `/admin/products` read `product_listings` — a table with no writer since
+   * 0017 — so the admin was reviewing a catalogue frozen at the prototype
+   * while every product a firm actually listed was invisible to the person
+   * running the network. The pause below is the takedown control 0022 added:
+   * a listing withdrawn by an administrator leaves the marketplace exactly as
+   * one paused by its own firm does, and the change is audited with who did it.
+   */
+  test('the admin catalogue is the marketplace, and admin can take a listing down', async () => {
+    const [seeded] = await db
+      .insert(instruments)
+      .values({
+        slug: `${tag}-admin-listing`,
+        abbr: 'ADM',
+        type: 'fund',
+        name: `${tag} admin-visible fund`,
+      })
+      .returning({ id: instruments.id });
+    const listingId = seeded?.id ?? '';
+    expect(listingId).toBeTruthy();
+
+    const res = await get('/api/admin/products', 'admin');
+    const { products } = (await res.json()) as {
+      products: { id: string; status: string; minInvestmentMinor: string }[];
+    };
+    const mine = products.find((p) => p.id === listingId);
+    // The row a firm (or the seed) writes to `instruments` is what admin sees.
+    expect(mine).toBeTruthy();
+    expect(mine?.status).toBe('live');
+
+    // Take it down, and the column the marketplace filters on really changes.
+    const paused = await app().request(`/api/admin/products/${listingId}/toggle`, {
+      method: 'POST',
+      headers: { cookie: cookies.admin ?? '' },
+    });
+    expect(paused.status).toBe(200);
+    expect(((await paused.json()) as { status: string }).status).toBe('paused');
+    const [row] = await db
+      .select({ status: instruments.listingStatus })
+      .from(instruments)
+      .where(eq(instruments.id, listingId));
+    expect(row?.status).toBe('paused');
+
+    // A customer cannot reach the takedown control at all.
+    const refused = await app().request(`/api/admin/products/${listingId}/toggle`, {
+      method: 'POST',
+      headers: { cookie: cookies.customer ?? '' },
+    });
+    expect(refused.status).toBe(403);
+
+    // And the decision is on the audit trail, named, with who made it.
+    const auditRes = await get('/api/admin/audit?limit=50', 'admin');
+    const { entries } = (await auditRes.json()) as {
+      entries: { action: string; detail: { by?: string } | null }[];
+    };
+    const taken = entries.find((e) => e.action === 'instrument.paused');
+    expect(taken).toBeTruthy();
+
+    await db.delete(instruments).where(eq(instruments.id, listingId));
+  });
+
   test('an administrator reads across tenants', async () => {
     const res = await get('/api/admin/investors?limit=500', 'admin');
     const { investors } = (await res.json()) as { investors: { id: string }[] };

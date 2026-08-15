@@ -195,6 +195,27 @@ export function OrdersTab({
                     {o.instrumentAbbr ? `${o.instrumentAbbr} · ` : ''}
                     {timeAgo(o.createdAt)}
                   </div>
+                  {/* The date the desk committed to on acceptance, and whether
+                      it has slipped. An accepted order past its own settlement
+                      date is the most actionable row in this queue, and until
+                      now the queue did not show the date the firm itself set. */}
+                  {o.status === 'accepted' && o.settlementEta ? (
+                    <div
+                      className={`text-xs ${
+                        new Date(o.settlementEta).getTime() < Date.now()
+                          ? 'font-bold text-[#a44e20] dark:text-terra'
+                          : 'text-faint'
+                      }`}
+                    >
+                      {new Date(o.settlementEta).getTime() < Date.now()
+                        ? 'Settlement overdue — due '
+                        : 'Settles '}
+                      {new Date(o.settlementEta).toLocaleDateString('en-US', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="truncate text-[13.5px] text-dim">{o.clientRef}</div>
                 <div className="text-right font-mono text-sm font-bold">

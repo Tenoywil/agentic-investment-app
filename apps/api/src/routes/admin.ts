@@ -2,16 +2,16 @@ import {
   approvals,
   auditLog,
   holdings,
+  instruments,
   kycStatus,
   orders,
   partners,
-  productListings,
   seedReferenceData,
   user,
   userProfiles,
   userRoles,
 } from '@ccn/db';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
@@ -124,9 +124,19 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         from partners
       `)) as unknown as [Record<string, string>];
 
-      const [productRow] = (await tx.execute(
-        sql`select count(*) as total from product_listings`,
-      )) as unknown as [{ total: string }];
+      /**
+       * `instruments` — the table the marketplace reads and the console writes
+       * — not `product_listings`. That table has had no writer since 0017, so
+       * this count was frozen at the prototype rows while every product a firm
+       * actually listed was invisible to the person running the network.
+       */
+      const [productRow] = (await tx.execute(sql`
+        select
+          count(*)                                        as total,
+          count(*) filter (where listing_status = 'live')   as live,
+          count(*) filter (where listing_status = 'paused') as paused
+        from instruments
+      `)) as unknown as [{ total: string; live: string; paused: string }];
 
       const [approvalRow] = (await tx.execute(
         sql`select count(*) filter (where status = 'pending') as pending from approvals`,
@@ -154,7 +164,11 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         live: n(data.partnerRow?.live),
         sandbox: n(data.partnerRow?.sandbox),
       },
-      products: { total: n(data.productRow?.total) },
+      products: {
+        total: n(data.productRow?.total),
+        live: n(data.productRow?.live),
+        paused: n(data.productRow?.paused),
+      },
       orders: {
         total: n(data.orderCounts?.total),
         created: n(data.orderCounts?.created),
@@ -174,6 +188,12 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const limit = Math.min(Number(c.req.query('limit') ?? 100), 500);
+    /**
+     * Search, because a list capped at 500 with no way to narrow it is not a
+     * way to find a person — it is a way to scroll past them. Matched on the
+     * two things an administrator is actually handed: a name or an email.
+     */
+    const q = (c.req.query('q') ?? '').trim();
 
     /**
      * People first, roles second — two queries rather than one join with a
@@ -199,6 +219,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         .from(user)
         .leftJoin(kycStatus, eq(kycStatus.userId, user.id))
         .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+        .where(q ? or(ilike(user.name, `%${q}%`), ilike(user.email, `%${q}%`)) : undefined)
         .orderBy(desc(user.createdAt))
         .limit(limit);
       const ids = found.map((p) => p.id);
@@ -210,18 +231,26 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
                 userId: userRoles.userId,
                 role: userRoles.role,
                 partnerId: userRoles.partnerId,
+                // The firm's code, so an operator row can say "SAG" rather
+                // than a uuid nobody can act on.
+                partnerCode: partners.code,
               })
               .from(userRoles)
+              .leftJoin(partners, eq(partners.id, userRoles.partnerId))
               .where(inArray(userRoles.userId, ids))
           : [],
       };
     });
 
-    const held = new Map<string, { roles: string[]; partnerId: string | null }>();
+    const held = new Map<
+      string,
+      { roles: string[]; partnerId: string | null; partnerCode: string | null }
+    >();
     for (const r of roles) {
-      const entry = held.get(r.userId) ?? { roles: [], partnerId: null };
+      const entry = held.get(r.userId) ?? { roles: [], partnerId: null, partnerCode: null };
       if (!entry.roles.includes(r.role)) entry.roles.push(r.role);
       entry.partnerId = entry.partnerId ?? r.partnerId;
+      entry.partnerCode = entry.partnerCode ?? r.partnerCode;
       held.set(r.userId, entry);
     }
 
@@ -230,6 +259,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         ...p,
         roles: held.get(p.id)?.roles ?? [],
         partnerId: held.get(p.id)?.partnerId ?? null,
+        partnerCode: held.get(p.id)?.partnerCode ?? null,
       })),
     });
   });
@@ -241,12 +271,14 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
 
     const rows = await withTenant(deps, tenant, async (tx) => {
       const list = await tx.select().from(partners).orderBy(partners.name);
+      // Products from `instruments` — what the marketplace offers and the
+      // console writes — not the prototype's product_listings table.
       const counts = (await tx.execute(sql`
         select p.id::text as partner_id,
-               count(distinct pl.id) as products,
+               count(distinct i.id) as products,
                count(distinct o.id)  as orders
           from partners p
-          left join product_listings pl on pl.partner_id = p.id
+          left join instruments i on i.partner_id = p.id
           left join orders o on o.partner_id = p.id
          group by p.id
       `)) as unknown as Array<{ partner_id: string; products: string; orders: string }>;
@@ -419,7 +451,15 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     return c.json({ partner: result.partner });
   });
 
-  /** Everything on offer, across every partner. */
+  /**
+   * Everything the marketplace offers, across every partner.
+   *
+   * Read from `instruments` — the table investors see and the console writes —
+   * with the fields a takedown decision needs: whose it is, whether it is
+   * live, and what it claims. The old version read `product_listings`, which
+   * nothing has written since 0017, so an administrator was reviewing a
+   * catalogue frozen at the prototype while the real one changed underneath.
+   */
   app.get('/products', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
@@ -427,26 +467,95 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     const rows = await withTenant(deps, tenant, (tx) =>
       tx
         .select({
-          id: productListings.id,
-          name: productListings.name,
-          type: productListings.type,
-          status: productListings.status,
-          partnerId: productListings.partnerId,
+          id: instruments.id,
+          name: instruments.name,
+          type: instruments.type,
+          status: instruments.listingStatus,
+          blocked: instruments.blocked,
+          risk: instruments.risk,
+          metric: instruments.metric,
+          metricLabel: instruments.metricLabel,
+          minInvestmentMinor: instruments.minInvestmentMinor,
+          currency: instruments.currency,
+          updatedAt: instruments.updatedAt,
+          partnerId: instruments.partnerId,
           partnerName: partners.name,
           partnerCode: partners.code,
         })
-        .from(productListings)
-        .leftJoin(partners, eq(partners.id, productListings.partnerId))
-        .orderBy(partners.name, productListings.name),
+        .from(instruments)
+        .leftJoin(partners, eq(partners.id, instruments.partnerId))
+        .orderBy(partners.name, instruments.name),
     );
-    return c.json({ products: rows });
+    return c.json({
+      products: rows.map((r) => ({ ...r, minInvestmentMinor: String(r.minInvestmentMinor) })),
+    });
   });
 
-  /** Recent orders across every partner. */
+  /**
+   * Take a listing off the marketplace, or put it back — the network's
+   * takedown control.
+   *
+   * A firm can pause its own product; until 0022 nobody else could, so a
+   * listing flagged by a regulator or listed in error could only be withdrawn
+   * with SQL against production. The write is the admin's own, through the
+   * `instruments_admin_correct` policy, flips `listing_status` and nothing
+   * else, and is audited with who did it — the pause gates the marketplace
+   * query and both order paths, exactly as the firm's own switch does.
+   */
+  app.post('/products/:id/toggle', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const id = c.req.param('id');
+
+    const attempted = await attempt(() =>
+      withTenant(deps, tenant, async (tx) => {
+        const [before] = await tx
+          .select({ id: instruments.id, name: instruments.name, status: instruments.listingStatus })
+          .from(instruments)
+          .where(eq(instruments.id, id))
+          .limit(1);
+        if (!before) return { error: 'not found' as const, httpStatus: 404 as const };
+
+        const next = before.status === 'live' ? ('paused' as const) : ('live' as const);
+        const [row] = await tx
+          .update(instruments)
+          .set({ listingStatus: next, updatedAt: new Date() })
+          .where(eq(instruments.id, id))
+          .returning({ status: instruments.listingStatus });
+        if (!row) {
+          return { error: 'the listing was not changed' as const, httpStatus: 400 as const };
+        }
+
+        await auditAppend(tx, {
+          actorType: 'user',
+          actorId: tenant.user.id,
+          userId: tenant.user.id,
+          partnerId: null,
+          action: next === 'paused' ? 'instrument.paused' : 'instrument.live',
+          entityType: 'instruments',
+          entityId: id,
+          detail: { name: before.name, from: before.status, to: next, by: tenant.user.email },
+        });
+        return { status: row.status };
+      }),
+    );
+    if ('pending' in attempted) return c.json({ error: MIGRATION_PENDING }, 503);
+    const result = attempted.ok;
+    if ('error' in result) return c.json({ error: result.error }, result.httpStatus);
+    deps.logger.info('administrator toggled a listing', { actor: tenant.user.id, id });
+    return c.json(result);
+  });
+
+  /** Recent orders across every partner, named by product, filterable by state. */
   app.get('/orders', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const limit = Math.min(Number(c.req.query('limit') ?? 100), 500);
+    const wanted = c.req.query('status');
+    const STATUSES = ['created', 'accepted', 'settled', 'rejected', 'expired'] as const;
+    const status = (STATUSES as readonly string[]).includes(wanted ?? '')
+      ? (wanted as (typeof STATUSES)[number])
+      : null;
 
     const rows = await withTenant(deps, tenant, (tx) =>
       tx
@@ -458,10 +567,15 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
           createdAt: orders.createdAt,
           partnerName: partners.name,
           investorEmail: user.email,
+          // The product, so a row reads "GOJ 2032 · US$5,000" and not a pair
+          // of uuids. LEFT, because an order may carry no instrument.
+          instrumentName: instruments.name,
         })
         .from(orders)
         .leftJoin(partners, eq(partners.id, orders.partnerId))
         .leftJoin(user, eq(user.id, orders.userId))
+        .leftJoin(instruments, eq(instruments.id, orders.instrumentId))
+        .where(status ? eq(orders.status, status) : undefined)
         .orderBy(desc(orders.createdAt))
         .limit(limit),
     );
@@ -487,9 +601,14 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
           entityType: auditLog.entityType,
           entityId: auditLog.entityId,
           actorType: auditLog.actorType,
+          // Who it concerned and what the writer recorded — the two halves
+          // that turn "user_roles.changed" into an answerable question.
+          subjectEmail: user.email,
+          detail: auditLog.detail,
           createdAt: auditLog.createdAt,
         })
         .from(auditLog)
+        .leftJoin(user, eq(user.id, auditLog.userId))
         .orderBy(desc(auditLog.seq))
         .limit(limit),
     );

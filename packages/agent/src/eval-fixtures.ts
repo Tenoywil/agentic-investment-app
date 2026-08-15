@@ -116,5 +116,47 @@ export function sampleSnapshot(): AgentSnapshot {
         ],
       }),
     ],
+    /**
+     * A realistic in-flight state: one order the firm has accepted with a
+     * settlement date, one approval waiting on the person, one connection
+     * still under review — the three things the eval suite asks the agent to
+     * narrate honestly.
+     */
+    activity: {
+      orders: [
+        {
+          id: 'order-goj-1',
+          instrumentName: 'GOJ 2032 USD Global Bond',
+          partnerName: 'NCB',
+          status: 'accepted',
+          amountMinor: 250_000n,
+          currency: 'USD',
+          createdAt: '2026-08-10T14:00:00.000Z',
+          settlementEta: '2026-08-17T00:00:00.000Z',
+          settledAt: null,
+          unitPriceMinor: null,
+          units: null,
+          feeMinor: null,
+          rejectedReason: null,
+        },
+      ],
+      approvals: [
+        {
+          id: 'approval-1',
+          title: 'Move US$2,000 into the Barita money market fund',
+          amountMinor: 200_000n,
+          currency: 'USD',
+          createdAt: '2026-08-12T09:00:00.000Z',
+        },
+      ],
+      connections: [
+        {
+          partner: 'Sagicor Investments',
+          status: 'pending',
+          declineReason: null,
+          requestedAt: '2026-08-11T16:00:00.000Z',
+        },
+      ],
+    },
   };
 }
