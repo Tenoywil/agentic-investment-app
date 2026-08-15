@@ -121,6 +121,27 @@ export function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
+/** Whole days since an ISO timestamp. */
+export function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
+
+/**
+ * An order still waiting for acceptance after this many days is aging on the
+ * desk. Investors are told "the firm is reviewing it"; past this point that
+ * sentence is wearing thin, and the console should feel it before the client
+ * phones.
+ */
+export const ORDER_AGING_DAYS = 2;
+
+/**
+ * An accepted client is due periodic re-review after this many days — the
+ * annual KYC refresh cadence a regulated book runs on. Computed from
+ * `reviewed_at`, the date the firm actually decided, not from anything
+ * invented.
+ */
+export const KYC_REVIEW_DUE_DAYS = 365;
+
 /* ---- partner enums ------------------------------------------------------ */
 
 const REGULATOR_LABELS: Record<string, string> = {

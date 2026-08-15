@@ -5,7 +5,16 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleKpi, ConsoleOrder } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { ArrowRightLeft, CheckCheck, LayoutGrid } from 'lucide-react';
-import { ROW_DIVIDER, SUCCESS_TEXT, fmtMinor, isSandbox, timeAgo, uppr } from './lib';
+import {
+  ORDER_AGING_DAYS,
+  ROW_DIVIDER,
+  SUCCESS_TEXT,
+  daysSince,
+  fmtMinor,
+  isSandbox,
+  timeAgo,
+  uppr,
+} from './lib';
 import { RowsSkeleton, TilesSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
@@ -188,10 +197,23 @@ export function OverviewTab({
             const pendingOrders = ordersError
               ? 0
               : orders.filter((o) => o.status === 'created').length;
+            // The oldest undecided order, because "3 to accept" reads the same
+            // whether they arrived an hour ago or a week ago — and the desk
+            // should feel the difference.
+            const oldestWait = ordersError
+              ? 0
+              : Math.max(
+                  0,
+                  ...orders
+                    .filter((o) => o.status === 'created')
+                    .map((o) => daysSince(o.createdAt)),
+                );
             const rows: { n: number; what: string; go: 'orders' | 'clients'; cta: string }[] = [
               {
                 n: pendingOrders,
-                what: pendingOrders === 1 ? 'order to accept' : 'orders to accept',
+                what: `${pendingOrders === 1 ? 'order to accept' : 'orders to accept'}${
+                  oldestWait >= ORDER_AGING_DAYS ? ` — oldest waiting ${oldestWait} days` : ''
+                }`,
                 go: 'orders' as const,
                 cta: 'Open the order flow',
               },

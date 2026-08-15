@@ -6,7 +6,7 @@ import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleOrder } from '@/lib/console-api';
 import { ArrowRightLeft } from 'lucide-react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
-import { ROW_DIVIDER, fmtMinor, timeAgo, uppr } from './lib';
+import { ORDER_AGING_DAYS, ROW_DIVIDER, daysSince, fmtMinor, timeAgo, uppr } from './lib';
 import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
@@ -195,6 +195,14 @@ export function OrdersTab({
                     {o.instrumentAbbr ? `${o.instrumentAbbr} · ` : ''}
                     {timeAgo(o.createdAt)}
                   </div>
+                  {/* Aging: a client authorised this and has been told the firm
+                      is reviewing it. Past two days that sentence is wearing
+                      thin, and the desk should feel it before the client calls. */}
+                  {o.status === 'created' && daysSince(o.createdAt) >= ORDER_AGING_DAYS ? (
+                    <div className="text-xs font-bold text-[#a44e20] dark:text-terra">
+                      Waiting {daysSince(o.createdAt)} days for your decision
+                    </div>
+                  ) : null}
                   {/* The date the desk committed to on acceptance, and whether
                       it has slipped. An accepted order past its own settlement
                       date is the most actionable row in this queue, and until
