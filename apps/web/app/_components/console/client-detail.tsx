@@ -15,10 +15,10 @@ import { Boxes, CircleAlert, FileText, X } from 'lucide-react';
 import * as React from 'react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import {
-  AUDIT_ACTOR_LABEL,
   ROW_DIVIDER,
   TERRA_GHOST_BTN,
   auditActionLabel,
+  auditActorLine,
   auditEntityLabel,
   auditReason,
   errorMessage,
@@ -415,7 +415,8 @@ export function ClientDetailDialog({
                       <div key={a.id} className={`py-2.5 ${ROW_DIVIDER} last:border-b-0`}>
                         <div className="text-[13.5px]">{auditActionLabel(a.action)}</div>
                         <div className="text-[12px] text-faint">
-                          {AUDIT_ACTOR_LABEL[a.actorType]}
+                          {/* By name: "accepted, by whom" is one fact. */}
+                          <span className="font-semibold text-dim">{auditActorLine(a)}</span>
                           {entity ? ` · ${entity}` : ''} · {timeAgo(a.createdAt)}
                         </div>
                         {why ? <div className="text-[12px] italic text-dim">{why}</div> : null}

@@ -64,6 +64,13 @@ export interface ConsoleAuditEntry {
   action: string;
   entityType: string | null;
   actorType: ConsoleActorType;
+  /**
+   * WHO. The name behind `actor_id` — the operator who accepted the client or
+   * paid the withdrawal, or the client who asked. Null for system and agent
+   * rows, and for rows older than the column being written; the screen then
+   * falls back to the actor-type word rather than inventing a person.
+   */
+  actorName: string | null;
   detail: unknown;
   createdAt: string;
 }

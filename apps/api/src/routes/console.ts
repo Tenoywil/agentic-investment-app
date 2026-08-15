@@ -275,10 +275,17 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           action: auditLog.action,
           entityType: auditLog.entityType,
           actorType: auditLog.actorType,
+          // WHO. `actor_id` has been written since the first migration and
+          // never read, so every decision rendered as an anonymous "Operator"
+          // — a compliance officer could see that a client was accepted and a
+          // withdrawal paid, and not by whom, which is the first question a
+          // review asks. LEFT join: system and agent rows have no person.
+          actorName: userTable.name,
           detail: auditLog.detail,
           createdAt: auditLog.createdAt,
         })
         .from(auditLog)
+        .leftJoin(userTable, eq(userTable.id, auditLog.actorId))
         .where(eq(auditLog.partnerId, scope.partnerId))
         .orderBy(desc(auditLog.seq))
         .limit(limit),
@@ -582,10 +589,13 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
           action: auditLog.action,
           entityType: auditLog.entityType,
           actorType: auditLog.actorType,
+          // The deciding person's name — "accepted, by whom" is one fact.
+          actorName: userTable.name,
           detail: auditLog.detail,
           createdAt: auditLog.createdAt,
         })
         .from(auditLog)
+        .leftJoin(userTable, eq(userTable.id, auditLog.actorId))
         .where(and(eq(auditLog.partnerId, scope.partnerId), eq(auditLog.userId, client.user_id)))
         .orderBy(desc(auditLog.seq))
         .limit(50);

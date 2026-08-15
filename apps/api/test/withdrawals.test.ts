@@ -328,6 +328,15 @@ suite('withdrawals and funding notices', () => {
     // 200000 − (500 + 2000) fee − 375 GCT = 197125.
     expect(row?.netMinor).toBe('197125');
     expect(row?.reference).toBe(`WIRE-${tag}`);
+
+    // The decision is SIGNED: the audit trail names the operator who paid it,
+    // not an anonymous "Operator" — who accepted what is the record's job.
+    const audit = await request('/api/console/audit?limit=20', 'sagOperator');
+    const { entries } = (await audit.json()) as {
+      entries: { action: string; actorName: string | null }[];
+    };
+    const paidEntry = entries.find((e) => e.action === 'withdrawal.paid');
+    expect(paidEntry?.actorName).toBe('sagOperator');
   });
 
   test('a request the recorded cash cannot cover is refused', async () => {

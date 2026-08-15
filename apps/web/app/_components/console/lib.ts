@@ -300,6 +300,39 @@ export const AUDIT_ACTOR_LABEL: Record<ConsoleActorType, string> = {
   system: 'System',
 };
 
+/**
+ * WHO did it, by name when the log knows one.
+ *
+ * `actor_id` has been on every audit row since the first migration and the
+ * console never read it, so a desk's whole record of decisions was signed
+ * "Operator" — which is no signature at all when three people share the desk.
+ * The fallback is the actor-type word, never a guessed person.
+ */
+export function auditActorLine(a: { actorType: ConsoleActorType; actorName?: string | null }) {
+  return a.actorName ?? AUDIT_ACTOR_LABEL[a.actorType];
+}
+
+/**
+ * The audit actions that are somebody's DECISION — a person answerable for a
+ * client's money or standing did something. What the "Decisions only" view
+ * filters to: acceptance, KYC standing, money in, money out, executions.
+ */
+export const DECISION_ACTIONS = new Set([
+  'client.accepted',
+  'client.declined',
+  'client.revoked',
+  'client.reinstated',
+  'funds.settled',
+  'withdrawal.paid',
+  'withdrawal.declined',
+  'reconciliation.matched',
+  'reconciliation.rejected',
+  'order.accepted',
+  'order.settled',
+  'order.rejected',
+  'partner.profile_updated',
+]);
+
 /** `detail` is untyped JSONB. The only field worth surfacing is a rejection
  *  reason, and only when it really is a string. */
 export function auditReason(detail: unknown): string | null {

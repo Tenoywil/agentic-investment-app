@@ -197,6 +197,13 @@
       "when": 1786700000000,
       "tag": "0027_kyc_documents_in_db",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786710000000,
+      "tag": "0028_decisions_are_signed",
+      "breakpoints": true
     }
   ]
 }

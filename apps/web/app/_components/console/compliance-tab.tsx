@@ -10,10 +10,11 @@ import * as React from 'react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import {
   AUDIT_ACTOR_DOT,
-  AUDIT_ACTOR_LABEL,
+  DECISION_ACTIONS,
   ROW_DIVIDER,
   agreementLabel,
   auditActionLabel,
+  auditActorLine,
   auditEntityLabel,
   auditReason,
   regulatorLabel,
@@ -64,6 +65,9 @@ export function ComplianceTab({
   profileError: string | null;
 }) {
   const [editing, setEditing] = React.useState(false);
+  /** "Who accepted what": narrow the trail to signed decisions. */
+  const [decisionsOnly, setDecisionsOnly] = React.useState(false);
+  const shownAudit = decisionsOnly ? audit.filter((a) => DECISION_ACTIONS.has(a.action)) : audit;
   const [name, setName] = React.useState(partner?.name ?? '');
   const [kind, setKind] = React.useState(partner?.kind ?? '');
   const [residency, setResidency] = React.useState(partner?.residency ?? '');
@@ -335,34 +339,50 @@ export function ComplianceTab({
       <Card className="p-6" data-tour="institution-audit">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <b className="font-display text-[17px]">Audit trail</b>
-          {/* The record a regulated desk is asked to produce. Exported from the
-              rows on screen, worded exactly as the screen words them. */}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={audit.length === 0}
-            onClick={() =>
-              downloadCsv(
-                datedFilename('ccn-audit'),
-                toCsv(audit, [
-                  { header: 'Sequence', value: (a) => a.seq },
-                  { header: 'When', value: (a) => a.createdAt },
-                  { header: 'Action', value: (a) => auditActionLabel(a.action) },
-                  { header: 'Action key', value: (a) => a.action },
-                  { header: 'Concerning', value: (a) => auditEntityLabel(a.entityType) ?? '' },
-                  { header: 'Actor', value: (a) => AUDIT_ACTOR_LABEL[a.actorType] },
-                  { header: 'Reason', value: (a) => auditReason(a.detail) ?? '' },
-                ]),
-              )
-            }
-          >
-            Export CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Who accepted what: the same rows, narrowed to the ones where a
+                person answerable for a client's money or standing decided
+                something — acceptances, KYC standing, cash in, withdrawals,
+                executions — each signed with the decider's name. */}
+            <Button
+              type="button"
+              size="sm"
+              variant={decisionsOnly ? 'default' : 'outline'}
+              aria-pressed={decisionsOnly}
+              onClick={() => setDecisionsOnly((v) => !v)}
+            >
+              Decisions only
+            </Button>
+            {/* The record a regulated desk is asked to produce. Exported from
+                the rows on screen, worded exactly as the screen words them. */}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={shownAudit.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  datedFilename(decisionsOnly ? 'ccn-decisions' : 'ccn-audit'),
+                  toCsv(shownAudit, [
+                    { header: 'Sequence', value: (a) => a.seq },
+                    { header: 'When', value: (a) => a.createdAt },
+                    { header: 'Action', value: (a) => auditActionLabel(a.action) },
+                    { header: 'Action key', value: (a) => a.action },
+                    { header: 'Concerning', value: (a) => auditEntityLabel(a.entityType) ?? '' },
+                    { header: 'By', value: (a) => auditActorLine(a) },
+                    { header: 'Reason', value: (a) => auditReason(a.detail) ?? '' },
+                  ]),
+                )
+              }
+            >
+              Export CSV
+            </Button>
+          </div>
         </div>
         <p className="mb-3 mt-1 text-[13px] leading-snug text-faint">
-          Append-only and hash-chained in the database — orders, reconciliation and listing changes
-          for {partner?.name ?? 'this partner'}, newest first.
+          {decisionsOnly
+            ? `Who accepted what: client decisions, settled funds, withdrawals and executions at ${partner?.name ?? 'this partner'}, each with the person who decided it.`
+            : `Append-only and hash-chained in the database — orders, reconciliation and listing changes for ${partner?.name ?? 'this partner'}, newest first.`}
         </p>
 
         {auditError ? <ErrorNote message={auditError} className="mb-3" /> : null}
@@ -377,7 +397,14 @@ export function ComplianceTab({
           />
         ) : null}
 
-        {audit.map((a) => {
+        {!loading && !auditError && audit.length > 0 && shownAudit.length === 0 ? (
+          <p className="text-[13px] text-faint">
+            No decisions in the last {audit.length} entries — the activity here is system and
+            client-side events.
+          </p>
+        ) : null}
+
+        {shownAudit.map((a) => {
           const reason = auditReason(a.detail);
           const entity = auditEntityLabel(a.entityType);
           return (
@@ -389,7 +416,9 @@ export function ComplianceTab({
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-foreground">{auditActionLabel(a.action)}</div>
                 <div className="mt-0.5 text-[12.5px] text-faint">
-                  {AUDIT_ACTOR_LABEL[a.actorType]}
+                  {/* Signed with the person's name when the log knows one —
+                      "Marcia Grant", not an anonymous "Operator". */}
+                  <span className="font-semibold text-dim">{auditActorLine(a)}</span>
                   {entity ? ` · ${entity}` : ''} · {timeAgo(a.createdAt)}
                 </div>
                 {reason ? (
