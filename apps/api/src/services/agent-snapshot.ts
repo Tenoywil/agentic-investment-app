@@ -1,9 +1,10 @@
-import type { AgentSnapshot, SnapshotInstrument } from '@ccn/agent';
+import type { AgentSnapshot, SnapshotActivity, SnapshotInstrument } from '@ccn/agent';
 import type { Transaction } from '@ccn/db';
-import { connectedAccounts, holdings, instruments, orders, partners } from '@ccn/db';
+import { approvals, connectedAccounts, holdings, instruments, orders, partners } from '@ccn/db';
 import type { RiskRating } from '@ccn/domain';
 import type { Currency } from '@ccn/money';
-import { eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { isDatabaseBehind } from '../migrations';
 import { loadBand, loadLimits } from './gate';
 
 /**
@@ -48,26 +49,46 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
       sql`${orders.userId} = ${userId} and ${orders.status} <> 'rejected' and ${orders.createdAt} >= date_trunc('day', now())`,
     );
 
+  const instrumentColumns = {
+    id: instruments.id,
+    slug: instruments.slug,
+    abbr: instruments.abbr,
+    type: instruments.type,
+    name: instruments.name,
+    region: instruments.region,
+    risk: instruments.risk,
+    metricLabel: instruments.metricLabel,
+    metric: instruments.metric,
+    minInvestmentMinor: instruments.minInvestmentMinor,
+    currency: instruments.currency,
+    blocked: instruments.blocked,
+    blockReasons: instruments.blockReasons,
+    partnerName: partners.name,
+    regulator: instruments.regulator,
+  };
+  /**
+   * Live listings only. The marketplace and both order paths already refuse a
+   * paused instrument, and the agent read the one unfiltered copy of the
+   * catalogue — so it would go on recommending a product the firm had
+   * withdrawn, and the person following the recommendation met a refusal the
+   * agent itself had set up. On a database without 0017 the filter falls back
+   * to the unfiltered read, which was the truth before pausing existed.
+   */
   const instrumentRows = await tx
-    .select({
-      id: instruments.id,
-      slug: instruments.slug,
-      abbr: instruments.abbr,
-      type: instruments.type,
-      name: instruments.name,
-      region: instruments.region,
-      risk: instruments.risk,
-      metricLabel: instruments.metricLabel,
-      metric: instruments.metric,
-      minInvestmentMinor: instruments.minInvestmentMinor,
-      currency: instruments.currency,
-      blocked: instruments.blocked,
-      blockReasons: instruments.blockReasons,
-      partnerName: partners.name,
-      regulator: instruments.regulator,
-    })
-    .from(instruments)
-    .leftJoin(partners, eq(instruments.partnerId, partners.id));
+    .transaction((sp) =>
+      sp
+        .select(instrumentColumns)
+        .from(instruments)
+        .leftJoin(partners, eq(instruments.partnerId, partners.id))
+        .where(eq(instruments.listingStatus, 'live')),
+    )
+    .catch((err: unknown) => {
+      if (!isDatabaseBehind(err)) throw err;
+      return tx
+        .select(instrumentColumns)
+        .from(instruments)
+        .leftJoin(partners, eq(instruments.partnerId, partners.id));
+    });
 
   const instrumentList: SnapshotInstrument[] = instrumentRows.map((i) => ({
     id: i.id,
@@ -87,7 +108,93 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
     regulator: i.regulator,
   }));
 
+  /**
+   * The caller's own activity: their orders, what awaits their approval, and
+   * where each connection stands. This is what lets the agent answer the three
+   * questions people actually ask after acting — where is my order, has the
+   * firm accepted me, what is waiting on me — instead of going quiet at the
+   * exact moment of worry.
+   */
+  const orderRows = await tx
+    .select({
+      id: orders.id,
+      instrumentName: instruments.name,
+      partnerName: partners.name,
+      status: orders.status,
+      amountMinor: orders.amountMinor,
+      currency: orders.currency,
+      createdAt: orders.createdAt,
+      settlementEta: orders.settlementEta,
+      settledAt: orders.settledAt,
+      unitPriceMinor: orders.unitPriceMinor,
+      units: orders.units,
+      feeMinor: orders.feeMinor,
+      rejectedReason: orders.rejectedReason,
+    })
+    .from(orders)
+    .leftJoin(instruments, eq(instruments.id, orders.instrumentId))
+    .leftJoin(partners, eq(partners.id, orders.partnerId))
+    .where(eq(orders.userId, userId))
+    .orderBy(desc(orders.createdAt))
+    .limit(20);
+
+  const approvalRows = await tx
+    .select({
+      id: approvals.id,
+      title: approvals.title,
+      amountMinor: approvals.amountMinor,
+      currency: approvals.currency,
+      createdAt: approvals.createdAt,
+    })
+    .from(approvals)
+    .where(and(eq(approvals.userId, userId), eq(approvals.status, 'pending')))
+    .orderBy(desc(approvals.createdAt))
+    .limit(10);
+
+  const connectionRows = await tx
+    .select({
+      partner: partners.name,
+      status: connectedAccounts.status,
+      declineReason: connectedAccounts.declineReason,
+      requestedAt: connectedAccounts.createdAt,
+    })
+    .from(connectedAccounts)
+    .innerJoin(partners, eq(partners.id, connectedAccounts.partnerId))
+    .where(eq(connectedAccounts.userId, userId));
+
+  const activity: SnapshotActivity = {
+    orders: orderRows.map((o) => ({
+      id: o.id,
+      instrumentName: o.instrumentName,
+      partnerName: o.partnerName,
+      status: o.status,
+      amountMinor: o.amountMinor,
+      currency: o.currency as Currency,
+      createdAt: o.createdAt.toISOString(),
+      settlementEta: o.settlementEta?.toISOString() ?? null,
+      settledAt: o.settledAt?.toISOString() ?? null,
+      unitPriceMinor: o.unitPriceMinor,
+      units: o.units,
+      feeMinor: o.feeMinor,
+      rejectedReason: o.rejectedReason,
+    })),
+    approvals: approvalRows.map((a) => ({
+      id: a.id,
+      title: a.title,
+      amountMinor: a.amountMinor,
+      currency: a.currency as Currency,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    connections: connectionRows.map((cn) => ({
+      partner: cn.partner,
+      status: cn.status,
+      declineReason: cn.declineReason,
+      requestedAt: cn.requestedAt.toISOString(),
+    })),
+  };
+
   return {
+    activity,
     portfolio: {
       currency: 'USD',
       netWorthMinor,

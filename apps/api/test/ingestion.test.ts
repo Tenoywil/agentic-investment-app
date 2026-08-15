@@ -73,12 +73,24 @@ suite('ingestion → reconciliation → holding', () => {
   });
 
   test('matching an item creates the holding via the choke point; audit chain stays intact', async () => {
+    /**
+     * This run's own items, not "any pending NCB item". The unscoped version
+     * matched items[0] of everything pending at NCB — which, on a shared test
+     * database that other suites (and earlier runs of this one) also feed,
+     * could be another user's line. Matching it then created the holding for
+     * that other user, and the visibility assertion below failed for a reason
+     * that had nothing to do with the choke point under test.
+     */
     const items = await withRls(db, { partnerId: ncbId, dbRole: APP }, (tx) =>
       tx
         .select({ id: reconciliationItems.id })
         .from(reconciliationItems)
         .where(
-          and(eq(reconciliationItems.partnerId, ncbId), eq(reconciliationItems.status, 'pending')),
+          and(
+            eq(reconciliationItems.partnerId, ncbId),
+            eq(reconciliationItems.userId, u1),
+            eq(reconciliationItems.status, 'pending'),
+          ),
         ),
     );
     expect(items.length).toBeGreaterThanOrEqual(2);

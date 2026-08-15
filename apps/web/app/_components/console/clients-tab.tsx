@@ -47,6 +47,9 @@ export function ClientsTab({
   reconActionError,
   onMatch,
   onRejectItem,
+  onPull,
+  pulling,
+  pullNote,
 }: {
   partner: MePartner | null;
   clients: ConsoleClient[];
@@ -70,6 +73,10 @@ export function ClientsTab({
   reconActionError: string | null;
   onMatch: (id: string) => void;
   onRejectItem: (id: string, reason?: string) => void;
+  /** Pull statements for every active client, filling the queue below. */
+  onPull: () => void;
+  pulling: boolean;
+  pullNote: string | null;
 }) {
   /**
    * Which reconciliation line is being asked about. `reconcile_reject` records
@@ -177,14 +184,24 @@ export function ClientsTab({
       </div>
 
       <Card className="mt-[18px] p-6">
-        <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
           <b className="font-display text-lg">Pending reconciliation</b>
-          {reconciliation.length > 0 ? (
-            <span className={`text-sm font-bold ${TERRA_TEXT}`}>
-              {reconciliation.length} to review
-            </span>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {reconciliation.length > 0 ? (
+              <span className={`text-sm font-bold ${TERRA_TEXT}`}>
+                {reconciliation.length} to review
+              </span>
+            ) : null}
+            {/* The desk fills its own queue. This queue could previously only
+                be filled by each investor pressing "Check for statements" on
+                their own portfolio — but the statements are the firm's records
+                and reconciliation is the firm's job. */}
+            <Button type="button" size="sm" variant="outline" onClick={onPull} disabled={pulling}>
+              {pulling ? 'Pulling…' : 'Pull statements'}
+            </Button>
+          </div>
         </div>
+        {pullNote ? <output className="mb-2 block text-[13px] text-dim">{pullNote}</output> : null}
         <div className="mb-4 text-[13px] text-faint">
           Statement lines ingested from partner records, awaiting a match to a client holding.
         </div>

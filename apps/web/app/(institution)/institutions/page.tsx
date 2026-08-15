@@ -33,6 +33,7 @@ import {
   getProducts,
   getReconciliation,
   matchReconciliation,
+  pullReconciliation,
   rejectOrder,
   rejectReconciliation,
   reviewClient,
@@ -94,6 +95,27 @@ export default function InstitutionsPage() {
   const [clientActionError, setClientActionError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  /** The desk-wide statement pull that fills the reconciliation queue. */
+  const [pulling, setPulling] = useState(false);
+  const [pullNote, setPullNote] = useState<string | null>(null);
+
+  async function handlePullStatements() {
+    setPulling(true);
+    setPullNote(null);
+    try {
+      const { clients, queued } = await pullReconciliation();
+      setPullNote(
+        queued === 0
+          ? `Checked ${clients} client account${clients === 1 ? '' : 's'} — nothing new to reconcile.`
+          : `Checked ${clients} client account${clients === 1 ? '' : 's'} — ${queued} line${queued === 1 ? '' : 's'} queued below.`,
+      );
+      void load();
+    } catch (err) {
+      setPullNote(errorMessage(err, 'Could not pull statements.'));
+    } finally {
+      setPulling(false);
+    }
+  }
 
   /**
    * Seven reads, and until this flag existed there was no way to tell "still
@@ -541,6 +563,9 @@ export default function InstitutionsPage() {
             reconActionError={reconActionError}
             onMatch={handleMatch}
             onRejectItem={handleReconReject}
+            onPull={handlePullStatements}
+            pulling={pulling}
+            pullNote={pullNote}
           />
         </TabsContent>
 

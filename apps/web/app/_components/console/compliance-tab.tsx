@@ -7,6 +7,7 @@ import type { ConsoleAuditEntry } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { Pencil, ScrollText, ShieldCheck } from 'lucide-react';
 import * as React from 'react';
+import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import {
   AUDIT_ACTOR_DOT,
   AUDIT_ACTOR_LABEL,
@@ -194,7 +195,33 @@ export function ComplianceTab({
       </Card>
 
       <Card className="p-6" data-tour="institution-audit">
-        <b className="font-display text-[17px]">Audit trail</b>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <b className="font-display text-[17px]">Audit trail</b>
+          {/* The record a regulated desk is asked to produce. Exported from the
+              rows on screen, worded exactly as the screen words them. */}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={audit.length === 0}
+            onClick={() =>
+              downloadCsv(
+                datedFilename('ccn-audit'),
+                toCsv(audit, [
+                  { header: 'Sequence', value: (a) => a.seq },
+                  { header: 'When', value: (a) => a.createdAt },
+                  { header: 'Action', value: (a) => auditActionLabel(a.action) },
+                  { header: 'Action key', value: (a) => a.action },
+                  { header: 'Concerning', value: (a) => auditEntityLabel(a.entityType) ?? '' },
+                  { header: 'Actor', value: (a) => AUDIT_ACTOR_LABEL[a.actorType] },
+                  { header: 'Reason', value: (a) => auditReason(a.detail) ?? '' },
+                ]),
+              )
+            }
+          >
+            Export CSV
+          </Button>
+        </div>
         <p className="mb-3 mt-1 text-[13px] leading-snug text-faint">
           Append-only and hash-chained in the database — orders, reconciliation and listing changes
           for {partner?.name ?? 'this partner'}, newest first.

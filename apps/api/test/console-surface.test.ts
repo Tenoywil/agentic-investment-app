@@ -8,6 +8,7 @@ import {
   kycStatus,
   orders,
   partners,
+  reconciliationItems,
   session,
   user,
   userRoles,
@@ -824,6 +825,88 @@ suite('partner console data surface', () => {
       .where(eq(instruments.id, product.id));
     expect(row?.slug).toBeTruthy();
     expect(row?.slug.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The desk fills its own reconciliation queue.
+   *
+   * The queue is the console's — Match and Reject live there — but only an
+   * investor could fill it, one account at a time, from their own portfolio.
+   * The pull walks the firm's ACTIVE clients only, and a firm whose agreement
+   * is not routable is told so in a sentence rather than the unexplained 500
+   * the adapter registry's (correct) refusal used to surface as.
+   *
+   * Hermetic on purpose: it uses partners of its own rather than SAG and NCB.
+   * The first version pulled for SAG and filled the shared queue with items
+   * the ingestion suite then matched instead of its own — a test that passed
+   * alone and broke two others is a fixture leak, not coverage.
+   */
+  test('a desk pulls statements for its active clients, and a non-routable firm is told why', async () => {
+    const suffix = String(Date.now() % 100000);
+    const [routable] = await db
+      .insert(partners)
+      .values({ code: `PL${suffix}`, name: `${tag} Pullable`, agreementStatus: 'sandbox' })
+      .returning({ id: partners.id });
+    const [prospect] = await db
+      .insert(partners)
+      .values({ code: `PR${suffix}`, name: `${tag} Prospect`, agreementStatus: 'prospect' })
+      .returning({ id: partners.id });
+    const routableId = routable?.id ?? '';
+    const prospectId = prospect?.id ?? '';
+
+    await makeOperator('pullOperator', routableId);
+    await makeOperator('prospectOperator', prospectId);
+    // One active client of the routable firm, so the pull has a book to walk.
+    const [acct] = await db
+      .insert(connectedAccounts)
+      .values({
+        userId: ids.investor ?? '',
+        partnerId: routableId,
+        label: `${tag} pull account`,
+        status: 'active',
+      })
+      .returning({ id: connectedAccounts.id });
+
+    try {
+      const res = await app().request('/api/console/reconciliation/pull', {
+        method: 'POST',
+        headers: { cookie: cookies.pullOperator ?? '' },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { clients: number; queued: number };
+      expect(body.clients).toBe(1);
+
+      // A firm CCN is still talking to has no relationship to read through.
+      const refused = await app().request('/api/console/reconciliation/pull', {
+        method: 'POST',
+        headers: { cookie: cookies.prospectOperator ?? '' },
+      });
+      expect(refused.status).toBe(409);
+      expect(((await refused.json()) as { error: string }).error).toContain('prospect');
+
+      // A customer is not a desk.
+      const customer = await app().request('/api/console/reconciliation/pull', {
+        method: 'POST',
+        headers: { cookie: cookies.investor ?? '' },
+      });
+      expect(customer.status).toBe(403);
+    } finally {
+      // Take the hermetic fixtures back out, dependents first. Audit rows are
+      // append-only and stay, namespaced by the partner ids created here.
+      await db
+        .delete(reconciliationItems)
+        .where(inArray(reconciliationItems.partnerId, [routableId, prospectId]));
+      if (acct) await db.delete(connectedAccounts).where(eq(connectedAccounts.id, acct.id));
+      for (const key of ['pullOperator', 'prospectOperator']) {
+        const uid = ids[key];
+        if (!uid) continue;
+        await db.delete(session).where(eq(session.userId, uid));
+        await db.delete(userRoles).where(eq(userRoles.userId, uid));
+        await db.delete(user).where(eq(user.id, uid));
+        delete ids[key];
+      }
+      await db.delete(partners).where(inArray(partners.id, [routableId, prospectId]));
+    }
   });
 
   test('a product needs a name and a type CCN can act on', async () => {

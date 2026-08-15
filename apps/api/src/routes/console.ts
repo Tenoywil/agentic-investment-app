@@ -1,6 +1,7 @@
 import type { Transaction } from '@ccn/db';
 import {
   auditLog,
+  connectedAccounts,
   instruments,
   orders as ordersTable,
   partners,
@@ -34,6 +35,8 @@ import {
   settleOrder,
 } from '../db-fns';
 import { requireAuth } from '../middleware';
+import { pullStatements } from '../services/ingestion';
+import { maskRef } from './util';
 
 /**
  * Partner console order flow. Every route requires a partner_operator bound to a
@@ -560,6 +563,88 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
   app.post('/clients/:id/decline', review(false));
 
   // ---- Reconciliation (clients & KYC tab): match ingested statement lines ----
+
+  /**
+   * Pull statements for every active client, filling this desk's own queue.
+   *
+   * The reconciliation queue is the console's — Match and Reject live here —
+   * but until now only an investor could fill it, by pressing "Check for
+   * statements" on their own portfolio. A desk that wanted to reconcile its
+   * book had to wait for each client to think of it, which is backwards: the
+   * statements are the firm's records, and reconciliation is the firm's job.
+   *
+   * Active clients only. A pending connection has no relationship to read
+   * through and a declined one has been refused — the same rule the investor
+   * path enforces one account at a time.
+   */
+  app.post('/reconciliation/pull', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const result = await withTenant(deps, tenant, async (tx) => {
+      const [firm] = await tx
+        .select({ code: partners.code, agreementStatus: partners.agreementStatus })
+        .from(partners)
+        .where(eq(partners.id, scope.partnerId));
+      if (!firm) return { error: 'partner not found' as const, httpStatus: 404 as const };
+      /**
+       * Said here, not thrown from inside the adapter registry. The registry
+       * refuses a non-routable agreement — correctly — but from this button
+       * that refusal surfaced as an unexplained 500 at the desk of the firm
+       * it describes. The agreement is the firm's own state and deserves a
+       * sentence, not a stack trace.
+       */
+      if (firm.agreementStatus !== 'sandbox' && firm.agreementStatus !== 'live') {
+        return {
+          error:
+            `Your agreement with CCN is ${firm.agreementStatus}, so statements cannot be read yet. Once the agreement is live (or sandbox), this pulls for every active client.` as const,
+          httpStatus: 409 as const,
+        };
+      }
+
+      const clients = await tx
+        .select({ userId: connectedAccounts.userId })
+        .from(connectedAccounts)
+        .where(
+          and(
+            eq(connectedAccounts.partnerId, scope.partnerId),
+            eq(connectedAccounts.status, 'active'),
+          ),
+        );
+
+      let queued = 0;
+      for (const client of clients) {
+        const pulled = await pullStatements(tx, {
+          userId: client.userId,
+          partnerCode: firm.code,
+          clientRef: maskRef(client.userId),
+          now: () => Date.now(),
+        });
+        queued += pulled.created;
+      }
+
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: null,
+        partnerId: scope.partnerId,
+        action: 'reconciliation.pulled',
+        entityType: 'reconciliation_items',
+        entityId: null,
+        detail: { clients: clients.length, queued },
+      });
+      return { clients: clients.length, queued };
+    });
+
+    if ('error' in result) return c.json({ error: result.error }, result.httpStatus);
+    deps.logger.info('desk pulled statements for its clients', {
+      partner: scope.partnerId,
+      ...result,
+    });
+    return c.json(result);
+  });
 
   app.get('/reconciliation', async (c) => {
     const tenant = c.get('tenant');

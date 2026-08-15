@@ -405,6 +405,18 @@ export function reviewClient(
 
 // ---- Reconciliation ----
 
+/**
+ * Pull statements for every active client, filling this desk's own queue.
+ *
+ * The reconciliation queue is the console's, but until now only investors
+ * could fill it — one at a time, from their own portfolio screens. The
+ * statements are the firm's records and reconciliation is the firm's job, so
+ * the desk can now pull for its whole book at once.
+ */
+export function pullReconciliation(): Promise<{ clients: number; queued: number }> {
+  return consoleFetch('/reconciliation/pull', { method: 'POST' });
+}
+
 export function getReconciliation(): Promise<{ items: ConsoleReconciliationItem[] }> {
   return consoleFetch('/reconciliation');
 }

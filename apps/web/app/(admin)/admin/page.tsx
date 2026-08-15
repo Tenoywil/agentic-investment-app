@@ -1,5 +1,6 @@
 'use client';
 
+import { auditActionLabel, auditEntityLabel, auditReason } from '@/app/_components/console/lib';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -21,6 +22,7 @@ import {
   getAdminProducts,
   loadAdminReferenceData,
   refreshAdminFxRates,
+  toggleAdminProduct,
 } from '@/lib/admin-api';
 import { authClient } from '@/lib/auth-client';
 import {
@@ -170,6 +172,29 @@ export default function AdminPage() {
   /** The person whose detail panel is open, if any. */
   const [selected, setSelected] = React.useState<string | null>(null);
   /**
+   * Finding a person. A list capped at 200 with no way to narrow it is not a
+   * way to find someone — it is a way to scroll past them. The query re-runs
+   * the server search, matched on the two things an administrator is actually
+   * handed: a name or an email.
+   */
+  const [personQuery, setPersonQuery] = React.useState('');
+  /** The listing being paused or restored, and why it failed if it did. */
+  const [productBusy, setProductBusy] = React.useState<string | null>(null);
+  const [productError, setProductError] = React.useState<string | null>(null);
+
+  async function toggleProduct(id: string) {
+    setProductBusy(id);
+    setProductError(null);
+    try {
+      const { status } = await toggleAdminProduct(id);
+      setProducts((ps) => (ps ?? []).map((p) => (p.id === id ? { ...p, status } : p)));
+    } catch (err) {
+      setProductError(err instanceof Error ? err.message : 'Could not change the listing.');
+    } finally {
+      setProductBusy(null);
+    }
+  }
+  /**
    * The partner form: `null` closed, `'new'` onboarding, or the partner being
    * corrected. One piece of state rather than two booleans, because "onboarding"
    * and "editing SAG" are the same dialog and cannot both be open.
@@ -200,7 +225,7 @@ export default function AdminPage() {
     setRefreshing(true);
     return Promise.all([
       getAdminOverview(),
-      getAdminInvestors(),
+      getAdminInvestors(personQuery),
       getAdminPartners(),
       getAdminProducts(),
       getAdminOrders(),
@@ -225,7 +250,7 @@ export default function AdminPage() {
       .finally(() => {
         if (!gone.current) setRefreshing(false);
       });
-  }, []);
+  }, [personQuery]);
 
   React.useEffect(() => {
     void load();
@@ -479,9 +504,13 @@ export default function AdminPage() {
                   sub={`${plural(overview.partners.total, 'partner')} on the network`}
                 />
                 <Stat
-                  label="Products listed"
-                  value={overview.products.total}
-                  sub={`${plural(overview.partners.sandbox, 'partner')} in sandbox`}
+                  label="Products on the marketplace"
+                  value={overview.products.live}
+                  sub={
+                    overview.products.paused > 0
+                      ? `${overview.products.paused} paused · ${overview.products.total} listed in all`
+                      : `${overview.products.total} listed in all`
+                  }
                 />
                 <Stat
                   label="Orders"
@@ -557,6 +586,37 @@ export default function AdminPage() {
 
           {!loading && !error && tab === 'People' && investors ? (
             <>
+              <form
+                className="mb-3.5 flex flex-wrap items-center gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const data = new FormData(e.currentTarget);
+                  setPersonQuery(String(data.get('q') ?? '').trim());
+                }}
+              >
+                <label className="min-w-[220px] flex-1">
+                  <span className="sr-only">Search people by name or email</span>
+                  <input
+                    name="q"
+                    defaultValue={personQuery}
+                    placeholder="Search by name or email"
+                    className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                  />
+                </label>
+                <Button type="submit" size="sm" variant="outline">
+                  Search
+                </Button>
+                {personQuery ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPersonQuery('')}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+              </form>
               {selected ? (
                 <PersonPanel
                   id={selected}
@@ -594,6 +654,9 @@ export default function AdminPage() {
                               i.roles.map((r) => (
                                 <Badge key={r} variant="secondary">
                                   {r.replace('_', ' ')}
+                                  {r === 'partner_operator' && i.partnerCode
+                                    ? ` · ${i.partnerCode}`
+                                    : ''}
                                 </Badge>
                               ))
                             ) : (
@@ -611,7 +674,13 @@ export default function AdminPage() {
                             <span className="flex flex-wrap gap-1">
                               {i.roles.map((r) => (
                                 <Badge key={r} variant="secondary">
+                                  {/* An operator role names its firm — "partner
+                                      operator · SAG" — because the binding is
+                                      the fact, not the role alone. */}
                                   {r.replace('_', ' ')}
+                                  {r === 'partner_operator' && i.partnerCode
+                                    ? ` · ${i.partnerCode}`
+                                    : ''}
                                 </Badge>
                               ))}
                             </span>
@@ -744,33 +813,83 @@ export default function AdminPage() {
           ) : null}
 
           {!loading && !error && tab === 'Products' && products && products.length > 0 ? (
-            <Table
-              head={[
-                'Product',
-                { label: 'Type', wide: true },
-                { label: 'Partner', wide: true },
-                'Status',
-              ]}
-            >
-              {products.map((p) => (
-                <tr key={p.id}>
-                  <td className={CELL}>
-                    <span className="font-semibold">{p.name}</span>
-                    <PhoneOnly>
-                      {p.type ? <span>{p.type}</span> : null}
-                      {p.partnerName ? <span>{p.partnerName}</span> : null}
-                    </PhoneOnly>
-                  </td>
-                  <td className={CELL_WIDE}>{p.type ?? '—'}</td>
-                  <td className={CELL_WIDE}>{p.partnerName ?? '—'}</td>
-                  <td className={CELL}>
-                    <Badge variant={p.status === 'live' ? 'default' : 'secondary'}>
-                      {p.status ?? 'unknown'}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </Table>
+            <>
+              <p className="mb-3.5 text-[13.5px] text-dim">
+                What the marketplace offers, live from the table investors see. Pausing a listing
+                takes it off the marketplace and out of both order paths — the same switch the
+                listing firm has, for when a regulator flags a product or a firm asks CCN to pull
+                one. It is reversible and audited.
+              </p>
+              {productError ? <Failed message={productError} /> : null}
+              <Table
+                head={[
+                  'Product',
+                  { label: 'Partner', wide: true },
+                  { label: 'Headline', wide: true },
+                  { label: 'Minimum', wide: true },
+                  'Status',
+                ]}
+              >
+                {products.map((p) => (
+                  <tr key={p.id}>
+                    <td className={CELL}>
+                      <span className="font-semibold">{p.name}</span>
+                      <div className="text-[12.5px] text-dim">
+                        {[p.type, p.risk ? `${p.risk} risk` : null].filter(Boolean).join(' · ')}
+                      </div>
+                      <PhoneOnly>
+                        {p.partnerName ? <span>{p.partnerName}</span> : null}
+                        {p.metric ? <span>{p.metric}</span> : null}
+                      </PhoneOnly>
+                    </td>
+                    <td className={CELL_WIDE}>
+                      {p.partnerName ?? '—'}
+                      {p.partnerCode ? (
+                        <div className="text-[12.5px] text-dim">{p.partnerCode}</div>
+                      ) : null}
+                    </td>
+                    <td className={CELL_WIDE}>
+                      {/* No figure claimed is shown as nothing, not a blank
+                          that reads like a load failure. */}
+                      {p.metric ? (
+                        <>
+                          <span className="font-mono">{p.metric}</span>
+                          {p.metricLabel ? (
+                            <div className="text-[12.5px] text-dim">{p.metricLabel}</div>
+                          ) : null}
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className={CELL_WIDE}>
+                      {p.minInvestmentMinor === '0'
+                        ? 'No minimum'
+                        : `${p.currency} ${(Number(p.minInvestmentMinor) / 100).toLocaleString()}`}
+                    </td>
+                    <td className={CELL}>
+                      <Badge variant={p.status === 'live' ? 'default' : 'secondary'}>
+                        {p.status ?? 'unknown'}
+                      </Badge>
+                      {p.blocked ? <Badge variant="secondary">screened</Badge> : null}
+                      <button
+                        type="button"
+                        disabled={productBusy === p.id}
+                        onClick={() => void toggleProduct(p.id)}
+                        className="mt-1.5 block font-semibold text-teal2 underline-offset-4 hover:underline disabled:opacity-60"
+                      >
+                        {productBusy === p.id
+                          ? 'Working…'
+                          : p.status === 'live'
+                            ? 'Take off marketplace'
+                            : 'Restore to marketplace'}
+                        <span className="sr-only"> {p.name}</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            </>
           ) : null}
 
           {!loading && !error && tab === 'Orders' && orders?.length === 0 ? (
@@ -786,6 +905,7 @@ export default function AdminPage() {
               head={[
                 { label: 'Placed', wide: true },
                 'Investor',
+                { label: 'Product', wide: true },
                 { label: 'Partner', wide: true },
                 'Amount',
                 'Status',
@@ -798,9 +918,11 @@ export default function AdminPage() {
                     <span className="break-all">{o.investorEmail ?? '—'}</span>
                     <PhoneOnly>
                       <span>{new Date(o.createdAt).toLocaleString()}</span>
+                      {o.instrumentName ? <span>{o.instrumentName}</span> : null}
                       {o.partnerName ? <span>{o.partnerName}</span> : null}
                     </PhoneOnly>
                   </td>
+                  <td className={CELL_WIDE}>{o.instrumentName ?? '—'}</td>
                   <td className={CELL_WIDE}>{o.partnerName ?? '—'}</td>
                   <td className={CELL}>
                     {o.currency} {(Number(o.amountMinor) / 100).toLocaleString()}
@@ -838,22 +960,50 @@ export default function AdminPage() {
                   { label: 'Actor', wide: true },
                 ]}
               >
-                {audit.map((a) => (
-                  <tr key={a.id}>
-                    <td className={CELL_WIDE}>{a.seq}</td>
-                    <td className={CELL}>{new Date(a.createdAt).toLocaleString()}</td>
-                    <td className={CELL}>
-                      <span className="font-semibold">{a.action}</span>
-                      <PhoneOnly>
-                        <span>#{a.seq}</span>
-                        {a.entityType ? <span>{a.entityType}</span> : null}
-                        {a.actorType ? <span>{a.actorType}</span> : null}
-                      </PhoneOnly>
-                    </td>
-                    <td className={CELL_WIDE}>{a.entityType ?? '—'}</td>
-                    <td className={CELL_WIDE}>{a.actorType ?? '—'}</td>
-                  </tr>
-                ))}
+                {audit.map((a) => {
+                  /**
+                   * The writer's own identifiers, put into words. This printed
+                   * `instrument.listed` and the bare table name at the person
+                   * running the network — the same fix the partner console got,
+                   * from the same vocabulary, so the two surfaces cannot
+                   * disagree about what an action is called.
+                   */
+                  const why = auditReason(a.detail);
+                  const by =
+                    a.detail &&
+                    typeof a.detail === 'object' &&
+                    'by' in (a.detail as Record<string, unknown>) &&
+                    typeof (a.detail as Record<string, unknown>).by === 'string'
+                      ? ((a.detail as Record<string, unknown>).by as string)
+                      : null;
+                  return (
+                    <tr key={a.id}>
+                      <td className={CELL_WIDE}>{a.seq}</td>
+                      <td className={CELL}>{new Date(a.createdAt).toLocaleString()}</td>
+                      <td className={CELL}>
+                        <span className="font-semibold">{auditActionLabel(a.action)}</span>
+                        {a.subjectEmail || by ? (
+                          <div className="text-[12.5px] text-dim">
+                            {[
+                              a.subjectEmail ? `re ${a.subjectEmail}` : null,
+                              by ? `by ${by}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </div>
+                        ) : null}
+                        {why ? <div className="text-[12.5px] italic text-faint">{why}</div> : null}
+                        <PhoneOnly>
+                          <span>#{a.seq}</span>
+                          {a.entityType ? <span>{auditEntityLabel(a.entityType)}</span> : null}
+                          {a.actorType ? <span>{a.actorType}</span> : null}
+                        </PhoneOnly>
+                      </td>
+                      <td className={CELL_WIDE}>{auditEntityLabel(a.entityType) ?? '—'}</td>
+                      <td className={CELL_WIDE}>{a.actorType ?? '—'}</td>
+                    </tr>
+                  );
+                })}
               </Table>
             </>
           ) : null}
