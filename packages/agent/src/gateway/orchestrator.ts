@@ -39,7 +39,7 @@ export const mandateExtractionSchema = z.object({
   liquidityNeed: z.enum(['low', 'medium', 'high']).nullable(),
   boardInvolvement: z.boolean().nullable(),
   impactPreference: z.boolean().nullable(),
-  currency: z.enum(['USD', 'JMD', 'TTD']).nullable(),
+  currency: z.enum(['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD']).nullable(),
   /** Fields the narrative did not say enough to confidently fill in. */
   missingFields: z.array(z.string()).default([]),
 });

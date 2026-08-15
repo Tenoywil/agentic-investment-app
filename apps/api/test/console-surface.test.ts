@@ -695,6 +695,60 @@ suite('partner console data surface', () => {
   });
 
   /**
+   * Off-platform funding, confirmed by the firm.
+   *
+   * The money moves between the investor and the firm — CCN never holds it —
+   * and `partner_confirm_funds` records the firm's word that it landed. Cash
+   * is a holding with no instrument; repeated confirmations accumulate into
+   * one row per currency rather than one row per wire.
+   */
+  test('a firm confirms settled funds, and the client’s cash balance grows', async () => {
+    const confirm = (body: unknown, who = 'sagOperator') =>
+      app().request(`/api/console/clients/${clientAccountId}/funds`, {
+        method: 'POST',
+        headers: { cookie: cookies[who] ?? '', 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const first = await confirm({ amountMinor: '1000000', currency: 'GYD', reference: 'WIRE-1' });
+    expect(first.status).toBe(200);
+    const { holdingId } = (await first.json()) as { holdingId: string };
+
+    // Same currency again: the same row grows, no second cash line.
+    const second = await confirm({ amountMinor: '500000', currency: 'GYD' });
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as { holdingId: string }).holdingId).toBe(holdingId);
+
+    const [cash] = await db
+      .select({
+        valueMinor: holdings.valueMinor,
+        currency: holdings.currency,
+        instrumentId: holdings.instrumentId,
+      })
+      .from(holdings)
+      .where(eq(holdings.id, holdingId));
+    expect(cash?.valueMinor).toBe(1_500_000n);
+    expect(cash?.currency).toBe('GYD');
+    expect(cash?.instrumentId).toBeNull();
+
+    // Audited under its own name, with the firm's reference on the row.
+    const detail = await json<{ audit: { action: string; detail: { reference?: string } }[] }>(
+      `/api/console/clients/${clientAccountId}`,
+      'sagOperator',
+    );
+    const settled = detail.audit.filter((a) => a.action === 'funds.settled');
+    expect(settled.length).toBe(2);
+    expect(settled.some((a) => a.detail?.reference === 'WIRE-1')).toBe(true);
+
+    // Zero is not an amount somebody settled, and another firm's operator gets
+    // the not-yours answer.
+    expect((await confirm({ amountMinor: '0', currency: 'USD' })).status).toBe(400);
+    expect((await confirm({ amountMinor: '100', currency: 'USD' }, 'ncbOperator')).status).toBe(
+      404,
+    );
+  });
+
+  /**
    * The firm's own record.
    *
    * `partners` had an UPDATE grant and exactly one UPDATE policy — admin-only —

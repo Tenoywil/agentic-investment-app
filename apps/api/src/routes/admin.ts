@@ -202,7 +202,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
      * partners each would silently push real people off the end of a list whose
      * whole purpose is to be complete.
      */
-    const { people, roles } = await withTenant(deps, tenant, async (tx) => {
+    const { people, roles, positions } = await withTenant(deps, tenant, async (tx) => {
       const found = await tx
         .select({
           id: user.id,
@@ -239,6 +239,26 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
               .leftJoin(partners, eq(partners.id, userRoles.partnerId))
               .where(inArray(userRoles.userId, ids))
           : [],
+        /**
+         * What each person actually holds. The route has always promised "how
+         * far through onboarding they are, and what they hold" and served only
+         * the first half — the list showed a person's paperwork and nothing
+         * about their money. Values are summed in USD minor units per holding
+         * currency-converted nowhere: mixing currencies into one sum without a
+         * rate table would misstate it, so the count is exact and the sum is
+         * only of USD-denominated lines, labelled as such by the client.
+         */
+        positions: ids.length
+          ? await tx
+              .select({
+                userId: holdings.userId,
+                holdings: sql<string>`count(*)`,
+                usdMinor: sql<string>`coalesce(sum(${holdings.valueMinor}) filter (where ${holdings.currency} = 'USD'), 0)`,
+              })
+              .from(holdings)
+              .where(inArray(holdings.userId, ids))
+              .groupBy(holdings.userId)
+          : [],
       };
     });
 
@@ -254,12 +274,15 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
       held.set(r.userId, entry);
     }
 
+    const byPerson = new Map(positions.map((r) => [r.userId, r]));
     return c.json({
       investors: people.map((p) => ({
         ...p,
         roles: held.get(p.id)?.roles ?? [],
         partnerId: held.get(p.id)?.partnerId ?? null,
         partnerCode: held.get(p.id)?.partnerCode ?? null,
+        holdingsCount: Number(byPerson.get(p.id)?.holdings ?? 0),
+        usdValueMinor: String(byPerson.get(p.id)?.usdMinor ?? 0),
       })),
     });
   });

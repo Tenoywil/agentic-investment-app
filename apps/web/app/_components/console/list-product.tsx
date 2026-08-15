@@ -45,7 +45,7 @@ const TYPES: { value: string; label: string }[] = [
   { value: 'private', label: 'Private' },
 ];
 
-const CURRENCIES = ['USD', 'JMD', 'TTD'];
+const CURRENCIES = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
 
 const RISKS: { value: '' | 'low' | 'medium' | 'high'; label: string }[] = [
   { value: '', label: 'Not rated' },

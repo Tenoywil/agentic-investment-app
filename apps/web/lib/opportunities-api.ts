@@ -14,7 +14,7 @@ import { API_URL } from './config';
  * never inline in a component.
  */
 
-export type Currency = 'USD' | 'JMD' | 'TTD';
+export type Currency = 'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD';
 export type Risk = 'Low' | 'Medium' | 'High';
 
 /** DB enum values for `instruments.type` (lowercase, underscore-separated). */
@@ -36,7 +36,15 @@ export function typeLabel(type: InstrumentType): Kind {
   return TYPE_LABEL[type] ?? ((type as string).replace(/_/g, ' ') as Kind);
 }
 
-const CURRENCY_SYMBOL: Record<Currency, string> = { USD: 'US$', JMD: 'J$', TTD: 'TT$' };
+const CURRENCY_SYMBOL: Record<Currency, string> = {
+  USD: 'US$',
+  JMD: 'J$',
+  TTD: 'TT$',
+  GYD: 'G$',
+  BBD: 'Bds$',
+  XCD: 'EC$',
+  BSD: 'B$',
+};
 
 export function currencySymbol(currency: Currency): string {
   return CURRENCY_SYMBOL[currency] ?? '';

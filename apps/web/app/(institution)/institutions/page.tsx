@@ -456,6 +456,9 @@ export default function InstitutionsPage() {
             loading={loading}
             orderBusyId={orderBusyId}
             orderActionError={orderActionError}
+            pendingReviews={clientsError ? 0 : clients.filter((c) => c.status === 'pending').length}
+            pendingReconciliation={reconciliationError ? 0 : reconciliation.length}
+            onGoTab={(t) => setTab(t)}
             onAccept={handleAccept}
             onSettle={handleSettle}
             onReject={handleReject}

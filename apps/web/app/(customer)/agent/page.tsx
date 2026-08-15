@@ -1,5 +1,6 @@
 'use client';
 
+import { AgentPipeline } from '@/app/_components/AgentPipeline';
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { PENDING_QUESTION_KEY } from '@/app/_components/VoiceAsk';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
@@ -1045,6 +1046,12 @@ export default function AgentPage() {
 
           <LimitsCard />
         </dialog>
+      </div>
+
+      {/* The five-step pipeline, moved here from the home dashboard: the one
+          screen where someone is actually asking how the agent works. */}
+      <div className="mt-[18px]">
+        <AgentPipeline />
       </div>
     </AppScreen>
   );

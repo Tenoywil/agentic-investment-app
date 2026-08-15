@@ -2,6 +2,7 @@
 
 import { AccountMenu } from '@/app/_components/AccountMenu';
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
+import { useMaybeMe } from '@/app/_lib/session';
 import { useSheetDismiss } from '@/app/_lib/sheet';
 import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
@@ -51,7 +52,10 @@ export function MobileNav({
   const dialogRef = React.useRef<HTMLDialogElement>(null);
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
-  const groups: NavGroup[] = navGroupsFor(basePath);
+  // Same rule as the rail: the onboarding link appears only for a session
+  // known to be mid-onboarding.
+  const me = useMaybeMe();
+  const groups: NavGroup[] = navGroupsFor(basePath, me !== null && !me.onboarding.complete);
 
   const close = React.useCallback(() => {
     dialogRef.current?.close();

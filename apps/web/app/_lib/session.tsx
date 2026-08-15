@@ -60,6 +60,15 @@ export function useMe(): Me | null {
 }
 
 /**
+ * The same, tolerating a missing provider. For components shared between the
+ * signed-in shell and the fixture-only demo shell (which has no session and
+ * must make no API calls) — there, this simply answers null.
+ */
+export function useMaybeMe(): Me | null {
+  return React.useContext(SessionContext)?.state.me ?? null;
+}
+
+/**
  * Client-side surface guard: sends a signed-out visitor to sign-in and a
  * wrong-surface user to their own dashboard.
  *

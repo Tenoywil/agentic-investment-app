@@ -379,6 +379,33 @@ export async function partnerUpsertInstrument(
   return row;
 }
 
+/**
+ * Record that a client's off-platform funding has settled.
+ *
+ * Funding happens between the investor and the firm — a wire, a branch deposit
+ * — and CCN never touches the money. What the platform records is the firm's
+ * confirmation that it landed: the operator states the amount, and the client's
+ * cash balance at that firm (a holding with no instrument) grows by it. The
+ * partner comes from the transaction GUC inside the function; an account id
+ * from another firm raises rather than resolving.
+ */
+export async function partnerConfirmFunds(
+  tx: Transaction,
+  args: { accountId: string; amountMinor: bigint; currency: string; reference: string | null },
+): Promise<string> {
+  const rows = (await tx.execute(
+    sql`select partner_confirm_funds(
+      ${args.accountId}::uuid,
+      ${args.amountMinor.toString()}::bigint,
+      ${args.currency}::currency,
+      ${args.reference}::text
+    ) as holding_id`,
+  )) as unknown as { holding_id: string }[];
+  const row = rows[0];
+  if (!row) throw new Error('partner_confirm_funds returned no row');
+  return row.holding_id;
+}
+
 /** Take one of the caller's instruments off the marketplace, or put it back. */
 export async function partnerToggleInstrument(
   tx: Transaction,

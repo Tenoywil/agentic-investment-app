@@ -1,6 +1,11 @@
 'use client';
 
-import { auditActionLabel, auditEntityLabel, auditReason } from '@/app/_components/console/lib';
+import {
+  auditActionLabel,
+  auditEntityLabel,
+  auditReason,
+  fmtMinor,
+} from '@/app/_components/console/lib';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -638,6 +643,7 @@ export default function AdminPage() {
                     { label: 'Roles', wide: true },
                     { label: 'KYC tier', wide: true },
                     { label: 'Onboarding', wide: true },
+                    { label: 'Holds', wide: true },
                     { label: 'Residency', wide: true },
                     '',
                   ]}
@@ -693,6 +699,18 @@ export default function AdminPage() {
                           <Badge variant={state.tone === 'ok' ? 'default' : 'secondary'}>
                             {state.label}
                           </Badge>
+                        </td>
+                        <td className={CELL_WIDE}>
+                          {/* What they hold — the list showed only paperwork,
+                              and "is this person actually invested?" had no
+                              answer short of opening each row. */}
+                          {i.holdingsCount === 0 ? (
+                            <span className="text-dim">nothing</span>
+                          ) : (
+                            <span>
+                              {i.holdingsCount} · {fmtMinor(i.usdValueMinor, 'USD')}
+                            </span>
+                          )}
                         </td>
                         <td className={CELL_WIDE}>{i.residency ?? '—'}</td>
                         <td className={CELL}>

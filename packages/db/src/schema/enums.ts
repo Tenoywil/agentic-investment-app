@@ -50,7 +50,7 @@ export const riskBand = pgEnum('risk_band', [
   'high',
 ]);
 
-export const currency = pgEnum('currency', ['USD', 'JMD', 'TTD']);
+export const currency = pgEnum('currency', ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD']);
 
 // Order state machine (prototype "new" == created). Terminal: settled/rejected/expired.
 export const orderStatus = pgEnum('order_status', [

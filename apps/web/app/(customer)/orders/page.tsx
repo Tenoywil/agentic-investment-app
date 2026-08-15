@@ -25,7 +25,15 @@ import { useCallback, useEffect, useState } from 'react';
  * honour.
  */
 
-const CURRENCY_PREFIX: Record<string, string> = { USD: 'US$', JMD: 'J$', TTD: 'TT$' };
+const CURRENCY_PREFIX: Record<string, string> = {
+  USD: 'US$',
+  JMD: 'J$',
+  TTD: 'TT$',
+  GYD: 'G$',
+  BBD: 'Bds$',
+  XCD: 'EC$',
+  BSD: 'B$',
+};
 
 function money(minor: string, currency: string): string {
   const n = Number(minor) / 100;

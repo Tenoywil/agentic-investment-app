@@ -151,7 +151,7 @@ function Donut() {
 }
 
 export default function HomePage() {
-  const [cur, setCur] = useState<'USD' | 'JMD' | 'TTD'>('USD');
+  const [cur, setCur] = useState<'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD'>('USD');
 
   return (
     <AppScreen active="home" basePath="/demo">
@@ -160,22 +160,22 @@ export default function HomePage() {
         title="Good afternoon, Marcus"
         right={
           <div className="flex items-center gap-3">
-            <div className="flex rounded-[10px] border border-border bg-card p-[3px]">
-              {(['USD', 'JMD', 'TTD'] as const).map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  aria-pressed={cur === c}
-                  onClick={() => setCur(c)}
-                  className={cn(
-                    'rounded-lg px-[13px] py-[7px] font-mono text-[13px] font-semibold',
-                    cur === c ? 'bg-primary text-white' : 'text-dim',
-                  )}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
+            {/* A dropdown, matching the live portfolio's switcher — the demo
+                and real flows keep the same controls. */}
+            <label className="flex items-center">
+              <span className="sr-only">Display currency</span>
+              <select
+                value={cur}
+                onChange={(e) => setCur(e.target.value as typeof cur)}
+                className="h-[38px] rounded-[10px] border border-solid border-border bg-card px-2.5 font-mono text-[13px] font-semibold text-foreground"
+              >
+                {(['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'] as const).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
             <Button
               variant="outline"
               size="icon"
@@ -246,48 +246,57 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* How your agent works */}
-      <Card className="mt-[18px] p-[22px]">
-        <div className="mb-4 flex flex-wrap items-baseline gap-3">
-          <span className={cn(UPPR, 'text-foreground')}>How your agent works</span>
-          <span className="text-sm text-dim">
-            Every action is researched, screened and checked, then brought to you
-          </span>
-        </div>
-        <div className="g5">
-          {PIPE.map((s) => (
-            <div
-              key={s.n}
-              className={cn(
-                'rounded-xl border p-4',
-                s.flag
-                  ? 'border-[#e7c3ab] bg-[#f9ede2] dark:border-[#5a3f2a] dark:bg-[#2e2118]'
-                  : 'border-border bg-[#fbfaf6] dark:bg-white/[0.02]',
-              )}
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <span
-                  className={cn(
-                    'grid h-6 w-6 place-items-center rounded-[7px] font-mono text-[13px] font-bold',
-                    s.flag ? 'bg-[#f0d3bd] text-terra-ink dark:bg-[#4a3320]' : 'bg-mint text-teal2',
-                  )}
-                >
-                  {s.n}
-                </span>
-                <b className="text-[14.5px]">{s.t}</b>
-              </div>
-              <div
-                className={cn(
-                  'text-[13px] leading-snug',
-                  s.flag ? 'text-[#8a5a3e] dark:text-[#c99a76]' : 'text-dim',
-                )}
+      {/* Held / Allocation — first under the hero, matching the live home:
+          the person's money before the agent's commentary. The pipeline
+          explainer that stood here lives on the Agent screen now. */}
+      <div className="g-held mt-[18px]">
+        <Card className="p-[22px]">
+          <div className="mb-3.5 flex items-center justify-between">
+            <b className="font-display text-lg">Held across partners</b>
+            <Link href="/portfolio" className="text-sm font-bold text-teal2 no-underline">
+              View portfolio →
+            </Link>
+          </div>
+          {HELD.map((h) => (
+            <div key={h.code} className="flex items-center gap-3 border-t border-border py-[11px]">
+              <span
+                className="grid h-[38px] w-[38px] flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
+                style={{ background: h.tint, color: h.color }}
               >
-                {s.b}
+                {h.code}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14.5px] font-bold">{h.name}</div>
+                <div className="text-[12.5px] text-faint">{h.sub}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-sm font-bold">{h.amt}</div>
+                <div className="text-[11.5px] text-success-ink">· FSC-regulated</div>
               </div>
             </div>
           ))}
-        </div>
-      </Card>
+        </Card>
+
+        <Card className="p-[22px]">
+          <b className="font-display text-lg">Allocation</b>
+          <div className="mb-2 text-[13px] text-faint">Blended across all 4 partners</div>
+          <div className="flex items-center gap-[18px]">
+            <Donut />
+            <div className="flex-1">
+              {ALLOC.map((a) => (
+                <div key={a.label} className="mb-[7px] flex items-center gap-2 text-[13.5px]">
+                  <span
+                    className="h-2.5 w-2.5 flex-none rounded-[3px]"
+                    style={{ background: a.color }}
+                  />
+                  <span className="flex-1 text-dim">{a.label}</span>
+                  <b className="font-mono text-[13px]">{a.pct}%</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      </div>
 
       {/* Acted / Approvals */}
       <div className="g2 mt-[18px]">
@@ -360,56 +369,6 @@ export default function HomePage() {
             <div className={cn('mt-1 text-[13.5px]', s.subClass)}>{s.sub}</div>
           </Card>
         ))}
-      </div>
-
-      {/* Held / Allocation */}
-      <div className="g-held mt-[18px]">
-        <Card className="p-[22px]">
-          <div className="mb-3.5 flex items-center justify-between">
-            <b className="font-display text-lg">Held across partners</b>
-            <Link href="/portfolio" className="text-sm font-bold text-teal2 no-underline">
-              View portfolio →
-            </Link>
-          </div>
-          {HELD.map((h) => (
-            <div key={h.code} className="flex items-center gap-3 border-t border-border py-[11px]">
-              <span
-                className="grid h-[38px] w-[38px] flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
-                style={{ background: h.tint, color: h.color }}
-              >
-                {h.code}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-[14.5px] font-bold">{h.name}</div>
-                <div className="text-[12.5px] text-faint">{h.sub}</div>
-              </div>
-              <div className="text-right">
-                <div className="font-mono text-sm font-bold">{h.amt}</div>
-                <div className="text-[11.5px] text-success-ink">· FSC-regulated</div>
-              </div>
-            </div>
-          ))}
-        </Card>
-
-        <Card className="p-[22px]">
-          <b className="font-display text-lg">Allocation</b>
-          <div className="mb-2 text-[13px] text-faint">Blended across all 4 partners</div>
-          <div className="flex items-center gap-[18px]">
-            <Donut />
-            <div className="flex-1">
-              {ALLOC.map((a) => (
-                <div key={a.label} className="mb-[7px] flex items-center gap-2 text-[13.5px]">
-                  <span
-                    className="h-2.5 w-2.5 flex-none rounded-[3px]"
-                    style={{ background: a.color }}
-                  />
-                  <span className="flex-1 text-dim">{a.label}</span>
-                  <b className="font-mono text-[13px]">{a.pct}%</b>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
       </div>
     </AppScreen>
   );

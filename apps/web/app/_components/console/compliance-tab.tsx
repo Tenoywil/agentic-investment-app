@@ -262,6 +262,38 @@ export function ComplianceTab({
           );
         })}
       </Card>
+
+      {/* CCN's standing terms with a firm, in one place. These paragraphs used
+          to sit as cards on the Overview and Clients tabs — informational copy
+          spread across working surfaces. They are reference material, and this
+          tab is the console's reference shelf. */}
+      <Card className="p-6 min-[901px]:col-span-2">
+        <b className="font-display text-[17px]">How CCN works with your firm</b>
+        <div className="mt-3 grid gap-5 md:grid-cols-3">
+          <div>
+            <div className="mb-1.5 text-[13.5px] font-bold">What the flow brings you</div>
+            <ul className="m-0 list-none p-0 text-sm leading-relaxed text-dim">
+              <li>Qualified, KYC-cleared demand into products you already run.</li>
+              <li>Diaspora reach without building cross-border onboarding.</li>
+              <li>Your name and regulator on every deal card, no channel conflict.</li>
+            </ul>
+          </div>
+          <div>
+            <div className="mb-1.5 text-[13.5px] font-bold">The line CCN never crosses</div>
+            <p className="m-0 text-sm leading-relaxed text-dim">
+              CCN holds no client money, executes nothing and never becomes custodian. The regulated
+              duties stay with you; CCN routes signed instructions and keeps the audit trail.
+            </p>
+          </div>
+          <div>
+            <div className="mb-1.5 text-[13.5px] font-bold">KYC stays yours</div>
+            <p className="m-0 text-sm leading-relaxed text-dim">
+              You already verified these clients. CCN links that status with their consent rather
+              than re-collecting it. You remain the regulated owner of KYC and AML.
+            </p>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -180,6 +180,48 @@ suite('portfolio allocation', () => {
     expect(pcts).toEqual([...pcts].sort((a, b) => b - a));
   });
 
+  /**
+   * Per-partner cash, and per-holding currency.
+   *
+   * A cash line is a holding with no instrument, and the card states it apart
+   * from the total: money settled with one firm is not spendable at another.
+   * The line is stored in its own currency — the route used to read every
+   * `value_minor` as USD, which would have valued a JMD deposit at 157× itself.
+   */
+  test('cash shows per partner, converted from its own currency', async () => {
+    const [acct] = await db
+      .select({ id: connectedAccounts.id })
+      .from(connectedAccounts)
+      .where(eq(connectedAccounts.userId, userId))
+      .limit(1);
+    const [cashRow] = await db
+      .insert(holdings)
+      .values({
+        userId,
+        connectedAccountId: acct?.id ?? '',
+        instrumentId: null,
+        name: 'Cash',
+        valueMinor: 1_572_000n, // J$15,720 = US$100 at the seeded 157.2 rate
+        currency: 'JMD',
+      })
+      .returning({ id: holdings.id });
+
+    try {
+      const res = await app().request('/api/portfolio', { headers: { cookie } });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        netWorth: string;
+        partners: { cash: string | null; total: string }[];
+      };
+      // 750 + 250 bond/equity USD + US$100-worth of JMD cash.
+      expect(body.netWorth).toBe('US$1,100');
+      expect(body.partners[0]?.cash).toBe('US$100');
+      expect(body.partners[0]?.total).toBe('US$1,100');
+    } finally {
+      await db.delete(holdings).where(eq(holdings.id, cashRow?.id ?? ''));
+    }
+  });
+
   test('another user sees none of these holdings (RLS)', async () => {
     const otherTag = `${tag}-other`;
     const [other] = await db

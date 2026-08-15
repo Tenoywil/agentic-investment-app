@@ -162,6 +162,13 @@
       "when": 1786650000000,
       "tag": "0022_admin_instrument_correct",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786660000000,
+      "tag": "0023_settled_funds_and_currencies",
+      "breakpoints": true
     }
   ]
 }

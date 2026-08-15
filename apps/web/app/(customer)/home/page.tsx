@@ -20,28 +20,9 @@ import {
   getPortfolio,
   regulatorLabel,
 } from '@/lib/portfolio-api';
-import {
-  CheckCheck,
-  CircleAlert,
-  LineChart,
-  type LucideIcon,
-  PieChart,
-  Sparkles,
-  Wallet,
-} from 'lucide-react';
+import { CheckCheck, CircleAlert, PieChart, Sparkles, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-
-// "How your agent works" is fixed illustrative UI chrome — a static explainer
-// of the pipeline every action goes through, not per-user data. There's no
-// backend record of "step 4 of 5" for a given action, so it stays hardcoded.
-const PIPE = [
-  { n: '1', t: 'Research', b: 'Scans the network for instruments that fit', flag: false },
-  { n: '2', t: 'Suitability', b: 'Checks it against your own risk band', flag: false },
-  { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds checks', flag: false },
-  { n: '4', t: 'Your approval', b: 'You confirm every move above your limits', flag: true },
-  { n: '5', t: 'Execute', b: 'Routed to the licensed partner, then monitored', flag: false },
-];
 
 // Slice colours per instrument_type, keeping the prototype's palette. The
 // percentages themselves come from the API (holdings joined to their
@@ -277,44 +258,9 @@ export default function HomePage() {
     .slice(-3)
     .reverse();
 
-  const latestAgentMessage = recentAgentActivity[0] ?? null;
-  const largestSlice = allocation[0] ?? null;
-
-  /**
-   * Two cards, both from GET /api/portfolio. There were three: a "Blended
-   * yield" of 6.2% and a "Matched to your goals" count of 6, each documented in
-   * this file as invented because nothing served them. They are gone rather
-   * than approximated — a number on a customer's own dashboard has to be their
-   * number.
-   */
-  const stats: {
-    label: string;
-    Icon: LucideIcon;
-    val: string;
-    valClass: string;
-    sub: string;
-  }[] = portfolio
-    ? [
-        {
-          label: 'Tracked across partners',
-          Icon: LineChart,
-          val: portfolio.netWorth,
-          valClass: 'text-foreground',
-          sub: `${holdingsCount} ${holdingsCount === 1 ? 'holding' : 'holdings'} · ${partnersCount} ${
-            partnersCount === 1 ? 'institution' : 'institutions'
-          }`,
-        },
-        {
-          label: 'Asset classes held',
-          Icon: PieChart,
-          val: String(allocation.length),
-          valClass: 'text-foreground',
-          sub: largestSlice
-            ? `${largestSlice.label} leads at ${largestSlice.pct}%`
-            : 'By allocation',
-        },
-      ]
-    : [];
+  // The two stat cards that stood between the hero and the holdings restated
+  // the hero's own net worth and the allocation card's own split. Numbers a
+  // reader has already been shown are clutter, not reassurance — gone.
 
   return (
     <AppScreen active="home">
@@ -377,194 +323,67 @@ export default function HomePage() {
             The numbers are measured (207px at 1280, 297px stacked on a phone)
             and are a floor, not a cap — a longer message grows the card as it
             always did. */}
+        {/*
+          Where to next — not a running commentary from the agent.
+
+          This column used to narrate the agent's latest message on every visit
+          ("Catching up with your agent…"), which put an assistant's inner
+          monologue above the person's own money. The agent earns this space
+          only when it actually needs a decision; otherwise the column is three
+          plain doors into the product, in the order a person uses them.
+        */}
         <div
           className="min-h-[207px] border-l border-[#eafaf5]/[.16] pl-[26px] max-[900px]:min-h-[297px]"
           data-tour="customer-agent"
         >
           <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.78]')}>
             <span className="h-[7px] w-[7px] rounded-full bg-peach" />
-            Your agent · acting within your limits
+            {pendingApprovals.length > 0 ? 'Waiting on you' : 'Where to next'}
           </div>
-          {/* Was: "This week I matched 6 opportunities, swept US$400 of idle
-              cash inside your limit" — a sentence in the first person about
-              work that never happened, on every account. What the agent has
-              actually done is its last message and the approvals it is waiting
-              on, both of which are records. */}
-          <p className="my-3 mb-2 line-clamp-3 text-[17px] font-medium leading-relaxed text-white">
-            {agentLoading
-              ? 'Catching up with your agent…'
-              : latestAgentMessage
-                ? latestAgentMessage.content
-                : 'Your agent is watching the region for you. Ask it anything to get started.'}
-          </p>
-          <p className="mb-[18px] text-sm text-[#eafaf5]/[.94]">
-            {latestAgentMessage && `${relativeTime(latestAgentMessage.createdAt)} · `}
+          <p className="my-3 mb-2 text-[17px] font-medium leading-relaxed text-white">
             {pendingApprovals.length > 0
-              ? `${pendingApprovals.length} ${pendingApprovals.length === 1 ? 'action is' : 'actions are'} waiting for your approval`
-              : 'Nothing is waiting on your approval'}
+              ? `${pendingApprovals.length === 1 ? 'One move is' : `${pendingApprovals.length} moves are`} waiting for your approval. Nothing happens until you say so.`
+              : 'Browse what you can invest in, follow your orders, or ask your agent. It checks every move against your limits and asks you first.'}
           </p>
-          <div className="flex flex-wrap gap-2.5">
-            <Button variant="peach" asChild>
-              <Link href="/agent">
-                {pendingApprovals.length > 0
-                  ? `Review ${pendingApprovals.length} approval${pendingApprovals.length === 1 ? '' : 's'}`
-                  : 'Go to your agent'}
-              </Link>
+          <div className="mt-[18px] flex flex-wrap gap-2.5">
+            {pendingApprovals.length > 0 && (
+              <Button variant="peach" asChild>
+                <Link href="/agent">
+                  Review {pendingApprovals.length} approval
+                  {pendingApprovals.length === 1 ? '' : 's'}
+                </Link>
+              </Button>
+            )}
+            <Button
+              asChild
+              className={
+                pendingApprovals.length > 0
+                  ? 'border border-white/30 bg-transparent text-white hover:bg-white/10'
+                  : undefined
+              }
+              variant={pendingApprovals.length > 0 ? undefined : 'peach'}
+            >
+              <Link href="/opportunities">Invest</Link>
             </Button>
             <Button
               asChild
               className="border border-white/30 bg-transparent text-white hover:bg-white/10"
             >
-              <Link href="/opportunities">Opportunities</Link>
+              <Link href="/orders">My orders</Link>
+            </Button>
+            <Button
+              asChild
+              className="border border-white/30 bg-transparent text-white hover:bg-white/10"
+            >
+              <Link href="/agent">Ask your agent</Link>
             </Button>
           </div>
         </div>
       </div>
 
-      {/* How your agent works */}
-      <Card className="mt-[18px] p-[22px]">
-        <div className="mb-4 flex flex-wrap items-baseline gap-3">
-          <span className={cn(UPPR, 'text-foreground')}>How your agent works</span>
-          <span className="text-sm text-dim">
-            Every action is researched, screened and checked, then brought to you
-          </span>
-        </div>
-        <div className="g5">
-          {PIPE.map((s) => (
-            <div
-              key={s.n}
-              className={cn(
-                'rounded-xl border p-4',
-                s.flag
-                  ? 'border-[#e7c3ab] bg-[#f9ede2] dark:border-[#5a3f2a] dark:bg-[#2e2118]'
-                  : 'border-border bg-[#fbfaf6] dark:bg-white/[0.02]',
-              )}
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <span
-                  className={cn(
-                    'grid h-6 w-6 place-items-center rounded-[7px] font-mono text-[13px] font-bold',
-                    s.flag ? 'bg-[#f0d3bd] text-terra-ink dark:bg-[#4a3320]' : 'bg-mint text-teal2',
-                  )}
-                >
-                  {s.n}
-                </span>
-                <b className="text-[14.5px]">{s.t}</b>
-              </div>
-              <div
-                className={cn(
-                  'text-[13px] leading-snug',
-                  s.flag ? 'text-[#8a5a3e] dark:text-[#c99a76]' : 'text-dim',
-                )}
-              >
-                {s.b}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Acted / Approvals */}
-      <div className="g2 mt-[18px]">
-        <Card className="p-[22px]">
-          <div className="mb-4 flex items-center gap-2.5">
-            <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
-            <Badge variant="secondary">within your limits</Badge>
-          </div>
-          {agentLoading && <p className="mb-[15px] text-sm text-dim">Loading recent activity…</p>}
-          {agentError && !agentLoading && <ErrorLine message={agentError} />}
-          {!agentLoading && !agentError && recentAgentActivity.length === 0 && (
-            <EmptyState
-              className="mb-[15px]"
-              icon={Sparkles}
-              title="Your agent hasn't acted yet"
-              body="Everything it does inside your limits is recorded here, newest first."
-            />
-          )}
-          {recentAgentActivity.map((m, i) => (
-            <div key={`${m.createdAt}-${i}`} className="mb-[15px] flex gap-2.5">
-              <span className="mt-1.5 h-[9px] w-[9px] flex-none rounded-full bg-teal2" />
-              <div className="min-w-0">
-                <div className="line-clamp-2 text-[14.5px] font-semibold leading-snug">
-                  {m.content}
-                </div>
-                <div className="mt-0.5 text-[12.5px] text-faint">{relativeTime(m.createdAt)}</div>
-              </div>
-            </div>
-          ))}
-          <Button variant="outline" className="mt-1.5 w-full text-teal2" asChild>
-            <Link href="/agent">Adjust your agent's limits</Link>
-          </Button>
-        </Card>
-
-        <Card className="p-[22px]" data-tour="customer-approvals">
-          <div className="mb-4 flex items-center gap-2.5">
-            <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-            {pendingApprovals.length > 0 && (
-              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
-                {pendingApprovals.length}
-              </span>
-            )}
-          </div>
-          {approvalsLoading && <p className="text-sm text-dim">Loading…</p>}
-          {approvalsError && !approvalsLoading && <ErrorLine message={approvalsError} />}
-          {!approvalsLoading && !approvalsError && pendingApprovals.length === 0 && (
-            <EmptyState
-              icon={CheckCheck}
-              title="Nothing needs your approval"
-              body="Moves outside your limits wait here for a decision from you."
-            />
-          )}
-          {pendingApprovals.map((a) => {
-            const tag = APPROVAL_TAG[a.type] ?? APPROVAL_TAG.investment_rec;
-            return (
-              <div
-                key={a.id}
-                className="mb-3 rounded-xl border border-solid border-border p-4"
-                style={{ borderLeft: `3px solid ${tag.rule}` }}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span
-                    className={cn(
-                      'rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]',
-                      tag.className,
-                    )}
-                  >
-                    {tag.label}
-                  </span>
-                  <span className="text-[12.5px] text-faint">{relativeTime(a.createdAt)}</span>
-                </div>
-                <div className="mb-3 text-[15px] font-bold">{a.title}</div>
-                <Button className="w-full" asChild>
-                  <Link href="/agent">Review &amp; approve</Link>
-                </Button>
-              </div>
-            );
-          })}
-        </Card>
-      </div>
-
-      {/* Stat cards — two, both served by /api/portfolio */}
-      {stats.length > 0 && (
-        <div className="g2 mt-[18px]">
-          {stats.map((s) => (
-            <Card key={s.label} className="p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm text-dim">{s.label}</span>
-                <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-mint text-teal2">
-                  <s.Icon className="h-[18px] w-[18px]" aria-hidden />
-                </span>
-              </div>
-              <div className={cn('font-display text-3xl font-bold tracking-[-.5px]', s.valClass)}>
-                {s.val}
-              </div>
-              <div className="mt-1 text-[13.5px] text-faint">{s.sub}</div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Held / Allocation */}
+      {/* Held / Allocation — the person's own money, first thing under the
+          hero. It used to sit at the very bottom, under two screens of cards
+          about the agent. */}
       <div className="g-held mt-[18px]">
         <Card className="p-[22px]">
           <div className="mb-3.5 flex items-center justify-between">
@@ -654,6 +473,93 @@ export default function HomePage() {
           )}
         </Card>
       </div>
+
+      {/* The agent's corner — after the money, and only when it has something
+          real to show. A brand-new account used to meet two agent cards
+          narrating that nothing had happened; silence about nothing reads
+          better at any age. */}
+      {(pendingApprovals.length > 0 || recentAgentActivity.length > 0) && (
+        <div className="g2 mt-[18px]">
+          <Card className="p-[22px]" data-tour="customer-approvals">
+            <div className="mb-4 flex items-center gap-2.5">
+              <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
+              {pendingApprovals.length > 0 && (
+                <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
+                  {pendingApprovals.length}
+                </span>
+              )}
+            </div>
+            {approvalsError && !approvalsLoading && <ErrorLine message={approvalsError} />}
+            {!approvalsLoading && !approvalsError && pendingApprovals.length === 0 && (
+              <EmptyState
+                icon={CheckCheck}
+                title="Nothing needs your approval"
+                body="Moves outside your limits wait here for a decision from you."
+              />
+            )}
+            {pendingApprovals.map((a) => {
+              const tag = APPROVAL_TAG[a.type] ?? APPROVAL_TAG.investment_rec;
+              return (
+                <div
+                  key={a.id}
+                  className="mb-3 rounded-xl border border-solid border-border p-4"
+                  style={{ borderLeft: `3px solid ${tag.rule}` }}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span
+                      className={cn(
+                        'rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]',
+                        tag.className,
+                      )}
+                    >
+                      {tag.label}
+                    </span>
+                    <span className="text-[12.5px] text-faint">{relativeTime(a.createdAt)}</span>
+                  </div>
+                  <div className="mb-3 text-[15px] font-bold">{a.title}</div>
+                  <Button className="w-full" asChild>
+                    <Link href="/agent">Review &amp; approve</Link>
+                  </Button>
+                </div>
+              );
+            })}
+          </Card>
+
+          <Card className="p-[22px]">
+            <div className="mb-4 flex items-center gap-2.5">
+              <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
+              <Badge variant="secondary">within your limits</Badge>
+            </div>
+            {agentError && !agentLoading && <ErrorLine message={agentError} />}
+            {!agentLoading && !agentError && recentAgentActivity.length === 0 && (
+              <EmptyState
+                className="mb-[15px]"
+                icon={Sparkles}
+                title="Your agent hasn't acted yet"
+                body="Everything it does inside your limits is recorded here, newest first."
+              />
+            )}
+            {recentAgentActivity.map((m, i) => (
+              <div key={`${m.createdAt}-${i}`} className="mb-[15px] flex gap-2.5">
+                <span className="mt-1.5 h-[9px] w-[9px] flex-none rounded-full bg-teal2" />
+                <div className="min-w-0">
+                  <div className="line-clamp-2 text-[14.5px] font-semibold leading-snug">
+                    {m.content}
+                  </div>
+                  <div className="mt-0.5 text-[12.5px] text-faint">{relativeTime(m.createdAt)}</div>
+                </div>
+              </div>
+            ))}
+            <Button variant="outline" className="mt-1.5 w-full text-teal2" asChild>
+              <Link href="/agent">Adjust your agent's limits</Link>
+            </Button>
+          </Card>
+        </div>
+      )}
+
+      {/* "How your agent works" is gone from here: a static explainer between
+          a person and their money read as demo furniture. It lives on the
+          Agent screen (AgentPipeline), where somebody goes to understand it. */}
     </AppScreen>
   );
 }
