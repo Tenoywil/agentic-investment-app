@@ -74,6 +74,29 @@ const SILENCE_MS = 2500;
 const MAX_SESSION_MS = 120_000;
 
 /**
+ * Collapse a recogniser's result list into one utterance.
+ *
+ * Desktop Chrome reports SEGMENTS — ["find me a bond", "under five hundred"] —
+ * which join in order. Android Chrome instead reports the GROWING PHRASE —
+ * ["how", "how can", "how can I find"] — and appending those stacked every
+ * prefix into the composer: "how how can how can I find…", once per engine
+ * tick, which is the wall of repeated words a spoken question arrived as.
+ * Dropping any entry that the next entry starts with keeps exactly the words
+ * spoken under both reporting styles: growing phrases collapse to their final
+ * form, and genuine segments (which do not prefix each other) all survive.
+ */
+export function collapseTranscripts(parts: string[]): string {
+  const trimmed = parts.map((p) => p.trim()).filter((p) => p.length > 0);
+  return trimmed
+    .filter((p, i) => {
+      const next = trimmed[i + 1];
+      return !next?.toLowerCase().startsWith(p.toLowerCase());
+    })
+    .join(' ')
+    .trim();
+}
+
+/**
  * Dictate a question. `onTranscript` receives the finished text once, when the
  * speaker stops.
  *
@@ -93,8 +116,11 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
   const [listening, setListening] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const ref = React.useRef<SpeechRecognitionLike | null>(null);
-  /** Everything finalised so far this session, across engine restarts. */
+  /** Text carried across engine restarts — earlier sessions, already folded. */
   const finalRef = React.useRef('');
+  /** The CURRENT engine session's transcript, rebuilt whole on every result
+   *  event rather than appended to — see collapseTranscripts for why. */
+  const sessionRef = React.useRef('');
   /** Whether the user still wants to be heard. Distinguishes "the engine gave
    *  up" (restart) from "they pressed stop" (deliver and finish). */
   const wantRef = React.useRef(false);
@@ -129,8 +155,9 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
     clearTimers();
     wantRef.current = false;
     setListening(false);
-    const text = finalRef.current.trim();
+    const text = `${finalRef.current} ${sessionRef.current}`.trim();
     finalRef.current = '';
+    sessionRef.current = '';
     if (text) onTranscriptRef.current(text);
   }, [clearTimers]);
 
@@ -152,6 +179,7 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
     if (!Ctor) return;
     setError(null);
     finalRef.current = '';
+    sessionRef.current = '';
     wantRef.current = true;
 
     const begin = () => {
@@ -163,14 +191,18 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
       rec.maxAlternatives = 1;
 
       rec.onresult = (event) => {
-        // Only the results this event added; `results` is cumulative for the
-        // session, so re-reading all of it appends the same words repeatedly.
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          const alt = result?.[0];
-          if (!result || !alt) continue;
-          if (result.isFinal) finalRef.current = `${finalRef.current} ${alt.transcript}`.trim();
+        // REBUILT from the whole list, never appended. `results` is cumulative
+        // for the session, and on Android each entry is itself the growing
+        // phrase ("how", "how can", "how can I…") with isFinal set — appending
+        // finals stacked every prefix into the question, once per engine tick.
+        // Interims are included so a session Android never finalises before
+        // the engine restarts still keeps its words.
+        const parts: string[] = [];
+        for (let i = 0; i < event.results.length; i++) {
+          const alt = event.results[i]?.[0];
+          if (alt?.transcript) parts.push(alt.transcript);
         }
+        sessionRef.current = collapseTranscripts(parts);
         // Any result at all — interim included — means they are still talking,
         // so the silence window restarts from here rather than from the last
         // finalised phrase.
@@ -190,14 +222,19 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
           clearTimers();
           setListening(false);
           finalRef.current = '';
+          sessionRef.current = '';
         }
       };
 
       rec.onend = () => {
         // The engine ends the session on its own after a short silence, even
-        // with `continuous` set. If the user has not pressed stop, that is not
-        // the end of their question: start listening again and keep what has
-        // been said so far.
+        // with `continuous` set. Fold this session's words into the carry —
+        // the next engine session's `results` starts empty, so anything left
+        // in sessionRef would otherwise be overwritten by the first new event.
+        finalRef.current = `${finalRef.current} ${sessionRef.current}`.trim();
+        sessionRef.current = '';
+        // If the user has not pressed stop, that is not the end of their
+        // question: start listening again and keep what has been said so far.
         if (wantRef.current) {
           try {
             begin();
