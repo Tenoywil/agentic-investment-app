@@ -1,7 +1,7 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
-import { DealCard } from '@/app/_components/DealCard';
+import { DealCard, ScreenedOutCard } from '@/app/_components/DealCard';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -603,31 +603,18 @@ export default function OpportunitiesPage() {
       <p className="mb-3.5 text-sm text-dim">
         Listed so you can see exactly what fails your suitability profile, and why.
       </p>
-      <Card
-        className="flex flex-wrap items-start gap-4 border-[#ecd2c2] dark:border-[#5a3f2e] p-[22px]"
-        style={{ borderLeft: '4px solid #c56a3e' }}
-      >
-        <span className="grid h-10 w-10 flex-none place-items-center rounded-[10px] bg-[#f2e7de] font-mono text-xs font-bold text-[#7d4f36]">
-          {BLOCKED.abbr}
-        </span>
-        <div className="min-w-[240px] flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="text-[12.5px] font-bold uppercase tracking-[.6px] text-[#7d4f36]">
-              {BLOCKED.type}
-            </span>
-            <Badge variant="terra">Screened out</Badge>
-          </div>
-          <div className="mb-1 text-[13px] text-faint">{BLOCKED.region}</div>
-          <div className="mb-2 font-display text-lg font-bold leading-tight">{BLOCKED.name}</div>
-          <p className="text-sm leading-snug text-dim">{BLOCKED.agentNote}</p>
-        </div>
-        <Button
-          className="flex-none bg-terra text-white hover:bg-terra/90"
-          onClick={() => setSelected(BLOCKED)}
-        >
-          Why the agent flags this
-        </Button>
-      </Card>
+      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
+        <ScreenedOutCard
+          o={{
+            abbr: BLOCKED.abbr,
+            type: BLOCKED.type,
+            name: BLOCKED.name,
+            region: BLOCKED.region,
+            note: BLOCKED.agentNote,
+          }}
+          onOpen={() => setSelected(BLOCKED)}
+        />
+      </div>
 
       <ExecDialog opp={selected} onClose={() => setSelected(null)} />
     </AppScreen>

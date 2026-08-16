@@ -2,6 +2,7 @@
 
 import { AgentPipeline } from '@/app/_components/AgentPipeline';
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { PENDING_QUESTION_KEY } from '@/app/_components/VoiceAsk';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -39,6 +40,7 @@ import {
 import { getOpportunities } from '@/lib/opportunities-api';
 import { getPortfolio } from '@/lib/portfolio-api';
 import {
+  ArrowLeft,
   ArrowRight,
   CheckCheck,
   CircleAlert,
@@ -49,6 +51,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import Link from 'next/link';
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 type ChatEntry = { role: 'agent' | 'user'; text: string };
@@ -65,17 +68,6 @@ const SUGGESTIONS: { label: string }[] = [
   { label: 'Find me an income deal' },
   { label: 'Summarize my week' },
 ];
-
-/** Render agent replies' <b>…</b> emphasis (if any) without dangerouslySetInnerHTML. */
-function renderRich(text: string): ReactNode {
-  return text.split(/(<b>.*?<\/b>)/g).map((part, i) => {
-    if (part.startsWith('<b>')) {
-      // biome-ignore lint/suspicious/noArrayIndexKey: static, order-stable segments
-      return <strong key={i}>{part.slice(3, -4)}</strong>;
-    }
-    return part;
-  });
-}
 
 function TypingIndicator() {
   return (
@@ -669,7 +661,16 @@ export default function AgentPage() {
       <div className="g-agent">
         {/* Chat */}
         <Card className="agent-chat flex flex-col overflow-hidden" data-tour="customer-agent">
-          <div className="flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px]">
+          <div className="agent-chat__head flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px]">
+            {/* Phone only (CSS): the chat owns the whole screen there, so this
+                is the one way back to the rest of the app. */}
+            <Link
+              href="/home"
+              aria-label="Back to dashboard"
+              className="agent-chat__back h-10 w-10 flex-none place-items-center rounded-[12px] text-foreground hover:bg-muted"
+            >
+              <ArrowLeft className="h-5 w-5" aria-hidden />
+            </Link>
             <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
               <Sparkles className="h-5 w-5" aria-hidden />
             </span>
@@ -791,8 +792,8 @@ export default function AgentPage() {
                   {isPending ? (
                     <TypingIndicator />
                   ) : (
-                    <div className="rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
-                      {renderRich(m.text)}
+                    <div className="min-w-0 rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
+                      <ChatMarkdown text={m.text} />
                     </div>
                   )}
                 </div>
@@ -802,19 +803,41 @@ export default function AgentPage() {
                   key={i}
                   className="max-w-[82%] self-end"
                 >
+                  {/* The user's words, verbatim — what a person typed is not
+                      markdown, and rendering it as such would reformat them. */}
                   <div className="rounded-[14px_4px_14px_14px] bg-primary px-[15px] py-3 text-[14.5px] leading-normal text-white">
-                    {renderRich(m.text)}
+                    {m.text}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          <div className="px-5 pb-[18px]">
+          <div className="agent-chat__composer px-5 pb-[18px]">
             {streamError && (
               <div className="mb-3">
                 <InlineError>{streamError}</InlineError>
               </div>
+            )}
+            {dictation.error && (
+              <div className="mb-3">
+                <InlineError>{dictation.error}</InlineError>
+              </div>
+            )}
+            {/* The words as they are heard, live. Dictating into a silent
+                input was indistinguishable from a dead microphone; here the
+                transcript builds in front of the speaker, and lands in the
+                input for correction when they stop. */}
+            {dictation.listening && (
+              <output
+                aria-live="polite"
+                className="mb-2.5 flex items-start gap-2 rounded-xl bg-mint/70 px-3.5 py-2.5 text-[13.5px] leading-snug text-foreground dark:bg-white/[0.06]"
+              >
+                <Mic className="mt-0.5 h-4 w-4 flex-none animate-pulse text-teal2" aria-hidden />
+                <span className="min-w-0">
+                  {dictation.preview || 'Listening — your words appear here as you speak.'}
+                </span>
+              </output>
             )}
             {/* On a phone these wrap to one per line and cost three rows above
                 the composer. A single strip that scrolls sideways keeps them

@@ -55,6 +55,14 @@ export interface Dictation {
   listening: boolean;
   /** Null unless the attempt failed in a way worth telling the user about. */
   error: string | null;
+  /**
+   * What has been heard so far, live — interims included, updated on every
+   * engine result while listening and empty otherwise. Dictating into a void
+   * was the complaint this answers: the words appear as they are spoken, so
+   * the speaker can see the engine keeping up (or mishearing) before the
+   * final transcript lands in the input.
+   */
+  preview: string;
   start: () => void;
   stop: () => void;
 }
@@ -115,6 +123,7 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
   const [supported, setSupported] = React.useState(false);
   const [listening, setListening] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [preview, setPreview] = React.useState('');
   const ref = React.useRef<SpeechRecognitionLike | null>(null);
   /** Text carried across engine restarts — earlier sessions, already folded. */
   const finalRef = React.useRef('');
@@ -155,6 +164,7 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
     clearTimers();
     wantRef.current = false;
     setListening(false);
+    setPreview('');
     const text = `${finalRef.current} ${sessionRef.current}`.trim();
     finalRef.current = '';
     sessionRef.current = '';
@@ -203,6 +213,7 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
           if (alt?.transcript) parts.push(alt.transcript);
         }
         sessionRef.current = collapseTranscripts(parts);
+        setPreview(`${finalRef.current} ${sessionRef.current}`.trim());
         // Any result at all — interim included — means they are still talking,
         // so the silence window restarts from here rather than from the last
         // finalised phrase.
@@ -221,6 +232,7 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
           wantRef.current = false;
           clearTimers();
           setListening(false);
+          setPreview('');
           finalRef.current = '';
           sessionRef.current = '';
         }
@@ -254,6 +266,7 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
 
     begin();
     setListening(true);
+    setPreview('');
     clearTimers();
     // Nothing here can leave the microphone open forever, whatever the engine
     // does or does not report.
@@ -262,7 +275,7 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
     }, MAX_SESSION_MS);
   }, [clearTimers, finish, stop]);
 
-  return { supported, listening, error, start, stop };
+  return { supported, listening, error, preview, start, stop };
 }
 
 export interface Narration {

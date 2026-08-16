@@ -3,7 +3,7 @@
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { cn } from '@/app/_lib/utils';
-import { ShieldCheck } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 
 /**
  * The deal card — one component for the live marketplace and the demo, so the
@@ -145,6 +145,77 @@ export function DealCard({
       <Button className="mt-auto w-full" onClick={onOpen}>
         Review &amp; invest
       </Button>
+    </div>
+  );
+}
+
+/**
+ * The screened-out card — a DealCard sibling, not a stranger. It shares the
+ * family's grammar (chips left, mono abbr right, name then region) so the eye
+ * reads it as "a deal, in a different state" rather than a foreign widget, and
+ * keeps the terra edge as that state's mark.
+ *
+ * Two deliberate differences from the old version:
+ *
+ *  - The agent's sentence is attributed. "I recommend against this…" was
+ *    rendered as anonymous body copy; it is the agent speaking, and marking
+ *    the speaker is what makes the refusal legible as advice.
+ *  - The action is quiet. A filled orange button on the one product you
+ *    cannot buy shouted as loudly as "Review & invest" on the ones you can —
+ *    two rival primaries in one view. Explaining a refusal is a secondary
+ *    act, so it gets a text link, in the state's own color.
+ */
+export function ScreenedOutCard({
+  o,
+  onOpen,
+}: {
+  o: {
+    abbr: string;
+    type: string;
+    name: string;
+    region: string | null;
+    /** The agent's own words on why it will not prepare this. */
+    note: string | null;
+  };
+  onOpen: () => void;
+}) {
+  return (
+    <div
+      className="flex flex-col rounded-2xl border border-solid border-[#ecd2c2] bg-card p-6 dark:border-[#5a3f2e]"
+      style={{ borderLeft: '4px solid #c56a3e' }}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-[#f2e7de] px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[.5px] text-[#7d4f36]">
+            {o.type}
+          </span>
+          <Badge variant="terra">Screened out</Badge>
+        </div>
+        <span className="font-mono text-[11.5px] font-bold text-faint">{o.abbr}</span>
+      </div>
+
+      <div className="font-display text-[17px] font-bold leading-snug">{o.name}</div>
+      {o.region ? <div className="mt-0.5 text-[13px] text-faint">{o.region}</div> : null}
+
+      {/* The agent's words, marked as the agent's words. */}
+      {o.note ? (
+        <div className="mt-4 rounded-xl bg-muted/60 p-3.5">
+          <div className="mb-1 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[.5px] text-dim">
+            <Sparkles className="h-3.5 w-3.5 text-teal2" aria-hidden />
+            Your agent
+          </div>
+          <p className="m-0 text-sm leading-snug text-dim">{o.note}</p>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="mt-3.5 inline-flex items-center gap-1.5 self-start text-[13.5px] font-bold text-[#a44e20] underline-offset-4 hover:underline dark:text-terra"
+      >
+        Why the agent flags this
+        <ArrowRight className="h-4 w-4" aria-hidden />
+      </button>
     </div>
   );
 }

@@ -1,13 +1,15 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { Switch } from '@/app/_components/ui/switch';
 import { cn } from '@/app/_lib/utils';
-import { ArrowRight, Mic, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { type ReactNode, useId, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Mic, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import Link from 'next/link';
+import { useId, useRef, useState } from 'react';
 
 type Msg = { role: 'agent' | 'user'; text: string };
 
@@ -64,17 +66,6 @@ function classify(text: string): string {
   if (/income|yield|best|deal|coupon|bond/.test(t)) return 'income';
   if (/idle|cash|spare|sitting/.test(t)) return 'idle';
   return '';
-}
-
-/** Render the seeded messages' <b>…</b> emphasis without dangerouslySetInnerHTML. */
-function renderRich(text: string): ReactNode {
-  return text.split(/(<b>.*?<\/b>)/g).map((part, i) => {
-    if (part.startsWith('<b>')) {
-      // biome-ignore lint/suspicious/noArrayIndexKey: static, order-stable segments
-      return <strong key={i}>{part.slice(3, -4)}</strong>;
-    }
-    return part;
-  });
 }
 
 const APPROVALS: {
@@ -180,8 +171,16 @@ export default function AgentPage() {
 
       <div className="g-agent">
         {/* Chat */}
-        <Card className="flex flex-col overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px]">
+        <Card className="agent-chat flex flex-col overflow-hidden">
+          <div className="agent-chat__head flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px]">
+            {/* Phone only (CSS): the chat owns the whole screen there. */}
+            <Link
+              href="/demo/home"
+              aria-label="Back to dashboard"
+              className="agent-chat__back h-10 w-10 flex-none place-items-center rounded-[12px] text-foreground hover:bg-muted"
+            >
+              <ArrowLeft className="h-5 w-5" aria-hidden />
+            </Link>
             <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
               <Sparkles className="h-5 w-5" aria-hidden />
             </span>
@@ -210,7 +209,7 @@ export default function AgentPage() {
             ref={logRef}
             aria-live="polite"
             aria-label="Conversation with your agent"
-            className="flex max-h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            className="agent-chat__log flex max-h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
             {chat.map((m, i) =>
               m.role === 'agent' ? (
@@ -222,8 +221,8 @@ export default function AgentPage() {
                   <span className="mt-0.5 grid h-[26px] w-[26px] flex-none place-items-center rounded-full bg-mint text-teal2">
                     <Sparkles className="h-[15px] w-[15px]" aria-hidden />
                   </span>
-                  <div className="rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
-                    {renderRich(m.text)}
+                  <div className="min-w-0 rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
+                    <ChatMarkdown text={m.text} />
                   </div>
                 </div>
               ) : (
@@ -233,14 +232,14 @@ export default function AgentPage() {
                   className="max-w-[82%] self-end"
                 >
                   <div className="rounded-[14px_4px_14px_14px] bg-primary px-[15px] py-3 text-[14.5px] leading-normal text-white">
-                    {renderRich(m.text)}
+                    {m.text}
                   </div>
                 </div>
               ),
             )}
           </div>
 
-          <div className="px-5 pb-[18px]">
+          <div className="agent-chat__composer px-5 pb-[18px]">
             <div className="mb-3 flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (
                 <Button

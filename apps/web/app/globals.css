@@ -508,10 +508,13 @@ body:has(dialog.app-sheet[open]) {
 .agent-panels::backdrop {
   background: transparent;
 }
-/* The sheet's own chrome, and the button that raises it, are phone-only. */
+/* The sheet's own chrome, the button that raises it, and the chat's
+   back-to-dashboard control are phone-only: on a desktop the sidebar is the
+   way out, and the chat is a card in the page rather than the whole screen. */
 .agent-panels__bar,
 .agent-panels__handle,
-.agent-panels__open {
+.agent-panels__open,
+.agent-chat__back {
   display: none;
 }
 
@@ -599,12 +602,19 @@ body:has(dialog.app-sheet[open]) {
   .agent-panels::backdrop {
     animation: sheet-fade 260ms ease;
   }
-  /* The conversation owns the viewport, so the page behind it must not scroll:
-     a fixed-height chat inside a scrolling page is what let the screen move on
-     past the composer. The log is the only thing that scrolls here. */
+  /* The conversation owns the viewport — literally. The previous treatment
+     sized the chat as 100dvh minus the nav bar's assumed 65px; the moment the
+     bar gained safe-area padding the sum was wrong and the page scrolled onto
+     the content below, which is the screenshot that prompted this. Fixed
+     positioning owes nothing to any other element's height: the nav hides,
+     the page behind is frozen, and the chat is the screen. The way out is the
+     back button the chat header carries at this width. */
+  .app-shell:has(.agent-chat) .app-mobilenav {
+    display: none;
+  }
   .app-shell:has(.agent-chat) main {
     overflow: hidden;
-    height: calc(100dvh - 65px);
+    height: 100dvh;
     padding-bottom: 0;
   }
 
@@ -633,10 +643,28 @@ body:has(dialog.app-sheet[open]) {
     border: 0;
   }
   .agent-chat {
-    height: calc(100dvh - 65px - 20px - 12px);
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  /* The bar's two edge insets, each reserved once by the element against that
+     edge: the header owns the top (status area), the composer the bottom
+     (home indicator). */
+  .agent-chat__head {
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+  .agent-chat__composer {
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  .agent-chat__back {
+    display: grid;
   }
   .agent-chat__log {
     height: auto !important;
+    max-height: none !important;
     flex: 1 1 auto;
     min-height: 0;
   }
