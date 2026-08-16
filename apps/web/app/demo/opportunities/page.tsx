@@ -217,7 +217,7 @@ const OPPS: Opp[] = [
 ];
 
 const TRADEABLE = OPPS.filter((o) => !o.blocked);
-const BLOCKED = OPPS.find((o) => o.blocked) as Opp;
+const BLOCKED = OPPS.filter((o) => o.blocked);
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
 
@@ -545,13 +545,46 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
   );
 }
 
+/** Phone breakpoint for the screened-out disclosure — mirrors the live page. */
+function useIsPhone(): boolean {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 560px)');
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return phone;
+}
+
 export default function OpportunitiesPage() {
   const [filter, setFilter] = useState<Kind | 'All'>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
+  const phone = useIsPhone();
 
   const shown = filter === 'All' ? TRADEABLE : TRADEABLE.filter((o) => o.type === filter);
   const count = (f: Kind | 'All') =>
     f === 'All' ? TRADEABLE.length : TRADEABLE.filter((o) => o.type === f).length;
+
+  /** Same cards whether the section renders open (desktop) or behind the
+   *  phone's disclosure — demo parity with the live marketplace. */
+  const screenedOutCards = BLOCKED.map((b) => (
+    <ScreenedOutCard
+      key={b.id}
+      o={{
+        abbr: b.abbr,
+        type: b.type,
+        name: b.name,
+        region: b.region,
+        partner: b.partner,
+        regulator: b.regulator,
+        note: b.agentNote,
+        reasons: b.blockReasons,
+      }}
+      onOpen={() => setSelected(b)}
+    />
+  ));
 
   return (
     <AppScreen active="opportunities" basePath="/demo">
@@ -596,25 +629,29 @@ export default function OpportunitiesPage() {
         ))}
       </div>
 
-      {/* What your agent screens out — the guardrail the product is built around. */}
-      <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
-        What your agent screens out
-      </h2>
-      <p className="mb-3.5 text-sm text-dim">
-        Listed so you can see exactly what fails your suitability profile, and why.
-      </p>
-      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
-        <ScreenedOutCard
-          o={{
-            abbr: BLOCKED.abbr,
-            type: BLOCKED.type,
-            name: BLOCKED.name,
-            region: BLOCKED.region,
-            note: BLOCKED.agentNote,
-          }}
-          onOpen={() => setSelected(BLOCKED)}
-        />
-      </div>
+      {/* What your agent screens out — the guardrail the product is built
+          around. Collapsed behind a disclosure on phones, like the live page. */}
+      {phone ? (
+        <details className="mt-[30px]">
+          <summary className="cursor-pointer list-none rounded-xl border border-solid border-[#ecd2c2] bg-card px-4 py-3 font-display text-[15px] font-bold marker:content-none dark:border-[#5a3f2e] [&::-webkit-details-marker]:hidden">
+            What your agent screens out · {BLOCKED.length}
+          </summary>
+          <p className="mb-3 mt-3 text-sm text-dim">
+            Listed so you can see exactly what fails your suitability profile, and why.
+          </p>
+          <div className="grid grid-cols-1 gap-3">{screenedOutCards}</div>
+        </details>
+      ) : (
+        <>
+          <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
+            What your agent screens out
+          </h2>
+          <p className="mb-3.5 text-sm text-dim">
+            Listed so you can see exactly what fails your suitability profile, and why.
+          </p>
+          <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">{screenedOutCards}</div>
+        </>
+      )}
 
       <ExecDialog opp={selected} onClose={() => setSelected(null)} />
     </AppScreen>

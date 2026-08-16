@@ -1,5 +1,6 @@
 'use client';
 
+import { PartnerMark } from '@/app/_components/PartnerMark';
 import { MARKETING_CONTAINER, MarketingFooter, MarketingNav } from '@/app/_components/marketing';
 import { Button } from '@/app/_components/ui/button';
 import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
@@ -78,70 +79,83 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background font-sans text-foreground">
       <MarketingNav />
 
-      {/* HERO — the one decision. Headline, one sentence, two actions. */}
-      <div className={`pb-14 pt-16 text-center max-[760px]:pt-10 ${MARKETING_CONTAINER}`}>
-        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-[22px] border border-solid border-border bg-card px-3.5 py-[7px] text-[13px] font-semibold tracking-wide text-teal2">
-          <span className="h-[7px] w-[7px] rounded-full bg-success" />
-          The financial operating system of the Caribbean
-        </div>
-        <h1 className="mx-auto m-0 max-w-[760px] font-display text-[56px] font-bold leading-[1.03] tracking-[-1.8px] max-[760px]:text-[38px] max-[760px]:tracking-[-1px]">
-          One agent for your whole Caribbean portfolio.
-        </h1>
-        <p className="mx-auto mt-5 max-w-[540px] text-lg leading-relaxed text-dim">
-          See everything you own across the region, and let an agent you control find what to do
-          next. Licensed partners execute; you approve.
-        </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Button
-            size="lg"
-            onClick={google}
-            disabled={pending}
-            aria-busy={pending}
-            className="gap-[11px] text-base"
-          >
-            <GoogleG />
-            {pending ? 'Connecting to Google…' : 'Continue with Google'}
-          </Button>
-          <Button variant="outline" size="lg" onClick={demo} className="text-base">
-            See a live demo
-            <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
-          </Button>
-        </div>
-        {/* Fixed height whichever state shows, so the hero does not resize
-            under the button that was just pressed. */}
-        <div className="min-h-[30px] pt-3">
-          {error ? (
-            <p className="flex items-center justify-center gap-2 text-sm text-[#a44e20] dark:text-terra">
-              <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
-              {error}
-            </p>
-          ) : slow ? (
-            <output className="block text-sm text-dim">
-              Waking the server — this can take up to a minute the first time.
-            </output>
-          ) : null}
-        </div>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3.5 text-[13.5px] text-dim">
-          <span className="inline-flex items-center gap-1.5">
-            <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
-            Licensed, regulated partners
-          </span>
-          <span aria-hidden>·</span>
-          <span>KYC &amp; AML built in</span>
-          <span aria-hidden>·</span>
-          <span>Data held in-region</span>
+      {/* HERO — the one decision. Headline, one sentence, two actions. A
+          radial brand wash sits behind it and the pieces rise in on load
+          (still, under prefers-reduced-motion). */}
+      <div className="relative overflow-hidden">
+        <div aria-hidden className="landing-glow" />
+        <div
+          className={`relative pb-14 pt-16 text-center max-[760px]:pt-10 ${MARKETING_CONTAINER}`}
+        >
+          <div className="landing-rise mx-auto mb-6 inline-flex items-center gap-2 rounded-[22px] border border-solid border-teal2/25 bg-card/85 px-3.5 py-[7px] text-[13px] font-semibold tracking-wide text-teal2 shadow-[0_1px_2px_rgba(20,14,8,0.05)] backdrop-blur-sm">
+            <span className="h-[7px] w-[7px] rounded-full bg-success" />
+            The financial operating system of the Caribbean
+          </div>
+          <h1 className="landing-rise landing-rise--2 mx-auto m-0 max-w-[760px] font-display text-[56px] font-bold leading-[1.02] tracking-[-2px] max-[760px]:text-[38px] max-[760px]:tracking-[-1px] max-[440px]:text-[33px]">
+            One agent for your whole Caribbean portfolio.
+          </h1>
+          <p className="landing-rise landing-rise--3 mx-auto mt-5 max-w-[540px] text-lg leading-relaxed text-dim">
+            See everything you own across the region, and let an agent you control find what to do
+            next. Licensed partners execute; you approve.
+          </p>
+          <div className="landing-rise landing-rise--4 mt-8 flex flex-wrap justify-center gap-3">
+            <Button
+              size="lg"
+              onClick={google}
+              disabled={pending}
+              aria-busy={pending}
+              className="gap-[11px] text-base"
+            >
+              <GoogleG />
+              {pending ? 'Connecting to Google…' : 'Continue with Google'}
+            </Button>
+            <Button variant="outline" size="lg" onClick={demo} className="text-base">
+              See a live demo
+              <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+          {/* Fixed height whichever state shows, so the hero does not resize
+              under the button that was just pressed. */}
+          <div className="min-h-[30px] pt-3">
+            {error ? (
+              <p className="flex items-center justify-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+                <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+                {error}
+              </p>
+            ) : slow ? (
+              <output className="block text-sm text-dim">
+                Waking the server — this can take up to a minute the first time.
+              </output>
+            ) : null}
+          </div>
+          <div className="landing-rise landing-rise--4 mt-4 flex flex-wrap items-center justify-center gap-3.5 text-[13.5px] text-dim">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
+              Licensed, regulated partners
+            </span>
+            <span aria-hidden>·</span>
+            <span>KYC &amp; AML built in</span>
+            <span aria-hidden>·</span>
+            <span>Data held in-region</span>
+          </div>
         </div>
       </div>
 
-      {/* PARTNER STRIP — the institutions the network is built around. */}
+      {/* PARTNER STRIP — the institutions the network is built around. Static
+          monogram chips (the landing is unauthenticated, so nothing is
+          fetched): the same codes as before, now wearing the product's own
+          brand-mark tiles. */}
       <div className="border-x-0 border-y border-solid border-border bg-card">
-        <div className={`flex flex-wrap items-center gap-7 py-5 ${MARKETING_CONTAINER}`}>
+        <div className={`flex flex-wrap items-center gap-x-7 gap-y-3 py-5 ${MARKETING_CONTAINER}`}>
           <span className="text-[13px] font-semibold uppercase tracking-wide text-faint">
             Institutions on the network
           </span>
-          <div className="flex flex-wrap gap-[26px] font-mono text-[15px] font-semibold text-dim">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
             {['NCB', 'SAGICOR', 'JMMB', 'PROVEN', 'BARITA', 'REPUBLIC', 'SYGNUS'].map((p) => (
-              <span key={p}>{p}</span>
+              <span key={p} className="inline-flex items-center gap-2">
+                <PartnerMark name={p} code={p} size="sm" />
+                <span className="font-mono text-[13.5px] font-semibold text-dim">{p}</span>
+              </span>
             ))}
           </div>
         </div>
@@ -153,9 +167,9 @@ export default function LandingPage() {
           {PILLARS.map((b) => (
             <div
               key={b.title}
-              className="rounded-2xl border border-solid border-border bg-card p-6"
+              className="rounded-2xl border border-solid border-border bg-card p-6 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-[3px] hover:border-teal2/40 hover:shadow-[0_14px_36px_rgba(23,120,110,0.14)]"
             >
-              <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-mint">
+              <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-mint to-card ring-1 ring-inset ring-teal2/20">
                 <b.Icon className="h-[22px] w-[22px] text-teal2" aria-hidden />
               </span>
               <div className="mb-1.5 font-display text-lg font-bold">{b.title}</div>

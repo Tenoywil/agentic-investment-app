@@ -169,9 +169,19 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
 
-    const body = (await c.req.json().catch(() => null)) as { partnerCode?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as {
+      partnerCode?: unknown;
+      label?: unknown;
+    } | null;
     const code = typeof body?.partnerCode === 'string' ? body.partnerCode.trim().toUpperCase() : '';
     if (!code) return c.json({ error: 'partnerCode is required' }, 400);
+    /** Optional caller label — how the connect flow tells the firm's desk an
+     *  existing client from a brand-new one (" · new client"). Bounded, and
+     *  never trusted to carry anything but a display string. */
+    const requestedLabel =
+      typeof body?.label === 'string' && body.label.trim().length > 0
+        ? body.label.trim().slice(0, 120)
+        : null;
 
     const result = await withTenant(deps, tenant, async (tx) => {
       const [partner] = await tx
@@ -215,7 +225,11 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
       if (!existing) {
         const [row] = await tx
           .insert(connectedAccounts)
-          .values({ userId: tenant.user.id, partnerId: partner.id, label: partner.name })
+          .values({
+            userId: tenant.user.id,
+            partnerId: partner.id,
+            label: requestedLabel ?? partner.name,
+          })
           .returning({ id: connectedAccounts.id });
         if (!row)
           return { error: 'the account was not connected' as const, httpStatus: 400 as const };

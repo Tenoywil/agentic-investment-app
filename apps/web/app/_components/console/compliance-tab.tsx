@@ -1,10 +1,12 @@
 'use client';
 
+import { PartnerMark, markFor, usePartnerMarks } from '@/app/_components/PartnerMark';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
-import type { ConsoleAuditEntry } from '@/lib/console-api';
+import { type ConsoleAuditEntry, putPartnerLogo } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
+import { partnerLogoUrl } from '@/lib/portfolio-api';
 import { Pencil, ScrollText, ShieldCheck } from 'lucide-react';
 import * as React from 'react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
@@ -38,6 +40,153 @@ import { ErrorNote } from './notice';
 const PROFILE_LABEL = 'text-[12px] font-bold uppercase tracking-[.5px] text-white/70';
 const PROFILE_FIELD =
   'mt-1 block w-full rounded-[10px] border border-solid border-white/25 bg-white/10 px-3 py-2 text-[15px] text-white placeholder:text-white/40';
+
+/** What PUT /api/console/partner/logo accepts, checked here first so the
+ *  operator gets a kind sentence instead of a request/response round trip. */
+const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
+const LOGO_MAX_BYTES = 256 * 1024;
+
+/**
+ * The firm's logo — upload, preview, remove.
+ *
+ * The mark renders beside every product this firm lists and on every client's
+ * holdings card, so the preview shows exactly what those screens show: the
+ * uploaded bytes when they exist (cache-busted after each change, because the
+ * URL is otherwise identical and the browser would keep the old brand for an
+ * hour), and the firm's monogram tile when they do not.
+ */
+function FirmLogoBlock({ partner }: { partner: MePartner }) {
+  const marks = usePartnerMarks();
+  const mark = markFor(marks, { code: partner.code, name: partner.name });
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  /** null = not known yet (marks still loading); then tracked locally so the
+   *  block reflects an upload without refetching the marks list. */
+  const [hasLogo, setHasLogo] = React.useState<boolean | null>(null);
+  const [version, setVersion] = React.useState(0);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (mark) setHasLogo((known) => (known === null ? mark.hasLogo : known));
+  }, [mark]);
+
+  async function handleFile(file: File) {
+    setError(null);
+    if (!LOGO_MIMES.includes(file.type)) {
+      setError('The logo must be a PNG, JPEG, SVG or WebP image.');
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setError('The logo must be 256KB or smaller.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // readAsDataURL yields "data:<mime>;base64,<data>" — the API takes
+          // the bare base64.
+          const url = String(reader.result ?? '');
+          const comma = url.indexOf(',');
+          if (comma === -1) reject(new Error('could not read the file'));
+          else resolve(url.slice(comma + 1));
+        };
+        reader.onerror = () => reject(new Error('could not read the file'));
+        reader.readAsDataURL(file);
+      });
+      const res = await putPartnerLogo({ mime: file.type, data });
+      setHasLogo(res.hasLogo);
+      setVersion((v) => v + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not upload the logo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await putPartnerLogo({ data: null });
+      setHasLogo(res.hasLogo);
+      setVersion((v) => v + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove the logo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 border-0 border-t border-solid border-white/15 pt-4">
+      <div className={PROFILE_LABEL}>Firm logo</div>
+      <div className="mt-2 flex items-center gap-3">
+        {hasLogo ? (
+          // White tile behind the bytes: a transparent-background logo must be
+          // previewed the way the light client screens render it, not on navy.
+          <span className="grid h-14 w-14 flex-none place-items-center overflow-hidden rounded-xl bg-white p-1.5">
+            <img
+              src={`${partnerLogoUrl(partner.id)}?v=${version}`}
+              alt={`${partner.name} logo`}
+              className="h-full w-full object-contain"
+              onError={() => setHasLogo(false)}
+            />
+          </span>
+        ) : (
+          <PartnerMark
+            name={partner.name}
+            code={partner.code}
+            color={mark?.color}
+            tint={mark?.tint}
+            size="lg"
+          />
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Reset so choosing the same file again still fires onChange.
+              e.target.value = '';
+              if (file) void handleFile(file);
+            }}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
+          >
+            {busy ? 'Working…' : hasLogo ? 'Replace logo' : 'Upload logo'}
+          </Button>
+          {hasLogo ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-white hover:bg-white/10 hover:text-white"
+              disabled={busy}
+              onClick={() => void handleRemove()}
+            >
+              Remove
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <span className="mt-1.5 block text-[12px] leading-snug text-white/60">
+        PNG, JPEG, SVG or WebP, up to 256KB. Shown on your deal cards and your clients&rsquo;
+        holdings; without one they see your monogram tile.
+      </span>
+      {error ? <p className="mb-0 mt-2 text-sm text-[#ffcbb0]">{error}</p> : null}
+    </div>
+  );
+}
 
 export function ComplianceTab({
   partner,
@@ -319,6 +468,10 @@ export function ComplianceTab({
             No agreement details are recorded against this account yet.
           </p>
         )}
+
+        {/* Self-contained: uploads on selection, no Save step, so it lives
+            outside the edit form. */}
+        {partner && !editing ? <FirmLogoBlock partner={partner} /> : null}
 
         {profileError ? <p className="mb-0 mt-3 text-sm text-[#ffcbb0]">{profileError}</p> : null}
 

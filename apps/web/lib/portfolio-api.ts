@@ -255,7 +255,15 @@ export { regulatorLabel } from './opportunities-api';
  * The balances come from the partner's own adapter, not from here. Connecting
  * the same partner twice refreshes that account rather than adding a second.
  */
-export async function connectAccount(partnerCode: string): Promise<{
+export async function connectAccount(
+  partnerCode: string,
+  /**
+   * Optional label for the connection record. The connect dialog suffixes it
+   * with " · new client" when the person has no account at the firm yet, so
+   * the firm's desk can tell an account-opening request from a plain link.
+   */
+  label?: string,
+): Promise<{
   partner: string;
   /** `pending` until an operator at that firm accepts this person as a client. */
   status: 'pending' | 'active';
@@ -266,7 +274,7 @@ export async function connectAccount(partnerCode: string): Promise<{
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ partnerCode }),
+    body: JSON.stringify(label ? { partnerCode, label } : { partnerCode }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -275,6 +283,48 @@ export async function connectAccount(partnerCode: string): Promise<{
     );
   }
   return body;
+}
+
+/**
+ * One partner's brand mark: id/code/name plus the display colors the firm's
+ * record carries (CSS color strings, null when unset) and whether a real
+ * uploaded logo exists behind /api/portfolio/partner-logo/:id.
+ */
+export interface PartnerMarkInfo {
+  id: string;
+  code: string;
+  name: string;
+  color: string | null;
+  tint: string | null;
+  hasLogo: boolean;
+}
+
+/** Where a partner's uploaded logo bytes are served from. 404 when the firm
+ *  has none — callers fall back to the monogram mark. */
+export function partnerLogoUrl(id: string): string {
+  return `${API_URL}/api/portfolio/partner-logo/${id}`;
+}
+
+/**
+ * The partner-marks list, fetched once per page load and shared by every
+ * screen that renders a brand mark (deal cards, holdings, connect dialog).
+ * Module-level promise cache: concurrent callers share one in-flight request,
+ * and a failure clears the slot so the next caller retries rather than
+ * caching the error forever.
+ */
+let marksPromise: Promise<PartnerMarkInfo[]> | null = null;
+
+export function getPartnerMarks(): Promise<PartnerMarkInfo[]> {
+  if (!marksPromise) {
+    marksPromise = apiFetch<{ marks: PartnerMarkInfo[] }>('/api/portfolio/partner-marks').then(
+      (body) => body.marks,
+      (err) => {
+        marksPromise = null;
+        throw err;
+      },
+    );
+  }
+  return marksPromise;
 }
 
 /** The institutions on the network — the choices in the connect dialog. */

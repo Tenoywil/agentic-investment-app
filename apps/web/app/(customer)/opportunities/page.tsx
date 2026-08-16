@@ -1,7 +1,8 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
-import { DealCard, ScreenedOutCard } from '@/app/_components/DealCard';
+import { DealCard, type DealCardMark, ScreenedOutCard } from '@/app/_components/DealCard';
+import { markFor, usePartnerMarks } from '@/app/_components/PartnerMark';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -153,7 +154,15 @@ const METRIC_LBL =
 
 /** The card itself is shared with the demo (app/_components/DealCard.tsx), so
  *  the live marketplace and the preview cannot drift apart. */
-function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
+function OppCard({
+  o,
+  mark,
+  onOpen,
+}: {
+  o: Opp;
+  mark?: DealCardMark;
+  onOpen: (o: Opp) => void;
+}) {
   return (
     <DealCard
       o={{
@@ -169,10 +178,25 @@ function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
         partner: o.partner,
         regulator: o.regulator,
         risk: o.risk,
+        mark,
       }}
       onOpen={() => onOpen(o)}
     />
   );
+}
+
+/** Phone breakpoint for the screened-out disclosure — matches the grid's own
+ *  single-column cutoff so the section collapses exactly when space runs out. */
+function useIsPhone(): boolean {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 560px)');
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return phone;
 }
 
 /** The "screened out" reasons panel — shared by a pre-flagged instrument
@@ -352,11 +376,19 @@ function ExecDialog({
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
   const [gateBlocked, setGateBlocked] = useState<{ code?: string; reasons: string[] } | null>(null);
+  /**
+   * One idempotency key per dialog-open. A retry after a timeout or a double
+   * tap on "Authorize" then lands on the same order row server-side instead of
+   * creating a second instruction; opening the dialog again is a new intent
+   * and mints a new key.
+   */
+  const [idemKey, setIdemKey] = useState('');
 
   // Reset the wizard whenever a new opportunity is opened.
   useEffect(() => {
     if (opp) {
       setStep(0);
+      setIdemKey(crypto.randomUUID());
       // Pre-filled with the minimum, which is the smallest thing they can
       // legitimately do. A product with no minimum starts empty rather than at
       // zero: zero is not an amount somebody meant to invest, and pre-filling
@@ -388,6 +420,7 @@ function ExecDialog({
         instrumentId: opp.id,
         amountMinor: majorToMinor(amtNum),
         currency: opp.currency,
+        idempotencyKey: idemKey || undefined,
       });
       if (result.decision === 'blocked') {
         setGateBlocked({ code: result.code, reasons: result.reasons });
@@ -727,6 +760,9 @@ export default function OpportunitiesPage() {
   const [band, setBand] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
+  /** Brand marks for the executing firms — one cached read, decorative only. */
+  const marks = usePartnerMarks();
+  const phone = useIsPhone();
 
   useEffect(() => {
     let cancelled = false;
@@ -797,6 +833,26 @@ export default function OpportunitiesPage() {
     f === 'All' ? true : f === 'Steady income' ? o.risk === 'Low' : o.type === f;
   const shown = TRADEABLE.filter(matches(filter));
   const count = (f: Filter) => TRADEABLE.filter(matches(f)).length;
+
+  /** One card per refusal — the same cards whether the section renders open
+   *  (desktop) or behind the phone's disclosure. */
+  const screenedOutCards = BLOCKED.map((b) => (
+    <ScreenedOutCard
+      key={b.id}
+      o={{
+        abbr: b.abbr,
+        type: b.type,
+        name: b.name,
+        region: b.region,
+        partner: b.partner,
+        regulator: b.regulator,
+        mark: markFor(marks, { name: b.partner }),
+        note: b.agentNote,
+        reasons: b.blockReasons,
+      }}
+      onOpen={() => setSelected(b)}
+    />
+  ));
 
   return (
     <AppScreen active="opportunities">
@@ -875,38 +931,45 @@ export default function OpportunitiesPage() {
           ) : (
             <div className="g2">
               {shown.map((o) => (
-                <OppCard key={o.id} o={o} onOpen={setSelected} />
+                <OppCard
+                  key={o.id}
+                  o={o}
+                  mark={markFor(marks, { name: o.partner })}
+                  onOpen={setSelected}
+                />
               ))}
             </div>
           )}
 
           {/* What your agent screens out — the guardrail the product is built around.
-              Hidden entirely when nothing in the live catalog is currently flagged. */}
-          {BLOCKED.length > 0 && (
-            <>
-              <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
-                What your agent screens out
-              </h2>
-              <p className="mb-3.5 text-sm text-dim">
-                Listed so you can see exactly what fails your suitability profile, and why.
-              </p>
-              <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
-                {BLOCKED.map((b) => (
-                  <ScreenedOutCard
-                    key={b.id}
-                    o={{
-                      abbr: b.abbr,
-                      type: b.type,
-                      name: b.name,
-                      region: b.region,
-                      note: b.agentNote,
-                    }}
-                    onOpen={() => setSelected(b)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
+              Hidden entirely when nothing in the live catalog is currently flagged.
+              On a phone the whole section is a disclosure, collapsed by default:
+              refusals matter, but not more than the deals a small screen has
+              room for. */}
+          {BLOCKED.length > 0 &&
+            (phone ? (
+              <details className="mt-[30px]">
+                <summary className="cursor-pointer list-none rounded-xl border border-solid border-[#ecd2c2] bg-card px-4 py-3 font-display text-[15px] font-bold marker:content-none dark:border-[#5a3f2e] [&::-webkit-details-marker]:hidden">
+                  What your agent screens out · {BLOCKED.length}
+                </summary>
+                <p className="mb-3 mt-3 text-sm text-dim">
+                  Listed so you can see exactly what fails your suitability profile, and why.
+                </p>
+                <div className="grid grid-cols-1 gap-3">{screenedOutCards}</div>
+              </details>
+            ) : (
+              <>
+                <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
+                  What your agent screens out
+                </h2>
+                <p className="mb-3.5 text-sm text-dim">
+                  Listed so you can see exactly what fails your suitability profile, and why.
+                </p>
+                <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
+                  {screenedOutCards}
+                </div>
+              </>
+            ))}
 
           <ExecDialog
             opp={selected}

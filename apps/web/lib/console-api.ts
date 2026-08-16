@@ -285,6 +285,18 @@ export function updatePartner(input: {
   return consoleFetch('/partner', { method: 'PATCH', body: JSON.stringify(input) });
 }
 
+/**
+ * The firm's logo, the one piece of brand identity an operator owns outright.
+ * `data` is base64 with no `data:` prefix (PNG/JPEG/SVG/WebP, ≤256KB — the
+ * server enforces both and this client checks them first for a kinder error);
+ * `{ data: null }` clears the logo and the monogram mark returns everywhere.
+ */
+export function putPartnerLogo(
+  input: { mime: string; data: string } | { data: null },
+): Promise<{ ok: true; hasLogo: boolean }> {
+  return consoleFetch('/partner/logo', { method: 'PUT', body: JSON.stringify(input) });
+}
+
 /** Real audit rows for this partner, newest first. Server clamps limit to 200. */
 export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> {
   return consoleFetch(`/audit?limit=${limit}`);

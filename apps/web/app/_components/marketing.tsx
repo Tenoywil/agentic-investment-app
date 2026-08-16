@@ -33,7 +33,7 @@ export function MarketingNav() {
         className={`flex items-center justify-between gap-5 py-[14px] max-[760px]:py-3 ${MARKETING_CONTAINER}`}
       >
         <Link href="/" className="flex items-center gap-[11px] text-foreground no-underline">
-          <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-primary font-display text-[19px] font-bold text-white">
+          <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-gradient-to-br from-primary to-navy-active font-display text-[19px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
             C
           </span>
           <span className="font-display text-lg font-bold tracking-tight max-[440px]:hidden">
@@ -73,7 +73,7 @@ export function MarketingFooter() {
       <div className={`py-8 ${MARKETING_CONTAINER}`}>
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-primary font-display text-[15px] font-bold text-white">
+            <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-gradient-to-br from-primary to-navy-active font-display text-[15px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
               C
             </span>
             <span className="font-display text-[15px] font-bold tracking-tight">

@@ -899,3 +899,58 @@ body:has(dialog.app-sheet[open]) {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Landing page premium layer (additions only).
+
+   Three pieces: a radial brand-tone wash behind the hero, an entrance
+   animation (fade + small rise, staggerable), and the final CTA's gradient
+   with a soft inner glow. All colors go through the theme tokens so the dark
+   theme keeps its own brightened accents rather than inheriting light-mode
+   pastels. The entrance is explicitly disabled under prefers-reduced-motion —
+   the global reduced-motion rule already floors durations, but `animation:
+   none` also removes the `both` fill so nothing is ever left at opacity 0.
+   --------------------------------------------------------------------------- */
+.landing-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(640px 320px at 50% -40px, hsl(var(--teal2) / 0.12), transparent 70%),
+    radial-gradient(440px 280px at 82% 12%, hsl(var(--peach) / 0.1), transparent 70%),
+    radial-gradient(380px 240px at 12% 22%, hsl(var(--mint) / 0.55), transparent 70%);
+}
+.dark .landing-glow {
+  background: radial-gradient(640px 320px at 50% -40px, hsl(var(--teal2) / 0.1), transparent 70%),
+    radial-gradient(440px 280px at 82% 12%, hsl(var(--peach) / 0.06), transparent 70%);
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.landing-rise {
+  animation: landing-rise 640ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.landing-rise--2 {
+  animation-delay: 90ms;
+}
+.landing-rise--3 {
+  animation-delay: 180ms;
+}
+.landing-rise--4 {
+  animation-delay: 270ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-rise--2,
+  .landing-rise--3,
+  .landing-rise--4 {
+    animation: none;
+  }
+}

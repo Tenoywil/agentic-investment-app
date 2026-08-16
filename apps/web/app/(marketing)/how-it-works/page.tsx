@@ -2,7 +2,15 @@
 
 import { InfoSection, MarketingPage } from '@/app/_components/marketing';
 import { Button } from '@/app/_components/ui/button';
-import { LineChart, type LucideIcon, ShieldCheck, Target, TrendingUp } from 'lucide-react';
+import {
+  LineChart,
+  type LucideIcon,
+  ScrollText,
+  SearchCheck,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -64,6 +72,34 @@ const PIPE = [
   },
 ];
 
+/**
+ * Why a recommendation from CCN is one you can act on. Four grounds, each of
+ * them structural rather than promotional — who holds the money, what screens
+ * the candidates, how research is graded, and what gets written down.
+ */
+const TRUST: { Icon: LucideIcon; title: string; body: string }[] = [
+  {
+    Icon: ShieldCheck,
+    title: 'Licensed partners hold everything',
+    body: 'Regulated institutions execute and custody every instrument — each product names its executing firm and that firm’s regulator. CCN never holds your money.',
+  },
+  {
+    Icon: Target,
+    title: 'Screened against your limits',
+    body: 'Every recommendation is checked against your own risk band, cash floor and position caps by a deterministic engine — the same rules every time, never a mood.',
+  },
+  {
+    Icon: SearchCheck,
+    title: 'Research labels its evidence',
+    body: 'The agent’s research marks what is verified and what is self-reported, and a contradiction between the two vetoes the recommendation rather than being smoothed over.',
+  },
+  {
+    Icon: ScrollText,
+    title: 'Every step is written down',
+    body: 'Each recommendation writes an audit trail and shows its stage-by-stage reasoning, so you can read how it was decided — not just what was decided.',
+  },
+];
+
 export default function HowItWorksPage() {
   const router = useRouter();
   return (
@@ -116,6 +152,27 @@ export default function HowItWorksPage() {
                   {f.title}
                 </div>
                 <div className="text-sm leading-relaxed">{f.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </InfoSection>
+
+      <InfoSection title="Why CCN can recommend">
+        <div className="grid grid-cols-1 gap-3">
+          {TRUST.map((t) => (
+            <div
+              key={t.title}
+              className="flex gap-4 rounded-[13px] border border-solid border-border bg-card p-[18px]"
+            >
+              <span className="grid h-[42px] w-[42px] flex-none place-items-center rounded-[11px] bg-mint">
+                <t.Icon className="h-[22px] w-[22px] text-teal2" aria-hidden />
+              </span>
+              <div>
+                <div className="mb-1 font-display text-[16px] font-bold text-foreground">
+                  {t.title}
+                </div>
+                <div className="text-sm leading-relaxed">{t.body}</div>
               </div>
             </div>
           ))}
