@@ -1,0 +1,35 @@
+%% CCN — Background workflow: research → decision
+flowchart TD
+    subgraph UNIVERSE["Universe-wide · nightly + on listing change"]
+        MI["0 · Market Intelligence Agent<br/>refresh instruments · partners · FX<br/>stamp freshness"]
+        RSA["1 · Research Agent<br/>per-asset claims, labeled<br/>verified … contradicted"]
+        DOSS[("Instrument dossiers<br/>facts + claims + confidence<br/>shared across all users")]
+        MI --> RSA --> DOSS
+    end
+
+    subgraph PERUSER["Per-person · sweep tick or trigger event"]
+        TRIG["Trigger: new cash · new listing<br/>profile/goal change · expiry · interval"]
+        FIT["2 · Portfolio Fit Agent<br/>concentration · currency corridor<br/>liquidity vs goals · duplication"]
+        GATE{"3 · Suitability &amp; Compliance Gate<br/>@ccn/limits-engine · deterministic"}
+        COORD["4 · Decision Coordinator<br/>rank · size · propose one — or nothing"]
+        NARR["5 · Narrator<br/>plain-language card body<br/>in the person's register"]
+    end
+
+    DOSS --> FIT
+    TRIG --> FIT
+    FIT --> GATE
+    GATE -- "blocked · log verdict" --> TRACE
+    GATE -- "passes" --> COORD
+    COORD -- "nothing worth proposing" --> TRACE
+    COORD --> NARR
+    NARR --> CARD["Approval card + agent message<br/>full stage trace attached"]
+    CARD --> HITL{"Client approves?"}
+    HITL -- Approve --> ORD["create_order → partner executes"]
+    HITL -- "Reject / expire" --> MON
+
+    ORD --> MON["6 · Post-Decision Monitor<br/>expiry hygiene · rejection learning<br/>maturity &amp; drift alerts"]
+    MON -. "preference signals · re-triggers" .-> TRIG
+
+    TRACE[("approvals.snapshot.trace<br/>+ hash-chained audit log")]
+    CARD --> TRACE
+    ORD --> TRACE
