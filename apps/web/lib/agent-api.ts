@@ -148,6 +148,121 @@ export interface AgentProposal {
   summary: string;
 }
 
+/**
+ * Structured tool results the chat renders as inline visual cards. Every
+ * number inside them was computed server-side by the pure agent context
+ * (packages/agent/src/context.ts) — the model narrates them but cannot invent
+ * them, which is why the client draws from this channel and never from prose.
+ */
+
+/** One allocation slice, chart-ready: pct is a real number a bar is drawn from. */
+export interface AllocationSlice {
+  key: string;
+  label: string;
+  /** Minor units as a string — bigints don't survive JSON. */
+  valueMinor: string;
+  /** Pre-formatted by @ccn/money server-side. */
+  value: string;
+  pct: number;
+}
+
+export interface AllocationTypeSlice extends AllocationSlice {
+  targetPct: number;
+  /** Positive = under target, negative = over. */
+  gapPts: number;
+}
+
+export interface AllocationDisplayData {
+  currency: string;
+  total: string;
+  band: string;
+  /** Always all six mix keys, held or not — a 0% row with a target IS the gap. */
+  byType: AllocationTypeSlice[];
+  byPartner: AllocationSlice[];
+  byCurrency: AllocationSlice[];
+}
+
+export interface GoalDisplay {
+  name: string;
+  target: string;
+  current: string;
+  targetMinor: string;
+  currentMinor: string;
+  /** Funded percentage, 0-100. */
+  pct: number;
+  eta: string | null;
+}
+
+export interface GoalsDisplayData {
+  goals: GoalDisplay[];
+}
+
+export interface ComparisonRowDisplay {
+  instrumentId: string;
+  name: string;
+  type: string;
+  region: string | null;
+  risk: string;
+  metricLabel: string | null;
+  metric: string | null;
+  minimum: string;
+  partner: string | null;
+  regulator: string | null;
+  suitable: boolean;
+  fitScore: number;
+  topReason: string | null;
+  topConcern: string | null;
+}
+
+export interface ComparisonDisplayData {
+  rows: ComparisonRowDisplay[];
+}
+
+export interface FitDisplayData {
+  instrumentId: string;
+  name: string;
+  /** 0-100. */
+  score: number;
+  reasons: string[];
+  concerns: string[];
+}
+
+export interface TraceStageDisplay {
+  stage: string;
+  agent: string;
+  summary: string;
+  detail: string[];
+}
+
+export interface PipelineDisplayData {
+  trace: TraceStageDisplay[];
+  proposal: {
+    instrumentId: string;
+    name: string;
+    partner: string | null;
+    amount: string;
+    decision: string;
+  } | null;
+}
+
+export type AgentDisplayKind = 'allocation' | 'goals' | 'comparison' | 'fit' | 'pipeline';
+
+export type AgentDisplayData =
+  | { kind: 'allocation'; data: AllocationDisplayData }
+  | { kind: 'goals'; data: GoalsDisplayData }
+  | { kind: 'comparison'; data: ComparisonDisplayData }
+  | { kind: 'fit'; data: FitDisplayData }
+  | { kind: 'pipeline'; data: PipelineDisplayData };
+
+/** The kinds this client knows how to draw. Anything else is dropped, not crashed on. */
+const DISPLAY_KINDS: ReadonlySet<string> = new Set([
+  'allocation',
+  'goals',
+  'comparison',
+  'fit',
+  'pipeline',
+]);
+
 export interface StreamAgentMessageCallbacks {
   /** Called for each text chunk as it arrives, in order — append, don't replace. */
   onDelta: (delta: string) => void;
@@ -157,6 +272,8 @@ export interface StreamAgentMessageCallbacks {
   onError: (message: string) => void;
   /** Called for each move the agent prepared this turn, after the text. */
   onProposal?: (proposal: AgentProposal) => void;
+  /** Called for each visual card the turn produced, after the text. */
+  onDisplay?: (display: AgentDisplayData) => void;
 }
 
 const DEFAULT_STREAM_ERROR = 'the agent is temporarily unavailable';
@@ -209,6 +326,9 @@ function parseSseFrame(rawFrame: string): SseFrame | null {
  *     `{"delta": "..."}` — one text chunk, appended via onDelta.
  *   - "proposal": data is an AgentProposal — a move the agent prepared, which
  *     the screen offers as a card the reader can send to their approvals.
+ *   - "display": data is `{"kind": ..., "data": ...}` — a tool result the chat
+ *     renders as an inline visual card. Kinds this build doesn't recognize are
+ *     ignored so an older client survives a newer server.
  *   - "error": data is `{"error": "..."}` — upstream failure, via onError.
  *   - "done": data is the literal string `[DONE]` (not JSON) — end of stream.
  * The server always sends a final "done" event, including right after an
@@ -218,7 +338,7 @@ function parseSseFrame(rawFrame: string): SseFrame | null {
  */
 export async function streamAgentMessage(
   message: string,
-  { onDelta, onDone, onError, onProposal }: StreamAgentMessageCallbacks,
+  { onDelta, onDone, onError, onProposal, onDisplay }: StreamAgentMessageCallbacks,
 ): Promise<void> {
   let res: Response;
   try {
@@ -261,6 +381,25 @@ export async function streamAgentMessage(
         if (parsed && typeof parsed.instrumentId === 'string') onProposal?.(parsed);
       } catch {
         // A malformed proposal frame costs a card, not the answer above it.
+      }
+      return;
+    }
+    if (frame.event === 'display') {
+      try {
+        const parsed = JSON.parse(frame.data) as { kind?: unknown; data?: unknown };
+        if (
+          parsed &&
+          typeof parsed.kind === 'string' &&
+          DISPLAY_KINDS.has(parsed.kind) &&
+          parsed.data !== undefined &&
+          parsed.data !== null
+        ) {
+          onDisplay?.(parsed as AgentDisplayData);
+        }
+        // An unknown kind is a newer server talking past this build — the
+        // text above the card still stands, so drop the card silently.
+      } catch {
+        // Malformed display frame — same deal: lose the chart, keep the answer.
       }
       return;
     }
@@ -312,11 +451,30 @@ export async function streamAgentMessage(
  * decisions, and the agent holds neither: its tool set cannot write, and the
  * approve path re-runs the Limits Engine before an order is created.
  */
+
+/**
+ * A pending card already exists for this instrument — the server refused to
+ * stack a second one (409 `already_pending`). This is information, not
+ * failure: the caller should point the person at the card that exists, not
+ * paint an error. Carries that existing card when the server sent it.
+ */
+export class AlreadyPendingError extends Error {
+  approval: Approval | null;
+  constructor(approval: Approval | null) {
+    super('This is already waiting in your approvals.');
+    this.name = 'AlreadyPendingError';
+    this.approval = approval;
+  }
+}
+
 export async function createApproval(input: {
   instrumentId: string;
   amountMinor: string;
   title: string;
   body?: string;
+  /** The proposal's own case — becomes the card's one-stage trace server-side. */
+  summary?: string;
+  reasons?: string[];
 }): Promise<{ approval: { id: string } }> {
   const res = await fetch(`${API_URL}/api/approvals`, {
     method: 'POST',
@@ -326,6 +484,11 @@ export async function createApproval(input: {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 409 && body?.error === 'already_pending') {
+      throw new AlreadyPendingError(
+        body.approval && typeof body.approval === 'object' ? (body.approval as Approval) : null,
+      );
+    }
     throw new AgentApiError(
       typeof body?.error === 'string' ? body.error : 'Could not raise that for approval.',
       res.status,
