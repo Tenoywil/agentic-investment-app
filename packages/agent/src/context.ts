@@ -1,6 +1,7 @@
 import { RISK_RANK, type RiskRating, fitsSuitability } from '@ccn/domain';
 import { type LimitsDecision, evaluate } from '@ccn/limits-engine';
 import { type Currency, convert, formatMoney, money } from '@ccn/money';
+import { assessPortfolioFit } from './fit';
 import { type StageTrace, runProposalPipeline } from './pipeline';
 import type { AgentSnapshot, SnapshotInstrument } from './snapshot';
 
@@ -369,6 +370,44 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
         candidates,
         excluded: new Set<string>(),
         fmt: (minor, currency) => formatMoney(money(minor, currency as Currency)),
+        /**
+         * The portfolio-fit assessor over the same snapshot — duplication,
+         * firm/type concentration, currency mismatch. Goals are not in the
+         * snapshot, so the fit's liquidity-vs-goals check simply does not run
+         * on this path (skipped, never guessed).
+         */
+        fit: (c) => {
+          const inst = byId.get(c.instrumentId);
+          return assessPortfolioFit({
+            candidate: {
+              instrumentId: c.instrumentId,
+              name: c.name,
+              type: inst?.type ?? null,
+              region: inst?.region ?? null,
+              currency: c.currency,
+              partnerName: c.partnerName,
+              term: null,
+              minInvestmentMinor: c.minInvestmentMinor,
+            },
+            portfolio: {
+              displayCurrency: display,
+              cashMinor: snapshot.portfolio.cashMinor,
+              netWorthMinor: snapshot.portfolio.netWorthMinor,
+              positions: snapshot.portfolio.positions.map((p) => {
+                const held = byId.get(p.instrumentId);
+                return {
+                  instrumentId: p.instrumentId,
+                  name: held?.name ?? 'a holding',
+                  valueMinor: p.valueMinor,
+                  type: held?.type ?? null,
+                  partnerName: held?.partnerName ?? null,
+                };
+              }),
+            },
+            goals: [],
+            now: new Date(),
+          });
+        },
         gate: (c, amountMinor) => {
           const inst = byId.get(c.instrumentId);
           if (!inst) return { decision: 'blocked' as const, reasons: ['Instrument not found.'] };

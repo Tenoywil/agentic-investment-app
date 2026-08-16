@@ -1,3 +1,4 @@
+import { createCachedResearch } from '@ccn/agent';
 import { demoCustomerAllowlist, describe, loadServerConfig, operatorAllowlist } from '@ccn/config';
 import { createDb } from '@ccn/db';
 import { sql } from 'drizzle-orm';
@@ -195,8 +196,36 @@ await startEventBridge(client, hub);
  * investor's own limits and raise approval cards for what fits. The one part
  * of "discovers, screens and coordinates" that must not wait for a person to
  * open the chat. It proposes only — nothing moves money without an approval.
+ *
+ * The per-asset research pass is wired here and only here, and only when
+ * enabled (AGENT_RESEARCH_TTL_MS > 0): one shared, TTL-cached dossier per
+ * instrument on the `high` model tier, through the same SSRF-guarded fetch as
+ * every other egress. A failed pass degrades the sweep to no research signal
+ * — it never blocks a proposal and never fabricates one.
  */
-startAgentSweep(deps);
+const research =
+  config.AGENT_RESEARCH_TTL_MS > 0
+    ? createCachedResearch({
+        ttlMs: config.AGENT_RESEARCH_TTL_MS,
+        gateway: {
+          baseURL: config.OPENAI_BASE_URL,
+          apiKey: config.OPENAI_API_KEY,
+          defaultModel: config.AI_MODEL,
+          models: {
+            high: config.GATEWAY_MODEL_HIGH,
+            general: config.GATEWAY_MODEL_GENERAL,
+            low: config.GATEWAY_MODEL_LOW,
+          },
+          fetch: createOutboundGuard(config).fetch,
+        },
+        onError: (facts, error) =>
+          logger.warn('instrument research failed; the sweep degrades to no signal', {
+            instrument: facts.name,
+            error,
+          }),
+      })
+    : undefined;
+startAgentSweep({ ...deps, research });
 
 /** Per-connection state: the tenant (fixed at upgrade) and its hub registration. */
 interface WsData {
