@@ -538,7 +538,15 @@ body:has(dialog.app-sheet[open]) {
     display: none !important;
   }
   .app-mobilenav {
+    /* The wrapper, not the <header> inside it, is what sticks: a sticky box is
+       confined to its parent, and this wrapper is exactly one header tall — a
+       sticky child of it has nowhere to travel and simply scrolls away. The
+       console's .console-topbar works because it is a direct child of the
+       full-height shell; this puts the investor bar in the same position. */
     display: block;
+    position: sticky;
+    top: 0;
+    z-index: 30;
   }
   /* On a phone they become a sheet rising from the bottom, so the
      conversation keeps the screen. Stacked under the chat they were the reason

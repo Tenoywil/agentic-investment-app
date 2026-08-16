@@ -258,9 +258,18 @@ export function OverviewTab({
                   <span>Action</span>
                 </span>
               </div>
+              {/* Wrapping, not a rigid three-column row: a settled order's
+                  detail line (units · price · reference · contract note) is
+                  wider than a phone, and in a no-wrap flex row it squeezed the
+                  product name down to a single truncated letter. The name keeps
+                  a readable basis; the amount-and-action cluster drops to its
+                  own right-aligned line when the width runs out. */}
               {orders.slice(0, 3).map((o) => (
-                <div key={o.id} className={`flex items-center gap-3 py-3.5 ${ROW_DIVIDER}`}>
-                  <div className="min-w-0 flex-1">
+                <div
+                  key={o.id}
+                  className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3.5 ${ROW_DIVIDER}`}
+                >
+                  <div className="min-w-0 flex-[1_1_150px]">
                     <div className="truncate text-[14.5px] font-bold">
                       {o.instrumentName ?? 'Order'}
                     </div>
@@ -269,10 +278,10 @@ export function OverviewTab({
                       {timeAgo(o.createdAt)}
                     </div>
                   </div>
-                  <span className="min-w-[78px] text-right font-mono text-sm font-bold">
-                    {fmtMinor(o.amountMinor, o.currency)}
-                  </span>
-                  <div className="flex min-w-[92px] justify-end">
+                  <div className="ml-auto flex min-w-0 items-center justify-end gap-3">
+                    <span className="text-right font-mono text-sm font-bold">
+                      {fmtMinor(o.amountMinor, o.currency)}
+                    </span>
                     <OrderAction
                       order={o}
                       busyId={orderBusyId}

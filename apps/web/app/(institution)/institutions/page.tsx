@@ -495,7 +495,7 @@ export default function InstitutionsPage() {
       />
 
       <main className="min-w-0 flex-1 px-8 pb-[60px] pt-[26px]">
-        <ConsoleHeader partner={partner} tab={tab} />
+        <ConsoleHeader tab={tab} />
 
         <TabsContent value="overview" className="mt-0">
           <OverviewTab
