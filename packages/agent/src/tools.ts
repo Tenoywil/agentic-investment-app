@@ -15,8 +15,12 @@ export const TOOL_NAMES = [
   'get_portfolio',
   'get_activity',
   'get_limits',
+  'get_allocation',
+  'get_goals',
   'search_opportunities',
   'score_suitability',
+  'score_fit',
+  'compare_opportunities',
   'propose_move',
   'run_pipeline',
   'explain',
@@ -63,6 +67,18 @@ export function buildTools(ctx: AgentContext): ToolSet {
       inputSchema: z.object({}),
       execute: async () => ctx.getLimits(),
     }),
+    get_allocation: tool({
+      description:
+        "Get the user's portfolio allocation by asset type (with their band's target mix and the gap against it), by firm, and by currency. The result is shown to the user as a chart — use it for 'how am I invested', 'am I diversified', or any question about the right combination of assets. Don't re-list every number; add your judgment.",
+      inputSchema: z.object({}),
+      execute: async () => ctx.getAllocation(),
+    }),
+    get_goals: tool({
+      description:
+        "Get the user's goals: what each is for, how funded it is, and its horizon. The result is shown to the user as progress charts — use it for 'am I on track' questions. Don't re-list every number; add your judgment.",
+      inputSchema: z.object({}),
+      execute: async () => ctx.getGoals(),
+    }),
     search_opportunities: tool({
       description:
         "Search the regional marketplace, filtered by the user's suitability. Optional free-text query, instrument type, and a maximum risk. Screened-out instruments are flagged, not hidden.",
@@ -77,6 +93,18 @@ export function buildTools(ctx: AgentContext): ToolSet {
       description: "Check whether a specific instrument fits the user's suitability band.",
       inputSchema: z.object({ instrumentId: z.string() }),
       execute: async (input) => ctx.scoreSuitability(input),
+    }),
+    score_fit: tool({
+      description:
+        "Weigh one instrument against the user's own portfolio and goals: a 0-100 fit score with the reasons and concerns behind it (duplication, concentration, currency, goal liquidity, target-mix gap). The result is shown to the user as a card.",
+      inputSchema: z.object({ instrumentId: z.string() }),
+      execute: async (input) => ctx.scoreFit(input),
+    }),
+    compare_opportunities: tool({
+      description:
+        'Compare 2-4 instruments side by side: type, region, risk, headline metric, minimum, executing firm, regulator, suitability, and each one’s portfolio-fit score. The result is shown to the user as a comparison table — use it whenever the user weighs options against each other.',
+      inputSchema: z.object({ instrumentIds: z.array(z.string()).min(2).max(4) }),
+      execute: async (input) => ctx.compareOpportunities(input),
     }),
     propose_move: tool({
       description:

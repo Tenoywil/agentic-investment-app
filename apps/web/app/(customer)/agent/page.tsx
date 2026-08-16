@@ -1,9 +1,14 @@
 'use client';
 
-import { AgentPipeline } from '@/app/_components/AgentPipeline';
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { PENDING_QUESTION_KEY } from '@/app/_components/VoiceAsk';
+import {
+  AgentDisplayCard,
+  TraceDisplay,
+  type TraceScore,
+  extractTraceScores,
+} from '@/app/_components/agent-displays';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -16,8 +21,10 @@ import { useRealtime } from '@/app/_lib/use-realtime';
 import { cn } from '@/app/_lib/utils';
 import {
   AgentApiError,
+  type AgentDisplayData,
   type AgentMessage,
   type AgentProposal,
+  AlreadyPendingError,
   type Approval,
   type ApprovalType,
   approveApproval,
@@ -44,6 +51,7 @@ import {
   ArrowRight,
   CheckCheck,
   CircleAlert,
+  Info,
   Mic,
   SlidersHorizontal,
   Sparkles,
@@ -54,7 +62,38 @@ import {
 import Link from 'next/link';
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 
-type ChatEntry = { role: 'agent' | 'user'; text: string };
+/**
+ * One row of the conversation log: a spoken turn, or a visual card the agent's
+ * tools produced (allocation chart, goal bars, a comparison, a fit score, the
+ * pipeline trace). Cards are their own entries rather than markup inside a
+ * bubble so the log stays append-only and each card keeps a stable position.
+ */
+type ChatEntry =
+  | { role: 'agent' | 'user'; text: string }
+  | { role: 'agent'; display: AgentDisplayData };
+
+/**
+ * What a voice user hears about the cards, which are otherwise silent. Kinds
+ * only — never figures, which the narration would otherwise have to re-read
+ * off a chart that is already on screen.
+ */
+const DISPLAY_NARRATION: Record<AgentDisplayData['kind'], string> = {
+  allocation: 'your allocation breakdown',
+  goals: 'your goal progress',
+  comparison: 'a side-by-side comparison',
+  fit: 'a fit score card',
+  pipeline: 'the step-by-step decision trail',
+};
+
+function narratedDisplays(kinds: AgentDisplayData['kind'][]): string {
+  const nouns = [...new Set(kinds)].map((k) => DISPLAY_NARRATION[k]);
+  if (nouns.length === 0) return '';
+  const list =
+    nouns.length === 1
+      ? nouns[0]
+      : `${nouns.slice(0, -1).join(', ')} and ${nouns[nouns.length - 1]}`;
+  return ` I've also put ${list} on screen for you.`;
+}
 
 /**
  * Plain questions, not analyst shorthand. "Rebalance ideas" assumes the reader
@@ -112,7 +151,7 @@ function formatMoney(minor: string, currency: string): string {
  */
 function decisionTrace(
   snapshot: unknown,
-): { agent: string; summary: string; detail: string[] }[] | null {
+): { stage: string; agent: string; summary: string; detail: string[] }[] | null {
   if (!snapshot || typeof snapshot !== 'object') return null;
   const t = (snapshot as Record<string, unknown>).trace;
   if (!Array.isArray(t)) return null;
@@ -122,6 +161,7 @@ function decisionTrace(
         !!r && typeof r === 'object' && typeof (r as Record<string, unknown>).summary === 'string',
     )
     .map((r) => ({
+      stage: typeof r.stage === 'string' ? r.stage : '',
       agent: typeof r.agent === 'string' ? r.agent : 'Agent',
       summary: r.summary as string,
       detail: Array.isArray(r.detail)
@@ -129,6 +169,69 @@ function decisionTrace(
         : [],
     }));
   return rows.length > 0 ? rows : null;
+}
+
+/**
+ * The executing firm and its regulator off an approval's snapshot, read
+ * defensively like the trace: untyped JSONB, and most cards carry neither.
+ * Nothing is rendered for a missing value — a trust disclosure that invents
+ * its facts would be the opposite of one.
+ */
+function snapshotFirm(snapshot: unknown): { firm: string | null; regulator: string | null } {
+  if (!snapshot || typeof snapshot !== 'object') return { firm: null, regulator: null };
+  const s = snapshot as Record<string, unknown>;
+  const firm =
+    typeof s.partner === 'string'
+      ? s.partner
+      : typeof s.partnerName === 'string'
+        ? s.partnerName
+        : null;
+  return { firm, regulator: typeof s.regulator === 'string' ? s.regulator : null };
+}
+
+/**
+ * "Why trust this?" — the same three facts on every proposal and approval
+ * card: who would execute (when the data names them), what the screening was,
+ * and how CCN is paid. The firm line renders only from real card data, and the
+ * score chips only when the decision trace actually recorded scores.
+ */
+function TrustNote({
+  firm,
+  regulator,
+  scores,
+  className,
+}: {
+  firm?: string | null;
+  regulator?: string | null;
+  scores?: TraceScore[];
+  className?: string;
+}) {
+  return (
+    <details className={cn('rounded-lg bg-muted/60 px-3 py-2', className)}>
+      <summary className="cursor-pointer text-[12.5px] font-bold text-dim">Why trust this?</summary>
+      <div className="mt-1.5 flex flex-col gap-1 text-[12.5px] leading-snug text-dim">
+        {firm && (
+          <p className="m-0">
+            Executed by the licensed firm <b className="text-foreground">{firm}</b>
+            {regulator && <> — regulated by {regulator}</>}, never by CCN.
+          </p>
+        )}
+        <p className="m-0">
+          Screened against your own risk band and limits — not a sales list. Firms don't pay for
+          placement; CCN charges one flat platform fee.
+        </p>
+        {scores && scores.length > 0 && (
+          <div className="mt-0.5 flex flex-wrap gap-1.5">
+            {scores.map((s) => (
+              <Badge key={s.label} variant="secondary" className="font-mono">
+                {s.label} {s.score}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  );
 }
 
 function formatWhen(iso: string): string {
@@ -429,6 +532,8 @@ export default function AgentPage() {
   const [proposals, setProposals] = useState<AgentProposal[]>([]);
   const [raisingId, setRaisingId] = useState<string | null>(null);
   const [raiseError, setRaiseError] = useState<string | null>(null);
+  /** Informational, not an error: e.g. "this card already exists". */
+  const [raiseNote, setRaiseNote] = useState<string | null>(null);
   const [historyState, setHistoryState] = useState<HistoryState>('loading');
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -559,18 +664,53 @@ export default function AgentPage() {
     setChat((c) => [...c, { role: 'user', text: t }, { role: 'agent', text: '' }]);
     scrollToBottom();
 
+    // The reply accumulated locally as well as in state: narration needs the
+    // finished text, and by onDone the log's last entry may be a display card
+    // rather than the bubble that streamed it.
+    let streamed = '';
+    const displayKinds: AgentDisplayData['kind'][] = [];
+
     streamAgentMessage(t, {
       /**
        * A move the agent prepared. It is offered, not taken: raising the
        * approval card is a tap the reader makes, and approving it is a second
        * one. Blocked verdicts are still shown — the guardrail refusing
        * something, with its reasons, is the product working.
+       *
+       * Deduped by instrument: asking twice about the same deal updates the
+       * card the panel already shows instead of stacking a twin under it.
        */
-      onProposal: (proposal) => setProposals((p) => [...p, proposal]),
-      onDelta: (delta) => {
+      onProposal: (proposal) =>
+        setProposals((p) => {
+          const at = p.findIndex((x) => x.instrumentId === proposal.instrumentId);
+          if (at === -1) return [...p, proposal];
+          const next = p.slice();
+          next[at] = proposal;
+          return next;
+        }),
+      /**
+       * A visual card, appended after the text that narrates it (the server
+       * flushes displays post-text). If the placeholder bubble is still empty
+       * — a card-only turn — the card replaces it rather than trailing an
+       * empty speech bubble.
+       */
+      onDisplay: (display) => {
+        displayKinds.push(display.kind);
         setChat((c) => {
           const last = c[c.length - 1];
-          if (!last || last.role !== 'agent') return c;
+          const base =
+            last && last.role === 'agent' && 'text' in last && last.text === ''
+              ? c.slice(0, -1)
+              : c;
+          return [...base, { role: 'agent', display }];
+        });
+        scrollToBottom();
+      },
+      onDelta: (delta) => {
+        streamed += delta;
+        setChat((c) => {
+          const last = c[c.length - 1];
+          if (!last || last.role !== 'agent' || !('text' in last)) return c;
           const next = c.slice();
           next[next.length - 1] = { role: 'agent', text: last.text + delta };
           return next;
@@ -580,20 +720,19 @@ export default function AgentPage() {
       onDone: () => {
         setSending(false);
         // Read the finished reply, not each delta: speaking a token stream
-        // produces stuttering half-words. Narration is a no-op unless the user
-        // switched it on, so nothing ever speaks unasked.
-        setChat((c) => {
-          const last = c[c.length - 1];
-          if (last && last.role === 'agent' && last.text) narration.speak(last.text);
-          return c;
-        });
+        // produces stuttering half-words. Cards are silent visuals, so a voice
+        // user hears that they exist — kinds only, never figures. Narration is
+        // a no-op unless the user switched it on, so nothing speaks unasked.
+        if (streamed) narration.speak(streamed + narratedDisplays(displayKinds));
       },
       onError: (message) => {
         setStreamError(message);
         // Drop the empty placeholder bubble if nothing streamed in before the failure.
         setChat((c) => {
           const last = c[c.length - 1];
-          if (last && last.role === 'agent' && last.text === '') return c.slice(0, -1);
+          if (last && last.role === 'agent' && 'text' in last && last.text === '') {
+            return c.slice(0, -1);
+          }
           return c;
         });
       },
@@ -778,6 +917,19 @@ export default function AgentPage() {
             )}
 
             {chat.map((m, i) => {
+              if ('display' in m) {
+                return (
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
+                    key={i}
+                    // Aligned with the agent bubbles (avatar width + gap), and
+                    // allowed to run wider than prose: charts earn the room.
+                    className="ml-9 min-w-0 max-w-[95%]"
+                  >
+                    <AgentDisplayCard display={m.display} />
+                  </div>
+                );
+              }
               const isLast = i === chat.length - 1;
               const isPending = sending && isLast && m.role === 'agent' && m.text === '';
               return m.role === 'agent' ? (
@@ -948,9 +1100,9 @@ export default function AgentPage() {
                 <span className={cn(UPPR, 'text-foreground')}>Prepared by your agent</span>
               </div>
               <div className="flex flex-col gap-3">
-                {proposals.map((p, i) => (
+                {proposals.map((p) => (
                   <div
-                    key={`${p.instrumentId}-${i}`}
+                    key={p.instrumentId}
                     className="rounded-xl border border-solid border-border p-3.5"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -965,6 +1117,7 @@ export default function AgentPage() {
                         ))}
                       </ul>
                     )}
+                    <TrustNote className="mt-2" />
                     {p.decision === 'blocked' ? (
                       <p className="mt-2 mb-0 text-[12.5px] font-semibold text-terra-ink">
                         Your agent will not prepare this.
@@ -978,6 +1131,7 @@ export default function AgentPage() {
                         onClick={async () => {
                           setRaisingId(p.instrumentId);
                           setRaiseError(null);
+                          setRaiseNote(null);
                           try {
                             await createApproval({
                               instrumentId: p.instrumentId,
@@ -986,16 +1140,38 @@ export default function AgentPage() {
                               amountMinor: p.amountMinor,
                               title: `${p.name} · ${p.amount}`,
                               body: p.summary,
+                              // The engine's own case rides along and becomes
+                              // the card's "How this was decided" trace.
+                              summary: p.summary,
+                              reasons: p.reasons,
                             });
-                            setProposals((list) => list.filter((x) => x !== p));
+                            setProposals((list) =>
+                              list.filter((x) => x.instrumentId !== p.instrumentId),
+                            );
                             const { approvals: rows } = await getApprovals();
                             setApprovals(rows.filter((a) => a.status === 'pending'));
                           } catch (err) {
-                            setRaiseError(
-                              err instanceof Error
-                                ? err.message
-                                : 'Could not raise that for approval.',
-                            );
+                            if (err instanceof AlreadyPendingError) {
+                              // Information, not failure: the card exists, so
+                              // point at it and clear this duplicate offer.
+                              setRaiseNote('Already in your approvals — decide that card first.');
+                              setProposals((list) =>
+                                list.filter((x) => x.instrumentId !== p.instrumentId),
+                              );
+                              try {
+                                const { approvals: rows } = await getApprovals();
+                                setApprovals(rows.filter((a) => a.status === 'pending'));
+                              } catch {
+                                // The note stands; the realtime channel will
+                                // catch the list up.
+                              }
+                            } else {
+                              setRaiseError(
+                                err instanceof Error
+                                  ? err.message
+                                  : 'Could not raise that for approval.',
+                              );
+                            }
                           } finally {
                             setRaisingId(null);
                           }
@@ -1009,6 +1185,18 @@ export default function AgentPage() {
               </div>
               {raiseError && <InlineError>{raiseError}</InlineError>}
             </Card>
+          )}
+
+          {/* Outside the proposals card: raising the last proposal unmounts
+              that card, and this note must outlive it to be read at all. */}
+          {raiseNote && (
+            <p
+              className="m-0 flex items-center gap-2 rounded-xl bg-mint/60 px-3.5 py-2.5 text-[13px] text-foreground dark:bg-white/[0.05]"
+              aria-live="polite"
+            >
+              <Info className="h-4 w-4 flex-none text-teal2" aria-hidden />
+              {raiseNote}
+            </p>
           )}
 
           <Card className="p-5" data-tour="customer-approvals">
@@ -1068,33 +1256,32 @@ export default function AgentPage() {
                     )}
                     {(() => {
                       // "How this was decided": the pipeline's own stage records,
-                      // stored on the approval when it was raised. Absent on
-                      // cards from before the pipeline existed — then no claim
-                      // is rendered, rather than a reconstructed one.
+                      // stored on the approval when it was raised, drawn by the
+                      // same TraceDisplay the chat uses. Absent on cards from
+                      // before the pipeline existed — then no claim is rendered,
+                      // rather than a reconstructed one.
                       const trace = decisionTrace(a.snapshot);
-                      if (!trace) return null;
+                      const { firm, regulator } = snapshotFirm(a.snapshot);
                       return (
-                        <details className="mb-3 rounded-lg bg-muted/60 px-3 py-2">
-                          <summary className="cursor-pointer text-[12.5px] font-bold text-dim">
-                            How this was decided · {trace.length} stage
-                            {trace.length === 1 ? '' : 's'}
-                          </summary>
-                          <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
-                            {trace.map((s) => (
-                              <li key={s.agent} className="text-[12.5px] leading-snug">
-                                <b className="text-foreground">{s.agent}</b>{' '}
-                                <span className="text-dim">{s.summary}</span>
-                                {s.detail.length > 0 ? (
-                                  <ul className="m-0 mt-0.5 list-disc pl-4 text-faint">
-                                    {s.detail.map((d) => (
-                                      <li key={d}>{d}</li>
-                                    ))}
-                                  </ul>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ol>
-                        </details>
+                        <>
+                          {trace && (
+                            <details className="mb-3 rounded-lg bg-muted/60 px-3 py-2">
+                              <summary className="cursor-pointer text-[12.5px] font-bold text-dim">
+                                How this was decided · {trace.length} stage
+                                {trace.length === 1 ? '' : 's'}
+                              </summary>
+                              <div className="mt-2">
+                                <TraceDisplay trace={trace} />
+                              </div>
+                            </details>
+                          )}
+                          <TrustNote
+                            className="mb-3"
+                            firm={firm}
+                            regulator={regulator}
+                            scores={trace ? extractTraceScores(trace) : []}
+                          />
+                        </>
                       );
                     })()}
                     {actionError && (
@@ -1144,10 +1331,17 @@ export default function AgentPage() {
         </dialog>
       </div>
 
-      {/* The five-step pipeline, moved here from the home dashboard: the one
-          screen where someone is actually asking how the agent works. */}
+      {/* The full explainer lives on its own page now — the chat's trace and
+          trust disclosures show the pipeline per decision, so a static
+          five-step block here repeated what the cards already demonstrate. */}
       <div className="mt-[18px]">
-        <AgentPipeline />
+        <Link
+          href="/how-it-works"
+          className="flex items-center justify-between gap-2 rounded-xl border border-solid border-border bg-card px-4 py-3 text-[13.5px] font-semibold text-teal2 hover:bg-muted"
+        >
+          How your agent works
+          <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
+        </Link>
       </div>
     </AppScreen>
   );

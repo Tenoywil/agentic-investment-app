@@ -1,6 +1,7 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { PartnerMark, markFor, usePartnerMarks } from '@/app/_components/PartnerMark';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
@@ -28,28 +29,9 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ConnectAccountDialog } from './connect-account';
-
-/**
- * Deterministic badge tint/color per partner code, matching the prototype's
- * institution palette. Falls back to a rotating palette for partner codes
- * outside the known set (e.g. a newly linked account) since the API doesn't
- * carry a display color — only code/name/holdings.
- */
-const PARTNER_STYLE: Record<string, { tint: string; color: string }> = {
-  NCB: { tint: '#e7edf8', color: '#1a4aa0' },
-  SAG: { tint: '#e6f2ea', color: '#1f7a44' },
-  PRV: { tint: '#f6efe0', color: '#9a6a1e' },
-  JMMB: { tint: '#fae8e6', color: '#c4362b' },
-};
-const FALLBACK_STYLES = [
-  { tint: '#e7edf8', color: '#1a4aa0' },
-  { tint: '#e6f2ea', color: '#1f7a44' },
-  { tint: '#f6efe0', color: '#9a6a1e' },
-  { tint: '#fae8e6', color: '#c4362b' },
-];
-const DEFAULT_STYLE = { tint: '#e7edf8', color: '#1a4aa0' };
 
 const CURRENCY_OPTIONS: Currency[] = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
 
@@ -120,10 +102,6 @@ function AllocationBreakdown({ slices }: { slices: AllocationSlice[] }) {
       </ul>
     </Card>
   );
-}
-
-function partnerStyle(code: string, index: number): { tint: string; color: string } {
-  return PARTNER_STYLE[code] ?? FALLBACK_STYLES[index % FALLBACK_STYLES.length] ?? DEFAULT_STYLE;
 }
 
 /**
@@ -342,6 +320,8 @@ export default function PortfolioPage() {
   const [data, setData] = useState<Portfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Brand marks for the connected firms — one cached read, decorative only. */
+  const marks = usePartnerMarks();
   // Display currency is a server concern: @ccn/money does the conversion so the
   // client never re-implements FX. Changing it refetches rather than converting
   // the numbers we already hold.
@@ -701,17 +681,22 @@ export default function PortfolioPage() {
 
       {data && data.partners.length > 0 && (
         <div className="g2">
-          {data.partners.map((inst, index) => {
-            const style = partnerStyle(inst.code, index);
+          {data.partners.map((inst) => {
+            const mark = markFor(marks, { code: inst.code, name: inst.name });
             return (
               <Card key={inst.code} className="p-[22px]">
                 <div className="mb-3 flex items-center gap-3">
-                  <span
-                    className="grid h-10 w-10 flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
-                    style={{ background: style.tint, color: style.color }}
-                  >
-                    {inst.code}
-                  </span>
+                  {/* The firm's own mark: its uploaded logo when it has one,
+                      its monogram tile otherwise. */}
+                  <PartnerMark
+                    name={inst.name}
+                    code={inst.code}
+                    id={mark?.id}
+                    hasLogo={mark?.hasLogo}
+                    color={mark?.color}
+                    tint={mark?.tint}
+                    size="md"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="text-[15px] font-bold">{inst.name}</div>
                     {inst.kind && <div className="text-[12.5px] text-faint">{inst.kind}</div>}
@@ -838,13 +823,17 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      <div className="mt-[18px] flex items-start gap-3.5 rounded-2xl border border-border bg-mint px-[22px] py-[18px]">
-        <ShieldCheck className="mt-0.5 h-[22px] w-[22px] flex-none text-teal2" aria-hidden />
-        <p className="m-0 text-[14.5px] leading-relaxed text-dim">
-          <b className="text-foreground">Held at licensed, regulated partners.</b> Every instrument
-          is custodied and executed by a regulated institution. Your agent coordinates and monitors;
-          you approve every move.
-        </p>
+      {/* One line, not a paragraph: the full custody explanation lives on
+          /how-it-works, and repeating it here cost a phone half a screen. */}
+      <div className="mt-[18px] flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border bg-mint px-4 py-2.5 text-[13.5px] text-dim">
+        <ShieldCheck className="h-4 w-4 flex-none text-teal2" aria-hidden />
+        <span className="min-w-0">Held and executed by licensed partners — never by CCN.</span>
+        <Link
+          href="/how-it-works"
+          className="font-bold text-teal2 no-underline underline-offset-4 hover:underline"
+        >
+          How it works →
+        </Link>
       </div>
     </AppScreen>
   );

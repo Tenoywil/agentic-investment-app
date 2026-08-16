@@ -1,7 +1,15 @@
-import { RISK_RANK, type RiskRating, fitsSuitability } from '@ccn/domain';
+import {
+  MIX_KEYS,
+  type MixKey,
+  RISK_RANK,
+  type RiskRating,
+  fitsSuitability,
+  mixKeyFor,
+  targetMixFor,
+} from '@ccn/domain';
 import { type LimitsDecision, evaluate } from '@ccn/limits-engine';
 import { type Currency, convert, formatMoney, money } from '@ccn/money';
-import { assessPortfolioFit } from './fit';
+import { type FitResult, assessPortfolioFit } from './fit';
 import { type StageTrace, runProposalPipeline } from './pipeline';
 import type { AgentSnapshot, SnapshotInstrument } from './snapshot';
 
@@ -16,12 +24,23 @@ export interface AgentContext {
   getPortfolio(): PortfolioView;
   getActivity(): ActivityView;
   getLimits(): LimitsView;
+  /** Allocation by type / firm / currency, with the band's target mix and the
+   *  gaps against it — the "what combination should I hold" answer, computed
+   *  from policy data (@ccn/domain TARGET_MIX), never by the model. */
+  getAllocation(): AllocationView;
+  /** The person's goals: funding progress and horizon. */
+  getGoals(): GoalsView;
   searchOpportunities(input: SearchInput): OpportunityView[];
   scoreSuitability(input: { instrumentId: string }): SuitabilityView;
+  /** The portfolio-fit verdict for one instrument — score, reasons, concerns. */
+  scoreFit(input: { instrumentId: string }): FitView;
+  /** Side-by-side comparison of 2-4 instruments, fit scores included. */
+  compareOpportunities(input: { instrumentIds: string[] }): ComparisonView;
   proposeMove(input: { instrumentId: string; amountMinor: number }): ProposalView;
-  /** Run the three-specialist pipeline (research → suitability → coordination)
-   *  over the whole marketplace snapshot. Read/propose only, like everything
-   *  here — the outcome is a recommendation with its working shown. */
+  /** Run the multi-specialist pipeline (research → fit → suitability →
+   *  coordination) over the whole marketplace snapshot. Read/propose only,
+   *  like everything here — the outcome is a recommendation with its working
+   *  shown. */
   scoutMarketplace(): Promise<ScoutView>;
   explain(input: { topic: ExplainTopic }): { topic: ExplainTopic; explanation: string };
 }
@@ -96,6 +115,72 @@ export interface ActivityView {
   connections: { partner: string; status: string; state: string }[];
 }
 
+/**
+ * One allocation slice, chart-ready: the minor units survive as a string (for
+ * anything that needs the number back), the formatted value reads on screen,
+ * and pct is a real number a bar can be drawn from.
+ */
+export interface AllocationSliceView {
+  key: string;
+  label: string;
+  valueMinor: string;
+  value: string;
+  pct: number;
+}
+
+export interface AllocationView {
+  currency: string;
+  total: string;
+  band: string;
+  /** By instrument type, each slice carrying the band's target and the gap —
+   *  the current-vs-target picture the combination is steered by. */
+  byType: (AllocationSliceView & { targetPct: number; gapPts: number })[];
+  byPartner: AllocationSliceView[];
+  byCurrency: AllocationSliceView[];
+}
+
+export interface GoalView {
+  name: string;
+  target: string;
+  current: string;
+  targetMinor: string;
+  currentMinor: string;
+  /** Funded percentage, 0-100, computed from the two amounts. */
+  pct: number;
+  eta: string | null;
+}
+export interface GoalsView {
+  goals: GoalView[];
+}
+
+export interface FitView {
+  instrumentId: string;
+  name: string;
+  score: number;
+  reasons: string[];
+  concerns: string[];
+}
+
+export interface ComparisonRow {
+  instrumentId: string;
+  name: string;
+  type: string;
+  region: string | null;
+  risk: RiskRating;
+  metricLabel: string | null;
+  metric: string | null;
+  minimum: string;
+  partner: string | null;
+  regulator: string | null;
+  suitable: boolean;
+  fitScore: number;
+  topReason: string | null;
+  topConcern: string | null;
+}
+export interface ComparisonView {
+  rows: ComparisonRow[];
+}
+
 /** The pipeline's outcome for the chat: the stages' visible records plus the
  *  chosen candidate (or none), ready for the model to narrate faithfully. */
 export interface ScoutView {
@@ -154,6 +239,48 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
 
   const day = (iso: string): string =>
     new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const pctOf = (part: bigint, whole: bigint): number =>
+    whole > 0n ? Number((part * 10_000n) / whole) / 100 : 0;
+
+  /** The fit agent over this snapshot — the same assessor the background
+   *  sweep runs, with the snapshot's own goals and band. */
+  const fitFor = (inst: SnapshotInstrument): FitResult =>
+    assessPortfolioFit({
+      candidate: {
+        instrumentId: inst.id,
+        name: inst.name,
+        type: inst.type,
+        region: inst.region,
+        currency: inst.currency,
+        partnerName: inst.partnerName,
+        term: null,
+        minInvestmentMinor: inst.minInvestmentMinor,
+      },
+      portfolio: {
+        displayCurrency: display,
+        cashMinor: snapshot.portfolio.cashMinor,
+        netWorthMinor: snapshot.portfolio.netWorthMinor,
+        positions: snapshot.portfolio.positions.map((p) => {
+          const held = byId.get(p.instrumentId);
+          return {
+            instrumentId: p.instrumentId,
+            name: held?.name ?? 'a holding',
+            valueMinor: p.valueMinor,
+            type: held?.type ?? null,
+            partnerName: held?.partnerName ?? null,
+          };
+        }),
+      },
+      goals: snapshot.goals,
+      band: snapshot.band,
+      now: new Date(),
+    });
+
+  /** A pending card already exists for this instrument — the one thing the
+   *  agent must never do is stack a second one on top of it. */
+  const pendingCardFor = (instrumentId: string) =>
+    snapshot.activity.approvals.find((a) => a.instrumentId === instrumentId);
 
   return {
     getActivity() {
@@ -219,6 +346,118 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
       };
     },
 
+    getAllocation() {
+      const total = snapshot.portfolio.netWorthMinor;
+      const target = targetMixFor(snapshot.band);
+
+      const byTypeMinor = new Map<MixKey, bigint>([['cash', snapshot.portfolio.cashMinor]]);
+      const byPartnerMinor = new Map<string, bigint>();
+      const byCurrencyMinor = new Map<string, bigint>([[display, snapshot.portfolio.cashMinor]]);
+      for (const p of snapshot.portfolio.positions) {
+        const inst = byId.get(p.instrumentId);
+        const key = mixKeyFor(inst?.type ?? null);
+        if (key !== null) byTypeMinor.set(key, (byTypeMinor.get(key) ?? 0n) + p.valueMinor);
+        const firm = inst?.partnerName ?? 'Unlinked holdings';
+        byPartnerMinor.set(firm, (byPartnerMinor.get(firm) ?? 0n) + p.valueMinor);
+        const ccy = inst?.currency ?? display;
+        byCurrencyMinor.set(ccy, (byCurrencyMinor.get(ccy) ?? 0n) + p.valueMinor);
+      }
+
+      const TYPE_LABELS: Record<MixKey, string> = {
+        cash: 'Cash',
+        bond: 'Fixed income',
+        fund: 'Funds',
+        equity: 'Equities',
+        real_estate: 'Real estate',
+        private: 'Private markets',
+      };
+      const slice = (key: string, label: string, valueMinor: bigint): AllocationSliceView => ({
+        key,
+        label,
+        valueMinor: valueMinor.toString(),
+        value: fmt(valueMinor),
+        pct: pctOf(valueMinor, total),
+      });
+
+      return {
+        currency: display,
+        total: fmt(total),
+        band: snapshot.band,
+        // Every mix key appears, held or not: a 0% row with a 30% target IS
+        // the allocation gap, and hiding it hides the point.
+        byType: MIX_KEYS.map((key) => {
+          const valueMinor = byTypeMinor.get(key) ?? 0n;
+          const base = slice(key, TYPE_LABELS[key], valueMinor);
+          return {
+            ...base,
+            targetPct: target[key],
+            gapPts: Math.round((target[key] - base.pct) * 10) / 10,
+          };
+        }),
+        byPartner: [...byPartnerMinor.entries()]
+          .sort((a, b) => (a[1] < b[1] ? 1 : -1))
+          .map(([firm, valueMinor]) => slice(firm, firm, valueMinor)),
+        byCurrency: [...byCurrencyMinor.entries()]
+          .sort((a, b) => (a[1] < b[1] ? 1 : -1))
+          .map(([ccy, valueMinor]) => slice(ccy, ccy, valueMinor)),
+      };
+    },
+
+    getGoals() {
+      return {
+        goals: snapshot.goals.map((g) => ({
+          name: g.name,
+          target: fmt(g.targetMinor),
+          current: fmt(g.currentMinor),
+          targetMinor: g.targetMinor.toString(),
+          currentMinor: g.currentMinor.toString(),
+          pct: g.targetMinor > 0n ? Math.min(100, pctOf(g.currentMinor, g.targetMinor)) : 0,
+          eta: g.eta,
+        })),
+      };
+    },
+
+    scoreFit({ instrumentId }) {
+      const inst = byId.get(instrumentId);
+      if (!inst) {
+        return {
+          instrumentId,
+          name: 'unknown',
+          score: 0,
+          reasons: [],
+          concerns: ['Instrument not found.'],
+        };
+      }
+      const fit = fitFor(inst);
+      return { instrumentId, name: inst.name, ...fit };
+    },
+
+    compareOpportunities({ instrumentIds }) {
+      const rows: ComparisonRow[] = [];
+      for (const id of instrumentIds.slice(0, 4)) {
+        const inst = byId.get(id);
+        if (!inst) continue;
+        const fit = fitFor(inst);
+        rows.push({
+          instrumentId: inst.id,
+          name: inst.name,
+          type: inst.type,
+          region: inst.region,
+          risk: inst.risk,
+          metricLabel: inst.metricLabel,
+          metric: inst.metric,
+          minimum: formatMoney(convert(money(inst.minInvestmentMinor, inst.currency), display)),
+          partner: inst.partnerName,
+          regulator: inst.regulator,
+          suitable: !inst.blocked && fitsSuitability(snapshot.band, inst.risk),
+          fitScore: fit.score,
+          topReason: fit.reasons[0] ?? null,
+          topConcern: fit.concerns[0] ?? null,
+        });
+      }
+      return { rows };
+    },
+
     getLimits() {
       const l = snapshot.limits;
       return {
@@ -282,6 +521,19 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
     proposeMove({ instrumentId, amountMinor }) {
       const inst = byId.get(instrumentId);
       const amount = money(BigInt(Math.trunc(amountMinor)), display);
+      const pending = pendingCardFor(instrumentId);
+      if (pending && inst) {
+        return {
+          instrumentId,
+          name: inst.name,
+          amount: formatMoney(amount),
+          decision: 'blocked',
+          code: 'already_pending',
+          reasons: [`"${pending.title}" is already waiting in your approvals.`],
+          requiresHumanApproval: true,
+          summary: `This is already waiting in your approvals — decide that card first. I won't stack a second card for the same move.`,
+        };
+      }
       if (!inst) {
         return {
           instrumentId,
@@ -366,47 +618,28 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
           minInvestmentMinor: i.minInvestmentMinor,
           currency: i.currency as string,
         }));
+      /**
+       * The same quiet discipline as the background sweep: instruments with a
+       * pending card or inside the 14-day window, plus everything already
+       * held, are not candidates. A conversation must not recreate a deal
+       * that already exists — deepening a held position stays possible, but
+       * only when the person asks about that instrument directly.
+       */
+      const excluded = new Set<string>([
+        ...snapshot.quietInstrumentIds,
+        ...snapshot.portfolio.positions.map((p) => p.instrumentId),
+      ]);
       const outcome = await runProposalPipeline({
         candidates,
-        excluded: new Set<string>(),
+        excluded,
         fmt: (minor, currency) => formatMoney(money(minor, currency as Currency)),
-        /**
-         * The portfolio-fit assessor over the same snapshot — duplication,
-         * firm/type concentration, currency mismatch. Goals are not in the
-         * snapshot, so the fit's liquidity-vs-goals check simply does not run
-         * on this path (skipped, never guessed).
-         */
+        /** The portfolio-fit assessor over the same snapshot — with the
+         *  snapshot's own goals and band, so the liquidity and target-mix
+         *  checks run here exactly as they do in the background sweep. */
         fit: (c) => {
           const inst = byId.get(c.instrumentId);
-          return assessPortfolioFit({
-            candidate: {
-              instrumentId: c.instrumentId,
-              name: c.name,
-              type: inst?.type ?? null,
-              region: inst?.region ?? null,
-              currency: c.currency,
-              partnerName: c.partnerName,
-              term: null,
-              minInvestmentMinor: c.minInvestmentMinor,
-            },
-            portfolio: {
-              displayCurrency: display,
-              cashMinor: snapshot.portfolio.cashMinor,
-              netWorthMinor: snapshot.portfolio.netWorthMinor,
-              positions: snapshot.portfolio.positions.map((p) => {
-                const held = byId.get(p.instrumentId);
-                return {
-                  instrumentId: p.instrumentId,
-                  name: held?.name ?? 'a holding',
-                  valueMinor: p.valueMinor,
-                  type: held?.type ?? null,
-                  partnerName: held?.partnerName ?? null,
-                };
-              }),
-            },
-            goals: [],
-            now: new Date(),
-          });
+          if (!inst) return { score: 0, reasons: [], concerns: ['Unknown instrument.'] };
+          return fitFor(inst);
         },
         gate: (c, amountMinor) => {
           const inst = byId.get(c.instrumentId);

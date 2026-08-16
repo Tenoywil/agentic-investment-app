@@ -106,6 +106,18 @@ pipeline, not just of one feature.
 SQL, and no down-migrations are written. Recovering a bad migration today means
 writing a corrective forward migration, or restoring from Supabase PITR.
 
+### 0029 dedupes existing data before it constrains new data
+
+`0029_one_pending_card_per_instrument` marks older duplicate PENDING approvals
+(same user, same instrument) as `expired` and duplicate live gateway
+introduction requests as `rejected · duplicate request` before creating its
+partial unique indexes. On a production database that has accumulated
+duplicates, that pre-flight UPDATE is the migration doing its job — check
+`SELECT count(*) FROM approvals WHERE status = 'expired'` afterwards if the
+number matters for reporting. The indexes only constrain `pending`/`requested`
+rows; decided cards and introductions are untouched and re-proposals after a
+decision remain possible.
+
 ### Seeding is deliberately not automated
 
 `db:seed` is **not** in `preDeployCommand` — it is a one-time/manual step, and

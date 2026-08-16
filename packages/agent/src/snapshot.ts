@@ -71,9 +71,22 @@ export interface SnapshotOrder {
 export interface SnapshotApproval {
   id: string;
   title: string;
+  /** What the card proposes buying — the machine-checkable half the agent
+   *  needs to avoid re-proposing something already waiting. Null for cards
+   *  that aren't about an instrument (fund transfers, plan enrollments). */
+  instrumentId: string | null;
   amountMinor: bigint | null;
   currency: Currency;
   createdAt: string;
+}
+
+/** A goal as the agent sees it: what it's for, how funded, and by when. */
+export interface SnapshotGoal {
+  name: string;
+  targetMinor: bigint;
+  currentMinor: bigint;
+  /** Free-text ETA label, e.g. "On track · mid-2028". */
+  eta: string | null;
 }
 
 export interface SnapshotConnection {
@@ -95,4 +108,14 @@ export interface AgentSnapshot {
   band: RiskBand;
   instruments: SnapshotInstrument[];
   activity: SnapshotActivity;
+  /** The person's goals — what the money is for. Read by the fit agent
+   *  (liquidity vs. a dated goal) and the goals view. */
+  goals: SnapshotGoal[];
+  /**
+   * Instruments the agent must not re-propose: anything with a pending
+   * approval, plus approvals and orders inside the quiet window. The same
+   * discipline the background sweep applies, so the chat's pipeline cannot
+   * recreate a deal that already exists.
+   */
+  quietInstrumentIds: string[];
 }

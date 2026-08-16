@@ -575,18 +575,54 @@ export function gatewayRoutes(deps: AppDeps, limit: Limit): Hono<AppEnv> {
         .where(and(eq(gatewayMatches.id, id), eq(gatewayMatches.userId, tenant.user.id)));
       if (!match) return { status: 404 as const, body: { error: 'match not found' } };
 
-      const introduction = firstOrThrow(
-        await tx
-          .insert(gatewayIntroductionRequests)
-          .values({
-            matchId: match.id,
-            userId: tenant.user.id,
-            opportunityId: match.opportunityId,
-            note: parsed.data.note ?? null,
-          })
-          .returning(),
-        'gateway_introduction_requests',
-      );
+      /**
+       * A second request while the first is live is a duplicate, not a new
+       * intention — and because deals are unique per *request*, two approved
+       * requests for one match used to become two deals for the same
+       * opportunity. `requested` blocks a resend; `approved` blocks
+       * re-requesting a match that already has its introduction.
+       */
+      const [existing] = await tx
+        .select()
+        .from(gatewayIntroductionRequests)
+        .where(
+          and(
+            eq(gatewayIntroductionRequests.matchId, match.id),
+            inArray(gatewayIntroductionRequests.status, ['requested', 'approved']),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        return {
+          status: 409 as const,
+          body: { error: 'already_requested', introduction: existing },
+        };
+      }
+
+      const inserted = await tx
+        .insert(gatewayIntroductionRequests)
+        .values({
+          matchId: match.id,
+          userId: tenant.user.id,
+          opportunityId: match.opportunityId,
+          note: parsed.data.note ?? null,
+        })
+        // The partial unique index (0029) catches the race the read above
+        // cannot; an empty return means the other request now exists.
+        .onConflictDoNothing()
+        .returning();
+      const introduction = inserted[0];
+      if (!introduction) {
+        const [raced] = await tx
+          .select()
+          .from(gatewayIntroductionRequests)
+          .where(eq(gatewayIntroductionRequests.matchId, match.id))
+          .limit(1);
+        return {
+          status: 409 as const,
+          body: { error: 'already_requested', introduction: raced },
+        };
+      }
       await auditAppend(tx, {
         actorType: 'user',
         actorId: tenant.user.id,

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  customType,
   date,
   integer,
   numeric,
@@ -52,6 +53,11 @@ export const partners = pgTable('partners', {
   gctBps: integer('gct_bps').notNull().default(0),
   color: text('color'),
   tint: text('tint'),
+  /** The firm's logo bytes (<=256KB, CHECK-enforced; 0030). Null → the UI
+   *  renders the firm's monogram mark in its brand color instead. Written
+   *  only through partner_update_logo. */
+  logo: customType<{ data: Uint8Array }>({ dataType: () => 'bytea' })('logo'),
+  logoMime: text('logo_mime'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

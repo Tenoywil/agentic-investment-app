@@ -166,6 +166,24 @@ export async function partnerUpdateProfile(
   return row;
 }
 
+/**
+ * partner_update_logo: the firm's own brand mark. Bytes and mime travel
+ * together (both null clears the logo; the function and a table CHECK both
+ * enforce the pairing). Partner-scoped and audited inside the function, same
+ * discipline as partner_update_profile.
+ */
+export async function partnerUpdateLogo(
+  tx: Transaction,
+  args: { logo: Uint8Array | null; mime: string | null },
+): Promise<PartnerRow> {
+  const rows = (await tx.execute(
+    sql`select * from partner_update_logo(${args.logo}::bytea, ${args.mime}::text)`,
+  )) as unknown as PartnerRow[];
+  const row = rows[0];
+  if (!row) throw new Error('partner_update_logo returned no row');
+  return row;
+}
+
 /** A `withdrawal_requests` row as the functions return it (snake_case). */
 export interface WithdrawalRow {
   id: string;

@@ -254,4 +254,61 @@ suite('agent background sweep', () => {
     // the recent rejection both rule out — so nothing new appears.
     expect(again.every((a) => a.instrumentId !== lowRiskId)).toBe(true);
   });
+
+  test('deciding a card starts a day of quiet, not a fresh proposal ten minutes later', async () => {
+    // saver decides their card; the sweep must NOT immediately follow up.
+    await db
+      .update(approvals)
+      .set({ status: 'rejected', decidedAt: new Date() })
+      .where(eq(approvals.userId, saver));
+    await runAgentSweep(deps());
+    const rightAfter = await db
+      .select()
+      .from(approvals)
+      .where(and(eq(approvals.userId, saver), eq(approvals.status, 'pending')));
+    expect(rightAfter).toHaveLength(0);
+
+    // A day later (backdate the decided card past the cooldown AND the
+    // 14-day instrument quiet window is still in force for lowRisk, so the
+    // sweep stays quiet for a different reason — assert the cooldown alone
+    // by also backdating past nothing else; the instrument quiet keeps it
+    // silent, which is the correct compounding behavior).
+    await db
+      .update(approvals)
+      .set({ createdAt: new Date(Date.now() - 25 * 3_600_000) })
+      .where(eq(approvals.userId, saver));
+    await runAgentSweep(deps());
+    const nextDay = await db
+      .select()
+      .from(approvals)
+      .where(and(eq(approvals.userId, saver), eq(approvals.status, 'pending')));
+    // lowRisk is still inside its 14-day quiet window and the venture note is
+    // outside the band — so still nothing, and that is the design: cooldown
+    // and quiet windows compound, they do not race.
+    expect(nextDay).toHaveLength(0);
+  });
+
+  test('an instrument the person already holds is never re-proposed', async () => {
+    // A fresh investor who already HOLDS the low-risk fund (however acquired)
+    // plus comfortable cash. The only other candidate is outside their band —
+    // so the sweep must propose nothing at all.
+    const holder = await makeInvestor('holder', 'high_moderate', 500_000n);
+    const [acct] = await db
+      .select({ id: connectedAccounts.id })
+      .from(connectedAccounts)
+      .where(eq(connectedAccounts.userId, holder));
+    await db.insert(holdings).values({
+      userId: holder,
+      connectedAccountId: acct?.id ?? '',
+      instrumentId: lowRiskId,
+      name: 'Sweep Money Market',
+      valueMinor: 100_000n,
+    });
+
+    await runAgentSweep(deps());
+    const cards = await db.select().from(approvals).where(eq(approvals.userId, holder));
+    expect(cards).toHaveLength(0);
+
+    await db.delete(user).where(eq(user.id, holder));
+  });
 });

@@ -34,6 +34,7 @@ import {
   partnerDecideWithdrawal,
   partnerReviewClient,
   partnerToggleInstrument,
+  partnerUpdateLogo,
   partnerUpdateProfile,
   partnerUpsertInstrument,
   reconcileMatch,
@@ -247,6 +248,50 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         gctBps: row.gct_bps,
       },
     });
+  });
+
+  /**
+   * The firm's own logo — the one piece of brand identity an operator owns
+   * outright. Base64 in JSON like the KYC document upload; `data: null`
+   * clears it and the monogram mark returns. Size and mime are validated
+   * here for a readable error and again by table CHECKs (0030) for the
+   * callers that aren't this route.
+   */
+  app.put('/partner/logo', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const body = (await c.req.json().catch(() => null)) as {
+      mime?: unknown;
+      data?: unknown;
+    } | null;
+    if (!body) return c.json({ error: 'invalid request' }, 400);
+
+    if (body.data === null) {
+      await withTenant(deps, tenant, (tx) => partnerUpdateLogo(tx, { logo: null, mime: null }));
+      return c.json({ ok: true, hasLogo: false });
+    }
+
+    const mime = typeof body.mime === 'string' ? body.mime : '';
+    if (!['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'].includes(mime)) {
+      return c.json({ error: 'the logo must be a PNG, JPEG, SVG or WebP image' }, 400);
+    }
+    if (typeof body.data !== 'string') return c.json({ error: 'invalid request' }, 400);
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(body.data), (ch) => ch.charCodeAt(0));
+    } catch {
+      return c.json({ error: 'the file data is not valid base64' }, 400);
+    }
+    if (bytes.length === 0) return c.json({ error: 'the file is empty' }, 400);
+    if (bytes.length > 256 * 1024) {
+      return c.json({ error: 'the logo must be 256KB or smaller' }, 400);
+    }
+
+    await withTenant(deps, tenant, (tx) => partnerUpdateLogo(tx, { logo: bytes, mime }));
+    return c.json({ ok: true, hasLogo: true });
   });
 
   /**

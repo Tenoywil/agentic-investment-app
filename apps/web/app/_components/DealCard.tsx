@@ -1,9 +1,10 @@
 'use client';
 
+import { PartnerMark } from '@/app/_components/PartnerMark';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { cn } from '@/app/_lib/utils';
-import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 
 /**
  * The deal card — one component for the live marketplace and the demo, so the
@@ -45,6 +46,17 @@ const RISK_VARIANT: Record<string, BadgeProps['variant']> = {
   High: 'terra',
 };
 
+/** The executing firm's brand mark fields, when the screen has loaded the
+ *  partner-marks list. Absent (the demo, a failed read) the mark falls back
+ *  to a monogram derived deterministically from the firm's name. */
+export interface DealCardMark {
+  id?: string | null;
+  code?: string | null;
+  hasLogo?: boolean;
+  color?: string | null;
+  tint?: string | null;
+}
+
 export interface DealCardData {
   id: string;
   abbr: string;
@@ -61,6 +73,7 @@ export interface DealCardData {
   partner: string;
   regulator: string | null;
   risk: string;
+  mark?: DealCardMark;
 }
 
 export function DealCard({
@@ -129,9 +142,19 @@ export function DealCard({
         </div>
       ) : null}
 
-      {/* Who executes, who supervises them — the region's trust question. */}
+      {/* Who executes, who supervises them — the region's trust question.
+          The firm's own mark leads the line: logo when it uploaded one,
+          otherwise its monogram tile. */}
       <div className="mt-4 flex items-center gap-2 text-[13px] text-dim">
-        <ShieldCheck className="h-4 w-4 flex-none text-teal2" aria-hidden />
+        <PartnerMark
+          name={o.partner}
+          size="sm"
+          code={o.mark?.code}
+          id={o.mark?.id}
+          hasLogo={o.mark?.hasLogo}
+          color={o.mark?.color}
+          tint={o.mark?.tint}
+        />
         <span className="min-w-0 truncate">
           {o.partner}
           {o.regulator ? ` · ${o.regulator}` : ''}
@@ -151,19 +174,20 @@ export function DealCard({
 
 /**
  * The screened-out card — a DealCard sibling, not a stranger. It shares the
- * family's grammar (chips left, mono abbr right, name then region) so the eye
- * reads it as "a deal, in a different state" rather than a foreign widget, and
- * keeps the terra edge as that state's mark.
+ * family's grammar (chips left, mono abbr right, name then region, the firm's
+ * mark on the trust line) so the eye reads it as "a deal, in a different
+ * state" rather than a foreign widget, and keeps the terra edge as that
+ * state's mark.
  *
- * Two deliberate differences from the old version:
+ * Deliberate choices:
  *
- *  - The agent's sentence is attributed. "I recommend against this…" was
- *    rendered as anonymous body copy; it is the agent speaking, and marking
- *    the speaker is what makes the refusal legible as advice.
- *  - The action is quiet. A filled orange button on the one product you
- *    cannot buy shouted as loudly as "Review & invest" on the ones you can —
- *    two rival primaries in one view. Explaining a refusal is a secondary
- *    act, so it gets a text link, in the state's own color.
+ *  - The block reasons are compact chips, not prose bullets — each one is a
+ *    scannable verdict in the state's own warm warning tones, matching the
+ *    chip grammar the deal cards already speak.
+ *  - The agent's sentence is attributed. It is the agent speaking, and
+ *    marking the speaker is what makes the refusal legible as advice.
+ *  - The action is quiet: a text link in the state's color, never a rival
+ *    primary beside "Review & invest".
  */
 export function ScreenedOutCard({
   o,
@@ -174,8 +198,14 @@ export function ScreenedOutCard({
     type: string;
     name: string;
     region: string | null;
+    /** The executing firm, when the listing names one. */
+    partner?: string | null;
+    regulator?: string | null;
+    mark?: DealCardMark;
     /** The agent's own words on why it will not prepare this. */
     note: string | null;
+    /** The screen's block reasons, rendered as chips. */
+    reasons?: string[];
   };
   onOpen: () => void;
 }) {
@@ -197,9 +227,43 @@ export function ScreenedOutCard({
       <div className="font-display text-[17px] font-bold leading-snug">{o.name}</div>
       {o.region ? <div className="mt-0.5 text-[13px] text-faint">{o.region}</div> : null}
 
+      {/* Who would execute it — same trust line as a live deal card, because a
+          refused product is still a real product at a real firm. */}
+      {o.partner ? (
+        <div className="mt-3 flex items-center gap-2 text-[13px] text-dim">
+          <PartnerMark
+            name={o.partner}
+            size="sm"
+            code={o.mark?.code}
+            id={o.mark?.id}
+            hasLogo={o.mark?.hasLogo}
+            color={o.mark?.color}
+            tint={o.mark?.tint}
+          />
+          <span className="min-w-0 truncate">
+            {o.partner}
+            {o.regulator ? ` · ${o.regulator}` : ''}
+          </span>
+        </div>
+      ) : null}
+
+      {/* Why it fails the screen: one chip per reason, warm warning tones. */}
+      {o.reasons && o.reasons.length > 0 ? (
+        <ul className="m-0 mt-3.5 flex list-none flex-wrap gap-1.5 p-0">
+          {o.reasons.map((reason) => (
+            <li
+              key={reason}
+              className="rounded-[10px] bg-[#f7e9e2] px-2.5 py-1.5 text-[12.5px] font-medium leading-snug text-[#8a4519] dark:bg-terra/15 dark:text-[#e79b6f]"
+            >
+              {reason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {/* The agent's words, marked as the agent's words. */}
       {o.note ? (
-        <div className="mt-4 rounded-xl bg-muted/60 p-3.5">
+        <div className="mt-3.5 rounded-xl bg-muted/60 p-3.5">
           <div className="mb-1 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[.5px] text-dim">
             <Sparkles className="h-3.5 w-3.5 text-teal2" aria-hidden />
             Your agent

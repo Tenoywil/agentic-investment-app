@@ -45,6 +45,12 @@ export const createApprovalSchema = z.object({
   type: z.enum(['investment_rec', 'fund_transfer', 'plan_enrollment']).default('investment_rec'),
   title: z.string().min(1).max(200),
   body: z.string().max(1000).optional(),
+  /** The agent's one-line case for the move, when the card was raised from a
+   *  chat proposal — stored on the snapshot so "How this was decided" exists
+   *  on chat-raised cards too, not only on background-sweep ones. */
+  summary: z.string().max(500).optional(),
+  /** The gate's reasons for the verdict, same provenance as `summary`. */
+  reasons: z.array(z.string().max(300)).max(10).optional(),
 });
 export type CreateApprovalInput = z.infer<typeof createApprovalSchema>;
 
