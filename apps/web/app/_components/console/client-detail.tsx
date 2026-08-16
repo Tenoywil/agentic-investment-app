@@ -210,7 +210,7 @@ export function ClientDetailDialog({
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[max(22px,env(safe-area-inset-bottom))]">
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[max(22px,env(safe-area-inset-bottom))]">
         {loadError ? <ErrorNote message={loadError} className="mb-3" /> : null}
         {actionError ? <ErrorNote message={actionError} className="mb-3" /> : null}
         {!detail && !loadError ? <RowsSkeleton rows={3} label="Loading this client" /> : null}

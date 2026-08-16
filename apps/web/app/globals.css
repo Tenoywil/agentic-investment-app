@@ -324,7 +324,15 @@ input:-webkit-autofill:active {
 
    `display` has to be restored under `[open]` and nowhere else: the user-agent
    stylesheet hides a closed dialog with `display: none`, so declaring flex on
-   the bare class would leave the panel on screen permanently. */
+   the bare class would leave the panel on screen permanently.
+
+   The panel has a MAX-height, not a height, so its children size it. A scroll
+   body inside it must therefore be `min-h-0 overflow-y-auto` and NOT `flex-1`:
+   flex-1 means flex-basis 0, which contributes zero intrinsic height to an
+   auto-height container — the sheet collapsed to its header and opened a few
+   lines tall on iPhones. Without flex-1 the body contributes its content
+   height, the panel caps at max-height, and min-h-0 lets the body shrink to
+   fit and scroll. */
 .app-modal {
   width: min(920px, calc(100vw - 48px));
   max-width: none;
