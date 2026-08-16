@@ -1,18 +1,32 @@
 /**
- * The multi-agent proposal pipeline: three specialists, one visible record.
+ * The multi-agent proposal pipeline: four specialists, one visible record.
  *
  * The product says "your agent discovers, screens and coordinates execution" —
- * three different jobs, and until now they were one interleaved loop whose
- * working was invisible. This module makes the claim literal:
+ * different jobs, and until now they were one interleaved loop whose working
+ * was invisible. This module makes the claim literal:
  *
  *   1. RESEARCH  — ranks the candidate universe and shortlists what is worth
- *                  screening (gentlest viable first: risk, then minimum).
- *   2. SUITABILITY — runs each shortlisted candidate through the deterministic
+ *                  screening. With a research signal injected (the per-asset
+ *                  claims pass in ./research.ts) it ranks by conviction —
+ *                  research confidence × portfolio fit — and VETOES anything
+ *                  with contradicted evidence; without one it falls back to
+ *                  gentlest-viable-first (risk, then minimum).
+ *   2. FIT       — weighs each shortlisted candidate against the person's own
+ *                  portfolio and goals (./fit.ts): duplication, firm and type
+ *                  concentration, currency mismatch, money locked past a
+ *                  goal's horizon. Only runs when the caller provides it.
+ *   3. SUITABILITY — runs each shortlisted candidate through the deterministic
  *                  Limits Engine gate — the person's own band, cash floor,
- *                  caps — and records every verdict, rejections included.
- *   3. COORDINATION — sizes the first passing candidate, decides the route
- *                  (always an approval card; the pipeline never moves money),
- *                  and writes the plain-language case.
+ *                  caps — and records every verdict, rejections included. A
+ *                  candidate that fits the limits but carries low conviction
+ *                  is PASSED OVER: proposing nothing beats proposing something
+ *                  mediocre, and it is what keeps approval cards meaning
+ *                  something.
+ *   4. COORDINATION — sizes the chosen candidate (at its minimum, or toward a
+ *                  goal when the caller provides a sizing policy — any size
+ *                  above the minimum is re-gated before it is proposed),
+ *                  decides the route (always an approval card; the pipeline
+ *                  never moves money), and writes the plain-language case.
  *
  * Each stage hands the next a typed result and leaves a `StageTrace` behind.
  * The trace is stored on the approval's snapshot, so "How was this decided?"
@@ -22,11 +36,15 @@
  *
  * The gate is INJECTED. The background sweep passes the DB-backed gate
  * (services/gate.ts); the chat passes the snapshot-backed Limits Engine
- * evaluate. Same stages, same trace shape, both callers — the pipeline itself
- * touches no database and calls no model, so it is deterministic and testable.
+ * evaluate. The research signal, fit assessor, and sizing policy are injected
+ * the same way and are all optional — a caller that provides none gets
+ * exactly the original three-stage behavior. The pipeline itself touches no
+ * database and calls no model, so it is deterministic and testable.
  */
 
-export type PipelineStageName = 'research' | 'suitability' | 'coordination';
+import type { FitResult } from './fit';
+
+export type PipelineStageName = 'research' | 'fit' | 'suitability' | 'coordination';
 
 /** One stage's visible record: who ran, what it concluded, the facts behind it. */
 export interface StageTrace {
@@ -55,6 +73,28 @@ export interface GateVerdict {
   reasons?: string[];
 }
 
+/** What the research pass concluded about one candidate — mapped down from
+ *  the full dossier so the pipeline stays decoupled from its shape. Null from
+ *  the callback means "research unavailable": the pipeline degrades to a
+ *  neutral confidence, it never fabricates one. */
+export interface ResearchSignal {
+  /** 0-100, computed deterministically from evidence labels — never by a model. */
+  confidence: number;
+  /** Named gaps, e.g. "no liquidity evidence found". */
+  missing: string[];
+  /** A single contradiction is a veto, not a discount. */
+  contradicted: boolean;
+}
+
+/** How the coordinator should size the chosen candidate above its minimum.
+ *  Whatever it returns is re-gated before it is proposed — sizing never
+ *  outruns screening. */
+export interface SizingChoice {
+  amountMinor: bigint;
+  /** Why this size, e.g. `sized toward your "House deposit" goal`. */
+  rationale: string;
+}
+
 export interface PipelineInput {
   /** The raw universe — live, unblocked products at firms the person holds
    *  accounts with. The research stage does the ranking and shortlisting. */
@@ -67,6 +107,18 @@ export interface PipelineInput {
   gate: (c: PipelineCandidate, amountMinor: bigint) => Promise<GateVerdict> | GateVerdict;
   /** Money formatter in the caller's display conventions. */
   fmt: (minor: bigint, currency: string) => string;
+  /** Per-asset research signal (shared dossier cache behind it). Optional —
+   *  absent or null-returning, research ranks gentlest-first as before. */
+  research?: (c: PipelineCandidate) => Promise<ResearchSignal | null> | ResearchSignal | null;
+  /** Portfolio-fit assessor (pure, ./fit.ts). Optional — absent, the fit
+   *  stage does not run and ranking ignores fit. */
+  fit?: (c: PipelineCandidate) => FitResult;
+  /** Sizing policy above the minimum. Optional — absent, size at the minimum. */
+  sizeFor?: (c: PipelineCandidate) => SizingChoice | null;
+  /** Combined-conviction floor (0-100) under which a candidate that fits the
+   *  limits is still passed over. Applied only when research or fit is
+   *  provided. Default 30. */
+  proposalBar?: number;
 }
 
 export interface PipelineOutcome {
@@ -75,44 +127,103 @@ export interface PipelineOutcome {
     candidate: PipelineCandidate;
     amountMinor: bigint;
     verdict: GateVerdict;
+    fit: FitResult | null;
+    research: ResearchSignal | null;
   } | null;
-  /** The three stages' records, in running order — research and suitability
-   *  always present; coordination only when something was chosen. */
+  /** The stages' records, in running order — research and suitability always
+   *  present; fit only when a fit assessor was provided; coordination only
+   *  when something was chosen. */
   trace: StageTrace[];
 }
 
 const RISK_ORDER: Record<string, number> = { low: 0, medium: 1, high: 2 };
 const DEFAULT_SHORTLIST = 5;
+const DEFAULT_PROPOSAL_BAR = 30;
+/** Stand-ins when one half of the conviction score is unavailable — slightly
+ *  below "good", so a fully-scored candidate outranks a degraded one but a
+ *  degraded pipeline still proposes. */
+const NEUTRAL_CONFIDENCE = 55;
+const NEUTRAL_FIT = 60;
+
+const byGentlest = (a: PipelineCandidate, b: PipelineCandidate): number => {
+  const risk = (RISK_ORDER[a.risk ?? 'high'] ?? 2) - (RISK_ORDER[b.risk ?? 'high'] ?? 2);
+  if (risk !== 0) return risk;
+  return a.minInvestmentMinor < b.minInvestmentMinor
+    ? -1
+    : a.minInvestmentMinor > b.minInvestmentMinor
+      ? 1
+      : 0;
+};
 
 export async function runProposalPipeline(input: PipelineInput): Promise<PipelineOutcome> {
   const trace: StageTrace[] = [];
+  const scored = input.research !== undefined || input.fit !== undefined;
+  const bar = input.proposalBar ?? DEFAULT_PROPOSAL_BAR;
 
-  // ---- 1. Research: rank and shortlist -----------------------------------
+  // ---- 1. Research: signals, veto, rank, shortlist -----------------------
   const considered = input.candidates.filter((c) => !input.excluded.has(c.instrumentId));
-  const ranked = [...considered].sort((a, b) => {
-    const risk = (RISK_ORDER[a.risk ?? 'high'] ?? 2) - (RISK_ORDER[b.risk ?? 'high'] ?? 2);
-    if (risk !== 0) return risk;
-    return a.minInvestmentMinor < b.minInvestmentMinor
-      ? -1
-      : a.minInvestmentMinor > b.minInvestmentMinor
-        ? 1
-        : 0;
-  });
+
+  const signals = new Map<string, ResearchSignal | null>();
+  if (input.research) {
+    const results = await Promise.all(considered.map((c) => input.research?.(c) ?? null));
+    considered.forEach((c, i) => signals.set(c.instrumentId, results[i] ?? null));
+  }
+  const fits = new Map<string, FitResult>();
+  if (input.fit) {
+    for (const c of considered) fits.set(c.instrumentId, input.fit(c));
+  }
+  const conviction = (c: PipelineCandidate): number => {
+    const confidence = signals.get(c.instrumentId)?.confidence ?? NEUTRAL_CONFIDENCE;
+    const fitScore = fits.get(c.instrumentId)?.score ?? NEUTRAL_FIT;
+    return Math.round((confidence * fitScore) / 100);
+  };
+
+  const vetoed = considered.filter((c) => signals.get(c.instrumentId)?.contradicted === true);
+  const eligible = considered.filter((c) => signals.get(c.instrumentId)?.contradicted !== true);
+
+  const ranked = [...eligible].sort((a, b) =>
+    scored ? conviction(b) - conviction(a) || byGentlest(a, b) : byGentlest(a, b),
+  );
   const shortlist = ranked.slice(0, input.shortlist ?? DEFAULT_SHORTLIST);
   const rested = input.candidates.length - considered.length;
+
+  const describeResearch = (c: PipelineCandidate): string => {
+    const signal = signals.get(c.instrumentId);
+    const base = `${c.name}${c.partnerName ? ` · ${c.partnerName}` : ''} — ${c.risk ?? 'unrated'} risk, minimum ${input.fmt(c.minInvestmentMinor, c.currency)}`;
+    if (!signal) return base;
+    const missing = signal.missing.length > 0 ? `; ${signal.missing.join(', ')}` : '';
+    return `${base}; research confidence ${signal.confidence}/100${missing}`;
+  };
   trace.push({
     stage: 'research',
     agent: 'Research agent',
     summary: `Scanned ${input.candidates.length} live product${
       input.candidates.length === 1 ? '' : 's'
-    } at your firms${rested > 0 ? ` (${rested} resting after a recent proposal or trade)` : ''} and shortlisted ${shortlist.length}, gentlest first.`,
-    detail: shortlist.map(
-      (c) =>
-        `${c.name}${c.partnerName ? ` · ${c.partnerName}` : ''} — ${c.risk ?? 'unrated'} risk, minimum ${input.fmt(c.minInvestmentMinor, c.currency)}`,
-    ),
+    } at your firms${rested > 0 ? ` (${rested} resting after a recent proposal or trade)` : ''} and shortlisted ${shortlist.length}, ${
+      scored ? 'strongest conviction first' : 'gentlest first'
+    }.`,
+    detail: [
+      ...shortlist.map(describeResearch),
+      ...vetoed.map((c) => `${c.name}: set aside — its research turned up contradicted evidence.`),
+    ],
   });
 
-  // ---- 2. Suitability: the gate decides, and every verdict is kept -------
+  // ---- 2. Fit: the person's own portfolio and goals ----------------------
+  if (input.fit) {
+    trace.push({
+      stage: 'fit',
+      agent: 'Portfolio fit agent',
+      summary: `Weighed ${shortlist.length === 1 ? 'it' : `each of the ${shortlist.length}`} against your holdings, currencies and goals.`,
+      detail: shortlist.map((c) => {
+        const fit = fits.get(c.instrumentId);
+        if (!fit) return `${c.name}: not assessed`;
+        const notes = [...fit.reasons, ...fit.concerns];
+        return `${c.name}: fit ${fit.score}/100${notes.length > 0 ? ` — ${notes.join(' ')}` : ''}`;
+      }),
+    });
+  }
+
+  // ---- 3. Suitability: the gate decides, and every verdict is kept -------
   const verdicts: string[] = [];
   let chosen: PipelineOutcome['chosen'] = null;
   for (const c of shortlist) {
@@ -124,10 +235,22 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
       );
       continue;
     }
+    if (scored && conviction(c) < bar) {
+      verdicts.push(
+        `${c.name}: fits your limits, but conviction is low (${conviction(c)}/100) — passed over rather than proposed.`,
+      );
+      continue;
+    }
     verdicts.push(
       `${c.name}: fits your limits${verdict.code ? ` (${verdict.code.replace(/_/g, ' ')})` : ''}`,
     );
-    chosen = { candidate: c, amountMinor, verdict };
+    chosen = {
+      candidate: c,
+      amountMinor,
+      verdict,
+      fit: fits.get(c.instrumentId) ?? null,
+      research: signals.get(c.instrumentId) ?? null,
+    };
     break;
   }
   trace.push({
@@ -137,19 +260,32 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
       ? `Screened ${verdicts.length} against your band, cash floor and caps — ${chosen.candidate.name} fits.`
       : shortlist.length === 0
         ? 'Nothing reached screening.'
-        : `Screened ${verdicts.length} against your band, cash floor and caps — none fit right now.`,
+        : `Screened ${verdicts.length} against your band, cash floor and caps — none ${
+            scored ? 'worth proposing' : 'fit'
+          } right now.`,
     detail: verdicts,
   });
 
-  // ---- 3. Coordination: size it, route it, say it plainly ----------------
+  // ---- 4. Coordination: size it, route it, say it plainly ----------------
   if (chosen) {
+    const minimum = chosen.candidate.minInvestmentMinor;
+    let sizingNote = `at its ${input.fmt(minimum, chosen.candidate.currency)} minimum`;
+    const sized = input.sizeFor?.(chosen.candidate) ?? null;
+    if (sized && sized.amountMinor > minimum) {
+      // Sizing never outruns screening: the larger amount passes the same
+      // gate, or the proposal falls back to the minimum it already cleared.
+      const verdictAtSize = await input.gate(chosen.candidate, sized.amountMinor);
+      if (verdictAtSize.decision !== 'blocked') {
+        chosen = { ...chosen, amountMinor: sized.amountMinor, verdict: verdictAtSize };
+        sizingNote = `at ${input.fmt(sized.amountMinor, chosen.candidate.currency)} (${sized.rationale}; above the ${input.fmt(minimum, chosen.candidate.currency)} minimum and re-checked against your limits)`;
+      } else {
+        sizingNote = `at its ${input.fmt(minimum, chosen.candidate.currency)} minimum (${sized.rationale}, but the larger size did not clear your limits)`;
+      }
+    }
     trace.push({
       stage: 'coordination',
       agent: 'Coordinator',
-      summary: `Sized ${chosen.candidate.name} at its ${input.fmt(
-        chosen.amountMinor,
-        chosen.candidate.currency,
-      )} minimum and raised it as an approval — nothing moves unless you say so.`,
+      summary: `Sized ${chosen.candidate.name} ${sizingNote} and raised it as an approval — nothing moves unless you say so.`,
       detail: [
         `Route: approval card${
           chosen.verdict.decision === 'auto_act'

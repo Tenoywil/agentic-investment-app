@@ -5,6 +5,7 @@ import {
   approvals,
   connectedAccounts,
   createDb,
+  goals,
   holdings,
   instruments,
   limits,
@@ -66,6 +67,9 @@ suite('agent background sweep', () => {
   let cautious = '';
   /** Active account, risk done, but not a cent of recorded cash. */
   let broke = '';
+  /** Same cash as funded, plus an underfunded goal — sizing steps above the
+   *  minimum toward it, bounded by the single-position cap. */
+  let saver = '';
   let lowRiskId = '';
   let highRiskId = '';
 
@@ -137,10 +141,18 @@ suite('agent background sweep', () => {
     // breach it, so nothing the marketplace offers is proposable for them.
     cautious = await makeInvestor('cautious', 'low', 100_000n);
     broke = await makeInvestor('broke', 'high_moderate', 0n);
+    saver = await makeInvestor('saver', 'high_moderate', 500_000n);
+    // US$2,000 still to find for the boat: sizing has a goal to aim at.
+    await db.insert(goals).values({
+      userId: saver,
+      name: 'Boat fund',
+      targetMinor: 200_000n,
+      currentMinor: 0n,
+    });
   });
 
   afterAll(async () => {
-    const ids = [funded, cautious, broke].filter(Boolean);
+    const ids = [funded, cautious, broke, saver].filter(Boolean);
     if (ids.length) {
       await db.delete(user).where(inArray(user.id, ids)); // cascades roles/holdings/approvals/messages
     }
@@ -167,19 +179,39 @@ suite('agent background sweep', () => {
     expect(card?.body).toContain('Nothing happens unless you approve');
     expect((card?.snapshot as { source?: string })?.source).toBe('background_sweep');
 
-    // "How this was decided": the three-specialist pipeline's stage records
-    // ride on the approval, coordination included since something was chosen.
+    // "How this was decided": the pipeline's stage records ride on the
+    // approval — research, the portfolio-fit weighing, suitability, and
+    // coordination since something was chosen.
     const trace = (
       card?.snapshot as { trace?: { stage: string; agent: string; summary: string }[] }
     )?.trace;
-    expect(trace?.map((t) => t.stage)).toEqual(['research', 'suitability', 'coordination']);
-    expect(trace?.[1]?.summary).toContain('band');
+    expect(trace?.map((t) => t.stage)).toEqual(['research', 'fit', 'suitability', 'coordination']);
+    expect(trace?.find((t) => t.stage === 'suitability')?.summary).toContain('band');
+    expect(trace?.find((t) => t.stage === 'fit')?.summary).toContain('your holdings');
 
     const notes = await db
       .select({ content: agentMessages.content })
       .from(agentMessages)
       .where(eq(agentMessages.userId, funded));
     expect(notes.some((n) => n.content.includes('While you were away'))).toBe(true);
+  });
+
+  test('an underfunded goal sizes the proposal above the minimum, capped by the position limit', async () => {
+    const cards = await db
+      .select()
+      .from(approvals)
+      .where(and(eq(approvals.userId, saver), eq(approvals.status, 'pending')));
+    expect(cards).toHaveLength(1);
+    const card = cards[0];
+    expect(card?.instrumentId).toBe(lowRiskId);
+    // Toward the US$2,000 goal gap, but clamped by the 15% single-position
+    // cap on a US$5,000 portfolio → US$750, re-gated at that size.
+    expect(card?.amountMinor).toBe(75_000n);
+    expect(card?.body).toContain('Proposed at US$750');
+    const trace = (card?.snapshot as { trace?: { stage: string; summary: string }[] })?.trace;
+    const coordination = trace?.find((t) => t.stage === 'coordination');
+    expect(coordination?.summary).toContain('sized toward your "Boat fund" goal');
+    expect(coordination?.summary).toContain('re-checked against your limits');
   });
 
   test('the sweep is quiet while its card waits, and never auto-acts', async () => {

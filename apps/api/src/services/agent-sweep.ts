@@ -1,14 +1,23 @@
-import { runProposalPipeline } from '@ccn/agent';
+import {
+  type FitPosition,
+  type InstrumentFacts,
+  type ResearchFn,
+  type SizingChoice,
+  assessPortfolioFit,
+  runProposalPipeline,
+} from '@ccn/agent';
 import { withRls } from '@ccn/db';
 import {
   agentMessages,
   approvals,
   connectedAccounts,
+  goals as goalsTable,
   holdings,
   instruments,
   orders,
   partners,
   riskProfiles,
+  userProfiles,
   userRoles,
 } from '@ccn/db';
 import { SYMBOL } from '@ccn/money';
@@ -37,8 +46,21 @@ import { loadInstrument, loadLimits, runGate } from './gate';
  *    the person's own limits, risk band, cash floor and position caps decide
  *    what is proposable, not a heuristic of this file's own.
  *  - It is quiet by design: at most one proposal per person per sweep,
- *    nothing while one is already waiting, and an instrument it has proposed
- *    (or the person has recently traded) is not proposed again for two weeks.
+ *    nothing while one is already waiting, an instrument it has proposed
+ *    (or the person has recently traded) is not proposed again for two weeks
+ *    — and a candidate that clears the limits but carries low conviction is
+ *    passed over rather than proposed (the pipeline's proposal bar).
+ *
+ * The pipeline's other specialists are injected here the same way the gate
+ * is: the per-asset RESEARCH pass arrives as `deps.research` (wired by the
+ * composition root only when enabled — a shared, cached dossier per
+ * instrument, so a sweep over N users researches each asset once, and a
+ * failed pass degrades to no signal rather than fabricating one), and the
+ * PORTFOLIO FIT assessor runs over the person's own holdings, currencies and
+ * goals loaded below. Sizing may step above an instrument's minimum toward an
+ * underfunded goal, bounded by the cash floor and position-cap headroom — and
+ * any size above the minimum is re-gated by the pipeline before it is
+ * proposed.
  *
  * RLS is kept honest: people are enumerated under an admin-scoped context
  * (the same read the administration console is allowed), and each person's
@@ -54,6 +76,12 @@ const QUIET_DAYS = 14;
 /** Candidates considered per person per sweep, before the gate. */
 const CANDIDATES_PER_USER = 12;
 
+export interface SweepDeps extends Pick<AppDeps, 'db' | 'config' | 'logger'> {
+  /** The per-asset research pass (shared dossier cache behind it). Absent —
+   *  the default, and every test's — the pipeline ranks without it. */
+  research?: ResearchFn | undefined;
+}
+
 interface SweepResult {
   scanned: number;
   proposed: number;
@@ -66,9 +94,10 @@ function fmtMinor(minor: bigint, currency: string): string {
 
 const RISK_WORD: Record<string, string> = { low: 'low', medium: 'medium', high: 'high' };
 
-export async function runAgentSweep(
-  deps: Pick<AppDeps, 'db' | 'config' | 'logger'>,
-): Promise<SweepResult> {
+const minBig = (...values: bigint[]): bigint =>
+  values.reduce((lo, v) => (v < lo ? v : lo), values[0] ?? 0n);
+
+export async function runAgentSweep(deps: SweepDeps): Promise<SweepResult> {
   const dbRole = deps.config.DB_APP_ROLE;
 
   // Who the agent works for: customers with an active account somewhere (there
@@ -107,11 +136,7 @@ export async function runAgentSweep(
 }
 
 /** One person's sweep, entirely inside their own tenant context. */
-async function sweepOne(
-  deps: Pick<AppDeps, 'db' | 'config' | 'logger'>,
-  userId: string,
-  dbRole: string,
-): Promise<boolean> {
+async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promise<boolean> {
   return withRls(deps.db, { userId, appRole: 'customer', dbRole }, async (tx) => {
     // Nothing while something already waits: a queue the agent keeps topping
     // up stops being a queue the person reads.
@@ -145,27 +170,80 @@ async function sweepOne(
     const partnerIds = activeAccounts.map((a) => a.partnerId);
     if (partnerIds.length === 0) return false;
 
+    /**
+     * The person's actual position — what the fit agent weighs against. Each
+     * holding carries its instrument's type and firm so concentration is
+     * computed over what they hold, not guessed. A holding without an
+     * instrument is cash (the table's convention).
+     */
+    const heldRows = await tx
+      .select({
+        instrumentId: holdings.instrumentId,
+        name: holdings.name,
+        valueMinor: holdings.valueMinor,
+        instrumentType: instruments.type,
+        partnerName: partners.name,
+      })
+      .from(holdings)
+      .leftJoin(instruments, eq(instruments.id, holdings.instrumentId))
+      .leftJoin(partners, eq(partners.id, instruments.partnerId))
+      .where(eq(holdings.userId, userId));
+
+    const cashMinor = heldRows
+      .filter((h) => h.instrumentId === null)
+      .reduce((sum, h) => sum + h.valueMinor, 0n);
+    const netWorthMinor = heldRows.reduce((sum, h) => sum + h.valueMinor, 0n);
+
     // Cash on record: without it there is nothing to propose spending. The
     // gate re-checks this properly (floor, caps); this is just "is there any
     // point looking".
-    const [cashRow] = await tx
-      .select({ v: sql<string>`coalesce(sum(${holdings.valueMinor}), 0)::text` })
-      .from(holdings)
-      .where(and(eq(holdings.userId, userId), isNull(holdings.instrumentId)));
-    if (BigInt(cashRow?.v ?? '0') <= 0n) return false;
+    if (cashMinor <= 0n) return false;
+
+    const positions: FitPosition[] = heldRows.map((h) => ({
+      instrumentId: h.instrumentId,
+      name: h.name,
+      valueMinor: h.valueMinor,
+      type: h.instrumentType,
+      partnerName: h.partnerName,
+    }));
+
+    const [profileRow] = await tx
+      .select({ displayCurrency: userProfiles.displayCurrency })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId));
+    const displayCurrency: string = profileRow?.displayCurrency ?? 'USD';
+
+    const goalRows = await tx
+      .select({
+        name: goalsTable.name,
+        targetMinor: goalsTable.targetMinor,
+        currentMinor: goalsTable.currentMinor,
+        eta: goalsTable.eta,
+      })
+      .from(goalsTable)
+      .where(eq(goalsTable.userId, userId));
+
+    const limits = await loadLimits(tx, userId);
 
     /**
      * Candidates: live, unblocked, with a real minimum, at a firm the person
      * actually holds an account with — the agent proposes what the person
-     * could genuinely act on, not the whole catalogue. Lowest-risk first,
-     * then smallest minimum: the background agent leads with the gentlest
-     * viable idea and lets the person ask for more.
+     * could genuinely act on, not the whole catalogue. The pipeline's research
+     * and fit stages do the ranking from here.
      */
     const universe = await tx
       .select({
         id: instruments.id,
         name: instruments.name,
+        type: instruments.type,
+        region: instruments.region,
         risk: instruments.risk,
+        term: instruments.term,
+        metricLabel: instruments.metricLabel,
+        metric: instruments.metric,
+        description: instruments.description,
+        agentNote: instruments.agentNote,
+        regulator: instruments.regulator,
         minInvestmentMinor: instruments.minInvestmentMinor,
         currency: instruments.currency,
         partnerName: partners.name,
@@ -181,13 +259,50 @@ async function sweepOne(
         ),
       )
       .limit(CANDIDATES_PER_USER);
+    const universeById = new Map(universe.map((c) => [c.id, c]));
+
+    const heldByInstrument = new Map<string, bigint>();
+    for (const h of heldRows) {
+      if (h.instrumentId === null) continue;
+      heldByInstrument.set(
+        h.instrumentId,
+        (heldByInstrument.get(h.instrumentId) ?? 0n) + h.valueMinor,
+      );
+    }
 
     /**
-     * The three-specialist pipeline — the SAME stages and trace the chat's
+     * Sizing above the minimum, toward the person's own goals: the nearest
+     * underfunded goal's remaining gap, bounded by the cash above their floor
+     * and by single-position headroom. Deterministic, conservative, and
+     * whatever it returns is re-gated by the pipeline before it is proposed —
+     * sizing never outruns screening.
+     */
+    const sizeFor = (candidate: { instrumentId: string }): SizingChoice | null => {
+      const gaps = goalRows
+        .map((g) => ({ name: g.name, gap: g.targetMinor - g.currentMinor }))
+        .filter((g) => g.gap > 0n)
+        .sort((a, b) => (a.gap < b.gap ? -1 : a.gap > b.gap ? 1 : 0));
+      const goal = gaps[0];
+      if (!goal) return null;
+
+      const cashAvailable = limits.cashFloorEnabled ? cashMinor - limits.cashFloorMinor : cashMinor;
+      const bounds = [goal.gap, cashAvailable];
+      if (limits.singlePositionEnabled && netWorthMinor > 0n) {
+        const cap = (netWorthMinor * BigInt(limits.singlePositionMaxPct)) / 100n;
+        bounds.push(cap - (heldByInstrument.get(candidate.instrumentId) ?? 0n));
+      }
+      const amountMinor = minBig(...bounds);
+      if (amountMinor <= 0n) return null;
+      return { amountMinor, rationale: `sized toward your "${goal.name}" goal` };
+    };
+
+    /**
+     * The multi-specialist pipeline — the SAME stages and trace the chat's
      * scout_marketplace tool runs, with the DB-backed gate injected instead of
-     * the snapshot one. Research ranks, suitability screens through the
-     * person's own limits, coordination sizes and routes; every verdict lands
-     * in the trace the approval carries.
+     * the snapshot one. Research ranks (with the shared per-asset dossier when
+     * the composition root wired it), fit weighs the person's own portfolio
+     * and goals, suitability screens through their limits, coordination sizes
+     * and routes; every verdict lands in the trace the approval carries.
      */
     const outcome = await runProposalPipeline({
       candidates: universe.map((c) => ({
@@ -200,6 +315,56 @@ async function sweepOne(
       })),
       excluded,
       fmt: fmtMinor,
+      ...(deps.research
+        ? {
+            research: async (c: { instrumentId: string }) => {
+              const row = universeById.get(c.instrumentId);
+              if (!row) return null;
+              const facts: InstrumentFacts = {
+                instrumentId: row.id,
+                name: row.name,
+                type: row.type,
+                region: row.region,
+                risk: row.risk,
+                term: row.term,
+                currency: row.currency,
+                minInvestment: fmtMinor(row.minInvestmentMinor, row.currency),
+                metricLabel: row.metricLabel,
+                metric: row.metric,
+                partnerName: row.partnerName,
+                regulator: row.regulator,
+                description: row.description,
+                agentNote: row.agentNote,
+              };
+              const dossier = await deps.research?.(facts);
+              if (!dossier) return null;
+              return {
+                confidence: dossier.confidence,
+                missing: dossier.criticalMissingItems,
+                contradicted: dossier.hasContradictedEvidence,
+              };
+            },
+          }
+        : {}),
+      fit: (c) => {
+        const row = universeById.get(c.instrumentId);
+        return assessPortfolioFit({
+          candidate: {
+            instrumentId: c.instrumentId,
+            name: c.name,
+            type: row?.type ?? null,
+            region: row?.region ?? null,
+            currency: c.currency,
+            partnerName: c.partnerName,
+            term: row?.term ?? null,
+            minInvestmentMinor: c.minInvestmentMinor,
+          },
+          portfolio: { displayCurrency, cashMinor, netWorthMinor, positions },
+          goals: goalRows,
+          now: new Date(),
+        });
+      },
+      sizeFor,
       gate: async (c, amountMinor) => {
         const instrument = await loadInstrument(tx, c.instrumentId, deps.logger);
         if (!instrument || instrument.listingStatus !== 'live' || instrument.blocked) {
@@ -218,24 +383,31 @@ async function sweepOne(
     });
     if (!outcome.chosen) return false;
 
-    const { candidate, amountMinor, verdict } = outcome.chosen;
+    const { candidate, amountMinor, verdict, fit } = outcome.chosen;
     const name = candidate.name;
     const amount = fmtMinor(amountMinor, candidate.currency);
-    const limits = await loadLimits(tx, userId);
     const [instrumentRow] = await tx
       .select({ partnerId: instruments.partnerId })
       .from(instruments)
       .where(eq(instruments.id, candidate.instrumentId));
 
+    const sizedAboveMinimum = amountMinor > candidate.minInvestmentMinor;
     const body = [
-      `Found by your agent's pipeline — research scanned the marketplace, suitability screened it against your limits, coordination sized it: ${name}`,
+      `Found by your agent's pipeline — research scanned the marketplace, portfolio fit weighed it against your holdings and goals, suitability screened it against your limits, coordination sized it: ${name}`,
       candidate.partnerName ? ` at ${candidate.partnerName}` : '',
       candidate.risk ? `, ${RISK_WORD[candidate.risk] ?? candidate.risk} risk` : '',
-      `. The minimum is ${amount}, from your cash`,
+      sizedAboveMinimum
+        ? `. Proposed at ${amount} (minimum ${fmtMinor(candidate.minInvestmentMinor, candidate.currency)}), from your cash`
+        : `. The minimum is ${amount}, from your cash`,
       limits.cashFloorEnabled
         ? `, and it clears your ${fmtMinor(limits.cashFloorMinor, candidate.currency)} cash floor`
         : '',
-      '. Nothing happens unless you approve.',
+      '.',
+      fit?.reasons[0] ? ` ${fit.reasons[0]}` : '',
+      // The honest half travels with the pitch: the top concern is on the
+      // card itself, not buried in the trace.
+      fit?.concerns[0] ? ` Worth knowing: ${fit.concerns[0]}` : '',
+      ' Nothing happens unless you approve.',
     ].join('');
 
     const [card] = await tx
@@ -264,7 +436,7 @@ async function sweepOne(
     await tx.insert(agentMessages).values({
       userId,
       role: 'agent',
-      content: `While you were away my research agent scanned the marketplace, the suitability check screened the shortlist against your limits, and ${name}${candidate.partnerName ? ` at ${candidate.partnerName}` : ''} came through. I've put it in your approvals — ${amount} minimum, with the full stage-by-stage reasoning on the card. It stays there until you decide.`,
+      content: `While you were away my research agent scanned the marketplace, the portfolio-fit check weighed the shortlist against your holdings and goals, the suitability check screened it against your limits, and ${name}${candidate.partnerName ? ` at ${candidate.partnerName}` : ''} came through. I've put it in your approvals — ${amount}, with the full stage-by-stage reasoning on the card. It stays there until you decide.`,
     });
 
     await auditAppend(tx, {
@@ -280,6 +452,10 @@ async function sweepOne(
         amount_minor: amountMinor.toString(),
         currency: candidate.currency,
         decision: verdict.decision,
+        ...(fit ? { fit_score: fit.score } : {}),
+        ...(outcome.chosen.research
+          ? { research_confidence: outcome.chosen.research.confidence }
+          : {}),
         stages: outcome.trace.map((t) => `${t.agent}: ${t.summary}`),
       },
     });
@@ -292,7 +468,7 @@ async function sweepOne(
  * createApp, so tests and one-off scripts get no timers they did not ask for.
  * Runs are serialized: a slow sweep skips the next tick rather than stacking.
  */
-export function startAgentSweep(deps: Pick<AppDeps, 'db' | 'config' | 'logger'>): () => void {
+export function startAgentSweep(deps: SweepDeps): () => void {
   const interval = deps.config.AGENT_SWEEP_INTERVAL_MS;
   if (interval <= 0) {
     deps.logger.info('agent background sweep disabled (AGENT_SWEEP_INTERVAL_MS=0)');

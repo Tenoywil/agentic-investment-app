@@ -101,6 +101,13 @@ const serverSchema = z.object({
   // createApp, so tests get no timers.
   AGENT_SWEEP_INTERVAL_MS: z.coerce.number().int().nonnegative().default(600_000),
 
+  // The sweep's per-instrument research pass: how long a shared dossier (the
+  // claims-and-evidence deep dive on the `high` model tier) stays fresh before
+  // it is re-researched. 0 disables the pass entirely (the default) — the
+  // sweep then ranks without a research signal and spends no model tokens in
+  // the background. Wired only from the composition root, like the sweep.
+  AGENT_RESEARCH_TTL_MS: z.coerce.number().int().nonnegative().default(0),
+
   // Crypto
   FIELD_ENCRYPTION_KEY: z.string().min(1),
 

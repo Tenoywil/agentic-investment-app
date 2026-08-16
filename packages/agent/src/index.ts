@@ -6,6 +6,8 @@
  * gateway call is a thin adapter (run.ts).
  */
 export * from './pipeline';
+export * from './fit';
+export * from './research';
 export * from './snapshot';
 export * from './context';
 export * from './prompt';
