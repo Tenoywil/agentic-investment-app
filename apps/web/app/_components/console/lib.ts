@@ -30,14 +30,6 @@ export const TABS: { key: TabKey; label: string; Icon: LucideIcon }[] = [
   { key: 'compliance', label: 'Compliance', Icon: ShieldCheck },
 ];
 
-export const TAB_TITLES: Record<TabKey, string> = {
-  overview: 'overview',
-  orders: 'order flow',
-  products: 'products',
-  clients: 'clients & KYC',
-  compliance: 'compliance',
-};
-
 /* ---- shared class fragments -------------------------------------------- */
 
 export const uppr = 'text-[11px] font-bold uppercase tracking-wider text-faint';

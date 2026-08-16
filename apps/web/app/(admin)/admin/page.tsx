@@ -390,7 +390,10 @@ export default function AdminPage() {
               a count taken at a moment; without saying which moment, a dashboard
               left open in a background tab quietly becomes a historical document
               that still looks live. */}
-          <div className="flex items-center gap-3">
+          {/* Wraps: "Read at" plus two buttons is wider than a 320px phone,
+              and as a no-wrap cluster it was the one thing pushing the whole
+              admin document into horizontal scroll. */}
+          <div className="flex flex-wrap items-center gap-3">
             {loadedAt ? (
               <span className="text-[12.5px] text-faint">
                 Read at{' '}

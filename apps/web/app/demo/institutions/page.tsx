@@ -7,9 +7,18 @@ import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { Switch } from '@/app/_components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/_components/ui/tabs';
-import { ArrowLeft, ArrowRightLeft, Boxes, LayoutGrid, ShieldCheck, Users } from 'lucide-react';
+import { useSheetDismiss } from '@/app/_lib/sheet';
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  Boxes,
+  LayoutGrid,
+  Menu,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 /* The partner console: a dark-navy shell (Warm-themed shadcn) matching
    demo/assets/institutions.png. Radix Tabs drive the sidebar sections — the APG
@@ -24,14 +33,6 @@ const TABS: { key: TabKey; label: string; Icon: typeof LayoutGrid }[] = [
   { key: 'clients', label: 'Clients & KYC', Icon: Users },
   { key: 'compliance', label: 'Compliance', Icon: ShieldCheck },
 ];
-const TAB_TITLES: Record<TabKey, string> = {
-  overview: 'overview',
-  orders: 'order flow',
-  products: 'products',
-  clients: 'clients & KYC',
-  compliance: 'compliance',
-};
-
 type Order = {
   id: string;
   product: string;
@@ -170,6 +171,14 @@ export default function InstitutionsPage() {
   const [live, setLive] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(PRODUCTS.map((p) => [p.name, true])),
   );
+  /* The rail is a <dialog> for the same reason the live console's is: below
+     900px the CSS turns .console-sidebar into a bottom sheet that only renders
+     [open], and a plain <nav> can never be open — which left the demo console
+     with no navigation at all on a phone, the exact audience "See a demo"
+     lands here. */
+  const navRef = useRef<HTMLDialogElement>(null);
+  const closeNav = useCallback(() => navRef.current?.close(), []);
+  useSheetDismiss(navRef, closeNav);
 
   const pending = orders.filter((o) => o.status === 'new').length;
   const settled = orders.filter((o) => o.status === 'settled').length;
@@ -187,9 +196,41 @@ export default function InstitutionsPage() {
       orientation="vertical"
       className="app-shell bg-background font-sans text-foreground"
     >
-      {/* Dark navy sidebar */}
-      <nav className="console-sidebar sticky top-0 flex h-screen w-[260px] flex-none flex-col bg-navy px-4 pb-[18px] pt-6 text-[#d3e0da]">
-        <div className="flex items-center gap-3 px-2 pb-5">
+      {/* The phone bar — same shape as the live console's. */}
+      <header className="console-topbar">
+        <button
+          type="button"
+          onClick={() => navRef.current?.showModal()}
+          aria-haspopup="dialog"
+          aria-label="Open navigation"
+          className="grid h-11 w-11 flex-none place-items-center rounded-[12px] text-[#d3e0da] transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Menu className="h-6 w-6" aria-hidden />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-display text-[15px] font-bold leading-tight text-white">
+            Sagicor Group
+          </div>
+          <div className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
+            Partner console
+          </div>
+        </div>
+      </header>
+
+      {/* Dark navy sidebar; a bottom sheet on a phone. */}
+      <dialog
+        ref={navRef}
+        aria-label="Partner console navigation"
+        className="console-sidebar sticky top-0 flex h-screen w-[260px] flex-none flex-col bg-navy px-4 pb-[18px] pt-6 text-[#d3e0da]"
+      >
+        <button
+          type="button"
+          data-sheet-handle
+          onClick={closeNav}
+          aria-label="Close navigation"
+          className="app-sheet__handle console-sidebar__handle"
+        />
+        <div className="console-sidebar__identity flex items-center gap-3 px-2 pb-5">
           <Avatar className="h-[42px] w-[42px] rounded-xl">
             <AvatarFallback className="rounded-xl font-display text-[19px]">S</AvatarFallback>
           </Avatar>
@@ -203,12 +244,13 @@ export default function InstitutionsPage() {
 
         <TabsList
           aria-label="Partner console sections"
-          className="flex flex-col items-stretch gap-[3px]"
+          className="console-sidebar__tabs flex flex-col items-stretch gap-[3px]"
         >
           {TABS.map(({ key, label, Icon }) => (
             <TabsTrigger
               key={key}
               value={key}
+              onClick={closeNav}
               className="justify-start gap-3 rounded-xl px-3.5 py-3 text-[15px] font-medium text-[#d3e0da] data-[state=active]:bg-navy-active data-[state=active]:font-bold data-[state=active]:text-white"
             >
               <Icon className="h-5 w-5" aria-hidden />
@@ -222,9 +264,9 @@ export default function InstitutionsPage() {
           ))}
         </TabsList>
 
-        <div className="flex-1" />
+        <div className="console-sidebar__grow flex-1" />
 
-        <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5">
+        <div className="console-sidebar__agreement mb-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5">
           <div className="mb-1 flex items-center gap-2 text-[13px] font-bold">
             <span className="h-[7px] w-[7px] rounded-full bg-[#5fd3a6]" />
             Agreement active · FSC Jamaica
@@ -243,15 +285,16 @@ export default function InstitutionsPage() {
             <ArrowLeft className="h-4 w-4" /> Switch to investor view
           </Link>
         </Button>
-      </nav>
+      </dialog>
 
       <main className="min-w-0 flex-1 px-8 pb-[60px] pt-[26px]">
-        {/* Header */}
+        {/* Header. The h1 names the tab — the sidebar and phone bar already
+            name the firm, same reasoning as the live console's header. The
+            sample-data chip stays: it is the one honest label on this page. */}
         <div className="mb-[22px] flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="mb-1 text-[13.5px] text-dim">Partner console · {TAB_TITLES[tab]}</div>
-            <h1 className="font-display text-3xl font-bold tracking-tight">Sagicor Group</h1>
-          </div>
+          <h1 className="m-0 font-display text-3xl font-bold tracking-tight">
+            {TABS.find((t) => t.key === tab)?.label ?? 'Overview'}
+          </h1>
           <div className="flex items-center gap-2.5">
             <ThemeToggle />
             <div className="flex items-center gap-2.5 rounded-full border border-border bg-card py-1.5 pl-4 pr-1.5">

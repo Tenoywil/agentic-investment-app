@@ -72,7 +72,10 @@ export function MobileNav({
 
   return (
     <div className="app-mobilenav" data-tour={basePath ? undefined : 'customer-nav'}>
-      <header className="sticky top-0 z-30 flex items-center gap-2 border-0 border-b border-solid border-border bg-card px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))]">
+      {/* Stickiness lives on .app-mobilenav (globals.css), not here: a sticky
+          element can never leave its parent's box, and this wrapper used to be
+          exactly one header tall — so the bar scrolled away with the page. */}
+      <header className="flex items-center gap-2 border-0 border-b border-solid border-border bg-card px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))]">
         <button
           ref={triggerRef}
           type="button"
