@@ -1,7 +1,7 @@
-import { generateObject } from 'ai';
 import { z } from 'zod';
 import { untrustedBlock } from '../prompt';
 import { createGatewayModel } from '../provider';
+import { generateStructured } from '../structured';
 import type { MatchResult } from './matching';
 import { type TieredGatewayConfig, gatewayConfigForTier } from './provider';
 import { type ClaimCategory, type ReadinessClaim, computeReadinessScore } from './readiness';
@@ -11,7 +11,8 @@ import { type ClaimCategory, type ReadinessClaim, computeReadinessScore } from '
  * match narration) that ship Thursday — see the addendum's "explicitly
  * deferred" list for what does NOT (Country/Financial/Red-Team as separate
  * passes, a second-model challenger review). Each pass is a single
- * `generateObject` call against a schema, never free-form text the caller has
+ * schema-constrained call (via generateStructured — a forced tool call, the one
+ * structured mechanism the production gateway honors), never free-form text the caller has
  * to parse — the AI SDK retries on a schema mismatch, so the caller always
  * gets a typed, validated object or a thrown error, never a guess.
  *
@@ -63,12 +64,11 @@ export interface ExtractMandateArgs {
 }
 
 export async function extractMandate(args: ExtractMandateArgs): Promise<MandateExtraction> {
-  const { object } = await generateObject({
+  return generateStructured({
     model: createGatewayModel(gatewayConfigForTier(args.gateway, 'general')),
     schema: mandateExtractionSchema,
     prompt: buildMandateExtractionPrompt(args.narrative),
   });
-  return object;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,7 +177,7 @@ export function aggregateAssessment(
 export async function assessOpportunity(
   args: AssessOpportunityArgs,
 ): Promise<AssessOpportunityResult> {
-  const { object } = await generateObject({
+  const object = await generateStructured({
     model: createGatewayModel(gatewayConfigForTier(args.gateway, 'high')),
     schema: opportunityAssessmentSchema,
     prompt: buildOpportunityAssessmentPrompt(args.opportunity),
@@ -226,10 +226,9 @@ export function buildMatchNarrationPrompt(args: NarrateMatchArgs): string {
 
 /** Cheapest of the three passes — runs on the `low` tier. */
 export async function narrateMatch(args: NarrateMatchArgs): Promise<MatchNarration> {
-  const { object } = await generateObject({
+  return generateStructured({
     model: createGatewayModel(gatewayConfigForTier(args.gateway, 'low')),
     schema: matchNarrationSchema,
     prompt: buildMatchNarrationPrompt(args),
   });
-  return object;
 }

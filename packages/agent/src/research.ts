@@ -1,9 +1,9 @@
-import { generateObject } from 'ai';
 import { z } from 'zod';
 import { ResponseCache } from './cache';
 import { type TieredGatewayConfig, gatewayConfigForTier } from './gateway/provider';
 import { untrustedBlock } from './prompt';
 import { createGatewayModel } from './provider';
+import { generateStructured } from './structured';
 
 /**
  * The Research agent's real half: a per-INSTRUMENT deep dive, run once per
@@ -198,7 +198,7 @@ export interface ResearchInstrumentArgs {
 
 /** The judgment-heavy pass — runs on the `high` tier, rarely, cached widely. */
 export async function researchInstrument(args: ResearchInstrumentArgs): Promise<InstrumentDossier> {
-  const { object } = await generateObject({
+  const object = await generateStructured({
     model: createGatewayModel(gatewayConfigForTier(args.gateway, 'high')),
     schema: instrumentResearchSchema,
     prompt: buildInstrumentResearchPrompt(args.facts),
