@@ -1,6 +1,7 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { EquityChart } from '@/app/_components/EquityChart';
 import { Card } from '@/app/_components/ui/card';
 import { cn } from '@/app/_lib/utils';
 import { ShieldCheck } from 'lucide-react';
@@ -49,6 +50,55 @@ const INSTITUTIONS = [
     ],
   },
 ];
+
+/**
+ * Fixture equity curve for the demo: thirty days of gentle growth ending at
+ * the page's US$31,350 net worth, minor units. Dated backwards from today so
+ * the chart always reads as a live month, like the rest of the demo's data.
+ */
+const EQUITY_SERIES_MINOR = [
+  '2940000',
+  '2943500',
+  '2947200',
+  '2945100',
+  '2951800',
+  '2958400',
+  '2962000',
+  '2960300',
+  '2967900',
+  '2975600',
+  '2981200',
+  '2979500',
+  '2986800',
+  '2994300',
+  '3001100',
+  '2999400',
+  '3006700',
+  '3014200',
+  '3021600',
+  '3019800',
+  '3027300',
+  '3035100',
+  '3042800',
+  '3040900',
+  '3058500',
+  '3072200',
+  '3086800',
+  '3101500',
+  '3118900',
+  '3135000',
+];
+
+const EQUITY_POINTS = EQUITY_SERIES_MINOR.map((valueMinor, i) => ({
+  label: new Date(Date.now() - (EQUITY_SERIES_MINOR.length - 1 - i) * 86_400_000)
+    .toISOString()
+    .slice(0, 10),
+  valueMinor,
+}));
+
+function fmtUsdMinor(minor: string): string {
+  return `US$${(Number(minor) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
 
 export default function PortfolioPage() {
   return (
@@ -109,6 +159,18 @@ export default function PortfolioPage() {
           </Card>
         ))}
       </div>
+
+      <Card className="mt-[18px] p-[22px]">
+        <b className="font-display text-lg">Your money over time</b>
+        <div className="mb-3 text-[13px] text-faint">
+          Recorded once a day, in USD — never projected
+        </div>
+        <EquityChart
+          points={EQUITY_POINTS}
+          fmt={fmtUsdMinor}
+          emptyNote="Your history starts today — the first point lands tonight."
+        />
+      </Card>
 
       <div className="mt-[18px] flex items-start gap-3.5 rounded-2xl border border-border bg-mint px-[22px] py-[18px]">
         <ShieldCheck className="mt-0.5 h-[22px] w-[22px] flex-none text-teal2" aria-hidden />

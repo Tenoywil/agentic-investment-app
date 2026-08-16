@@ -1,6 +1,7 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { EquityChart } from '@/app/_components/EquityChart';
 import { PartnerMark, markFor, usePartnerMarks } from '@/app/_components/PartnerMark';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -11,9 +12,11 @@ import { cn } from '@/app/_lib/utils';
 import {
   type AllocationSlice,
   type Currency,
+  type EquityHistoryPoint,
   type Portfolio,
   PortfolioApiError,
   type PortfolioPartner,
+  getEquityHistory,
   getPortfolio,
   pullStatements,
   regulatorLabel,
@@ -52,6 +55,14 @@ function fmtEstimate(minor: number, ccy: Currency): string {
   return `${CCY_PREFIX[ccy]}${(minor / 100).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  })}`;
+}
+
+/** USD, whole units, for the equity chart. Snapshots are recorded in USD and
+ *  never restated, whatever display currency the header is currently in. */
+function fmtUsdMinor(minor: string): string {
+  return `${CCY_PREFIX.USD}${(Number(minor) / 100).toLocaleString('en-US', {
+    maximumFractionDigits: 0,
   })}`;
 }
 
@@ -322,6 +333,23 @@ export default function PortfolioPage() {
   const [error, setError] = useState<string | null>(null);
   /** Brand marks for the connected firms — one cached read, decorative only. */
   const marks = usePartnerMarks();
+  /**
+   * The recorded equity curve, one point per day. Null until it arrives — a
+   * failed read stays null and the section simply does not render, because a
+   * chart is a nice-to-have and an error banner about it is not.
+   */
+  const [equity, setEquity] = useState<EquityHistoryPoint[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getEquityHistory()
+      .then(({ points }) => {
+        if (!cancelled) setEquity(points);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Display currency is a server concern: @ccn/money does the conversion so the
   // client never re-implements FX. Changing it refetches rather than converting
   // the numbers we already hold.
@@ -822,6 +850,69 @@ export default function PortfolioPage() {
           })}
         </div>
       )}
+
+      {/*
+        Your money over time — the recorded curve, after the holdings it
+        summarises. Every point is a day the recorder actually measured;
+        nothing is projected or back-filled. Today's live total (the same
+        netWorthMinor the header shows) is appended as a "now" point so day
+        one still shows something — but only when the last recorded day isn't
+        today, and only while the display currency is USD: snapshots are
+        recorded in USD, and a JMD-restated total appended to a USD series
+        would be two units on one line.
+      */}
+      {equity !== null &&
+        (() => {
+          const todayIso = new Date().toISOString().slice(0, 10);
+          const series: { label: string; valueMinor: string }[] = equity.map((p) => ({
+            label: p.takenOn,
+            valueMinor: p.netWorthMinor,
+          }));
+          const lastRecorded = series[series.length - 1];
+          if (data && data.currency === 'USD' && lastRecorded?.label !== todayIso) {
+            series.push({ label: 'now', valueMinor: data.netWorthMinor });
+          }
+          const firstPoint = series[0];
+          const lastPoint = series[series.length - 1];
+          const change =
+            series.length >= 2 && firstPoint && lastPoint
+              ? Number(lastPoint.valueMinor) - Number(firstPoint.valueMinor)
+              : null;
+          const firstMinor = firstPoint ? Number(firstPoint.valueMinor) : 0;
+          const changePct =
+            change !== null && firstMinor > 0 ? Math.abs((change / firstMinor) * 100) : null;
+          return (
+            <Card className="mt-[18px] p-[22px]">
+              <b className="font-display text-lg">Your money over time</b>
+              <div className="mb-3 text-[13px] text-faint">
+                Recorded once a day, in USD — never projected
+              </div>
+              <EquityChart
+                points={series}
+                fmt={fmtUsdMinor}
+                emptyNote="Your history starts today — the first point lands tonight."
+              />
+              {change !== null && firstPoint && (
+                <p className="mb-0 mt-3 text-[13px] text-dim">
+                  <b
+                    className={change >= 0 ? 'text-success-ink' : 'text-[#a44e20] dark:text-terra'}
+                  >
+                    {change >= 0 ? '+' : '−'}
+                    {fmtUsdMinor(String(Math.abs(change)))}
+                    {changePct !== null && (
+                      <>
+                        {' '}
+                        ({change >= 0 ? '+' : '−'}
+                        {changePct.toFixed(1)}%)
+                      </>
+                    )}
+                  </b>{' '}
+                  since {firstPoint.label}
+                </p>
+              )}
+            </Card>
+          );
+        })()}
 
       {/* One line, not a paragraph: the full custody explanation lives on
           /how-it-works, and repeating it here cost a phone half a screen. */}

@@ -604,6 +604,26 @@ export function getKpis(): Promise<{ kpis: ConsoleKpi[] }> {
   return consoleFetch('/kpis');
 }
 
+/**
+ * One day of what clients hold through this firm. `takenOn` is the recorder's
+ * day (`YYYY-MM-DD`); `heldMinor` is USD minor units as a string; `clients`
+ * is the number of clients counted into that day's figure.
+ */
+export interface PartnerEquityPoint {
+  takenOn: string;
+  heldMinor: string;
+  clients: number;
+}
+
+/**
+ * The firm's growth curve, one point per day since the recorder first saw it,
+ * oldest first. Empty means the firm's history starts today — a real state,
+ * not an error.
+ */
+export function getPartnerEquityHistory(): Promise<{ points: PartnerEquityPoint[] }> {
+  return consoleFetch('/equity-history');
+}
+
 export function getFunnel(): Promise<{ stages: ConsoleFunnelStage[] }> {
   return consoleFetch('/funnel');
 }
