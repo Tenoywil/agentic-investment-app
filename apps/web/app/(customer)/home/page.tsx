@@ -7,7 +7,7 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { useMe } from '@/app/_lib/session';
 import { useRealtime } from '@/app/_lib/use-realtime';
-import { cn } from '@/app/_lib/utils';
+import { cn, splitApprovalTitle } from '@/app/_lib/utils';
 import {
   type AgentMessage,
   type AllocationSlice,
@@ -499,6 +499,10 @@ export default function HomePage() {
             )}
             {pendingApprovals.map((a) => {
               const tag = APPROVAL_TAG[a.type] ?? APPROVAL_TAG.investment_rec;
+              // Same treatment the agent screen gives the full card: the
+              // instrument as the headline, the amount as the figure. This
+              // card stays minimal — deciding happens on /agent.
+              const split = splitApprovalTitle(a.title);
               return (
                 <div
                   key={a.id}
@@ -516,7 +520,16 @@ export default function HomePage() {
                     </span>
                     <span className="text-[12.5px] text-faint">{relativeTime(a.createdAt)}</span>
                   </div>
-                  <div className="mb-3 text-[15px] font-bold">{a.title}</div>
+                  {split ? (
+                    <>
+                      <div className="mb-0.5 text-[15px] font-bold leading-snug">{split.name}</div>
+                      <div className="mb-3 font-display text-[22px] font-bold leading-none tracking-tight text-teal2">
+                        {split.amount}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mb-3 text-[15px] font-bold">{a.title}</div>
+                  )}
                   <Button className="w-full" asChild>
                     <Link href="/agent">Review &amp; approve</Link>
                   </Button>

@@ -209,6 +209,27 @@ export function getApprovals(): Promise<{ approvals: Approval[] }> {
 }
 
 /**
+ * One day of recorded net worth. `takenOn` is the recorder's own day
+ * (`YYYY-MM-DD`); the amounts are USD minor units as strings — snapshots are
+ * recorded in the base currency and never restated, so a display-currency
+ * change on the screen does not rewrite history.
+ */
+export interface EquityHistoryPoint {
+  takenOn: string;
+  netWorthMinor: string;
+  cashMinor: string;
+}
+
+/**
+ * The caller's own equity curve, one point per day since the recorder first
+ * saw them, oldest first. An empty array is a real state — history starts the
+ * day the recorder first runs — not an error.
+ */
+export function getEquityHistory(): Promise<{ points: EquityHistoryPoint[] }> {
+  return apiFetch('/api/portfolio/equity-history');
+}
+
+/**
  * "I've sent the money." Lands in the firm's reconciliation queue for a human
  * to confirm — nothing is credited on the investor's say-so, and the screen
  * should say exactly that.

@@ -8,6 +8,7 @@ import { createLogger } from './logger';
 import { checkMigrations } from './migrations';
 import { createOutboundGuard } from './security';
 import { startAgentSweep } from './services/agent-sweep';
+import { startValueSnapshots } from './services/value-snapshots';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
 import { type Registration, WsHub } from './ws/hub';
@@ -226,6 +227,13 @@ const research =
       })
     : undefined;
 startAgentSweep({ ...deps, research });
+
+/**
+ * The valuation recorder: once a day, one net-worth row per investor and one
+ * held-by-clients row per firm — the honest history behind every equity
+ * chart. Same composition-root-only, same kill switch as the sweep.
+ */
+startValueSnapshots(deps);
 
 /** Per-connection state: the tenant (fixed at upgrade) and its hub registration. */
 interface WsData {

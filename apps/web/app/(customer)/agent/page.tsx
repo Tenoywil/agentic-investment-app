@@ -2,9 +2,11 @@
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
+import { PartnerMark, markFor, usePartnerMarks } from '@/app/_components/PartnerMark';
 import { PENDING_QUESTION_KEY } from '@/app/_components/VoiceAsk';
 import {
   AgentDisplayCard,
+  RiskBadge,
   TraceDisplay,
   type TraceScore,
   extractTraceScores,
@@ -18,7 +20,7 @@ import { Switch } from '@/app/_components/ui/switch';
 import { useSheetDismiss } from '@/app/_lib/sheet';
 import { useDictation, useNarration } from '@/app/_lib/speech';
 import { useRealtime } from '@/app/_lib/use-realtime';
-import { cn } from '@/app/_lib/utils';
+import { cn, splitApprovalTitle } from '@/app/_lib/utils';
 import {
   AgentApiError,
   type AgentDisplayData,
@@ -187,6 +189,54 @@ function snapshotFirm(snapshot: unknown): { firm: string | null; regulator: stri
         ? s.partnerName
         : null;
   return { firm, regulator: typeof s.regulator === 'string' ? s.regulator : null };
+}
+
+/**
+ * The risk word the recommendation's own case states ("medium risk"), for a
+ * chip. Read from the body, never asserted: a card whose case names no risk
+ * band gets no risk chip.
+ */
+const RISK_IN_BODY = /\b(low|medium|high) risk\b/i;
+
+/**
+ * The executing firm off the trace's coordination detail line
+ * ("Executing firm: X"), written by the pipeline when it chose one. The
+ * pipeline's own placeholder for an unnamed firm is not a firm and yields no
+ * chip.
+ */
+function traceFirm(trace: { detail: string[] }[] | null): string | null {
+  if (!trace) return null;
+  for (const stage of trace) {
+    for (const line of stage.detail) {
+      const match = /^Executing firm: (.+)$/.exec(line);
+      if (match?.[1] && match[1] !== 'your connected firm') return match[1];
+    }
+  }
+  return null;
+}
+
+/** Trace score labels, shortened for the fact-chip row. */
+const SCORE_CHIP_LABEL: Record<string, string> = {
+  Fit: 'fit',
+  'Research confidence': 'research',
+};
+
+/**
+ * The case, condensed: the first sentence or two (~180 chars) reads on the
+ * card; the remainder folds into the disclosure details. Splits only on
+ * ". " boundaries so amounts like "US$2,010.50" never get cut mid-figure.
+ */
+function condenseBody(body: string): { lead: string; rest: string | null } {
+  const sentences = body.split('. ');
+  let lead = sentences[0] ?? body;
+  let taken = 1;
+  while (taken < sentences.length && `${lead}. ${sentences[taken]}`.length <= 180) {
+    lead = `${lead}. ${sentences[taken]}`;
+    taken += 1;
+  }
+  if (taken >= sentences.length) return { lead: body, rest: null };
+  // The split ate the lead's closing period; put it back.
+  return { lead: `${lead}.`, rest: sentences.slice(taken).join('. ') };
 }
 
 /**
@@ -573,6 +623,9 @@ export default function AgentPage() {
   const inputId = useId();
 
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  /** Brand marks for the executing-firm chip on approval cards — one cached
+   *  read, decorative only; a missing list just means monogram tiles. */
+  const marks = usePartnerMarks();
   const [approvalsState, setApprovalsState] = useState<ApprovalsState>('loading');
   const [approvalsError, setApprovalsError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
@@ -1235,6 +1288,24 @@ export default function AgentPage() {
                 const blocked = blockedById[a.id];
                 const actionError = actionErrorById[a.id];
                 const busy = actioningId === a.id;
+                // "Name · US$2,010" splits into a headline and the figure the
+                // decision is actually about; a title without the pattern
+                // renders whole, as before.
+                const split = splitApprovalTitle(a.title);
+                // "How this was decided": the pipeline's own stage records,
+                // stored on the approval when it was raised, drawn by the same
+                // TraceDisplay the chat uses. Absent on cards from before the
+                // pipeline existed — then no claim is rendered, rather than a
+                // reconstructed one.
+                const trace = decisionTrace(a.snapshot);
+                const { firm, regulator } = snapshotFirm(a.snapshot);
+                const scores = trace ? extractTraceScores(trace) : [];
+                const execFirm = traceFirm(trace);
+                const execMark = execFirm ? markFor(marks, { name: execFirm }) : undefined;
+                const riskWord = a.body
+                  ? (RISK_IN_BODY.exec(a.body)?.[1]?.toLowerCase() ?? null)
+                  : null;
+                const cased = a.body ? condenseBody(a.body) : null;
                 return (
                   <div
                     key={a.id}
@@ -1245,45 +1316,95 @@ export default function AgentPage() {
                       <Badge variant={meta.variant}>{meta.label}</Badge>
                       <span className="text-[12.5px] text-faint">{formatWhen(a.createdAt)}</span>
                     </div>
-                    <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
-                    {a.body && (
-                      <p className="mb-2 text-[13.5px] leading-normal text-dim">{a.body}</p>
+
+                    {/* Instrument as the headline, the amount as the figure the
+                        reader is deciding on — large, with a quiet "proposed"
+                        so it never reads as money already moved. */}
+                    {split ? (
+                      <div className="mb-2.5">
+                        <div className="text-[15px] font-bold leading-snug">{split.name}</div>
+                        <div className="mt-1.5 flex items-baseline gap-2">
+                          <span className="font-display text-[27px] font-bold leading-none tracking-[-0.5px] text-teal2">
+                            {split.amount}
+                          </span>
+                          <span className="text-[11px] font-bold uppercase tracking-[.5px] text-faint">
+                            proposed
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
+                        {a.amountMinor !== null && (
+                          <p className="mb-2.5 font-mono text-[13.5px] font-bold text-teal2">
+                            {formatMoney(a.amountMinor, a.currency)}
+                          </p>
+                        )}
+                      </>
                     )}
-                    {a.amountMinor !== null && (
-                      <p className="mb-3 font-mono text-[13.5px] font-bold text-teal2">
-                        {formatMoney(a.amountMinor, a.currency)}
-                      </p>
+
+                    {/* Fact chips — each rendered only when its data actually
+                        exists on this card, never a placeholder. */}
+                    {(riskWord || scores.length > 0 || execFirm) && (
+                      <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+                        {riskWord && <RiskBadge risk={riskWord} />}
+                        {scores.map((s) => (
+                          <Badge key={s.label} variant="secondary" className="font-mono">
+                            {SCORE_CHIP_LABEL[s.label] ?? s.label} {s.score}/100
+                          </Badge>
+                        ))}
+                        {execFirm && (
+                          <span className="flex items-center gap-1.5 rounded-full border border-solid border-border bg-card py-0.5 pl-1 pr-2.5 text-[12px] font-semibold text-dim">
+                            <PartnerMark
+                              name={execFirm}
+                              code={execMark?.code}
+                              id={execMark?.id}
+                              hasLogo={execMark?.hasLogo}
+                              color={execMark?.color}
+                              tint={execMark?.tint}
+                              size="sm"
+                            />
+                            {execFirm}
+                          </span>
+                        )}
+                      </div>
                     )}
-                    {(() => {
-                      // "How this was decided": the pipeline's own stage records,
-                      // stored on the approval when it was raised, drawn by the
-                      // same TraceDisplay the chat uses. Absent on cards from
-                      // before the pipeline existed — then no claim is rendered,
-                      // rather than a reconstructed one.
-                      const trace = decisionTrace(a.snapshot);
-                      const { firm, regulator } = snapshotFirm(a.snapshot);
-                      return (
-                        <>
-                          {trace && (
-                            <details className="mb-3 rounded-lg bg-muted/60 px-3 py-2">
-                              <summary className="cursor-pointer text-[12.5px] font-bold text-dim">
-                                How this was decided · {trace.length} stage
-                                {trace.length === 1 ? '' : 's'}
-                              </summary>
-                              <div className="mt-2">
-                                <TraceDisplay trace={trace} />
-                              </div>
-                            </details>
-                          )}
-                          <TrustNote
-                            className="mb-3"
-                            firm={firm}
-                            regulator={regulator}
-                            scores={trace ? extractTraceScores(trace) : []}
-                          />
-                        </>
-                      );
-                    })()}
+
+                    {/* The case, condensed: a sentence or two on the card, the
+                        rest inside the disclosure below instead of a wall of
+                        prose between the reader and the buttons. */}
+                    {cased && (
+                      <p className="mb-2.5 text-[13.5px] leading-normal text-dim">{cased.lead}</p>
+                    )}
+
+                    {trace ? (
+                      <details className="mb-3 rounded-lg bg-muted/60 px-3 py-2">
+                        <summary className="cursor-pointer text-[12.5px] font-bold text-dim">
+                          How this was decided · {trace.length} stage
+                          {trace.length === 1 ? '' : 's'}
+                        </summary>
+                        {cased?.rest && (
+                          <p className="mb-0 mt-2 text-[12.5px] leading-snug text-dim">
+                            {cased.rest}
+                          </p>
+                        )}
+                        <div className="mt-2">
+                          <TraceDisplay trace={trace} />
+                        </div>
+                      </details>
+                    ) : (
+                      cased?.rest && (
+                        <details className="mb-3 rounded-lg bg-muted/60 px-3 py-2">
+                          <summary className="cursor-pointer text-[12.5px] font-bold text-dim">
+                            Full reasoning
+                          </summary>
+                          <p className="mb-0 mt-1.5 text-[12.5px] leading-snug text-dim">
+                            {cased.rest}
+                          </p>
+                        </details>
+                      )
+                    )}
+                    <TrustNote className="mb-3" firm={firm} regulator={regulator} scores={scores} />
                     {actionError && (
                       <div className="mb-3">
                         <InlineError>{actionError}</InlineError>

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  date,
   integer,
   jsonb,
   numeric,
@@ -159,6 +160,26 @@ export const reconciliationItems = pgTable('reconciliation_items', {
   status: reconciliationStatus('status').notNull().default('pending'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
+});
+
+/**
+ * Daily valuation history (0031) — one row per investor per day and one per
+ * firm per day, written only by the `record_value_snapshots()` SECURITY
+ * DEFINER recorder. For scope 'user': net worth + the cash slice. For scope
+ * 'partner': everything clients hold through the firm + the client count.
+ * History accrues from the day the recorder first ran; there is no backfill,
+ * because fabricated history is still fabricated data.
+ */
+export const valueSnapshots = pgTable('value_snapshots', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  scope: text('scope').notNull(), // 'user' | 'partner' (CHECK-enforced)
+  userId: uuid('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  partnerId: uuid('partner_id').references(() => partners.id, { onDelete: 'cascade' }),
+  takenOn: date('taken_on').notNull(),
+  netWorthMinor: moneyMinor('net_worth_minor').notNull().default(sql`0`),
+  cashMinor: moneyMinor('cash_minor').notNull().default(sql`0`),
+  clients: integer('clients'),
+  createdAt: createdAt(),
 });
 
 /** Retrieval embeddings (bge-small-en-v1.5, 384-dim). HNSW index added in migration. */

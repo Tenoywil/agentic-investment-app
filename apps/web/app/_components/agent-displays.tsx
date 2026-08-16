@@ -53,7 +53,7 @@ const RISK_VARIANT: Record<string, BadgeProps['variant']> = {
   high: 'terra',
 };
 
-function RiskBadge({ risk }: { risk: string }) {
+export function RiskBadge({ risk }: { risk: string }) {
   return (
     <Badge variant={RISK_VARIANT[risk] ?? 'outline'} className="capitalize">
       {risk} risk

@@ -24,6 +24,7 @@ import {
   type ConsoleProduct,
   type ConsoleReconciliationItem,
   type ConsoleWithdrawal,
+  type PartnerEquityPoint,
   type SettlementInput,
   acceptOrder,
   decideWithdrawal,
@@ -32,6 +33,7 @@ import {
   getFunnel,
   getKpis,
   getOrders,
+  getPartnerEquityHistory,
   getProducts,
   getReconciliation,
   getWithdrawals,
@@ -79,6 +81,8 @@ export default function InstitutionsPage() {
   const [productsError, setProductsError] = useState<string | null>(null);
   const [kpis, setKpis] = useState<ConsoleKpi[]>([]);
   const [kpisError, setKpisError] = useState<string | null>(null);
+  const [equity, setEquity] = useState<PartnerEquityPoint[]>([]);
+  const [equityError, setEquityError] = useState<string | null>(null);
   const [clients, setClients] = useState<ConsoleClient[]>([]);
   const [clientsError, setClientsError] = useState<string | null>(null);
   const [funnel, setFunnel] = useState<ConsoleFunnelStage[]>([]);
@@ -150,7 +154,7 @@ export default function InstitutionsPage() {
     // Each panel reports its own failure. One route being down must not blank
     // the other four — an operator with a broken funnel query can still work
     // their order queue.
-    const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR, withdrawalsR] =
+    const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR, withdrawalsR, equityR] =
       await Promise.allSettled([
         getOrders({
           status: orderStatus || undefined,
@@ -165,6 +169,7 @@ export default function InstitutionsPage() {
         getReconciliation(),
         getAudit(50),
         getWithdrawals(),
+        getPartnerEquityHistory(),
       ]);
 
     if (ordersR.status === 'fulfilled') {
@@ -182,6 +187,11 @@ export default function InstitutionsPage() {
       setKpis(kpisR.value.kpis);
       setKpisError(null);
     } else setKpisError(errorMessage(kpisR.reason, 'Could not load KPIs.'));
+
+    if (equityR.status === 'fulfilled') {
+      setEquity(equityR.value.points);
+      setEquityError(null);
+    } else setEquityError(errorMessage(equityR.reason, 'Could not load your growth history.'));
 
     if (clientsR.status === 'fulfilled') {
       setClients(clientsR.value.clients);
@@ -502,6 +512,8 @@ export default function InstitutionsPage() {
             partner={partner}
             kpis={kpis}
             kpisError={kpisError}
+            equity={equity}
+            equityError={equityError}
             orders={orders}
             ordersError={ordersError}
             loading={loading}

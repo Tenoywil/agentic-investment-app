@@ -4,6 +4,7 @@ import {
   instruments,
   partners,
   reconciliationItems,
+  valueSnapshots,
   withdrawalRequests,
 } from '@ccn/db';
 import { fundingNoticeSchema, withdrawalRequestSchema } from '@ccn/domain';
@@ -109,6 +110,35 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         .orderBy(partners.name),
     );
     return c.json({ partners: rows });
+  });
+
+  /**
+   * The caller's own equity curve: one point per day since the recorder first
+   * saw them, oldest first. Minor units as strings — the client formats.
+   * An empty array is a real state ("history starts today"), not an error.
+   */
+  app.get('/equity-history', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({
+          takenOn: valueSnapshots.takenOn,
+          netWorthMinor: valueSnapshots.netWorthMinor,
+          cashMinor: valueSnapshots.cashMinor,
+        })
+        .from(valueSnapshots)
+        .where(and(eq(valueSnapshots.scope, 'user'), eq(valueSnapshots.userId, tenant.user.id)))
+        .orderBy(valueSnapshots.takenOn)
+        .limit(366),
+    );
+    return c.json({
+      points: rows.map((r) => ({
+        takenOn: r.takenOn,
+        netWorthMinor: r.netWorthMinor.toString(),
+        cashMinor: r.cashMinor.toString(),
+      })),
+    });
   });
 
   /**

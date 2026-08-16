@@ -1,8 +1,9 @@
 'use client';
 
+import { EquityChart } from '@/app/_components/EquityChart';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
-import type { ConsoleKpi, ConsoleOrder } from '@/lib/console-api';
+import type { ConsoleKpi, ConsoleOrder, PartnerEquityPoint } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { ArrowRight, ArrowRightLeft, Check, CheckCheck, LayoutGrid } from 'lucide-react';
 import {
@@ -24,6 +25,8 @@ export function OverviewTab({
   partner,
   kpis,
   kpisError,
+  equity,
+  equityError,
   orders,
   ordersError,
   loading,
@@ -42,6 +45,9 @@ export function OverviewTab({
   partner: MePartner | null;
   kpis: ConsoleKpi[];
   kpisError: string | null;
+  /** The firm's recorded growth curve, one point per day, oldest first. */
+  equity: PartnerEquityPoint[];
+  equityError: string | null;
   orders: ConsoleOrder[];
   ordersError: string | null;
   loading: boolean;
@@ -222,6 +228,40 @@ export function OverviewTab({
             body="Referred AUM, onboarding conversion and order counts appear here once your first CCN client funds an order in one of your products."
           />
         )
+      )}
+
+      {/* The firm's growth curve: what clients hold through it, recorded once
+          a day by the snapshot recorder — measured, never projected. Hidden
+          while the first load is in flight so an empty chart never claims "no
+          history" before the response has arrived. */}
+      {!loading && (
+        <Card className="mt-[18px] p-[22px]">
+          <b className="font-display text-lg">Held by your clients over time</b>
+          <div className="mb-3 text-[13px] text-faint">
+            Recorded once a day, in USD — never projected
+          </div>
+          {equityError ? (
+            <ErrorNote message={equityError} />
+          ) : (
+            <>
+              <EquityChart
+                points={equity.map((p) => ({ label: p.takenOn, valueMinor: p.heldMinor }))}
+                fmt={(minor) => fmtMinor(minor, 'USD')}
+                emptyNote="Your firm's history starts today — the first point lands tonight."
+              />
+              {equity.length > 0 &&
+                (() => {
+                  const latest = equity[equity.length - 1] as PartnerEquityPoint;
+                  return (
+                    <p className="mb-0 mt-3 text-[13px] text-dim">
+                      <b className="font-mono text-foreground">{latest.clients}</b>{' '}
+                      {latest.clients === 1 ? 'client' : 'clients'} counted at the latest point
+                    </p>
+                  );
+                })()}
+            </>
+          )}
+        </Card>
       )}
 
       <div className="g-agent mt-[18px]">

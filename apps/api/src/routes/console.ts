@@ -8,6 +8,7 @@ import {
   partners,
   reconciliationItems,
   user as userTable,
+  valueSnapshots,
   withdrawalRequests,
 } from '@ccn/db';
 import {
@@ -247,6 +248,40 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         withdrawalFeeBps: row.withdrawal_fee_bps,
         gctBps: row.gct_bps,
       },
+    });
+  });
+
+  /**
+   * The firm's own growth curve: what clients hold through it, one point per
+   * day since the recorder first saw the firm, plus the client count. The
+   * answer to "is the network making a difference for us" — recorded, never
+   * projected. Empty means history starts today.
+   */
+  app.get('/equity-history', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({
+          takenOn: valueSnapshots.takenOn,
+          heldMinor: valueSnapshots.netWorthMinor,
+          clients: valueSnapshots.clients,
+        })
+        .from(valueSnapshots)
+        .where(
+          and(eq(valueSnapshots.scope, 'partner'), eq(valueSnapshots.partnerId, scope.partnerId)),
+        )
+        .orderBy(valueSnapshots.takenOn)
+        .limit(366),
+    );
+    return c.json({
+      points: rows.map((r) => ({
+        takenOn: r.takenOn,
+        heldMinor: r.heldMinor.toString(),
+        clients: r.clients ?? 0,
+      })),
     });
   });
 

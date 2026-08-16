@@ -8,6 +8,7 @@
 export * from './pipeline';
 export * from './fit';
 export * from './research';
+export * from './structured';
 export * from './snapshot';
 export * from './context';
 export * from './prompt';
