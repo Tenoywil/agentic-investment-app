@@ -17,6 +17,14 @@ external resources required, and the compute/model strategy.
 > Diagrams are authored in Mermaid (`*.mmd`) and rendered to `exports/*.svg` and
 > `exports/*.png`. GitHub renders the inline Mermaid below directly.
 
+> **See also:** [Background Agent Workflow — Research to Decision](./background-workflow.md)
+> specifies how each background agent works stage by stage, **grounded in the
+> codebase as built** (`packages/agent/src/pipeline.ts`,
+> `apps/api/src/services/agent-sweep.ts`, `packages/limits-engine`), with a
+> phased roadmap. This README predates the build and keeps the original
+> vision-level spec; where the two differ, the workflow doc describes the
+> working system.
+
 ## Stack
 
 A pragmatic stack that fits the product and the existing prototype (the Warm
@@ -397,6 +405,7 @@ paths to an executed action.
 | `04-approval-sequence.mmd` | Human-in-the-loop approval sequence |
 | `05-data-api-integration.mmd` | Data & API integration map |
 | `06-onboarding-kyc.mmd` | Onboarding / KYC gate |
+| `07-background-research-to-decision.mmd` | Background workflow: research → decision (see [background-workflow.md](./background-workflow.md)) |
 
 Rendered `*.svg` and `*.png` for each live in `exports/`. To re-render:
 
