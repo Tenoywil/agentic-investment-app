@@ -1,12 +1,30 @@
 import './globals.css';
 import { Tour } from '@/app/_components/tour/tour';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
   title: 'Caribbean Capital Network',
   description:
     'The financial operating system of the Caribbean — one agent for your whole regional portfolio, executed by FSC-licensed partners on your approval.',
+};
+
+/**
+ * iPhone Safari needs all three of these to render the app as an app:
+ * `viewportFit: 'cover'` is what makes `env(safe-area-inset-*)` non-zero on
+ * notched phones (without it every safe-area padding in globals.css is a
+ * no-op and content sits under the Dynamic Island in landscape); the
+ * themeColor pair paints Safari's own chrome — the URL bar and the notch
+ * surround — in the page's background instead of default white, per scheme.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f4f0e7' },
+    { media: '(prefers-color-scheme: dark)', color: '#171512' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

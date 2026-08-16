@@ -609,6 +609,26 @@ suite('partner console data surface', () => {
   });
 
   /**
+   * The held-by-clients KPI must survive RLS. Holdings rows are readable only
+   * by their owning investor (or an admin), so an operator's transaction
+   * joining `holdings` directly sums zero rows — the console then reported
+   * US$0 above a client list showing real positions. The KPI goes through
+   * partner_clients() instead, and this pins that it sees the money.
+   */
+  test('kpis: held-by-clients counts accepted clients’ holdings for the operator', async () => {
+    const { kpis } = await json<{ kpis: { id: string; value: string }[] }>(
+      '/api/console/kpis',
+      'sagOperator',
+    );
+    const aum = kpis.find((k) => k.id === 'aum');
+    expect(aum).toBeTruthy();
+    // Other suites sharing this database may add SAG clients of their own, so
+    // the assertion is a floor from this file's fixture, not an exact figure.
+    const numeric = Number((aum?.value ?? '').replace(/[^0-9.]/g, ''));
+    expect(numeric).toBeGreaterThanOrEqual(12_500);
+  });
+
+  /**
    * The drill-down. The list row could say "1 position · US$12,500" and could
    * not say what it was, which is the first thing anyone asks about a client.
    */

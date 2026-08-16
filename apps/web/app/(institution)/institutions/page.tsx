@@ -512,6 +512,8 @@ export default function InstitutionsPage() {
             pendingWithdrawals={
               withdrawalsError ? 0 : withdrawals.filter((w) => w.status === 'pending').length
             }
+            hasProducts={products.length > 0}
+            hasActiveClient={clients.some((c) => c.status === 'active')}
             onGoTab={(t) => setTab(t)}
             onAccept={handleAccept}
             onSettle={handleSettle}
