@@ -144,6 +144,7 @@ export function sampleSnapshot(): AgentSnapshot {
         {
           id: 'approval-1',
           title: 'Move US$2,000 into the Barita money market fund',
+          instrumentId: 'brmm',
           amountMinor: 200_000n,
           currency: 'USD',
           createdAt: '2026-08-12T09:00:00.000Z',
@@ -158,5 +159,15 @@ export function sampleSnapshot(): AgentSnapshot {
         },
       ],
     },
+    goals: [
+      {
+        name: 'House deposit',
+        targetMinor: 4_000_000n, // US$40,000
+        currentMinor: 1_500_000n,
+        eta: 'On track · mid-2028',
+      },
+    ],
+    // The pending Barita card's instrument, quiet like the sweep would keep it.
+    quietInstrumentIds: ['brmm'],
   };
 }

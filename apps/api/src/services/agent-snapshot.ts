@@ -1,9 +1,17 @@
 import type { AgentSnapshot, SnapshotActivity, SnapshotInstrument } from '@ccn/agent';
 import type { Transaction } from '@ccn/db';
-import { approvals, connectedAccounts, holdings, instruments, orders, partners } from '@ccn/db';
+import {
+  approvals,
+  connectedAccounts,
+  goals,
+  holdings,
+  instruments,
+  orders,
+  partners,
+} from '@ccn/db';
 import type { RiskRating } from '@ccn/domain';
 import type { Currency } from '@ccn/money';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import { isDatabaseBehind } from '../migrations';
 import { loadBand, loadLimits } from './gate';
 
@@ -142,6 +150,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
     .select({
       id: approvals.id,
       title: approvals.title,
+      instrumentId: approvals.instrumentId,
       amountMinor: approvals.amountMinor,
       currency: approvals.currency,
       createdAt: approvals.createdAt,
@@ -150,6 +159,43 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
     .where(and(eq(approvals.userId, userId), eq(approvals.status, 'pending')))
     .orderBy(desc(approvals.createdAt))
     .limit(10);
+
+  /**
+   * The quiet set, computed the same way the background sweep computes its
+   * own: anything with a pending card plus approvals and orders inside the
+   * 14-day window. Handed to the chat pipeline so a conversation cannot
+   * recreate a deal that already exists.
+   */
+  const quietSince = new Date(Date.now() - 14 * 86_400_000);
+  const [quietApprovals, quietOrders] = await Promise.all([
+    tx
+      .select({ instrumentId: approvals.instrumentId })
+      .from(approvals)
+      .where(and(eq(approvals.userId, userId), gte(approvals.createdAt, quietSince))),
+    tx
+      .select({ instrumentId: orders.instrumentId })
+      .from(orders)
+      .where(and(eq(orders.userId, userId), gte(orders.createdAt, quietSince))),
+  ]);
+  const quietInstrumentIds = [
+    ...new Set(
+      [
+        ...approvalRows.map((a) => a.instrumentId),
+        ...quietApprovals.map((r) => r.instrumentId),
+        ...quietOrders.map((r) => r.instrumentId),
+      ].filter((id): id is string => id !== null),
+    ),
+  ];
+
+  const goalRows = await tx
+    .select({
+      name: goals.name,
+      targetMinor: goals.targetMinor,
+      currentMinor: goals.currentMinor,
+      eta: goals.eta,
+    })
+    .from(goals)
+    .where(eq(goals.userId, userId));
 
   const connectionRows = await tx
     .select({
@@ -181,6 +227,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
     approvals: approvalRows.map((a) => ({
       id: a.id,
       title: a.title,
+      instrumentId: a.instrumentId,
       amountMinor: a.amountMinor,
       currency: a.currency as Currency,
       createdAt: a.createdAt.toISOString(),
@@ -209,5 +256,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
     limits,
     band,
     instruments: instrumentList,
+    goals: goalRows,
+    quietInstrumentIds,
   };
 }

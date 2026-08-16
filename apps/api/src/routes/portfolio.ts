@@ -111,6 +111,60 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
     return c.json({ partners: rows });
   });
 
+  /**
+   * Brand marks for every partner on the network, one small list the client
+   * caches: id, code, name, brand colors, and whether a real logo exists.
+   * `partners_read` is USING (true), so this is reference data for any
+   * authenticated caller — the bytes themselves come from /partner-logo/:id.
+   */
+  app.get('/partner-marks', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const rows = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({
+          id: partners.id,
+          code: partners.code,
+          name: partners.name,
+          color: partners.color,
+          tint: partners.tint,
+          logoMime: partners.logoMime,
+        })
+        .from(partners)
+        .orderBy(partners.name),
+    );
+    return c.json({
+      marks: rows.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        color: r.color,
+        tint: r.tint,
+        hasLogo: r.logoMime !== null,
+      })),
+    });
+  });
+
+  /** One partner's logo bytes. 404 when the firm has not uploaded one — the
+   *  client falls back to its monogram mark, so a 404 here is a state, not an
+   *  error. Cached: a brand changes rarely and renders everywhere. */
+  app.get('/partner-logo/:id', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const id = c.req.param('id');
+    const [row] = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({ logo: partners.logo, mime: partners.logoMime })
+        .from(partners)
+        .where(eq(partners.id, id)),
+    );
+    if (!row?.logo || !row.mime) return c.json({ error: 'no logo' }, 404);
+    return c.body(new Uint8Array(row.logo).buffer as ArrayBuffer, 200, {
+      'content-type': row.mime,
+      'cache-control': 'private, max-age=3600',
+    });
+  });
+
   app.post('/accounts', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);

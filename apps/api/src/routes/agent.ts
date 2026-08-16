@@ -90,6 +90,8 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
     let gatewayError: unknown = null;
     /** Structured proposals the model prepared during this turn. */
     const proposals: unknown[] = [];
+    /** Structured tool results the client draws as inline cards. */
+    const displays: unknown[] = [];
     const { textStream } = runAgent({
       onError: (error) => {
         gatewayError = error;
@@ -112,6 +114,14 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
        * done, which also means a turn that fails mid-answer sends no proposal.
        */
       onProposal: (p) => proposals.push(p),
+      /**
+       * A tool result the client renders as a visual card — allocation,
+       * goals, a comparison, a fit score, the pipeline trace. Buffered like
+       * proposals (streamSSE owns the connection) and flushed after the text:
+       * the data is the pure context's own computation, so the chart cannot
+       * contain a number the model invented.
+       */
+      onDisplay: (d) => displays.push(d),
       // Scope the cache to this user's data so answers are never shared.
       cacheScope: {
         userId: tenant.user.id,
@@ -187,6 +197,11 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
        */
       for (const proposal of proposals) {
         await stream.writeSSE({ event: 'proposal', data: JSON.stringify(proposal) });
+      }
+      // Display cards after the text for the same reason as proposals. An
+      // older client that doesn't know the event ignores it harmlessly.
+      for (const display of displays) {
+        await stream.writeSSE({ event: 'display', data: JSON.stringify(display) });
       }
 
       await stream.writeSSE({ event: 'done', data: '[DONE]' });

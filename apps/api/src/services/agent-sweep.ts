@@ -25,7 +25,7 @@ import type { Currency } from '@ccn/money';
 import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { AppDeps } from '../context';
 import { auditAppend } from '../db-fns';
-import { loadInstrument, loadLimits, runGate } from './gate';
+import { loadBand, loadInstrument, loadLimits, runGate } from './gate';
 
 /**
  * The background half of the agent — the part the product has always claimed.
@@ -72,6 +72,16 @@ import { loadInstrument, loadLimits, runGate } from './gate';
 
 /** How long a proposed or traded instrument stays off the table. */
 const QUIET_DAYS = 14;
+
+/**
+ * How long the agent stays quiet after ANY card for this person was raised —
+ * decided or not. Without it, deciding a card reopened the pending gate and
+ * the next tick (≤10 minutes later) proposed something else, with another
+ * near-identical "While you were away…" message; an afternoon of decisions
+ * became an afternoon of cards. One proposal a day is a colleague; six an
+ * hour is a fly.
+ */
+const PROPOSAL_COOLDOWN_HOURS = 24;
 
 /** Candidates considered per person per sweep, before the gate. */
 const CANDIDATES_PER_USER = 12;
@@ -147,6 +157,16 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
       .limit(1);
     if (pending) return false;
 
+    // The daily cooldown: any card raised in the last day — pending, decided,
+    // chat-raised or sweep-raised — keeps the background agent quiet.
+    const cooldownSince = new Date(Date.now() - PROPOSAL_COOLDOWN_HOURS * 3_600_000);
+    const [recent] = await tx
+      .select({ id: approvals.id })
+      .from(approvals)
+      .where(and(eq(approvals.userId, userId), gte(approvals.createdAt, cooldownSince)))
+      .limit(1);
+    if (recent) return false;
+
     const quietSince = new Date(Date.now() - QUIET_DAYS * 86_400_000);
     const [recentApprovals, recentOrders, activeAccounts] = await Promise.all([
       tx
@@ -207,6 +227,17 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
       partnerName: h.partnerName,
     }));
 
+    /**
+     * A deal the person already holds is not a background discovery — however
+     * it was acquired (an order, an imported statement, a position older than
+     * the quiet window). Deepening an existing position is a conversation for
+     * the chat, where the person can weigh it; proposed unprompted it reads
+     * as the agent recreating a deal that already exists.
+     */
+    for (const h of heldRows) {
+      if (h.instrumentId !== null) excluded.add(h.instrumentId);
+    }
+
     const [profileRow] = await tx
       .select({ displayCurrency: userProfiles.displayCurrency })
       .from(userProfiles)
@@ -223,7 +254,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
       .from(goalsTable)
       .where(eq(goalsTable.userId, userId));
 
-    const limits = await loadLimits(tx, userId);
+    const [limits, band] = await Promise.all([loadLimits(tx, userId), loadBand(tx, userId)]);
 
     /**
      * Candidates: live, unblocked, with a real minimum, at a firm the person
@@ -361,6 +392,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
           },
           portfolio: { displayCurrency, cashMinor, netWorthMinor, positions },
           goals: goalRows,
+          band,
           now: new Date(),
         });
       },
@@ -429,7 +461,15 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
           trace: outcome.trace,
         },
       })
+      // The partial unique index (0029) is the backstop for the race the
+      // pending-gate read cannot see: a chat raise or a second replica's
+      // sweep committing between our read and this insert.
+      .onConflictDoNothing()
       .returning({ id: approvals.id });
+    // Lost the race — someone else's card exists. No card means no message
+    // and no audit row; announcing a card that was never created is worse
+    // than staying quiet this tick.
+    if (!card) return false;
 
     // The finding, in the person's own conversation — so opening the agent
     // shows what it did while they were away, in its own words.

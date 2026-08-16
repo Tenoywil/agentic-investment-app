@@ -5,12 +5,21 @@
  * because the person already holds three instruments from the same firm, or
  * because the money it would lock up is the money a goal needs next year.
  *
+ * It is also where the COMBINATION gets assembled: given the person's band,
+ * the fit weighs each candidate against the band's TARGET_MIX (policy data in
+ * @ccn/domain) — a move that closes the portfolio's largest allocation gap
+ * earns points and a named reason; one that deepens an overweight bucket is a
+ * named concern. Over successive approved proposals, single moves steer the
+ * portfolio toward the right mix without any bulk reallocation.
+ *
  * Pure: input in, verdict out, no I/O, no clock of its own (`now` is passed
  * in). The fit score can only NARROW what the gate allows — it never widens
  * it, and it never overrides a gate verdict. Every deduction and every credit
  * lands in `reasons`/`concerns` as a sentence a person can check, because a
  * score nobody can audit is a vibe with digits.
  */
+
+import { type MixKey, type RiskBand, allocationGaps, mixKeyFor } from '@ccn/domain';
 
 export interface FitCandidate {
   instrumentId: string;
@@ -52,6 +61,11 @@ export interface FitInput {
     positions: FitPosition[];
   };
   goals: FitGoal[];
+  /** The caller's suitability band. When present, the fit weighs the
+   *  candidate against the band's TARGET_MIX — does this move assemble the
+   *  right combination, or deepen an overweight? Absent, the check is
+   *  skipped (backwards compatible). */
+  band?: RiskBand;
   /** The caller's clock — this module reads no clock of its own. */
   now: Date;
 }
@@ -191,6 +205,36 @@ export function assessPortfolioFit(input: FitInput): FitResult {
           `Its ${candidate.term} term runs past your "${goal.name}" goal, and the cash left after buying would not cover that goal's remaining gap.`,
         );
         break; // One liquidity concern is the message; repeating it per goal is noise.
+      }
+    }
+  }
+
+  // The combination: does this move close the band's largest allocation gap,
+  // or deepen a bucket that is already over target?
+  if (input.band && portfolio.netWorthMinor > 0n) {
+    const currentPct: Partial<Record<MixKey, number>> = {};
+    const add = (key: MixKey | null, valueMinor: bigint) => {
+      if (key === null) return;
+      currentPct[key] = (currentPct[key] ?? 0) + pct(valueMinor, portfolio.netWorthMinor);
+    };
+    add('cash', portfolio.cashMinor);
+    for (const p of invested) add(mixKeyFor(p.type), p.valueMinor);
+
+    const gaps = allocationGaps(currentPct, input.band);
+    const candidateKey = mixKeyFor(candidate.type);
+    if (candidateKey !== null && candidateKey !== 'cash') {
+      const largest = gaps[0];
+      const own = gaps.find((g) => g.key === candidateKey);
+      if (largest && largest.gapPts >= 10 && largest.key === candidateKey) {
+        score += 10;
+        reasons.push(
+          `Closes your biggest allocation gap — your mix is about ${Math.round(largest.gapPts)} points under your band's ${candidateKey.replace('_', ' ')} target.`,
+        );
+      } else if (own && own.gapPts <= -10) {
+        score -= 10;
+        concerns.push(
+          `Your mix is already about ${Math.round(-own.gapPts)} points over your band's ${candidateKey.replace('_', ' ')} target — this deepens the overweight.`,
+        );
       }
     }
   }

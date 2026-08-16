@@ -177,6 +177,44 @@ describe('portfolio fit', () => {
     expect(fit.concerns.join(' ')).toContain('80% of your cash in one move');
   });
 
+  test('closing the band target-mix gap is a named reason', () => {
+    // high_moderate targets 30% bonds; a cash-only portfolio is 30 points
+    // under, and this bond is the move that closes it.
+    const fit = assessPortfolioFit(base({ band: 'high_moderate' }));
+    expect(fit.reasons.join(' ')).toContain('biggest allocation gap');
+    expect(fit.score).toBeGreaterThan(assessPortfolioFit(base()).score);
+  });
+
+  test('deepening an over-target bucket is a named concern', () => {
+    const fit = assessPortfolioFit(
+      base({
+        band: 'low', // bonds target 50%
+        portfolio: {
+          displayCurrency: 'USD',
+          cashMinor: 50_000n,
+          netWorthMinor: 1_000_000n,
+          positions: [
+            {
+              instrumentId: null,
+              name: 'Cash',
+              valueMinor: 50_000n,
+              type: null,
+              partnerName: null,
+            },
+            {
+              instrumentId: 'bond-2',
+              name: 'Barbados Treasury Note',
+              valueMinor: 950_000n,
+              type: 'bond',
+              partnerName: 'Barita',
+            },
+          ],
+        },
+      }),
+    );
+    expect(fit.concerns.join(' ')).toContain("over your band's bond target");
+  });
+
   test('score stays clamped to 0..100', () => {
     const best = assessPortfolioFit(base());
     expect(best.score).toBeLessThanOrEqual(100);

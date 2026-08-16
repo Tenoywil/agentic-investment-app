@@ -103,10 +103,12 @@ const serverSchema = z.object({
 
   // The sweep's per-instrument research pass: how long a shared dossier (the
   // claims-and-evidence deep dive on the `high` model tier) stays fresh before
-  // it is re-researched. 0 disables the pass entirely (the default) — the
-  // sweep then ranks without a research signal and spends no model tokens in
-  // the background. Wired only from the composition root, like the sweep.
-  AGENT_RESEARCH_TTL_MS: z.coerce.number().int().nonnegative().default(0),
+  // it is re-researched. On by default at one day — research is cached per
+  // instrument, so the daily spend scales with the catalogue (~a dozen
+  // instruments), not the user count. 0 disables the pass entirely; the sweep
+  // then ranks without a research signal and spends no model tokens in the
+  // background. Wired only from the composition root, like the sweep.
+  AGENT_RESEARCH_TTL_MS: z.coerce.number().int().nonnegative().default(86_400_000),
 
   // Crypto
   FIELD_ENCRYPTION_KEY: z.string().min(1),

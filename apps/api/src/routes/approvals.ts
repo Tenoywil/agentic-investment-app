@@ -39,10 +39,31 @@ export function approvalsRoutes(deps: AppDeps): Hono<AppEnv> {
     const parsed = createApprovalSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success)
       return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
-    const { instrumentId, amountMinor, currency, type, title, body } = parsed.data;
+    const { instrumentId, amountMinor, currency, type, title, body, summary, reasons } =
+      parsed.data;
 
-    const created = await withTenant(deps, tenant, (tx) =>
-      tx
+    const result = await withTenant(deps, tenant, async (tx) => {
+      /**
+       * A second card for an instrument whose first card is still waiting is a
+       * duplicate, not a new intention (the same rule request_withdrawal
+       * enforces for money out). Answer with the card that already exists, so
+       * the client can point at it instead of stacking the queue.
+       */
+      const [existing] = await tx
+        .select()
+        .from(approvalsTable)
+        .where(
+          and(
+            eq(approvalsTable.userId, tenant.user.id),
+            eq(approvalsTable.instrumentId, instrumentId),
+            eq(approvalsTable.status, 'pending'),
+          ),
+        )
+        .limit(1);
+      if (existing)
+        return { status: 409 as const, body: { error: 'already_pending', approval: existing } };
+
+      const created = await tx
         .insert(approvalsTable)
         .values({
           userId: tenant.user.id,
@@ -53,11 +74,50 @@ export function approvalsRoutes(deps: AppDeps): Hono<AppEnv> {
           body: body ?? null,
           amountMinor,
           currency,
-          snapshot: { instrumentId, amountMinor: amountMinor.toString(), currency },
+          snapshot: {
+            source: 'chat',
+            instrumentId,
+            amountMinor: amountMinor.toString(),
+            currency,
+            // The proposal's own case rides along as a one-stage trace, so
+            // "How this was decided" renders on chat-raised cards too.
+            ...(summary
+              ? {
+                  trace: [
+                    {
+                      stage: 'suitability',
+                      agent: 'Suitability agent',
+                      summary,
+                      detail: reasons ?? [],
+                    },
+                  ],
+                }
+              : {}),
+          },
         })
-        .returning(),
-    );
-    return c.json({ approval: created[0] }, 201);
+        // The partial unique index (0029) is the race backstop: a concurrent
+        // insert that slips past the read above comes back empty instead of
+        // duplicating the card.
+        .onConflictDoNothing()
+        .returning();
+      const row = created[0];
+      if (!row) {
+        const [raced] = await tx
+          .select()
+          .from(approvalsTable)
+          .where(
+            and(
+              eq(approvalsTable.userId, tenant.user.id),
+              eq(approvalsTable.instrumentId, instrumentId),
+              eq(approvalsTable.status, 'pending'),
+            ),
+          )
+          .limit(1);
+        return { status: 409 as const, body: { error: 'already_pending', approval: raced } };
+      }
+      return { status: 201 as const, body: { approval: row } };
+    });
+    return c.json(result.body, result.status);
   });
 
   app.post('/:id/approve', async (c) => {

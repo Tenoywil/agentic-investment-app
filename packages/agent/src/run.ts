@@ -56,7 +56,32 @@ export interface RunAgentArgs {
    * gains no actuator it did not have.
    */
   onProposal?: (proposal: unknown) => void;
+  /**
+   * Called when the model runs a tool whose result the client renders as a
+   * visual card (allocation chart, goal rings, comparison table, fit score,
+   * the pipeline trace). The payload is the tool's own typed output plus its
+   * kind — data the pure context computed, never model prose — so the chart
+   * the user sees cannot contain a number the model invented. Purely a
+   * display channel: nothing here proposes or acts.
+   */
+  onDisplay?: (display: AgentDisplay) => void;
 }
+
+/** Tool results the client renders as inline cards, tagged by kind. */
+export type AgentDisplayKind = 'allocation' | 'goals' | 'comparison' | 'fit' | 'pipeline';
+export interface AgentDisplay {
+  kind: AgentDisplayKind;
+  data: unknown;
+}
+
+/** Which tools feed the display channel, and the kind each renders as. */
+const DISPLAY_TOOLS: Record<string, AgentDisplayKind> = {
+  get_allocation: 'allocation',
+  get_goals: 'goals',
+  compare_opportunities: 'comparison',
+  score_fit: 'fit',
+  run_pipeline: 'pipeline',
+};
 
 export interface RunAgentResult {
   /** The reply text, streamed. */
@@ -120,9 +145,10 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     stopWhen: stepCountIs(args.maxSteps ?? 8),
     onError: ({ error }) => args.onError?.(error),
     onStepFinish: ({ toolResults }) => {
-      if (!args.onProposal) return;
       for (const r of toolResults) {
-        if (r.toolName === 'propose_move') args.onProposal(r.output);
+        if (r.toolName === 'propose_move') args.onProposal?.(r.output);
+        const kind = DISPLAY_TOOLS[r.toolName];
+        if (kind) args.onDisplay?.({ kind, data: r.output });
       }
     },
   });
