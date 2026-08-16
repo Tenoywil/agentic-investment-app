@@ -72,7 +72,7 @@ export function MobileNav({
 
   return (
     <div className="app-mobilenav" data-tour={basePath ? undefined : 'customer-nav'}>
-      <header className="sticky top-0 z-30 flex items-center gap-2 border-0 border-b border-solid border-border bg-card px-3 py-2.5">
+      <header className="sticky top-0 z-30 flex items-center gap-2 border-0 border-b border-solid border-border bg-card px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))]">
         <button
           ref={triggerRef}
           type="button"

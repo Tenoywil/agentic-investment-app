@@ -67,7 +67,13 @@ const GROUPS: NavGroup[] = [
     label: '',
     items: [
       { key: 'home', label: 'Home', href: '/home', Icon: LayoutGrid },
-      { key: 'portfolio', label: 'Portfolio', href: '/portfolio', Icon: LineChart },
+      {
+        key: 'portfolio',
+        label: 'Portfolio',
+        href: '/portfolio',
+        Icon: LineChart,
+        tour: 'customer-portfolio',
+      },
       {
         key: 'opportunities',
         label: 'Invest',
@@ -81,7 +87,13 @@ const GROUPS: NavGroup[] = [
       // Where an authorised order goes. GET /api/orders had no reader at all,
       // so a person watched the exec dialog close and never learned whether
       // their institution accepted, settled or declined it.
-      { key: 'orders', label: 'My orders', href: '/orders', Icon: ArrowRightLeft },
+      {
+        key: 'orders',
+        label: 'My orders',
+        href: '/orders',
+        Icon: ArrowRightLeft,
+        tour: 'customer-orders',
+      },
       { key: 'agent', label: 'Your agent', href: '/agent', Icon: Sparkles },
       { key: 'planning', label: 'Planning', href: '/planning', Icon: ShieldCheck },
       /**

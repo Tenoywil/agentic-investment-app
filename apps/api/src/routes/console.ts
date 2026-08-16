@@ -1171,15 +1171,20 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         // A single statement rather than four round trips, and every count scoped
         // to this partner — RLS would enforce it anyway, and saying so in the
         // query keeps the intent legible next to the numbers.
+        //
+        // Held-by-clients goes through partner_clients(), not a direct join on
+        // holdings: RLS lets only the owning investor (or an admin) read
+        // holdings rows, so an operator joining the table directly sums zero
+        // rows and the console reports US$0 under real client money. The
+        // SECURITY DEFINER function is the sanctioned partner-scoped read.
         (await tx.execute(sql`
         select
           (select count(*) from connected_accounts
              where partner_id = ${scope.partnerId} and status = 'active')      as active_clients,
           (select count(*) from connected_accounts
              where partner_id = ${scope.partnerId} and status = 'pending')     as pending_clients,
-          (select coalesce(sum(h.value_minor), 0) from holdings h
-             join connected_accounts ca on ca.id = h.connected_account_id
-             where ca.partner_id = ${scope.partnerId} and ca.status = 'active') as aum_minor,
+          (select coalesce(sum(pc.holdings_value_minor), 0) from partner_clients() pc
+             where pc.status = 'active')                                       as aum_minor,
           (select count(*) from orders
              where partner_id = ${scope.partnerId} and status = 'settled')     as settled_orders
       `)) as unknown as [Record<string, string>],

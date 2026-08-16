@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The brand mark the nav renders: primary-teal rounded square, bold "C".
+       #124e48 = hsl(174 62.5% 18.8%), the light-theme --primary token. A
+       favicon cannot load web fonts, so the system grotesque stands in for
+       Bricolage at 16px, where the difference is invisible anyway. -->
+  <rect width="64" height="64" rx="18" fill="#124e48"/>
+  <text x="32" y="46" text-anchor="middle" font-family="'Bricolage Grotesque', 'Hanken Grotesk', Arial, sans-serif" font-size="40" font-weight="700" fill="#ffffff">C</text>
+</svg>

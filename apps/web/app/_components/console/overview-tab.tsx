@@ -4,7 +4,7 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import type { ConsoleKpi, ConsoleOrder } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
-import { ArrowRightLeft, CheckCheck, LayoutGrid } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Check, CheckCheck, LayoutGrid } from 'lucide-react';
 import {
   ORDER_AGING_DAYS,
   ROW_DIVIDER,
@@ -32,6 +32,8 @@ export function OverviewTab({
   pendingReviews,
   pendingReconciliation,
   pendingWithdrawals,
+  hasProducts,
+  hasActiveClient,
   onGoTab,
   onAccept,
   onSettle,
@@ -51,21 +53,127 @@ export function OverviewTab({
   pendingReconciliation: number;
   /** Clients asking for money back, undecided. */
   pendingWithdrawals: number;
+  /** Whether the firm has listed anything — a setup milestone, not a metric. */
+  hasProducts: boolean;
+  /** Whether any client has been accepted. */
+  hasActiveClient: boolean;
   /** Jump to another tab — the overview points at work, the tabs hold it. */
-  onGoTab: (tab: 'orders' | 'clients' | 'compliance') => void;
+  onGoTab: (tab: 'orders' | 'clients' | 'compliance' | 'products') => void;
   onAccept: (id: string) => void;
   onSettle: (id: string) => void;
   onReject: (id: string, reason?: string) => void;
 }) {
   const pending = orders.filter((o) => o.status === 'created').length;
-  const settled = orders.filter((o) => o.status === 'settled').length;
   const hasOrders = !ordersError && orders.length > 0;
   const hasMetrics = kpis.length > 0 || hasOrders;
+
+  /**
+   * The setup checklist: the four verifiable milestones between "signed in"
+   * and "a working desk", each computed from the firm's real state — never a
+   * box the firm ticks itself. It disappears once all four are true, because
+   * an onboarding aid that lingers is chrome.
+   */
+  const checklist: {
+    done: boolean;
+    title: string;
+    why: string;
+    go: Parameters<typeof onGoTab>[0];
+  }[] = [
+    {
+      done: partner?.fundingInstructions != null,
+      title: 'Publish your funding instructions',
+      why: 'Clients see them the moment they press "Add money" — money reaches you sooner, and your desk stops fielding "where do I wire?" calls.',
+      go: 'compliance',
+    },
+    {
+      done: hasProducts,
+      title: 'List your first product',
+      why: 'Until something is listed, investors browsing the marketplace cannot see your firm at all.',
+      go: 'products',
+    },
+    {
+      done: hasActiveClient,
+      title: 'Accept your first client',
+      why: 'Their KYC package — declarations and documents — is on their row, ready to review.',
+      go: 'clients',
+    },
+    {
+      done: orders.length > 0,
+      title: 'Take your first order',
+      why: 'Once clients hold cash with you, approved orders land on this desk to accept and settle.',
+      go: 'orders',
+    },
+  ];
+  const doneCount = checklist.filter((c) => c.done).length;
+  const setupComplete = doneCount === checklist.length;
 
   return (
     <>
       {kpisError ? <ErrorNote message={kpisError} className="mb-3" /> : null}
       {ordersError ? <ErrorNote message={ordersError} className="mb-3" /> : null}
+
+      {/* Shown while setting up, gone once live: the path from "signed in" to
+          "orders flowing", with each step's payoff stated — the console should
+          sell the firm on finishing, not merely permit it. */}
+      {!loading && !setupComplete ? (
+        <Card className="mb-4 p-[22px]" data-tour="institution-checklist">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <b className="font-display text-lg">Get your desk live</b>
+            <span className="font-mono text-[13px] font-bold text-dim">
+              {doneCount} of {checklist.length} done
+            </span>
+          </div>
+          <p className="mb-3 mt-1 text-[13px] leading-snug text-faint">
+            Four steps between here and a working book. Each unlocks the next.
+          </p>
+          <ol className="m-0 flex list-none flex-col p-0">
+            {checklist.map((item, i) => (
+              <li
+                key={item.title}
+                className={`flex items-start gap-3 py-3 ${ROW_DIVIDER} last:border-b-0`}
+              >
+                <span
+                  className={
+                    item.done
+                      ? 'mt-0.5 grid h-6 w-6 flex-none place-items-center rounded-full bg-mint'
+                      : 'mt-0.5 grid h-6 w-6 flex-none place-items-center rounded-full border border-solid border-border font-mono text-[12px] font-bold text-dim'
+                  }
+                >
+                  {item.done ? (
+                    <Check className={`h-3.5 w-3.5 ${SUCCESS_TEXT}`} aria-hidden />
+                  ) : (
+                    i + 1
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={
+                      item.done
+                        ? 'text-[14.5px] font-bold text-faint line-through'
+                        : 'text-[14.5px] font-bold'
+                    }
+                  >
+                    {item.title}
+                  </div>
+                  {!item.done ? (
+                    <div className="mt-0.5 text-[12.5px] leading-snug text-faint">{item.why}</div>
+                  ) : null}
+                </div>
+                {!item.done ? (
+                  <button
+                    type="button"
+                    onClick={() => onGoTab(item.go)}
+                    className="mt-0.5 inline-flex flex-none items-center gap-1 text-[13px] font-bold text-teal2 underline-offset-4 hover:underline"
+                  >
+                    Do it
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </Card>
+      ) : null}
 
       {isSandbox(partner) && kpis.length > 0 ? (
         <div className="mb-3">
@@ -88,27 +196,20 @@ export function OverviewTab({
               {k.sub ? <div className="mt-1 text-[13px] text-faint">{k.sub}</div> : null}
             </Card>
           ))}
+          {/* The server KPI list already carries an "Orders settled" card, so
+              only the pending count — which it does not cover — is added here.
+              Repeating the settled number with a second subtitle read as two
+              different metrics that happened to agree. */}
           {hasOrders ? (
-            <>
-              <Card className="p-5">
-                <div className="mb-2 text-[13.5px] text-dim">Orders pending</div>
-                <div
-                  className={`font-display text-[28px] font-bold tracking-tight ${pending ? 'text-terra' : 'text-foreground'}`}
-                >
-                  {pending}
-                </div>
-                <div className="mt-1 text-[13px] text-faint">awaiting your accept</div>
-              </Card>
-              <Card className="p-5">
-                <div className="mb-2 text-[13.5px] text-dim">Orders settled</div>
-                <div
-                  className={`font-display text-[28px] font-bold tracking-tight ${settled ? SUCCESS_TEXT : 'text-foreground'}`}
-                >
-                  {settled}
-                </div>
-                <div className="mt-1 text-[13px] text-faint">confirmed to clients</div>
-              </Card>
-            </>
+            <Card className="p-5">
+              <div className="mb-2 text-[13.5px] text-dim">Orders pending</div>
+              <div
+                className={`font-display text-[28px] font-bold tracking-tight ${pending ? 'text-terra' : 'text-foreground'}`}
+              >
+                {pending}
+              </div>
+              <div className="mt-1 text-[13px] text-faint">awaiting your accept</div>
+            </Card>
           ) : null}
         </div>
       ) : (
@@ -191,7 +292,7 @@ export function OverviewTab({
             product pitch and its "line we never cross" statement — copy for a
             prospect, furniture at a working desk. That prose now lives on the
             Compliance tab; the overview points at work. */}
-        <Card className="h-fit p-[22px]">
+        <Card className="h-fit p-[22px]" data-tour="institution-needs-you">
           <b className="font-display text-lg">Needs you now</b>
           {(() => {
             const pendingOrders = ordersError

@@ -525,7 +525,7 @@ export default function HomePage() {
             })}
           </Card>
 
-          <Card className="p-[22px]">
+          <Card className="p-[22px]" data-tour="customer-activity">
             <div className="mb-4 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
               <Badge variant="secondary">within your limits</Badge>
