@@ -219,7 +219,7 @@ function MoneyDialog({
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-[22px] py-[18px]">
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px]">
         {mode === 'fund' ? (
           <div className="mb-4 rounded-xl bg-[#f4f0e7] px-4 py-3.5 dark:bg-white/[0.04]">
             <div className="mb-1 text-[12px] font-bold uppercase tracking-[.5px] text-dim">

@@ -136,7 +136,7 @@ export function PartnerForm({
 
       <form
         onSubmit={submit}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[max(22px,env(safe-area-inset-bottom))]"
+        className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[max(22px,env(safe-area-inset-bottom))]"
       >
         {error ? (
           <p className="mb-3 flex items-start gap-2 text-sm text-[#a44e20] dark:text-terra">

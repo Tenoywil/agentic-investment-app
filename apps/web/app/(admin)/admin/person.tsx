@@ -241,7 +241,7 @@ export function PersonPanel({
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[max(22px,env(safe-area-inset-bottom))]">
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[max(22px,env(safe-area-inset-bottom))]">
         {error ? (
           <p className="mb-3 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
             <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
