@@ -33,9 +33,19 @@ const CUSTOMER: TourStep[] = [
     body: 'Portfolio, opportunities, your agent and your plan. Everything you see is your own data — nothing here is a sample.',
   },
   {
+    target: 'customer-portfolio',
+    title: 'Money in, money out',
+    body: 'Your portfolio holds each firm you have connected. On every firm’s card you can add money using their own wire instructions, and request a withdrawal — with the firm’s fee and any tax shown before you confirm.',
+  },
+  {
     target: 'customer-agent',
     title: 'The agent proposes; you decide',
     body: 'Ask it to research, compare or plan. It can never move your money on its own — anything with a consequence comes back to you as an approval.',
+  },
+  {
+    target: 'customer-activity',
+    title: 'It works while you are away',
+    body: 'The agent scans the marketplace in the background against your own limits. Anything it finds waits as an approval card, with the full research → screening → sizing reasoning attached.',
   },
   {
     target: 'customer-limits',
@@ -45,12 +55,17 @@ const CUSTOMER: TourStep[] = [
   {
     target: 'customer-approvals',
     title: 'Nothing happens without this step',
-    body: 'Every proposed action waits here for you. Approve it and a licensed partner executes; ignore it and it expires.',
+    body: 'Every proposed action waits here for you. Open one and "How this was decided" shows each stage of the reasoning — including the candidates that were rejected, and why. Approve it and a licensed partner executes; ignore it and it expires.',
   },
   {
     target: 'customer-opportunities',
     title: 'Products from licensed partners',
-    body: 'Regional instruments you can act on, each one carrying the institution that issues it and the regulator that supervises them.',
+    body: 'Regional instruments you can act on. Every card carries the rate as the firm frames it, the minimum, the term, the institution that executes it and the regulator that supervises them.',
+  },
+  {
+    target: 'customer-orders',
+    title: 'Every order, tracked to the end',
+    body: 'Each order you authorise shows where it stands — routed, accepted, settled or declined with the firm’s reason. A settled order carries a printable contract note: your record of exactly what was executed.',
   },
 ];
 
@@ -63,7 +78,17 @@ const INSTITUTION: TourStep[] = [
   {
     target: 'institution-sections',
     title: 'The console',
-    body: 'Overview, clients, products, orders and compliance. Each one reads live from your own records.',
+    body: 'Overview, order flow, products, clients & KYC, and compliance. Each one reads live from your own records.',
+  },
+  {
+    target: 'institution-checklist',
+    title: 'The path to a working desk',
+    body: 'Four milestones, each computed from your real records — publish funding instructions, list a product, accept a client, take an order. The card retires itself when your desk is live.',
+  },
+  {
+    target: 'institution-needs-you',
+    title: 'Your to-do list, live',
+    body: 'Orders to accept (with the oldest wait named), clients awaiting review, statement lines to reconcile and withdrawals awaiting your decision — updated the moment any of them changes.',
   },
   {
     target: 'institution-kpis',
@@ -78,17 +103,27 @@ const INSTITUTION: TourStep[] = [
   {
     target: 'institution-products',
     title: 'What you have listed',
-    body: 'The products CCN can present to investors on your behalf, and their current state.',
+    body: 'The products CCN can present to investors on your behalf, and their current state. Pausing a listing takes it off the marketplace instantly.',
   },
   {
     target: 'institution-orders',
     title: 'Orders awaiting you',
-    body: 'Investor-approved orders routed to your desk. Accepting one moves it into settlement.',
+    body: 'Investor-approved orders routed to your desk. Accept with a settlement date, then settle with the executed price, units and fee — the client’s contract note is built from what you report.',
+  },
+  {
+    target: 'institution-withdrawals',
+    title: 'Money out, on your terms',
+    body: 'Clients ask for money back here. Each request shows your fee and tax, frozen when they asked, and the exact net to pay. Pay with your reference, or decline with a reason they read.',
+  },
+  {
+    target: 'institution-decisions',
+    title: 'Who accepted what',
+    body: 'One press narrows the audit trail to signed decisions — client acceptances, settled funds, withdrawals, executions — each carrying the name of the person at your firm who decided it.',
   },
   {
     target: 'institution-audit',
     title: 'An audit trail you cannot edit',
-    body: 'Every action is appended here and nothing can rewrite it — the database rejects updates and deletes on this table outright.',
+    body: 'Every action is appended here and nothing can rewrite it — the database rejects updates and deletes on this table outright. Export it as CSV whenever a review asks.',
   },
   {
     target: 'institution-signout',

@@ -1,6 +1,7 @@
 'use client';
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { DealCard } from '@/app/_components/DealCard';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -224,47 +225,26 @@ const METRIC_BOX = 'rounded-xl bg-[#f4f0e7] px-[15px] py-[13px] dark:bg-white/[0
 const METRIC_LBL =
   'mb-[5px] text-[11.5px] uppercase tracking-[.4px] text-[#6d6455] dark:text-faint';
 
+/** Same card component as the live marketplace — demo parity by construction. */
 function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
-  const t = TONE[o.type];
   return (
-    <Card className="flex flex-col p-[22px]" style={{ borderLeft: `4px solid ${t.ink}` }}>
-      <div className="mb-1.5 flex items-center gap-3">
-        <span
-          className="grid h-10 w-10 flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
-          style={{ background: t.tint, color: t.ink }}
-        >
-          {o.abbr}
-        </span>
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className="text-[12.5px] font-bold uppercase tracking-[.6px]"
-            style={{ color: t.ink }}
-          >
-            {o.type}
-          </span>
-          <Badge variant={RISK_VARIANT[o.risk]}>{o.risk} risk</Badge>
-        </div>
-      </div>
-      <div className="mb-1 text-[13px] text-faint">{o.region}</div>
-      <div className="mb-3.5 font-display text-lg font-bold leading-tight">{o.name}</div>
-      <div className="mb-3.5 grid grid-cols-2 gap-[11px]">
-        <div className={METRIC_BOX}>
-          <div className={METRIC_LBL}>{o.metricLabel}</div>
-          <div className="font-mono text-lg font-bold text-success">{o.metric}</div>
-        </div>
-        <div className={METRIC_BOX}>
-          <div className={METRIC_LBL}>Minimum</div>
-          <div className="font-mono text-lg font-bold text-foreground">{o.min}</div>
-        </div>
-      </div>
-      <div className="mb-4 flex items-center gap-2 text-[13px] text-dim">
-        <span aria-hidden className="h-4 w-4 flex-none rounded-full border-[1.6px] border-teal2" />
-        {o.partner} · {o.regulator}
-      </div>
-      <Button className="mt-auto w-full" onClick={() => onOpen(o)}>
-        Review &amp; invest
-      </Button>
-    </Card>
+    <DealCard
+      o={{
+        id: o.id,
+        abbr: o.abbr,
+        type: o.type,
+        name: o.name,
+        region: o.region,
+        metricLabel: o.metricLabel,
+        metric: o.metric,
+        min: o.min,
+        term: o.term,
+        partner: o.partner,
+        regulator: o.regulator,
+        risk: o.risk,
+      }}
+      onOpen={() => onOpen(o)}
+    />
   );
 }
 

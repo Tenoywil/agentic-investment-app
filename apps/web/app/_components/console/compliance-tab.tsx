@@ -350,6 +350,7 @@ export function ComplianceTab({
               variant={decisionsOnly ? 'default' : 'outline'}
               aria-pressed={decisionsOnly}
               onClick={() => setDecisionsOnly((v) => !v)}
+              data-tour="institution-decisions"
             >
               Decisions only
             </Button>

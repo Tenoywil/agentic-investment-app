@@ -322,7 +322,7 @@ export function ClientsTab({
           for money back on their portfolio screen, the firm pays off-platform
           and records it here — which is when CCN's record of their cash falls —
           or declines with words the client will actually read. */}
-      <Card className="mt-[18px] p-6">
+      <Card className="mt-[18px] p-6" data-tour="institution-withdrawals">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
           <b className="font-display text-lg">Withdrawal requests</b>
           {pendingWithdrawals.length > 0 ? (

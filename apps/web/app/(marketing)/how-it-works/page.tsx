@@ -1,0 +1,162 @@
+'use client';
+
+import { InfoSection, MarketingPage } from '@/app/_components/marketing';
+import { Button } from '@/app/_components/ui/button';
+import { LineChart, type LucideIcon, ShieldCheck, Target, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+/**
+ * The explanation the landing page used to carry: the mission narrative, the
+ * four surfaces, the five-step pipeline and the fee policy. Moved here so the
+ * landing page can do one job (route people) and this page can do the other
+ * (convince the ones who want the detail).
+ */
+
+const SURFACES: { Icon: LucideIcon; title: string; body: string }[] = [
+  {
+    Icon: LineChart,
+    title: 'Unified portfolio',
+    body: 'Every holding across every partner, in your chosen currency at published central-bank rates. Cash you hold at each firm is shown per firm, because money settled with one institution is not spendable at another.',
+  },
+  {
+    Icon: TrendingUp,
+    title: 'Opportunities marketplace',
+    body: 'Bonds, funds, real estate and private credit listed by regional institutions. Every product carries the firm that executes it and the regulator that supervises them.',
+  },
+  {
+    Icon: Target,
+    title: 'Capital agent',
+    body: 'Chat or talk to an agent that researches, screens for suitability, and prepares moves for your approval. It also works while you are away — anything it finds waits as an approval card, never as an action already taken.',
+  },
+  {
+    Icon: ShieldCheck,
+    title: 'Planning & protection',
+    body: 'Life cover, retirement, mortgages and estate planning that work across borders.',
+  },
+];
+
+const PIPE = [
+  {
+    n: '1',
+    t: 'Research',
+    b: 'A research agent scans the marketplace of listed regional instruments.',
+    flag: false,
+  },
+  {
+    n: '2',
+    t: 'Suitability',
+    b: 'A screening step checks each candidate against your risk band, cash floor and caps.',
+    flag: false,
+  },
+  { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds checks.', flag: false },
+  {
+    n: '4',
+    t: 'Your approval',
+    b: 'You confirm every move above your limits. Nothing runs without it.',
+    flag: true,
+  },
+  {
+    n: '5',
+    t: 'Execute',
+    b: 'Routed to the licensed partner that executes, custodies and settles.',
+    flag: false,
+  },
+];
+
+export default function HowItWorksPage() {
+  const router = useRouter();
+  return (
+    <MarketingPage
+      eyebrow="How it works"
+      title="Your agent does the work. You keep control."
+      lead="If you are building a life between the region and the diaspora, your money lives in fragments: a bond at NCB, a fund at Sagicor, cash at JMMB, a pension you have half-forgotten. CCN brings all of it into one place and gives you an agent that researches, screens and prepares — and never acts above your limits without you."
+    >
+      <InfoSection title="The five steps behind every move">
+        <div className="grid grid-cols-1 gap-3">
+          {PIPE.map((s) => (
+            <div
+              key={s.n}
+              className={
+                s.flag
+                  ? 'flex gap-4 rounded-[13px] border border-solid border-[#e7c3ab] bg-[#f9ede2] p-[18px] dark:border-[#5a3f2a] dark:bg-[#2e2118]'
+                  : 'flex gap-4 rounded-[13px] border border-solid border-border bg-card p-[18px]'
+              }
+            >
+              <div
+                className={
+                  s.flag
+                    ? 'grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-[#f0d3bd] font-mono text-[15px] font-bold text-terra-ink dark:bg-[#4a3320]'
+                    : 'grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-mint font-mono text-[15px] font-bold text-teal2'
+                }
+              >
+                {s.n}
+              </div>
+              <div>
+                <div className="mb-0.5 text-base font-bold text-foreground">{s.t}</div>
+                <div className="text-sm leading-relaxed">{s.b}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </InfoSection>
+
+      <InfoSection title="Four surfaces, one account">
+        <div className="grid grid-cols-1 gap-3">
+          {SURFACES.map((f) => (
+            <div
+              key={f.title}
+              className="flex gap-4 rounded-[13px] border border-solid border-border bg-card p-[18px]"
+            >
+              <span className="grid h-[42px] w-[42px] flex-none place-items-center rounded-[11px] bg-mint">
+                <f.Icon className="h-[22px] w-[22px] text-teal2" aria-hidden />
+              </span>
+              <div>
+                <div className="mb-1 font-display text-[16px] font-bold text-foreground">
+                  {f.title}
+                </div>
+                <div className="text-sm leading-relaxed">{f.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </InfoSection>
+
+      <InfoSection title="The line CCN never crosses">
+        <p>
+          CCN holds no client money, executes nothing and never becomes custodian. Every instrument
+          is custodied, executed and settled by a licensed institution, with KYC, suitability and
+          source-of-funds handled by the firm that already knows you. CCN routes signed instructions
+          and keeps the audit trail — an append-only record that nobody, including CCN, can edit.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="What it costs">
+        <p>
+          One flat platform fee. Each partner&rsquo;s own product fees — and any withdrawal fee or
+          local tax the firm applies — are shown before you approve, to the cent. There are no
+          hidden spreads from CCN.
+        </p>
+      </InfoSection>
+
+      <div className="mt-2 flex flex-wrap gap-3">
+        <Button size="lg" onClick={() => router.push('/sign-in')} className="text-base">
+          Get started
+        </Button>
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={() => router.push('/demo/home')}
+          className="text-base"
+        >
+          See a live demo →
+        </Button>
+      </div>
+      <p className="mt-6 text-[13.5px] text-faint">
+        More questions? The <Link href="/help">Help page</Link> answers the practical ones — how
+        money gets in and out, what the agent can and cannot do, and what happens when a firm
+        declines something.
+      </p>
+    </MarketingPage>
+  );
+}
