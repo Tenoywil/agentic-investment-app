@@ -98,9 +98,17 @@ export function VoiceAsk({ basePath = '' }: { basePath?: string }) {
           {dictation.error ? (
             <span className="text-[#a44e20] dark:text-terra">{dictation.error}</span>
           ) : listening ? (
-            <span className="flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-success" aria-hidden />
-              Listening — ask your question, then pause.
+            /* The words as they are heard, not a static reassurance — seeing
+               the transcript build is what tells the speaker the engine is
+               keeping up, and lets them catch a mishearing before it sends. */
+            <span className="flex items-start gap-2">
+              <span
+                className="mt-1.5 h-2 w-2 flex-none animate-pulse rounded-full bg-success"
+                aria-hidden
+              />
+              <span className="min-w-0">
+                {dictation.preview || 'Listening — ask your question, then pause.'}
+              </span>
             </span>
           ) : (
             <span className="text-dim">Sending “{heard}”…</span>
