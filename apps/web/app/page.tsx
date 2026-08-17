@@ -187,17 +187,23 @@ export default function LandingPage() {
 
       {/* PARTNER STRIP — the institutions the network is built around, by
           their full names, wearing their real uploaded logos when the public
-          brand endpoint answers and their brand-color monograms until then. */}
+          brand endpoint answers and their brand-color monograms until then.
+          A centered wall of pills: uniform chips wrap evenly at every width,
+          where a bare left-aligned row broke into ragged half-lines on a
+          phone. */}
       <div className="border-x-0 border-y border-solid border-border bg-card">
-        <div className={`flex flex-wrap items-center gap-x-7 gap-y-3 py-5 ${MARKETING_CONTAINER}`}>
-          <span className="text-[13px] font-semibold uppercase tracking-wide text-faint">
+        <div className={`py-6 ${MARKETING_CONTAINER}`}>
+          <div className="mb-4 text-center text-[12px] font-semibold uppercase tracking-[1.6px] text-faint">
             Institutions on the network
-          </span>
-          <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
             {NETWORK_PARTNERS.map((p) => {
               const live = liveMarks?.get(p.code);
               return (
-                <span key={p.code} className="inline-flex items-center gap-2.5">
+                <span
+                  key={p.code}
+                  className="inline-flex items-center gap-2 rounded-full border border-solid border-border bg-background py-1.5 pl-1.5 pr-3.5"
+                >
                   {/* The curated name always wins; the live record contributes
                       only its uploaded logo and brand colors when it has them. */}
                   <PartnerMark
@@ -207,10 +213,12 @@ export default function LandingPage() {
                     hasLogo={live?.hasLogo}
                     logoUrl={live ? publicPartnerLogoUrl(live.id) : undefined}
                     color={live?.color ?? p.color}
-                    tint={live?.tint ?? p.tint}
-                    size="md"
+                    size="sm"
+                    className="h-6 w-6 rounded-full"
                   />
-                  <span className="text-[13.5px] font-semibold text-dim">{p.name}</span>
+                  <span className="whitespace-nowrap text-[13.5px] font-semibold text-dim">
+                    {p.name}
+                  </span>
                 </span>
               );
             })}
