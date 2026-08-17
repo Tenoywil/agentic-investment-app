@@ -1,6 +1,6 @@
 'use client';
 
-import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { AppScreen } from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -224,22 +224,23 @@ export default function AgentPage() {
 
   return (
     <AppScreen active="agent" basePath="/demo">
-      <PageHead
-        eyebrow="It finds and checks investments for you. Nothing happens without your yes"
-        title="Your Capital Agent"
-      />
-
-      {/* One quiet line, matching the live screen's header. */}
-      <div className="-mt-2.5 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-dim">
-        <span className="flex items-center gap-1.5 font-bold text-teal2">
-          <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
-          Live
-        </span>
-        {STATS.slice(0, 2).map((s) => (
-          <span key={s.t}>
-            · <b className={cn('font-mono', s.cls)}>{s.n}</b> {s.t}
+      {/* One compact line, matching the live screen: this is a chat
+          experience, and header rows are lines taken from the conversation. */}
+      <div className="agent-preamble mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="m-0 font-display text-[22px] font-bold tracking-tight">
+          Your Capital Agent
+        </h1>
+        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] text-dim">
+          <span className="flex items-center gap-1.5 font-bold text-teal2">
+            <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
+            Live
           </span>
-        ))}
+          {STATS.slice(0, 2).map((s) => (
+            <span key={s.t}>
+              · <b className={cn('font-mono', s.cls)}>{s.n}</b> {s.t}
+            </span>
+          ))}
+        </span>
       </div>
 
       <div className="g-agent">
