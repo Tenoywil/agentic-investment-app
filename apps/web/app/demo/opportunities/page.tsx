@@ -86,7 +86,7 @@ const OPPS: Opp[] = [
     risk: 'Medium',
     desc: 'A diversified fund holding income-producing commercial real estate across Kingston and Montego Bay. Distributes quarterly with inflation-linked growth potential.',
     agentNote:
-      'Matches your income + growth blend. I’d cap this at 15% of your portfolio to keep real-estate concentration in range.',
+      'Matches your income and growth blend. I’d cap this at 15% of your portfolio to keep real-estate concentration in range.',
   },
   {
     id: 'gkapo',
@@ -103,7 +103,7 @@ const OPPS: Opp[] = [
     risk: 'Medium',
     desc: 'An additional public offering of shares in GraceKennedy, one of the Caribbean’s largest consumer and financial conglomerates, funding regional expansion.',
     agentNote:
-      'Adds equity growth you’re currently light on. Higher volatility than your bonds — sizing matters.',
+      'Adds equity growth you’re currently light on. Higher volatility than your bonds, so sizing matters.',
   },
   {
     id: 'provfd',
@@ -120,7 +120,7 @@ const OPPS: Opp[] = [
     risk: 'Low',
     desc: 'A professionally-managed USD fund investing in a diversified pool of regional corporate and sovereign credit, targeting stable monthly income.',
     agentNote:
-      'You already hold this. Topping up would concentrate credit exposure — consider the GOJ bond instead for diversification.',
+      'You already hold this. Topping up would concentrate credit exposure. Consider the GOJ bond instead for diversification.',
   },
   {
     id: 'bgtn29',
@@ -152,9 +152,9 @@ const OPPS: Opp[] = [
     min: 'US$10,000',
     term: '3 yr · locked',
     risk: 'High',
-    desc: 'A private credit note providing senior secured financing to mid-market Caribbean firms. Higher return for reduced liquidity — capital is locked for the term.',
+    desc: 'A private credit note providing senior secured financing to mid-market Caribbean firms. Higher return for reduced liquidity: capital is locked for the term.',
     agentNote:
-      'Unlocked by your source-of-funds verification. Illiquid — only suitable for capital you won’t need for 3 years.',
+      'Unlocked by your source-of-funds verification. Illiquid, and only suitable for capital you won’t need for 3 years.',
   },
   {
     id: 'jmmb',
@@ -171,7 +171,7 @@ const OPPS: Opp[] = [
     risk: 'Medium',
     desc: 'A rights issue allowing existing and new shareholders to buy JMMB shares at a discount to market, funding regional banking growth.',
     agentNote:
-      'Time-sensitive — the rights window closes in 9 days. Discount is attractive but adds financial-sector concentration.',
+      'Time-sensitive: the rights window closes in 9 days. Discount is attractive but adds financial-sector concentration.',
   },
   {
     id: 'ncbmm',

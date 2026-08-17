@@ -26,7 +26,7 @@ const PRODUCTS = [
     title: 'Retirement annuity',
     provider: 'NCB · JMMB',
     status: 'Recommended',
-    desc: 'Tax-efficient retirement income — whether you retire abroad or return home to the region.',
+    desc: 'Tax-efficient retirement income, whether you retire abroad or return home to the region.',
   },
   {
     code: 'CI',

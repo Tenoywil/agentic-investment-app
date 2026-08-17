@@ -168,7 +168,7 @@ export default function PortfolioPage() {
         <EquityChart
           points={EQUITY_POINTS}
           fmt={fmtUsdMinor}
-          emptyNote="Your history starts today — the first point lands tonight."
+          emptyNote="Your history starts today. The first point lands tonight."
         />
       </Card>
 

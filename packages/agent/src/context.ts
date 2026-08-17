@@ -531,7 +531,7 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
           code: 'already_pending',
           reasons: [`"${pending.title}" is already waiting in your approvals.`],
           requiresHumanApproval: true,
-          summary: `This is already waiting in your approvals — decide that card first. I won't stack a second card for the same move.`,
+          summary: `This is already waiting in your approvals. Decide that card first. I won't stack a second card for the same move.`,
         };
       }
       if (!inst) {
@@ -578,7 +578,7 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
         decision.decision === 'blocked'
           ? `I will not prepare this: ${reasons.join('; ')}.`
           : decision.decision === 'requires_approval'
-            ? `Prepared as an approval card for you to confirm — ${reasons.join('; ')}.`
+            ? `Prepared as an approval card for you to confirm. ${reasons.join('; ')}.`
             : 'Inside your limits; prepared for your one-tap approval.';
       return {
         instrumentId,

@@ -272,7 +272,7 @@ export function ClientsTab({
                     <input
                       value={reconReason}
                       onChange={(e) => setReconReason(e.target.value)}
-                      placeholder="Why — this is audited"
+                      placeholder="Why? This is audited"
                       className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
                     />
                   </label>
@@ -411,7 +411,7 @@ export function ClientsTab({
                       placeholder={
                         deciding.paid
                           ? 'Payment reference (optional)'
-                          : 'Why — the client reads this'
+                          : 'Why? The client reads this'
                       }
                       required={!deciding.paid}
                       className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"

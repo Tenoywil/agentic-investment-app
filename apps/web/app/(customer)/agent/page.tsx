@@ -263,11 +263,11 @@ function TrustNote({
         {firm && (
           <p className="m-0">
             Executed by the licensed firm <b className="text-foreground">{firm}</b>
-            {regulator && <> — regulated by {regulator}</>}, never by CCN.
+            {regulator && <>, regulated by {regulator},</>} never by CCN.
           </p>
         )}
         <p className="m-0">
-          Screened against your own risk band and limits — not a sales list. Firms don't pay for
+          Screened against your own risk band and limits, not a sales list. Firms don't pay for
           placement; CCN charges one flat platform fee.
         </p>
         {scores && scores.length > 0 && (
@@ -496,7 +496,7 @@ function LimitsCard() {
       {state === 'ready' && data && (
         <p className="mb-2.5 text-[12.5px] text-faint">
           {data.source === 'defaults' || !data.updatedAt
-            ? "CCN's starting limits — you haven't changed anything yet"
+            ? "CCN's starting limits. You haven't changed anything yet"
             : `You last changed these ${formatWhen(data.updatedAt)}`}
         </p>
       )}
@@ -558,7 +558,7 @@ function LimitsCard() {
                   checked={on}
                   disabled={savingFlag !== null}
                   onCheckedChange={() => toggle(rule.flag)}
-                  aria-label={`${rule.label} — ${value}`}
+                  aria-label={`${rule.label}: ${value}`}
                   className="flex-none"
                 />
               </div>
@@ -844,7 +844,7 @@ export default function AgentPage() {
           removed — so the page keeps its h1 and its landmark structure. */}
       <div className="agent-preamble">
         <PageHead
-          eyebrow="It finds and checks investments for you — nothing happens without your yes"
+          eyebrow="It finds and checks investments for you. Nothing happens without your yes"
           title="Your Capital Agent"
         />
         <AgentStats />
@@ -966,7 +966,7 @@ export default function AgentPage() {
                 <p className="text-[15px] font-bold">Say hello to your Capital Agent</p>
                 <p className="max-w-[320px] text-[13.5px] leading-relaxed text-dim">
                   Ask what you're invested in, what's worth a look, or how anything here works. It
-                  prepares the move — you say yes or no, every time.
+                  prepares the move. You say yes or no, every time.
                 </p>
               </div>
             )}
@@ -1042,7 +1042,7 @@ export default function AgentPage() {
               >
                 <Mic className="mt-0.5 h-4 w-4 flex-none animate-pulse text-teal2" aria-hidden />
                 <span className="min-w-0">
-                  {dictation.preview || 'Listening — your words appear here as you speak.'}
+                  {dictation.preview || 'Listening. Your words appear here as you speak.'}
                 </span>
               </output>
             )}
@@ -1209,7 +1209,7 @@ export default function AgentPage() {
                             if (err instanceof AlreadyPendingError) {
                               // Information, not failure: the card exists, so
                               // point at it and clear this duplicate offer.
-                              setRaiseNote('Already in your approvals — decide that card first.');
+                              setRaiseNote('Already in your approvals. Decide that card first.');
                               setProposals((list) =>
                                 list.filter((x) => x.instrumentId !== p.instrumentId),
                               );

@@ -132,7 +132,7 @@ export function OrderAction({
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Why — the client is told this"
+            placeholder="Why? The client is told this"
             className={FIELD}
           />
         </label>

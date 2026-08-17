@@ -41,7 +41,7 @@ export function EquityChart({
   points,
   fmt,
   emptyNote,
-  singleNote = 'One day recorded — the line begins tomorrow.',
+  singleNote = 'One day recorded. The line begins tomorrow.',
   className,
 }: {
   points: EquityPoint[];

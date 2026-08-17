@@ -63,7 +63,7 @@ describe('proposal pipeline', () => {
     expect(outcome.chosen?.candidate.instrumentId).toBe('b');
     const suitability = outcome.trace.find((t) => t.stage === 'suitability');
     expect(suitability?.detail.join('\n')).toContain(
-      'Alpha Fund: does not fit — Below your cash floor',
+      'Alpha Fund: does not fit: Below your cash floor',
     );
     expect(suitability?.detail.join('\n')).toContain('Beta Bond: fits');
     // Even an auto-act verdict routes to an approval on this path.
@@ -148,7 +148,7 @@ describe('proposal pipeline with research, fit and sizing', () => {
     });
     expect(outcome.chosen?.candidate.instrumentId).toBe('ok');
     expect(outcome.trace[0]?.detail.join('\n')).toContain(
-      'Too Good Fund: set aside — its research turned up contradicted evidence',
+      'Too Good Fund: set aside. Its research turned up contradicted evidence',
     );
   });
 
@@ -169,7 +169,7 @@ describe('proposal pipeline with research, fit and sizing', () => {
     expect(outcome.chosen).toBeNull(); // …and was still passed over
     const suitability = outcome.trace.find((t) => t.stage === 'suitability');
     expect(suitability?.detail.join('\n')).toContain('conviction is low');
-    expect(suitability?.summary).toContain('none worth proposing');
+    expect(suitability?.summary).toContain('None worth proposing');
   });
 
   test('research returning null degrades to neutral — the pipeline still proposes, never fabricates', async () => {

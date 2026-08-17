@@ -92,7 +92,7 @@ const APPROVALS: {
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
     cta: 'Approve reinvestment',
     confirm:
-      "Done. I've routed the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. It settles T+2 — you can follow it in My orders, and your blended yield moves to about <b>6.9%</b> once it lands.",
+      "Done. I've routed the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. It settles T+2. You can follow it in My orders, and your blended yield moves to about <b>6.9%</b> once it lands.",
     done: 'Routed to Sagicor · settles T+2',
   },
   {
@@ -105,7 +105,7 @@ const APPROVALS: {
     body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
     cta: 'Move cash',
     confirm:
-      'Done. Your <b>US$2,150</b> is on its way into the <b>NCB USD Money Market Fund</b> at the current 5.1% rate — about <b>US$110/yr</b>, with same-day access whenever you want it back.',
+      'Done. Your <b>US$2,150</b> is on its way into the <b>NCB USD Money Market Fund</b> at the current 5.1% rate, worth about <b>US$110/yr</b>, with same-day access whenever you want it back.',
     done: 'Swept to NCB · same-day access',
   },
 ];
@@ -189,7 +189,7 @@ export default function AgentPage() {
       ...c,
       {
         role: 'agent',
-        text: `Understood — I've set "${a.title}" aside. I'll flag it again only if the numbers change.`,
+        text: `Understood. I've set "${a.title}" aside. I'll flag it again only if the numbers change.`,
       },
     ]);
     scrollLog();
@@ -225,7 +225,7 @@ export default function AgentPage() {
   return (
     <AppScreen active="agent" basePath="/demo">
       <PageHead
-        eyebrow="It finds and checks investments for you — nothing happens without your yes"
+        eyebrow="It finds and checks investments for you. Nothing happens without your yes"
         title="Your Capital Agent"
       />
 

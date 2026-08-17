@@ -117,8 +117,8 @@ export default function InstitutionsPage() {
       const { clients, queued } = await pullReconciliation();
       setPullNote(
         queued === 0
-          ? `Checked ${clients} client account${clients === 1 ? '' : 's'} — nothing new to reconcile.`
-          : `Checked ${clients} client account${clients === 1 ? '' : 's'} — ${queued} line${queued === 1 ? '' : 's'} queued below.`,
+          ? `Checked ${clients} client account${clients === 1 ? '' : 's'}. Nothing new to reconcile.`
+          : `Checked ${clients} client account${clients === 1 ? '' : 's'}. ${queued} line${queued === 1 ? '' : 's'} queued below.`,
       );
       void load();
     } catch (err) {

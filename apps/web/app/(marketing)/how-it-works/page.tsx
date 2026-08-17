@@ -2,6 +2,7 @@
 
 import { InfoSection, MarketingPage } from '@/app/_components/marketing';
 import { Button } from '@/app/_components/ui/button';
+import { DEMO_ENABLED } from '@/lib/config';
 import {
   LineChart,
   type LucideIcon,
@@ -35,7 +36,7 @@ const SURFACES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: Target,
     title: 'Capital agent',
-    body: 'Chat or talk to an agent that researches, screens for suitability, and prepares moves for your approval. It also works while you are away — anything it finds waits as an approval card, never as an action already taken.',
+    body: 'Chat or talk to an agent that researches, screens for suitability, and prepares moves for your approval. It also works while you are away, and anything it finds waits as an approval card, never as an action already taken.',
   },
   {
     Icon: ShieldCheck,
@@ -81,12 +82,12 @@ const TRUST: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: ShieldCheck,
     title: 'Licensed partners hold everything',
-    body: 'Regulated institutions execute and custody every instrument — each product names its executing firm and that firm’s regulator. CCN never holds your money.',
+    body: 'Regulated institutions execute and custody every instrument, and each product names its executing firm and that firm’s regulator. CCN never holds your money.',
   },
   {
     Icon: Target,
     title: 'Screened against your limits',
-    body: 'Every recommendation is checked against your own risk band, cash floor and position caps by a deterministic engine — the same rules every time, never a mood.',
+    body: 'Every recommendation is checked against your own risk band, cash floor and position caps by a deterministic engine: the same rules every time, never a mood.',
   },
   {
     Icon: SearchCheck,
@@ -96,7 +97,7 @@ const TRUST: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: ScrollText,
     title: 'Every step is written down',
-    body: 'Each recommendation writes an audit trail and shows its stage-by-stage reasoning, so you can read how it was decided — not just what was decided.',
+    body: 'Each recommendation writes an audit trail and shows its stage-by-stage reasoning, so you can read how it was decided, not just what was decided.',
   },
 ];
 
@@ -106,7 +107,7 @@ export default function HowItWorksPage() {
     <MarketingPage
       eyebrow="How it works"
       title="Your agent does the work. You keep control."
-      lead="If you are building a life between the region and the diaspora, your money lives in fragments: a bond at NCB, a fund at Sagicor, cash at JMMB, a pension you have half-forgotten. CCN brings all of it into one place and gives you an agent that researches, screens and prepares — and never acts above your limits without you."
+      lead="If you are building a life between the region and the diaspora, your money lives in fragments: a bond at NCB, a fund at Sagicor, cash at JMMB, a pension you have half-forgotten. CCN brings all of it into one place and gives you an agent that researches, screens and prepares, and never acts above your limits without you."
     >
       <InfoSection title="The five steps behind every move">
         <div className="grid grid-cols-1 gap-3">
@@ -184,15 +185,15 @@ export default function HowItWorksPage() {
           CCN holds no client money, executes nothing and never becomes custodian. Every instrument
           is custodied, executed and settled by a licensed institution, with KYC, suitability and
           source-of-funds handled by the firm that already knows you. CCN routes signed instructions
-          and keeps the audit trail — an append-only record that nobody, including CCN, can edit.
+          and keeps the audit trail: an append-only record that nobody, including CCN, can edit.
         </p>
       </InfoSection>
 
       <InfoSection title="What it costs">
         <p>
-          One flat platform fee. Each partner&rsquo;s own product fees — and any withdrawal fee or
-          local tax the firm applies — are shown before you approve, to the cent. There are no
-          hidden spreads from CCN.
+          One flat platform fee. Each partner&rsquo;s own product fees, and any withdrawal fee or
+          local tax the firm applies, are shown before you approve, to the cent. There are no hidden
+          spreads from CCN.
         </p>
       </InfoSection>
 
@@ -200,17 +201,19 @@ export default function HowItWorksPage() {
         <Button size="lg" onClick={() => router.push('/sign-in')} className="text-base">
           Get started
         </Button>
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={() => router.push('/demo/home')}
-          className="text-base"
-        >
-          See a live demo →
-        </Button>
+        {DEMO_ENABLED && (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => router.push('/demo/home')}
+            className="text-base"
+          >
+            See a live demo →
+          </Button>
+        )}
       </div>
       <p className="mt-6 text-[13.5px] text-faint">
-        More questions? The <Link href="/help">Help page</Link> answers the practical ones — how
+        More questions? The <Link href="/help">Help page</Link> answers the practical ones: how
         money gets in and out, what the agent can and cannot do, and what happens when a firm
         declines something.
       </p>

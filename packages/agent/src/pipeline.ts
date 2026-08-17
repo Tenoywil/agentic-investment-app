@@ -189,7 +189,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
 
   const describeResearch = (c: PipelineCandidate): string => {
     const signal = signals.get(c.instrumentId);
-    const base = `${c.name}${c.partnerName ? ` · ${c.partnerName}` : ''} — ${c.risk ?? 'unrated'} risk, minimum ${input.fmt(c.minInvestmentMinor, c.currency)}`;
+    const base = `${c.name}${c.partnerName ? ` · ${c.partnerName}` : ''}: ${c.risk ?? 'unrated'} risk, minimum ${input.fmt(c.minInvestmentMinor, c.currency)}`;
     if (!signal) return base;
     const missing = signal.missing.length > 0 ? `; ${signal.missing.join(', ')}` : '';
     return `${base}; research confidence ${signal.confidence}/100${missing}`;
@@ -204,7 +204,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     }.`,
     detail: [
       ...shortlist.map(describeResearch),
-      ...vetoed.map((c) => `${c.name}: set aside — its research turned up contradicted evidence.`),
+      ...vetoed.map((c) => `${c.name}: set aside. Its research turned up contradicted evidence.`),
     ],
   });
 
@@ -218,7 +218,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
         const fit = fits.get(c.instrumentId);
         if (!fit) return `${c.name}: not assessed`;
         const notes = [...fit.reasons, ...fit.concerns];
-        return `${c.name}: fit ${fit.score}/100${notes.length > 0 ? ` — ${notes.join(' ')}` : ''}`;
+        return `${c.name}: fit ${fit.score}/100${notes.length > 0 ? `. ${notes.join(' ')}` : ''}`;
       }),
     });
   }
@@ -231,13 +231,13 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     const verdict = await input.gate(c, amountMinor);
     if (verdict.decision === 'blocked') {
       verdicts.push(
-        `${c.name}: does not fit — ${verdict.reasons?.join('; ') ?? verdict.code ?? 'outside your limits'}`,
+        `${c.name}: does not fit: ${verdict.reasons?.join('; ') ?? verdict.code ?? 'outside your limits'}`,
       );
       continue;
     }
     if (scored && conviction(c) < bar) {
       verdicts.push(
-        `${c.name}: fits your limits, but conviction is low (${conviction(c)}/100) — passed over rather than proposed.`,
+        `${c.name}: fits your limits, but conviction is low (${conviction(c)}/100), so it was passed over rather than proposed.`,
       );
       continue;
     }
@@ -257,10 +257,10 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     stage: 'suitability',
     agent: 'Suitability agent',
     summary: chosen
-      ? `Screened ${verdicts.length} against your band, cash floor and caps — ${chosen.candidate.name} fits.`
+      ? `Screened ${verdicts.length} against your band, cash floor and caps. ${chosen.candidate.name} fits.`
       : shortlist.length === 0
         ? 'Nothing reached screening.'
-        : `Screened ${verdicts.length} against your band, cash floor and caps — none ${
+        : `Screened ${verdicts.length} against your band, cash floor and caps. None ${
             scored ? 'worth proposing' : 'fit'
           } right now.`,
     detail: verdicts,
@@ -285,7 +285,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     trace.push({
       stage: 'coordination',
       agent: 'Coordinator',
-      summary: `Sized ${chosen.candidate.name} ${sizingNote} and raised it as an approval — nothing moves unless you say so.`,
+      summary: `Sized ${chosen.candidate.name} ${sizingNote} and raised it as an approval. Nothing moves unless you say so.`,
       detail: [
         `Route: approval card${
           chosen.verdict.decision === 'auto_act'

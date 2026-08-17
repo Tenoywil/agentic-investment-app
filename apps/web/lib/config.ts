@@ -21,6 +21,16 @@
 export const DATA_MODE: 'demo' | 'live' =
   process.env.NEXT_PUBLIC_DATA_MODE === 'live' ? 'live' : 'demo';
 
+/**
+ * Whether the public fixture demo (/demo/*, and every "See a demo" button)
+ * exists in this build. On by default; set NEXT_PUBLIC_DEMO_ENABLED=false in
+ * the deployment environment to remove it entirely — the buttons disappear
+ * and the routes answer 404. Inlined at build time like every NEXT_PUBLIC_*
+ * value, so flipping it requires a redeploy.
+ */
+export const DEMO_ENABLED =
+  process.env.NEXT_PUBLIC_DEMO_ENABLED !== 'false' && process.env.NEXT_PUBLIC_DEMO_ENABLED !== '0';
+
 const configured = process.env.NEXT_PUBLIC_API_URL;
 const isProd = process.env.NODE_ENV === 'production';
 /** An absolute URL points the browser off-origin; a relative one does not. */

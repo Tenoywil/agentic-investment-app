@@ -53,11 +53,11 @@ import * as React from 'react';
 
 /** What each role opens, in words a person granting it can act on. */
 const ASSIGNABLE: { role: string; label: string; note: string }[] = [
-  { role: 'customer', label: 'Customer', note: 'The investor app — portfolio, marketplace, agent' },
+  { role: 'customer', label: 'Customer', note: 'The investor app: portfolio, marketplace, agent' },
   {
     role: 'partner_operator',
     label: 'Partner operator',
-    note: "A firm's console — orders, clients, listings. Must be bound to the firm",
+    note: "A firm's console: orders, clients, listings. Must be bound to the firm",
   },
   { role: 'compliance', label: 'Compliance', note: 'Oversight surfaces, read-only' },
   { role: 'analyst', label: 'Analyst', note: 'The private-markets review queue' },
@@ -225,7 +225,7 @@ export function PersonPanel({
           {detail ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {detail.roles.length === 0 ? (
-                <span className="text-[12.5px] text-faint">No roles yet — investor by default</span>
+                <span className="text-[12.5px] text-faint">No roles yet. Investor by default</span>
               ) : (
                 detail.roles.map((r) => (
                   <Badge key={r.role} variant={r.role === 'admin' ? 'default' : 'secondary'}>

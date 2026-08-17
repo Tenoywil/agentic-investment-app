@@ -123,7 +123,10 @@ export function PartnerMark({
   const fallback = derivedColors(name);
   const bg = color || fallback.color;
   const ring = tint || fallback.tint;
-  const mono = (code || initials(name)).slice(0, 3).toUpperCase();
+  // Four characters, not three: truncating turned JMMB into a tile reading
+  // "JMM" — a wrong mark, everywhere it appeared. A fourth character gets a
+  // slightly smaller face so it still fits the tile at every size.
+  const mono = (code || initials(name)).slice(0, 4).toUpperCase();
 
   return (
     <span
@@ -132,6 +135,7 @@ export function PartnerMark({
       className={cn(
         'grid flex-none place-items-center font-mono font-bold text-white',
         SIZE_CLASS[size],
+        mono.length >= 4 && (size === 'sm' ? 'text-[7px] tracking-[-0.2px]' : 'text-[10.5px]'),
         className,
       )}
       style={{ background: bg, boxShadow: `0 0 0 1.5px ${ring}` }}

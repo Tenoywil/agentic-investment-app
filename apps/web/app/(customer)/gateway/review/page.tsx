@@ -73,7 +73,7 @@ export default function GatewayReviewPage() {
     // empty one would put them back where they started, which is the state this
     // whole screen exists to end.
     if (!approve && reason === '') {
-      setActionError('Give a reason — the investor sees it.');
+      setActionError('Give a reason. The investor sees it.');
       return;
     }
     setBusyId(id);
@@ -210,8 +210,7 @@ export default function GatewayReviewPage() {
           <b className="font-display text-lg">Deals awaiting review</b>
           <p className="mb-3 mt-1 text-[13px] text-faint">
             Submitted for approval by their originator. Deciding these needs the origination
-            surface, which does not exist yet — they are listed so the queue is not silently
-            partial.
+            surface, which does not exist yet. They are listed so the queue is not silently partial.
           </p>
           <ul className="m-0 list-none p-0">
             {queue.opportunities.map((o) => (

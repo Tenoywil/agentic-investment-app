@@ -88,7 +88,7 @@ export function OverviewTab({
     {
       done: partner?.fundingInstructions != null,
       title: 'Publish your funding instructions',
-      why: 'Clients see them the moment they press "Add money" — money reaches you sooner, and your desk stops fielding "where do I wire?" calls.',
+      why: 'Clients see them the moment they press "Add money", so money reaches you sooner, and your desk stops fielding "where do I wire?" calls.',
       go: 'compliance',
     },
     {
@@ -100,7 +100,7 @@ export function OverviewTab({
     {
       done: hasActiveClient,
       title: 'Accept your first client',
-      why: 'Their KYC package — declarations and documents — is on their row, ready to review.',
+      why: 'Their KYC package, declarations and documents, is on their row, ready to review.',
       go: 'clients',
     },
     {
@@ -247,7 +247,7 @@ export function OverviewTab({
               <EquityChart
                 points={equity.map((p) => ({ label: p.takenOn, valueMinor: p.heldMinor }))}
                 fmt={(minor) => fmtMinor(minor, 'USD')}
-                emptyNote="Your firm's history starts today — the first point lands tonight."
+                emptyNote="Your firm's history starts today. The first point lands tonight."
               />
               {equity.length > 0 &&
                 (() => {

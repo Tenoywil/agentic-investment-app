@@ -216,7 +216,7 @@ export function OrdersTab({
                       }`}
                     >
                       {new Date(o.settlementEta).getTime() < Date.now()
-                        ? 'Settlement overdue — due '
+                        ? 'Settlement overdue, due '
                         : 'Settles '}
                       {new Date(o.settlementEta).toLocaleDateString('en-US', {
                         day: 'numeric',

@@ -401,7 +401,7 @@ export default function GatewayMandatePage() {
         {stage === 'narrative' && (
           <div>
             <p className="mb-4 text-[15px] leading-relaxed text-dim">
-              Describe what you're looking for in a sentence or two — country, sector, cheque size,
+              Describe what you're looking for in a sentence or two: country, sector, cheque size,
               risk appetite, anything that matters to you. The agent drafts a structured mandate for
               you to review before anything is saved.
             </p>
@@ -432,7 +432,7 @@ export default function GatewayMandatePage() {
           <div>
             {stage === 'confirm' && (
               <p className="mb-5 text-[15px] leading-relaxed text-dim">
-                Here's what the agent drew from your description. Review and edit before saving —
+                Here's what the agent drew from your description. Review and edit before saving;
                 nothing is guessed silently.
               </p>
             )}
