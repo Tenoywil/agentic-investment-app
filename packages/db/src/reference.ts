@@ -63,8 +63,8 @@ const codeFromPartnerName = (name: string): string => {
 const PARTNERS = [
   {
     code: 'NCB' as const,
-    name: 'National Commercial Bank',
-    kind: 'Bank · Capital Markets',
+    name: 'NCB Capital Markets',
+    kind: 'Securities · Capital Markets',
     regulator: 'FSC_JAMAICA' as const,
     agreementStatus: 'prospect' as const,
     residency: 'Jamaica',
@@ -83,7 +83,7 @@ const PARTNERS = [
   }, // corridor-one anchor + console operator
   {
     code: 'PRV' as const,
-    name: 'Proven Wealth',
+    name: 'PROVEN Wealth',
     kind: 'Wealth Management',
     regulator: 'FSC_JAMAICA' as const,
     agreementStatus: 'prospect' as const,
@@ -168,7 +168,7 @@ const OPPS = [
     id: 'sagrex',
     abbr: 'REX',
     type: 'Real Estate',
-    partner: 'Sagicor',
+    partner: 'Sagicor Investments',
     regulator: 'FSC Jamaica',
     name: 'Sagicor Real Estate X Fund',
     region: 'Jamaica · Commercial property',
@@ -206,7 +206,7 @@ const OPPS = [
     id: 'provfd',
     abbr: 'PWF',
     type: 'Fund',
-    partner: 'Proven Wealth',
+    partner: 'PROVEN Wealth',
     regulator: 'FSC Jamaica',
     name: 'Proven USD Fixed Income Fund',
     region: 'Regional · Diversified credit',
@@ -282,7 +282,7 @@ const OPPS = [
     id: 'ncbmm',
     abbr: 'MMF',
     type: 'Fund',
-    partner: 'NCB',
+    partner: 'NCB Capital Markets',
     regulator: 'FSC Jamaica',
     name: 'NCB USD Money Market Fund',
     region: 'Jamaica · Cash management',

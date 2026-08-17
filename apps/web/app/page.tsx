@@ -52,10 +52,10 @@ function GoogleG() {
  * network.
  */
 const NETWORK_PARTNERS: { code: string; name: string; color: string; tint: string }[] = [
-  { code: 'NCB', name: 'National Commercial Bank', color: '#1a4aa0', tint: '#e7edf8' },
+  { code: 'NCB', name: 'NCB Capital Markets', color: '#1a4aa0', tint: '#e7edf8' },
   { code: 'SAG', name: 'Sagicor Investments', color: '#1f7a44', tint: '#e6f2ea' },
   { code: 'JMMB', name: 'JMMB Group', color: '#c4362b', tint: '#fae8e6' },
-  { code: 'PRV', name: 'Proven Wealth', color: '#9a6a1e', tint: '#f6efe0' },
+  { code: 'PRV', name: 'PROVEN Wealth', color: '#9a6a1e', tint: '#f6efe0' },
   { code: 'BAR', name: 'Barita Investments', color: '#6b4a9e', tint: '#f0eaf8' },
   { code: 'REP', name: 'Republic Bank', color: '#1a6aa0', tint: '#e7f0f8' },
   { code: 'SYG', name: 'Sygnus Capital', color: '#8a5a2e', tint: '#f6eee2' },

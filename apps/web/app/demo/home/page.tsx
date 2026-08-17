@@ -44,7 +44,7 @@ const APPROVALS = [
 const HELD = [
   {
     code: 'NCB',
-    name: 'National Commercial Bank',
+    name: 'NCB Capital Markets',
     sub: 'GOJ Bond 2029 · Chequing',
     amt: 'US$13,400',
     tint: '#e7edf8',
@@ -60,7 +60,7 @@ const HELD = [
   },
   {
     code: 'PRV',
-    name: 'Proven Wealth',
+    name: 'PROVEN Wealth',
     sub: 'USD Income Fund',
     amt: 'US$5,600',
     tint: '#f6efe0',
