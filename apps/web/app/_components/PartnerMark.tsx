@@ -76,7 +76,6 @@ export function PartnerMark({
   id,
   hasLogo,
   color,
-  tint,
   size = 'md',
   className,
   logoUrl,
@@ -85,8 +84,10 @@ export function PartnerMark({
   code?: string | null;
   id?: string | null;
   hasLogo?: boolean;
-  /** CSS color strings from the partner record; null/undefined = derive. */
+  /** CSS color string from the partner record; null/undefined = derive. */
   color?: string | null;
+  /** Accepted for caller convenience (partner records carry it); the mark no
+   *  longer paints a tint ring, so it goes unused. */
   tint?: string | null;
   size?: PartnerMarkSize;
   className?: string;
@@ -120,9 +121,7 @@ export function PartnerMark({
     );
   }
 
-  const fallback = derivedColors(name);
-  const bg = color || fallback.color;
-  const ring = tint || fallback.tint;
+  const bg = color || derivedColors(name).color;
   // Four characters, not three: truncating turned JMMB into a tile reading
   // "JMM" — a wrong mark, everywhere it appeared. A fourth character gets a
   // slightly smaller face so it still fits the tile at every size.
@@ -133,12 +132,14 @@ export function PartnerMark({
       role="img"
       aria-label={name}
       className={cn(
+        // Flat brand color, no tint ring: the pastel halo read fine on the
+        // light theme and glowed like a sticker outline on the dark one.
         'grid flex-none place-items-center font-mono font-bold text-white',
         SIZE_CLASS[size],
         mono.length >= 4 && (size === 'sm' ? 'text-[7px] tracking-[-0.2px]' : 'text-[10.5px]'),
         className,
       )}
-      style={{ background: bg, boxShadow: `0 0 0 1.5px ${ring}` }}
+      style={{ background: bg }}
     >
       <span aria-hidden>{mono}</span>
     </span>
