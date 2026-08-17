@@ -516,26 +516,55 @@ body:has(dialog.app-sheet[open]) {
 .agent-panels::backdrop {
   background: transparent;
 }
-/* On a desktop the agent screen holds still: the conversation is sized to the
-   viewport (the log's clamp on the page), and the approvals/limits column —
-   usually the taller of the two — scrolls inside its own box instead of
-   stretching the page. Scrolling the page used to carry the chat clean out of
-   view, which on the screen whose whole job is the conversation is the worst
-   possible scroll. Sticky rather than fixed so the column still sits in the
-   grid and stays aligned with the chat card's top edge. */
+/* On a desktop the agent screen is a chat app in a frame.
+
+   The shell owns exactly the viewport and nothing on the page scrolls: the
+   conversation scrolls inside its own log, and the approvals/limits column
+   scrolls inside its own box when it runs long. This is flex plumbing, not
+   viewport arithmetic — the previous fix sized the log with a calc() of the
+   chrome above it, and every pixel the estimate was off became page scroll
+   that carried the chat out of view. Here the log simply takes whatever
+   height the header and composer leave, so there is nothing to mis-measure.
+
+   min-height floors at 560px: below that a desktop window is shorter than the
+   chrome itself, and a small page scroll beats a crushed conversation. */
 @media (min-width: 901px) {
-  .agent-panels {
-    position: sticky;
-    top: 26px;
-    max-height: calc(100dvh - 52px);
+  .app-shell:has(.agent-chat) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .app-shell:has(.agent-chat) main {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 560px;
+    overflow: hidden;
+    padding-bottom: 24px;
+  }
+  .app-shell:has(.agent-chat) .g-agent {
+    flex: 1 1 auto;
+    min-height: 0;
+    /* Both columns take the full row, so the chat card reaches the bottom of
+       the screen and the panels column scrolls within the same bound —
+       overriding the grid's usual align-items: start. */
+    align-items: stretch;
+  }
+  .app-shell:has(.agent-chat) .g-agent > * {
+    min-height: 0;
+  }
+  .app-shell:has(.agent-chat) .agent-chat {
+    min-height: 0;
+  }
+  .app-shell:has(.agent-chat) .agent-chat__log {
+    height: auto !important;
+    max-height: none !important;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .app-shell:has(.agent-chat) .agent-panels {
+    max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
-  }
-  /* The investor shell reserves 96px of bottom padding for pages that scroll;
-     the agent screen is built not to, and that padding was the reason it still
-     did. */
-  .app-shell:has(.agent-chat) main {
-    padding-bottom: 26px;
   }
 }
 /* The sheet's own chrome, the button that raises it, and the chat's

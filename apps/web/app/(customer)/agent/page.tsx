@@ -1,6 +1,6 @@
 'use client';
 
-import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { AppScreen } from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { PartnerMark, markFor, usePartnerMarks } from '@/app/_components/PartnerMark';
 import { PENDING_QUESTION_KEY } from '@/app/_components/VoiceAsk';
@@ -408,11 +408,10 @@ function AgentStats() {
     };
   }, []);
 
-  // One quiet line: live status plus the two real counts, replacing the
-  // stacked stats row + mint status pill that together took three lines of
-  // header before the conversation began.
+  // Inline chips, not a row of their own: the preamble is one line on a
+  // desktop, and every line it grows is a line taken from the conversation.
   return (
-    <div className="-mt-2.5 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-dim">
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] text-dim">
       <span className="flex items-center gap-1.5 font-bold text-teal2">
         <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
         Live
@@ -429,7 +428,7 @@ function AgentStats() {
           {partners === 1 ? 'institution' : 'institutions'} you hold with
         </span>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -836,17 +835,17 @@ export default function AgentPage() {
 
   return (
     <AppScreen active="agent">
-      {/* On a phone this screen is a chat app, so everything above the
-          conversation folds away (globals.css, .agent-preamble): a heading, a
-          strapline, four counters and a status pill pushed the composer to the
-          bottom of a 844px screen with three lines of conversation visible
-          above it. The heading stays in the accessible tree — it is hidden, not
-          removed — so the page keeps its h1 and its landmark structure. */}
-      <div className="agent-preamble">
-        <PageHead
-          eyebrow="It finds and checks investments for you. Nothing happens without your yes"
-          title="Your Capital Agent"
-        />
+      {/* The preamble is ONE compact line: name, then the status chips. This
+          screen is a chat experience on every size — a display-size heading,
+          a strapline and a stats row were three rows of chrome between the
+          person and the conversation, and the rows were what made the page
+          taller than the screen. On a phone the whole line folds away
+          (globals.css, .agent-preamble) and the chat owns the viewport; the
+          h1 stays in the accessible tree either way. */}
+      <div className="agent-preamble mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="m-0 font-display text-[22px] font-bold tracking-tight">
+          Your Capital Agent
+        </h1>
         <AgentStats />
       </div>
 
