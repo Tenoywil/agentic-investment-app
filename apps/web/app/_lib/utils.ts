@@ -55,5 +55,5 @@ export function agentFeedPreview(markdown: string): string {
     .replace(/\s+/g, ' ')
     .trim();
   // A reply that was only a table still deserves an honest row.
-  return prose || 'Shared a breakdown with you — open the agent to see it.';
+  return prose || 'Shared a breakdown with you. Open the agent to see it.';
 }

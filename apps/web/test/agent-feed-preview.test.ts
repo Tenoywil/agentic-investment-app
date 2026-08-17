@@ -39,7 +39,7 @@ describe('agentFeedPreview', () => {
 
   it('still says something honest for a table-only reply', () => {
     const reply = '| Asset | Yield |\n|---|---|\n| Bond | 8.9% |';
-    expect(agentFeedPreview(reply)).toBe('Shared a breakdown with you — open the agent to see it.');
+    expect(agentFeedPreview(reply)).toBe('Shared a breakdown with you. Open the agent to see it.');
   });
 
   it('passes plain prose through untouched', () => {
