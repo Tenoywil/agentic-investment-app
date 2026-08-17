@@ -934,10 +934,12 @@ export default function AgentPage() {
             // A fixed height, not a range. Between min-h and max-h the log grew with
             // every message: the card got taller as the agent streamed, pushing the
             // composer down under the cursor and resizing the whole two-column row
-            // around it. The conversation scrolls inside a box that does not move —
-            // but "fixed" is per-viewport, not 440px everywhere: on a tall desktop
-            // that left half the screen empty under a cramped log.
-            className="agent-chat__log flex h-[clamp(400px,58vh,660px)] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            // around it. The conversation scrolls inside a box that does not move.
+            // The height is the viewport minus the screen's own chrome (header,
+            // status line, chat head, composer, page padding), so on a desktop the
+            // whole screen fits without the page scrolling the chat out of view —
+            // the panels column handles its own overflow (globals.css).
+            className="agent-chat__log flex h-[clamp(420px,calc(100dvh-420px),800px)] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
             {historyState === 'loading' && (
               <SkeletonRegion label="Loading your conversation" className="flex flex-col gap-3.5">
@@ -1449,20 +1451,20 @@ export default function AgentPage() {
           </Card>
 
           <LimitsCard />
-        </dialog>
-      </div>
 
-      {/* The full explainer lives on its own page now — the chat's trace and
-          trust disclosures show the pipeline per decision, so a static
-          five-step block here repeated what the cards already demonstrate. */}
-      <div className="mt-[18px]">
-        <Link
-          href="/how-it-works"
-          className="flex items-center justify-between gap-2 rounded-xl border border-solid border-border bg-card px-4 py-3 text-[13.5px] font-semibold text-teal2 hover:bg-muted"
-        >
-          How your agent works
-          <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
-        </Link>
+          {/* The full explainer lives on its own page — the chat's trace and
+              trust disclosures show the pipeline per decision. The link rides
+              in this column (and in the phone's sheet, where it is actually
+              reachable — below the fixed full-screen chat it never was) so
+              nothing sits under the grid to scroll the conversation away. */}
+          <Link
+            href="/how-it-works"
+            className="flex items-center justify-between gap-2 rounded-xl border border-solid border-border bg-card px-4 py-3 text-[13.5px] font-semibold text-teal2 hover:bg-muted"
+          >
+            How your agent works
+            <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
+          </Link>
+        </dialog>
       </div>
     </AppScreen>
   );

@@ -6,6 +6,11 @@ import { Button } from '@/app/_components/ui/button';
 import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
 import { getMe, landingPathFor } from '@/lib/me-api';
 import {
+  type PublicPartnerMark,
+  getPublicPartnerMarks,
+  publicPartnerLogoUrl,
+} from '@/lib/public-api';
+import {
   ArrowRight,
   CircleAlert,
   LineChart,
@@ -15,7 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * The landing page, cut down to one job: tell a visitor what CCN is in a
@@ -37,6 +42,24 @@ function GoogleG() {
     </span>
   );
 }
+
+/**
+ * The institutions on the network, by their full names — not ticker shorthand.
+ * This list is the offline fallback: when the public partner-marks endpoint
+ * answers, the strip re-renders from the live records, with each firm's real
+ * uploaded logo. Names and brand colors mirror packages/db reference data so
+ * the fallback and the live list can never disagree about who is on the
+ * network.
+ */
+const NETWORK_PARTNERS: { code: string; name: string; color: string; tint: string }[] = [
+  { code: 'NCB', name: 'National Commercial Bank', color: '#1a4aa0', tint: '#e7edf8' },
+  { code: 'SAG', name: 'Sagicor Investments', color: '#1f7a44', tint: '#e6f2ea' },
+  { code: 'JMMB', name: 'JMMB Group', color: '#c4362b', tint: '#fae8e6' },
+  { code: 'PRV', name: 'Proven Wealth', color: '#9a6a1e', tint: '#f6efe0' },
+  { code: 'BAR', name: 'Barita Investments', color: '#6b4a9e', tint: '#f0eaf8' },
+  { code: 'REP', name: 'Republic Bank', color: '#1a6aa0', tint: '#e7f0f8' },
+  { code: 'SYG', name: 'Sygnus Capital', color: '#8a5a2e', tint: '#f6eee2' },
+];
 
 const PILLARS: { Icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -60,6 +83,22 @@ export default function LandingPage() {
   const router = useRouter();
   const { start: google, pending, slow, error } = useGoogleSignIn();
   const demo = () => router.push('/demo/home');
+
+  // The network's real marks — full names and uploaded logos — from the
+  // public brand endpoint. Until they arrive (or if the API is asleep) the
+  // strip renders the same firms from the constant above.
+  const [marks, setMarks] = useState<PublicPartnerMark[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getPublicPartnerMarks()
+      .then((m) => {
+        if (!cancelled && m.length > 0) setMarks(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Somebody already signed in does not belong on the marketing page; a failed
   // check means "not signed in" and the page simply stays.
@@ -141,22 +180,43 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* PARTNER STRIP — the institutions the network is built around. Static
-          monogram chips (the landing is unauthenticated, so nothing is
-          fetched): the same codes as before, now wearing the product's own
-          brand-mark tiles. */}
+      {/* PARTNER STRIP — the institutions the network is built around, by
+          their full names, wearing their real uploaded logos when the public
+          brand endpoint answers and their brand-color monograms until then. */}
       <div className="border-x-0 border-y border-solid border-border bg-card">
         <div className={`flex flex-wrap items-center gap-x-7 gap-y-3 py-5 ${MARKETING_CONTAINER}`}>
           <span className="text-[13px] font-semibold uppercase tracking-wide text-faint">
             Institutions on the network
           </span>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
-            {['NCB', 'SAGICOR', 'JMMB', 'PROVEN', 'BARITA', 'REPUBLIC', 'SYGNUS'].map((p) => (
-              <span key={p} className="inline-flex items-center gap-2">
-                <PartnerMark name={p} code={p} size="sm" />
-                <span className="font-mono text-[13.5px] font-semibold text-dim">{p}</span>
-              </span>
-            ))}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5">
+            {marks
+              ? marks.map((m) => (
+                  <span key={m.id} className="inline-flex items-center gap-2">
+                    <PartnerMark
+                      name={m.name}
+                      code={m.code}
+                      id={m.id}
+                      hasLogo={m.hasLogo}
+                      color={m.color}
+                      tint={m.tint}
+                      logoUrl={publicPartnerLogoUrl(m.id)}
+                      size="sm"
+                    />
+                    <span className="text-[13.5px] font-semibold text-dim">{m.name}</span>
+                  </span>
+                ))
+              : NETWORK_PARTNERS.map((p) => (
+                  <span key={p.code} className="inline-flex items-center gap-2">
+                    <PartnerMark
+                      name={p.name}
+                      code={p.code}
+                      color={p.color}
+                      tint={p.tint}
+                      size="sm"
+                    />
+                    <span className="text-[13.5px] font-semibold text-dim">{p.name}</span>
+                  </span>
+                ))}
           </div>
         </div>
       </div>

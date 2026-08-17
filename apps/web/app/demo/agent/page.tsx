@@ -69,6 +69,7 @@ function classify(text: string): string {
 }
 
 const APPROVALS: {
+  id: string;
   tag: string;
   variant: BadgeProps['variant'];
   accent: string;
@@ -76,17 +77,26 @@ const APPROVALS: {
   title: string;
   body: string;
   cta: string;
+  /** What the agent says in the chat when this card is approved. */
+  confirm: string;
+  /** The card's own settled line once approved. */
+  done: string;
 }[] = [
   {
+    id: 'coupon',
     tag: 'Reinvest',
     variant: 'secondary',
     accent: '#0e5952',
     when: 'Today',
     title: 'Put your GOJ coupon to work',
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
-    cta: 'Review deal',
+    cta: 'Approve reinvestment',
+    confirm:
+      "Done. I've routed the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. It settles T+2 — you can follow it in My orders, and your blended yield moves to about <b>6.9%</b> once it lands.",
+    done: 'Routed to Sagicor · settles T+2',
   },
   {
+    id: 'idle',
     tag: 'Idle cash',
     variant: 'terra',
     accent: '#c56a3e',
@@ -94,8 +104,15 @@ const APPROVALS: {
     title: 'US$2,150 earning nothing',
     body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
     cta: 'Move cash',
+    confirm:
+      'Done. Your <b>US$2,150</b> is on its way into the <b>NCB USD Money Market Fund</b> at the current 5.1% rate — about <b>US$110/yr</b>, with same-day access whenever you want it back.',
+    done: 'Swept to NCB · same-day access',
   },
 ];
+
+/** The question the demo mic "hears" — typed out live, so the voice flow can
+ *  be shown without the demo ever asking the browser for microphone access. */
+const DICTATION_SCRIPT = 'What about the idle cash?';
 
 const RULES = [
   {
@@ -128,17 +145,27 @@ export default function AgentPage() {
   const [draft, setDraft] = useState('');
   const [voice, setVoice] = useState(false);
   const [rules, setRules] = useState(RULES.map((r) => r.on));
+  /** Approval cards live locally: pending → approved, or dismissed away. */
+  const [cardState, setCardState] = useState<Record<string, 'pending' | 'approved'>>(
+    Object.fromEntries(APPROVALS.map((a) => [a.id, 'pending'])),
+  );
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  /** The simulated dictation: null when idle, else the transcript so far. */
+  const [hearing, setHearing] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
 
-  function reply(key: string) {
-    const text = REPLIES[key] ?? FALLBACK;
-    setChat((c) => [...c, { role: 'agent', text }]);
-    // keep the newest message in view
+  function scrollLog() {
     requestAnimationFrame(() => {
       const el = logRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     });
+  }
+
+  function reply(key: string) {
+    const text = REPLIES[key] ?? FALLBACK;
+    setChat((c) => [...c, { role: 'agent', text }]);
+    scrollLog();
   }
 
   function send(text: string, key?: string) {
@@ -146,8 +173,54 @@ export default function AgentPage() {
     if (!t) return;
     setChat((c) => [...c, { role: 'user', text: t }]);
     setDraft('');
+    scrollLog();
     setTimeout(() => reply(key ?? classify(t)), 500);
   }
+
+  function approveCard(a: (typeof APPROVALS)[number]) {
+    setCardState((s) => ({ ...s, [a.id]: 'approved' }));
+    setChat((c) => [...c, { role: 'agent', text: a.confirm }]);
+    scrollLog();
+  }
+
+  function dismissCard(a: (typeof APPROVALS)[number]) {
+    setDismissed((d) => [...d, a.id]);
+    setChat((c) => [
+      ...c,
+      {
+        role: 'agent',
+        text: `Understood — I've set "${a.title}" aside. I'll flag it again only if the numbers change.`,
+      },
+    ]);
+    scrollLog();
+  }
+
+  /** Voice, without a single browser permission: the demo types its sample
+   *  question into the composer word by word, then sends it — the feel of the
+   *  live dictation flow with nothing captured and nothing asked for. */
+  function playDictation() {
+    if (hearing !== null) return;
+    const words = DICTATION_SCRIPT.split(' ');
+    let i = 0;
+    setHearing('');
+    const tick = setInterval(() => {
+      i += 1;
+      const sofar = words.slice(0, i).join(' ');
+      setHearing(sofar);
+      setDraft(sofar);
+      if (i >= words.length) {
+        clearInterval(tick);
+        setTimeout(() => {
+          setHearing(null);
+          setDraft('');
+          send(DICTATION_SCRIPT, 'idle');
+        }, 450);
+      }
+    }, 220);
+  }
+
+  const visibleCards = APPROVALS.filter((a) => !dismissed.includes(a.id));
+  const pendingCount = visibleCards.filter((a) => cardState[a.id] === 'pending').length;
 
   return (
     <AppScreen active="agent" basePath="/demo">
@@ -240,6 +313,17 @@ export default function AgentPage() {
           </div>
 
           <div className="agent-chat__composer px-5 pb-[18px]">
+            {/* The words as they are "heard" — the live screen's dictation
+                preview, driven by the script above rather than a microphone. */}
+            {hearing !== null && (
+              <output
+                aria-live="polite"
+                className="mb-2.5 flex items-start gap-2 rounded-xl bg-mint/70 px-3.5 py-2.5 text-[13.5px] leading-snug text-foreground dark:bg-white/[0.06]"
+              >
+                <Mic className="mt-0.5 h-4 w-4 flex-none animate-pulse text-teal2" aria-hidden />
+                <span className="min-w-0">{hearing || 'Listening…'}</span>
+              </output>
+            )}
             <div className="mb-3 flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (
                 <Button
@@ -273,12 +357,14 @@ export default function AgentPage() {
               />
               <Button
                 type="button"
-                variant="secondary"
+                variant={hearing !== null ? 'default' : 'secondary'}
                 size="icon"
-                aria-label="Voice input"
+                aria-label="Voice input (plays a sample question)"
+                aria-pressed={hearing !== null}
+                onClick={playDictation}
                 className="h-[38px] w-[38px] flex-none rounded-[10px]"
               >
-                <Mic className="h-[17px] w-[17px]" />
+                <Mic className={cn('h-[17px] w-[17px]', hearing !== null && 'animate-pulse')} />
               </Button>
               <Button
                 type="submit"
@@ -297,13 +383,21 @@ export default function AgentPage() {
           <Card className="p-5">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
-                2
-              </span>
+              {pendingCount > 0 && (
+                <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
+                  {pendingCount}
+                </span>
+              )}
             </div>
-            {APPROVALS.map((a) => (
+            {visibleCards.length === 0 && (
+              <p className="py-2 text-[13.5px] leading-normal text-dim">
+                Nothing needs your approval. When the agent prepares a move outside your limits, it
+                waits for you here.
+              </p>
+            )}
+            {visibleCards.map((a) => (
               <div
-                key={a.title}
+                key={a.id}
                 className="mb-3 rounded-xl border border-border p-4"
                 style={{ borderLeft: `3px solid ${a.accent}` }}
               >
@@ -313,12 +407,24 @@ export default function AgentPage() {
                 </div>
                 <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
                 <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
-                <div className="flex gap-2">
-                  <Button className="h-10 flex-1">{a.cta}</Button>
-                  <Button variant="outline" className="h-10 text-dim">
-                    Dismiss
-                  </Button>
-                </div>
+                {cardState[a.id] === 'approved' ? (
+                  <p className="m-0 flex items-center gap-1.5 text-[13.5px] font-bold text-success-ink">
+                    <span aria-hidden>✓</span> Approved · {a.done}
+                  </p>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button className="h-10 flex-1" onClick={() => approveCard(a)}>
+                      {a.cta}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-10 text-dim"
+                      onClick={() => dismissCard(a)}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </Card>

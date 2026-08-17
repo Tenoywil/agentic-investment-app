@@ -91,7 +91,7 @@ export default function GatewayReviewPage() {
 
   if (!canReview) {
     return (
-      <AppScreen active="gatewayIntroductions">
+      <AppScreen active="gatewayReview">
         <PageHead
           eyebrow="Caribbean Capital Gateway · private-deal matching"
           title="Review queue"
@@ -106,7 +106,7 @@ export default function GatewayReviewPage() {
   }
 
   return (
-    <AppScreen active="gatewayIntroductions">
+    <AppScreen active="gatewayReview">
       <PageHead
         eyebrow="Caribbean Capital Gateway · private-deal matching"
         title="Review queue"

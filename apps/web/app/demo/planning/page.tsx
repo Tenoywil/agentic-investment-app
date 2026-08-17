@@ -5,6 +5,7 @@ import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { cn } from '@/app/_lib/utils';
+import Link from 'next/link';
 
 const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
   Recommended: 'success',
@@ -173,8 +174,10 @@ export default function PlanningPage() {
               <Badge variant={STATUS_VARIANT[p.status] ?? 'secondary'}>{p.status}</Badge>
             </div>
             <p className="mb-4 text-sm leading-relaxed text-dim">{p.desc}</p>
-            <Button variant="secondary" className="w-full">
-              Explore with agent
+            {/* A door, not a dead control: the demo agent answers planning
+                questions from its script, which is the feel this preview owes. */}
+            <Button variant="secondary" className="w-full" asChild>
+              <Link href="/demo/agent">Explore with agent</Link>
             </Button>
           </Card>
         ))}

@@ -8,7 +8,7 @@ import { Card } from '@/app/_components/ui/card';
 import { cn } from '@/app/_lib/utils';
 import { Bell, LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const PIPE = [
   { n: '1', t: 'Research', b: 'Scans 47 instruments across 8 partners', flag: false },
@@ -120,6 +120,68 @@ const STATS: {
 
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
 
+/** Fixture notifications — the bell used to be a dead control, which in a
+ *  preview reads as "this product has dead controls". */
+const NOTIFICATIONS = [
+  { t: 'GOJ 2026 coupon settles Friday', s: 'US$412 · reinvestment prepared', when: 'Today' },
+  { t: '2 actions await your approval', s: 'Nothing moves without your yes', when: 'Today' },
+  { t: 'Statement ready · NCB', s: 'July consolidated statement', when: '2d ago' },
+];
+
+function NotificationsBell() {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Light-dismiss: click anywhere else, or Escape, closes it.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <Button
+        variant="outline"
+        size="icon"
+        aria-label="Notifications"
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen((o) => !o)}
+        className="h-[42px] w-[42px] rounded-full text-dim [&_svg]:size-[18px]"
+      >
+        <Bell />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-[50px] z-20 w-[300px] rounded-xl border border-solid border-border bg-card p-1.5 shadow-[0_14px_38px_rgba(30,20,10,0.16)]">
+          <div className="px-2.5 pb-1 pt-2 text-[11.5px] font-bold uppercase tracking-[.5px] text-faint">
+            Notifications
+          </div>
+          {NOTIFICATIONS.map((n) => (
+            <div key={n.t} className="rounded-lg px-2.5 py-2 hover:bg-muted/60">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[13.5px] font-bold leading-snug">{n.t}</span>
+                <span className="flex-none text-[11.5px] text-faint">{n.when}</span>
+              </div>
+              <div className="text-[12.5px] text-dim">{n.s}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Donut() {
   const r = 52;
   const cir = 2 * Math.PI * r;
@@ -176,14 +238,7 @@ export default function HomePage() {
                 ))}
               </select>
             </label>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Notifications"
-              className="h-[42px] w-[42px] rounded-full text-dim [&_svg]:size-[18px]"
-            >
-              <Bell />
-            </Button>
+            <NotificationsBell />
             <Avatar className="h-[42px] w-[42px]">
               <AvatarFallback>MB</AvatarFallback>
             </Avatar>
@@ -233,14 +288,16 @@ export default function HomePage() {
             <b className="text-gold">2 actions</b> for your approval.
           </p>
           <div className="flex flex-wrap gap-2.5">
+            {/* Every link in the demo stays inside /demo — the preview must
+                never route a visitor into the signed-in app. */}
             <Button variant="peach" asChild>
-              <Link href="/agent">Review 2 approvals</Link>
+              <Link href="/demo/agent">Review 2 approvals</Link>
             </Button>
             <Button
               asChild
               className="border border-white/30 bg-transparent text-white hover:bg-white/10"
             >
-              <Link href="/opportunities">Opportunities</Link>
+              <Link href="/demo/opportunities">Opportunities</Link>
             </Button>
           </div>
         </div>
@@ -253,7 +310,7 @@ export default function HomePage() {
         <Card className="p-[22px]">
           <div className="mb-3.5 flex items-center justify-between">
             <b className="font-display text-lg">Held across partners</b>
-            <Link href="/portfolio" className="text-sm font-bold text-teal2 no-underline">
+            <Link href="/demo/portfolio" className="text-sm font-bold text-teal2 no-underline">
               View portfolio →
             </Link>
           </div>
@@ -318,7 +375,7 @@ export default function HomePage() {
             </div>
           ))}
           <Button variant="outline" className="mt-1.5 w-full text-teal2" asChild>
-            <Link href="/agent">Adjust your agent's limits</Link>
+            <Link href="/demo/agent">Adjust your agent's limits</Link>
           </Button>
         </Card>
 
@@ -346,7 +403,7 @@ export default function HomePage() {
               </div>
               <div className="mb-3 text-[15px] font-bold">{a.title}</div>
               <Button className="w-full" asChild>
-                <Link href="/agent">Review &amp; approve</Link>
+                <Link href="/demo/agent">Review &amp; approve</Link>
               </Button>
             </div>
           ))}

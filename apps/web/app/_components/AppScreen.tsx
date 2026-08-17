@@ -42,17 +42,23 @@ export function AppScreen({
   );
 }
 
-/** Standard page header: muted eyebrow + display title + optional right-hand slot. */
+/** Standard page header: display title + a muted one-line explainer under it +
+ *  optional right-hand slot.
+ *
+ *  The explainer used to sit ABOVE the h1 as an eyebrow, so the first thing on
+ *  every screen was a line of small print pushing the page's own name (and
+ *  everything after it) down. The title leads now; the line that says what the
+ *  page does sits directly under it, close enough to read as its subtitle. */
 export function PageHead({
   eyebrow,
   title,
   right,
 }: { eyebrow: string; title: string; right?: ReactNode }) {
   return (
-    <div className="mb-[22px] flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <div className="mb-1 text-[13.5px] text-dim">{eyebrow}</div>
+    <div className="mb-[18px] flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0">
         <h1 className="font-display text-3xl font-bold tracking-tight">{title}</h1>
+        <div className="mt-0.5 text-[13.5px] text-dim">{eyebrow}</div>
       </div>
       {right}
     </div>

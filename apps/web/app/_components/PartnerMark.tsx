@@ -79,6 +79,7 @@ export function PartnerMark({
   tint,
   size = 'md',
   className,
+  logoUrl,
 }: {
   name: string;
   code?: string | null;
@@ -89,6 +90,9 @@ export function PartnerMark({
   tint?: string | null;
   size?: PartnerMarkSize;
   className?: string;
+  /** Where the logo bytes live. Defaults to the authenticated portfolio
+   *  endpoint; unauthenticated surfaces (the landing) pass the public one. */
+  logoUrl?: string;
 }) {
   // A logo that 404s (cleared between list load and render) falls back to the
   // monogram rather than a broken-image glyph.
@@ -107,7 +111,7 @@ export function PartnerMark({
         {/* Bytes come from the API with the firm's own content-type; alt is the
             firm's name so the mark reads as the firm to a screen reader. */}
         <img
-          src={partnerLogoUrl(id)}
+          src={logoUrl ?? partnerLogoUrl(id)}
           alt={name}
           className={cn('h-full w-full object-contain', LOGO_PAD[size])}
           onError={() => setLogoFailed(true)}
