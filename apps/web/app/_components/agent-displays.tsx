@@ -352,7 +352,7 @@ export function FitDisplay({ data }: { data: FitDisplayData }) {
         <div className="min-w-0">
           <b className="text-[14.5px]">{data.name}</b>
           <div className="text-[12.5px] leading-snug text-faint">
-            Fit score out of a hundred — how this sits beside what you already hold
+            Fit score out of a hundred: how this sits beside what you already hold
           </div>
         </div>
       </div>
@@ -484,7 +484,7 @@ function PipelineDisplay({ data }: { data: PipelineDisplayData }) {
         <p className="m-0 mt-2.5 rounded-lg bg-mint/60 px-3 py-2 text-[12.5px] leading-snug text-foreground dark:bg-white/[0.05]">
           Prepared: <b>{data.proposal.name}</b> ·{' '}
           <b className="font-mono">{data.proposal.amount}</b>
-          {data.proposal.partner && <> — via {data.proposal.partner}</>}
+          {data.proposal.partner && <> · via {data.proposal.partner}</>}
           {data.proposal.decision === 'requires_approval' && '. Waiting on your approval.'}
         </p>
       ) : (

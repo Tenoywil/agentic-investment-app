@@ -139,7 +139,7 @@ export function assessPortfolioFit(input: FitInput): FitResult {
   if (existingValue > 0n) {
     score -= 25;
     concerns.push(
-      `You already hold ${candidate.name} — adding more deepens a position you have, it does not diversify.`,
+      `You already hold ${candidate.name}. Adding more deepens a position you have, it does not diversify.`,
     );
   } else if (
     candidate.type &&
@@ -147,7 +147,7 @@ export function assessPortfolioFit(input: FitInput): FitResult {
   ) {
     score += 15;
     reasons.push(
-      `Your first ${candidate.type.toLowerCase()} exposure — a return source your portfolio does not have yet.`,
+      `Your first ${candidate.type.toLowerCase()} exposure, a return source your portfolio does not have yet.`,
     );
   }
 
@@ -161,7 +161,7 @@ export function assessPortfolioFit(input: FitInput): FitResult {
     if (share >= PARTNER_CONCENTRATION_MAX * 100) {
       score -= 15;
       concerns.push(
-        `${Math.round(share)}% of your portfolio already sits at ${candidate.partnerName} — this adds to that concentration.`,
+        `${Math.round(share)}% of your portfolio already sits at ${candidate.partnerName}, and this adds to that concentration.`,
       );
     }
   }
@@ -175,7 +175,7 @@ export function assessPortfolioFit(input: FitInput): FitResult {
     if (share >= TYPE_CONCENTRATION_MAX * 100) {
       score -= 10;
       concerns.push(
-        `${Math.round(share)}% of your invested money is already in ${candidate.type.toLowerCase()}s — this adds more of what you have most of.`,
+        `${Math.round(share)}% of your invested money is already in ${candidate.type.toLowerCase()}s, and this adds more of what you have most of.`,
       );
     }
   }
@@ -185,7 +185,7 @@ export function assessPortfolioFit(input: FitInput): FitResult {
   if (candidate.currency !== portfolio.displayCurrency) {
     score -= 10;
     concerns.push(
-      `Priced in ${candidate.currency} while your portfolio reads in ${portfolio.displayCurrency} — the return moves with the ${candidate.currency}/${portfolio.displayCurrency} rate as well as the asset.`,
+      `Priced in ${candidate.currency} while your portfolio reads in ${portfolio.displayCurrency}, so the return moves with the ${candidate.currency}/${portfolio.displayCurrency} rate as well as the asset.`,
     );
   }
 
@@ -228,7 +228,7 @@ export function assessPortfolioFit(input: FitInput): FitResult {
       if (largest && largest.gapPts >= 10 && largest.key === candidateKey) {
         score += 10;
         reasons.push(
-          `Closes your biggest allocation gap — your mix is about ${Math.round(largest.gapPts)} points under your band's ${candidateKey.replace('_', ' ')} target.`,
+          `Closes your biggest allocation gap: your mix is about ${Math.round(largest.gapPts)} points under your band's ${candidateKey.replace('_', ' ')} target.`,
         );
       } else if (own && own.gapPts <= -10) {
         score -= 10;
@@ -245,12 +245,12 @@ export function assessPortfolioFit(input: FitInput): FitResult {
     if (share <= EASY_STEP_SHARE * 100) {
       score += 10;
       reasons.push(
-        `A measured step — the minimum is about ${Math.max(1, Math.round(share))}% of your cash.`,
+        `A measured step: the minimum is about ${Math.max(1, Math.round(share))}% of your cash.`,
       );
     } else if (share > BIG_STEP_SHARE * 100) {
       score -= 10;
       concerns.push(
-        `The minimum takes about ${Math.round(share)}% of your cash in one move — a large single commitment.`,
+        `The minimum takes about ${Math.round(share)}% of your cash in one move, a large single commitment.`,
       );
     }
   }

@@ -263,11 +263,11 @@ function TrustNote({
         {firm && (
           <p className="m-0">
             Executed by the licensed firm <b className="text-foreground">{firm}</b>
-            {regulator && <> — regulated by {regulator}</>}, never by CCN.
+            {regulator && <>, regulated by {regulator},</>} never by CCN.
           </p>
         )}
         <p className="m-0">
-          Screened against your own risk band and limits — not a sales list. Firms don't pay for
+          Screened against your own risk band and limits, not a sales list. Firms don't pay for
           placement; CCN charges one flat platform fee.
         </p>
         {scores && scores.length > 0 && (
@@ -496,7 +496,7 @@ function LimitsCard() {
       {state === 'ready' && data && (
         <p className="mb-2.5 text-[12.5px] text-faint">
           {data.source === 'defaults' || !data.updatedAt
-            ? "CCN's starting limits — you haven't changed anything yet"
+            ? "CCN's starting limits. You haven't changed anything yet"
             : `You last changed these ${formatWhen(data.updatedAt)}`}
         </p>
       )}
@@ -558,7 +558,7 @@ function LimitsCard() {
                   checked={on}
                   disabled={savingFlag !== null}
                   onCheckedChange={() => toggle(rule.flag)}
-                  aria-label={`${rule.label} — ${value}`}
+                  aria-label={`${rule.label}: ${value}`}
                   className="flex-none"
                 />
               </div>
@@ -844,7 +844,7 @@ export default function AgentPage() {
           removed — so the page keeps its h1 and its landmark structure. */}
       <div className="agent-preamble">
         <PageHead
-          eyebrow="It finds and checks investments for you — nothing happens without your yes"
+          eyebrow="It finds and checks investments for you. Nothing happens without your yes"
           title="Your Capital Agent"
         />
         <AgentStats />
@@ -934,10 +934,12 @@ export default function AgentPage() {
             // A fixed height, not a range. Between min-h and max-h the log grew with
             // every message: the card got taller as the agent streamed, pushing the
             // composer down under the cursor and resizing the whole two-column row
-            // around it. The conversation scrolls inside a box that does not move —
-            // but "fixed" is per-viewport, not 440px everywhere: on a tall desktop
-            // that left half the screen empty under a cramped log.
-            className="agent-chat__log flex h-[clamp(400px,58vh,660px)] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            // around it. The conversation scrolls inside a box that does not move.
+            // The height is the viewport minus the screen's own chrome (header,
+            // status line, chat head, composer, page padding), so on a desktop the
+            // whole screen fits without the page scrolling the chat out of view —
+            // the panels column handles its own overflow (globals.css).
+            className="agent-chat__log flex h-[clamp(420px,calc(100dvh-420px),800px)] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
           >
             {historyState === 'loading' && (
               <SkeletonRegion label="Loading your conversation" className="flex flex-col gap-3.5">
@@ -964,7 +966,7 @@ export default function AgentPage() {
                 <p className="text-[15px] font-bold">Say hello to your Capital Agent</p>
                 <p className="max-w-[320px] text-[13.5px] leading-relaxed text-dim">
                   Ask what you're invested in, what's worth a look, or how anything here works. It
-                  prepares the move — you say yes or no, every time.
+                  prepares the move. You say yes or no, every time.
                 </p>
               </div>
             )}
@@ -1040,7 +1042,7 @@ export default function AgentPage() {
               >
                 <Mic className="mt-0.5 h-4 w-4 flex-none animate-pulse text-teal2" aria-hidden />
                 <span className="min-w-0">
-                  {dictation.preview || 'Listening — your words appear here as you speak.'}
+                  {dictation.preview || 'Listening. Your words appear here as you speak.'}
                 </span>
               </output>
             )}
@@ -1207,7 +1209,7 @@ export default function AgentPage() {
                             if (err instanceof AlreadyPendingError) {
                               // Information, not failure: the card exists, so
                               // point at it and clear this duplicate offer.
-                              setRaiseNote('Already in your approvals — decide that card first.');
+                              setRaiseNote('Already in your approvals. Decide that card first.');
                               setProposals((list) =>
                                 list.filter((x) => x.instrumentId !== p.instrumentId),
                               );
@@ -1449,20 +1451,20 @@ export default function AgentPage() {
           </Card>
 
           <LimitsCard />
-        </dialog>
-      </div>
 
-      {/* The full explainer lives on its own page now — the chat's trace and
-          trust disclosures show the pipeline per decision, so a static
-          five-step block here repeated what the cards already demonstrate. */}
-      <div className="mt-[18px]">
-        <Link
-          href="/how-it-works"
-          className="flex items-center justify-between gap-2 rounded-xl border border-solid border-border bg-card px-4 py-3 text-[13.5px] font-semibold text-teal2 hover:bg-muted"
-        >
-          How your agent works
-          <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
-        </Link>
+          {/* The full explainer lives on its own page — the chat's trace and
+              trust disclosures show the pipeline per decision. The link rides
+              in this column (and in the phone's sheet, where it is actually
+              reachable — below the fixed full-screen chat it never was) so
+              nothing sits under the grid to scroll the conversation away. */}
+          <Link
+            href="/how-it-works"
+            className="flex items-center justify-between gap-2 rounded-xl border border-solid border-border bg-card px-4 py-3 text-[13.5px] font-semibold text-teal2 hover:bg-muted"
+          >
+            How your agent works
+            <ArrowRight className="h-4 w-4 flex-none" aria-hidden />
+          </Link>
+        </dialog>
       </div>
     </AppScreen>
   );

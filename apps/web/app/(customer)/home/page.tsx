@@ -7,7 +7,7 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { useMe } from '@/app/_lib/session';
 import { useRealtime } from '@/app/_lib/use-realtime';
-import { cn, splitApprovalTitle } from '@/app/_lib/utils';
+import { agentFeedPreview, cn, splitApprovalTitle } from '@/app/_lib/utils';
 import {
   type AgentMessage,
   type AllocationSlice,
@@ -556,8 +556,10 @@ export default function HomePage() {
               <div key={`${m.createdAt}-${i}`} className="mb-[15px] flex gap-2.5">
                 <span className="mt-1.5 h-[9px] w-[9px] flex-none rounded-full bg-teal2" />
                 <div className="min-w-0">
+                  {/* One plain sentence, never raw markdown — the agent's
+                      tables and emphasis belong on /agent, not in a feed row. */}
                   <div className="line-clamp-2 text-[14.5px] font-semibold leading-snug">
-                    {m.content}
+                    {agentFeedPreview(m.content)}
                   </div>
                   <div className="mt-0.5 text-[12.5px] text-faint">{relativeTime(m.createdAt)}</div>
                 </div>

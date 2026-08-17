@@ -335,7 +335,7 @@ export default function PlanningPage() {
         <EmptyState
           icon={Target}
           title="No goals yet"
-          body="Set a target — a home, a university fund, a retirement date — and CCN tracks your progress toward it."
+          body="Set a target, such as a home, a university fund or a retirement date, and CCN tracks your progress toward it."
           action={
             <Button variant="outline" onClick={() => setNewGoalOpen(true)}>
               <Plus className="h-4 w-4" aria-hidden />

@@ -547,7 +547,7 @@ export function ComplianceTab({
           <EmptyState
             icon={ScrollText}
             title="No audited activity yet"
-            body="Accepting an order, matching a statement line or pausing a listing writes an entry here that nobody — including CCN — can edit or delete."
+            body="Accepting an order, matching a statement line or pausing a listing writes an entry here that nobody, including CCN, can edit or delete."
           />
         ) : null}
 

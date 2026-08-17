@@ -76,7 +76,9 @@ const SEED_ORDERS: Order[] = [
   },
 ];
 
-const PRODUCTS = [
+type Product = { name: string; type: string; clients: number; aum: string; trend: string };
+
+const PRODUCTS: Product[] = [
   { name: 'GOJ USD Global Bond 2032', type: 'Bond', clients: 412, aum: 'US$14.2M', trend: '+22%' },
   {
     name: 'Sagicor Real Estate X Fund',
@@ -100,6 +102,13 @@ const PRODUCTS = [
     aum: 'US$5.7M',
     trend: '+44%',
   },
+];
+
+/** What "List a product" adds — one per press, so the button demonstrates the
+ *  real console's listing flow instead of doing nothing. */
+const LISTABLE: Product[] = [
+  { name: 'Sagicor Sigma Global Fund', type: 'Fund', clients: 0, aum: 'US$0', trend: 'New' },
+  { name: 'Sagicor USD Bond Fund II', type: 'Bond', clients: 0, aum: 'US$0', trend: 'New' },
 ];
 
 const KYC_STAGES = [
@@ -168,9 +177,15 @@ function OrderAction({ order, advance }: { order: Order; advance: (id: string) =
 export default function InstitutionsPage() {
   const [tab, setTab] = useState<TabKey>('overview');
   const [orders, setOrders] = useState<Order[]>(SEED_ORDERS);
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [live, setLive] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(PRODUCTS.map((p) => [p.name, true])),
+    Object.fromEntries([...PRODUCTS, ...LISTABLE].map((p) => [p.name, true])),
   );
+  const listProduct = () =>
+    setProducts((ps) => {
+      const next = LISTABLE.find((l) => !ps.some((p) => p.name === l.name));
+      return next ? [...ps, next] : ps;
+    });
   /* The rail is a <dialog> for the same reason the live console's is: below
      900px the CSS turns .console-sidebar into a bottom sheet that only renders
      [open], and a plain <nav> can never be open — which left the demo console
@@ -340,7 +355,14 @@ export default function InstitutionsPage() {
             <Card className="p-[22px]">
               <div className="mb-1.5 flex items-center justify-between">
                 <b className="font-display text-lg">Incoming order flow</b>
-                <span className="text-sm font-bold text-teal2">Open queue</span>
+                {/* It reads as a link, so it is one: into the Order flow tab. */}
+                <button
+                  type="button"
+                  onClick={() => setTab('orders')}
+                  className="border-0 bg-transparent p-0 text-sm font-bold text-teal2 hover:underline"
+                >
+                  Open queue →
+                </button>
               </div>
               <p className="mb-4 text-sm leading-normal text-dim">
                 Orders arrive here when a CCN client approves a deal in your products. You execute,
@@ -460,7 +482,13 @@ export default function InstitutionsPage() {
                   Listed products the agent can match to suitable clients.
                 </div>
               </div>
-              <Button size="sm">List a product</Button>
+              <Button
+                size="sm"
+                onClick={listProduct}
+                disabled={products.length >= PRODUCTS.length + LISTABLE.length}
+              >
+                List a product
+              </Button>
             </div>
             <div className="overflow-x-auto">
               <div className="min-w-[560px]">
@@ -473,7 +501,7 @@ export default function InstitutionsPage() {
                   <span className="text-right">Inflow</span>
                   <span className="text-right">Status</span>
                 </div>
-                {PRODUCTS.map((p) => (
+                {products.map((p) => (
                   <div
                     key={p.name}
                     className="grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] items-center border-b border-solid border-x-0 border-t-0 border-border px-6 py-3.5"

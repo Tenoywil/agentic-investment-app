@@ -27,6 +27,7 @@ import { opportunitiesRoutes } from './routes/opportunities';
 import { ordersRoutes } from './routes/orders';
 import { planningRoutes } from './routes/planning';
 import { portfolioRoutes } from './routes/portfolio';
+import { publicRoutes } from './routes/public';
 import { RATE_LIMITS, type RateLimitClass, createClientIpResolver } from './security';
 
 /**
@@ -108,6 +109,8 @@ export function createApp(deps: AppDeps) {
   app.use('/api/approvals/*', limit('approvals'));
   app.use('/api/ingestion/*', limit('orders'));
   app.use('/api/portfolio/*', limit('read'));
+  // Unauthenticated brand data (landing page). Read budget, keyed by address.
+  app.use('/api/public/*', limit('read'));
   app.use('/api/console/*', limit('read'));
   app.use('/api/opportunities/*', limit('read'));
   app.use('/api/planning/*', limit('read'));
@@ -219,6 +222,9 @@ export function createApp(deps: AppDeps) {
   app.route('/api/onboarding', onboardingRoutes(deps));
   app.route('/api/limits', limitsRoutes(deps));
   app.route('/api/gateway', gatewayRoutes(deps, limit));
+  // No surface guard on purpose: partner brand marks are the network's public
+  // face, served to the signed-out landing page. Brand columns only.
+  app.route('/api/public', publicRoutes(deps));
 
   return app;
 }

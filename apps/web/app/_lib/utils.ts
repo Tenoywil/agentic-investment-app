@@ -20,3 +20,40 @@ export function splitApprovalTitle(title: string): { name: string; amount: strin
   if (!name || !amount) return null;
   return { name, amount };
 }
+
+/**
+ * An agent reply reduced to one plain sentence for a feed row.
+ *
+ * The home screen's activity feed shows the agent's recent messages in a
+ * two-line clamp, and the agent answers comparison questions in GFM markdown —
+ * so the feed used to open with a wall of pipes and dashes (the raw table)
+ * where a person expected a sentence. A feed row is a summary, not a document:
+ * table and separator lines are dropped entirely, emphasis/heading/link syntax
+ * is unwrapped, and what remains is the reply's own prose.
+ */
+export function agentFeedPreview(markdown: string): string {
+  const prose = markdown
+    .replaceAll('<b>', '')
+    .replaceAll('</b>', '')
+    .split('\n')
+    .map((line) => line.trim())
+    // A table row, a |---| rule, a --- rule, or a list bullet's bare dash all
+    // read as noise in a one-line preview.
+    .filter((line) => line.length > 0 && !line.startsWith('|') && !/^[-=*_\s|:]+$/.test(line))
+    .map(
+      (line) =>
+        line
+          .replace(/^#{1,6}\s+/, '') // headings
+          .replace(/^[-*+]\s+/, '') // list bullets
+          .replace(/^\d+\.\s+/, '') // ordered list markers
+          .replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+          .replace(/\*([^*]+)\*/g, '$1') // italics
+          .replace(/`([^`]+)`/g, '$1') // inline code
+          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'), // links -> their text
+    )
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // A reply that was only a table still deserves an honest row.
+  return prose || 'Shared a breakdown with you. Open the agent to see it.';
+}

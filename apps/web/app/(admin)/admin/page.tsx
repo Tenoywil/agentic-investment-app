@@ -333,7 +333,7 @@ export default function AdminPage() {
         const updated = r.updated.length > 0 ? `Updated ${r.updated.join(', ')}.` : 'None updated.';
         const failed =
           r.failed.length > 0
-            ? ` ${r.failed.map((f) => `${f.source} unreachable`).join('; ')} — the stored rate stands.`
+            ? ` ${r.failed.map((f) => `${f.source} unreachable`).join('; ')}. The stored rate stands.`
             : '';
         setFxNote(`${updated}${failed}`);
       })
@@ -965,7 +965,7 @@ export default function AdminPage() {
             <EmptyState
               icon={History}
               title="Nothing has happened yet"
-              body="Sign-ins, role changes, orders and approvals are appended here as they occur. The table is append-only — updates and deletes on it are rejected outright."
+              body="Sign-ins, role changes, orders and approvals are appended here as they occur. The table is append-only, and updates and deletes on it are rejected outright."
             />
           ) : null}
 

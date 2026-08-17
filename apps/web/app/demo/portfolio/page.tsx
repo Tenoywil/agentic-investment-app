@@ -9,8 +9,8 @@ import { ShieldCheck } from 'lucide-react';
 const INSTITUTIONS = [
   {
     code: 'NCB',
-    name: 'National Commercial Bank',
-    kind: 'Bank · Capital Markets',
+    name: 'NCB Capital Markets',
+    kind: 'Securities · Capital Markets',
     total: 'US$13,400',
     tint: '#e7edf8',
     color: '#1a4aa0',
@@ -30,7 +30,7 @@ const INSTITUTIONS = [
   },
   {
     code: 'PRV',
-    name: 'Proven Wealth',
+    name: 'PROVEN Wealth',
     kind: 'Wealth Management',
     total: 'US$5,600',
     tint: '#f6efe0',
@@ -168,7 +168,7 @@ export default function PortfolioPage() {
         <EquityChart
           points={EQUITY_POINTS}
           fmt={fmtUsdMinor}
-          emptyNote="Your history starts today — the first point lands tonight."
+          emptyNote="Your history starts today. The first point lands tonight."
         />
       </Card>
 

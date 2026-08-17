@@ -107,7 +107,7 @@ export function VoiceAsk({ basePath = '' }: { basePath?: string }) {
                 aria-hidden
               />
               <span className="min-w-0">
-                {dictation.preview || 'Listening — ask your question, then pause.'}
+                {dictation.preview || 'Listening. Ask your question, then pause.'}
               </span>
             </span>
           ) : (

@@ -34,11 +34,11 @@ const REGULATORS = [
 ];
 
 const AGREEMENTS = [
-  { value: 'prospect', label: 'Prospect — talking, nothing signed' },
-  { value: 'dpa_pending', label: 'DPA pending — agreement in progress' },
-  { value: 'sandbox', label: 'Sandbox — connected, not routing real orders' },
-  { value: 'live', label: 'Live — real orders route to this partner' },
-  { value: 'suspended', label: 'Suspended — routing stopped' },
+  { value: 'prospect', label: 'Prospect: talking, nothing signed' },
+  { value: 'dpa_pending', label: 'DPA pending: agreement in progress' },
+  { value: 'sandbox', label: 'Sandbox: connected, not routing real orders' },
+  { value: 'live', label: 'Live: real orders route to this partner' },
+  { value: 'suspended', label: 'Suspended: routing stopped' },
 ];
 
 const LABEL = 'text-[12px] font-bold uppercase tracking-[.6px] text-dim';

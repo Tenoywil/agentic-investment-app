@@ -190,7 +190,7 @@ function MoneyDialog({
       if (mode === 'fund') {
         await sendFundingNotice(input);
         onDone(
-          `Told ${partner.name} you've sent money. It appears in your balance once their desk confirms it settled — nothing is credited before that.`,
+          `Told ${partner.name} you've sent money. It appears in your balance once their desk confirms it settled. Nothing is credited before that.`,
         );
       } else {
         await requestWithdrawal(input);
@@ -215,7 +215,7 @@ function MoneyDialog({
           </h2>
           <div className="text-[13.5px] text-dim">
             {mode === 'fund'
-              ? 'The transfer happens between you and the firm — CCN never holds your money.'
+              ? 'The transfer happens between you and the firm. CCN never holds your money.'
               : `The firm pays you directly${partner.cash ? ` · ${partner.cash} cash available` : ''}.`}
           </div>
         </div>
@@ -242,7 +242,7 @@ function MoneyDialog({
               </p>
             ) : (
               <p className="m-0 text-sm leading-relaxed text-dim">
-                {partner.name} hasn't published transfer instructions here yet — use the account
+                {partner.name} hasn't published transfer instructions here yet. Use the account
                 details they gave you directly. Once the money settles with them, their desk
                 confirms it and it appears in your balance.
               </p>
@@ -306,7 +306,7 @@ function MoneyDialog({
             ) : (
               <span className="text-[#a44e20] dark:text-terra">
                 The firm&rsquo;s charges ({fmtEstimate(estFeeMinor + estGctMinor, currency)}) would
-                consume this amount — ask for more, or contact {partner.name}.
+                consume this amount. Ask for more, or contact {partner.name}.
               </span>
             )}
           </div>
@@ -320,7 +320,7 @@ function MoneyDialog({
         <p className="mb-0 mt-3 text-[12.5px] leading-relaxed text-faint">
           {mode === 'fund'
             ? 'This tells the firm to look out for your transfer. Their desk confirms it settled; nothing is credited on your say-so.'
-            : 'One request at a time per account. If the firm declines, it tells you why here. Charges are fixed when you ask — a rate change later never changes a request already made.'}
+            : 'One request at a time per account. If the firm declines, it tells you why here. Charges are fixed when you ask, and a rate change later never changes a request already made.'}
         </p>
       </div>
     </dialog>
@@ -446,8 +446,8 @@ export default function PortfolioPage() {
       const { queued } = await pullStatements(code);
       setPullNote(
         queued === 0
-          ? 'Statements checked — nothing new to reconcile.'
-          : `Statements checked — ${queued} line${queued === 1 ? '' : 's'} sent to the firm to reconcile.`,
+          ? 'Statements checked. Nothing new to reconcile.'
+          : `Statements checked. ${queued} line${queued === 1 ? '' : 's'} sent to the firm to reconcile.`,
       );
       refresh();
     } catch (err) {
@@ -537,9 +537,7 @@ export default function PortfolioPage() {
       {data?.fx?.source ? (
         <p className="-mt-1 mb-4 text-[12.5px] text-faint">
           {data.fx.source === 'seed' ? (
-            <>
-              Converted at a fallback rate — no published rate has been loaded for {currency} yet.
-            </>
+            <>Converted at a fallback rate. No published rate has been loaded for {currency} yet.</>
           ) : (
             <>
               Converted at the {data.fx.source} rate {data.fx.asOf ? `of ${data.fx.asOf}` : ''}
@@ -634,7 +632,7 @@ export default function PortfolioPage() {
         <EmptyState
           icon={Wallet}
           title="No holdings yet"
-          body="Link an account and, once that institution accepts you as a client, every position you hold there appears here. CCN reads your balances — your institution keeps executing, custodying and settling."
+          body="Link an account and, once that institution accepts you as a client, every position you hold there appears here. CCN reads your balances; your institution keeps executing, custodying and settling."
           action={
             <Button type="button" size="sm" onClick={() => setConnecting(true)}>
               <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
@@ -683,7 +681,7 @@ export default function PortfolioPage() {
                       ? // The net is the money that actually arrived; naming it
                         // beside the gross is the fee disclosure, after the fact.
                         `Paid ${w.fee || w.gct ? `${w.net} after charges` : ''}${w.reference ? ` · ref ${w.reference}` : ''}`.trim()
-                      : `Declined${w.reason ? ` — ${w.reason}` : ''}`}
+                      : `Declined${w.reason ? `: ${w.reason}` : ''}`}
                   </span>
                 </li>
               ))}
@@ -698,7 +696,7 @@ export default function PortfolioPage() {
             setConnected(
               summary.status === 'pending'
                 ? `Asked ${summary.partner} to take you on. They review the verification CCN passes them, and your positions appear here once they accept.`
-                : `${summary.refreshed ? 'Refreshed' : 'Connected'} ${summary.partner} — ${summary.holdings} position${summary.holdings === 1 ? '' : 's'}.`,
+                : `${summary.refreshed ? 'Refreshed' : 'Connected'} ${summary.partner}: ${summary.holdings} position${summary.holdings === 1 ? '' : 's'}.`,
             );
             void load();
           }}
@@ -852,7 +850,7 @@ export default function PortfolioPage() {
       )}
 
       {/*
-        Your money over time — the recorded curve, after the holdings it
+        Your money over time: the recorded curve, after the holdings it
         summarises. Every point is a day the recorder actually measured;
         nothing is projected or back-filled. Today's live total (the same
         netWorthMinor the header shows) is appended as a "now" point so day
@@ -885,12 +883,12 @@ export default function PortfolioPage() {
             <Card className="mt-[18px] p-[22px]">
               <b className="font-display text-lg">Your money over time</b>
               <div className="mb-3 text-[13px] text-faint">
-                Recorded once a day, in USD — never projected
+                Recorded once a day, in USD, never projected
               </div>
               <EquityChart
                 points={series}
                 fmt={fmtUsdMinor}
-                emptyNote="Your history starts today — the first point lands tonight."
+                emptyNote="Your history starts today. The first point lands tonight."
               />
               {change !== null && firstPoint && (
                 <p className="mb-0 mt-3 text-[13px] text-dim">
@@ -918,7 +916,7 @@ export default function PortfolioPage() {
           /how-it-works, and repeating it here cost a phone half a screen. */}
       <div className="mt-[18px] flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border bg-mint px-4 py-2.5 text-[13.5px] text-dim">
         <ShieldCheck className="h-4 w-4 flex-none text-teal2" aria-hidden />
-        <span className="min-w-0">Held and executed by licensed partners — never by CCN.</span>
+        <span className="min-w-0">Held and executed by licensed partners, never by CCN.</span>
         <Link
           href="/how-it-works"
           className="font-bold text-teal2 no-underline underline-offset-4 hover:underline"

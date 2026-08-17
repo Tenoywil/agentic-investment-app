@@ -13,7 +13,7 @@ export default function TermsPage() {
   return (
     <MarketingPage
       eyebrow="Terms"
-      title="What CCN is — and what it is not"
+      title="What CCN is, and what it is not"
       lead="The short version: CCN is a network and a record-keeper. Licensed institutions execute, custody and settle. You approve every move that matters."
     >
       <InfoSection title="What CCN does">
@@ -29,8 +29,8 @@ export default function TermsPage() {
         <p>
           CCN does not hold client money, does not execute trades, and is not a custodian, broker,
           or investment adviser. The agent proposes; it cannot spend. Product information on deal
-          cards — rates, terms, minimums — is supplied by the listing institution, and figures a
-          firm did not report are left out rather than estimated.
+          cards (rates, terms, minimums) is supplied by the listing institution, and figures a firm
+          did not report are left out rather than estimated.
         </p>
       </InfoSection>
 
@@ -48,7 +48,7 @@ export default function TermsPage() {
           CCN charges one flat platform fee. Institutions set their own product and withdrawal fees,
           and local taxes (such as consumption tax on a withdrawal fee) may apply. Every charge that
           applies to an action you take is shown before you confirm it, and frozen at the moment you
-          ask — a rate change later never reprices a request already made.
+          ask. A rate change later never reprices a request already made.
         </p>
       </InfoSection>
 
@@ -56,14 +56,14 @@ export default function TermsPage() {
         <p>
           A licensed institution may decline to take you on as a client, decline an order, or
           decline a withdrawal. Where the product requires a reason, the firm&rsquo;s reason is
-          shown to you verbatim, and the decision — and who at the firm made it — is recorded.
+          shown to you verbatim, and the decision, and who at the firm made it, is recorded.
         </p>
       </InfoSection>
 
       <InfoSection title="Your account">
         <p>
           Keep your sign-in credentials to yourself; actions taken from your signed-in session are
-          treated as yours. You can stop using CCN at any time — positions you hold remain facts at
+          treated as yours. You can stop using CCN at any time. Positions you hold remain facts at
           the institutions that custody them, and disconnecting a firm on CCN does not close the
           underlying account with that firm.
         </p>

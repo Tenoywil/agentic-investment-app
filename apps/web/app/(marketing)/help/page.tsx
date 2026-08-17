@@ -1,6 +1,7 @@
 'use client';
 
 import { MarketingPage } from '@/app/_components/marketing';
+import { DEMO_ENABLED } from '@/lib/config';
 import Link from 'next/link';
 
 /**
@@ -14,7 +15,7 @@ import Link from 'next/link';
 const FAQS: { q: string; a: string }[] = [
   {
     q: 'How do I put money in?',
-    a: 'Money moves between you and your chosen institution directly — a wire or a branch deposit using the funding instructions the firm publishes in your "Add money" dialog. CCN never holds it. When you tell CCN you have sent it, the note lands on the firm’s desk; your balance updates when their desk confirms the money actually settled, and never on anyone’s say-so.',
+    a: 'Money moves between you and your chosen institution directly: a wire or a branch deposit using the funding instructions the firm publishes in your "Add money" dialog. CCN never holds it. When you tell CCN you have sent it, the note lands on the firm’s desk; your balance updates when their desk confirms the money actually settled, and never on anyone’s say-so.',
   },
   {
     q: 'How do I take money out?',
@@ -22,19 +23,19 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'Who verifies my identity?',
-    a: 'The licensed firm you connect to — they are the regulated owner of KYC, not CCN. Onboarding records your own declarations (identity details, a risk fact-find, source of funds) and lets you attach documents (photo ID, proof of address, a payslip or statement) that the firm’s desk reviews before accepting you as a client.',
+    a: 'The licensed firm you connect to. They are the regulated owner of KYC, not CCN. Onboarding records your own declarations (identity details, a risk fact-find, source of funds) and lets you attach documents (photo ID, proof of address, a payslip or statement) that the firm’s desk reviews before accepting you as a client.',
   },
   {
     q: 'What can the agent actually do?',
-    a: 'Research, screen and propose — never spend. It scans the marketplace (including while you are away), checks every candidate against your own limits — risk band, cash floor, single-position cap — and raises anything that fits as an approval card. Every card shows "How this was decided": the research, screening and sizing steps, including the candidates that were rejected and why. Nothing is executed until you approve it.',
+    a: 'Research, screen and propose. It never spends. It scans the marketplace (including while you are away), checks every candidate against your own limits (risk band, cash floor, single-position cap) and raises anything that fits as an approval card. Every card shows "How this was decided": the research, screening and sizing steps, including the candidates that were rejected and why. Nothing is executed until you approve it.',
   },
   {
     q: 'What are the limits, and who sets them?',
-    a: 'You do, on the agent screen: an auto-invest cap, a cash floor it never breaches, a require-approval threshold, and a single-position cap. The server enforces them — they are not advisory — and the same engine screens the marketplace, the chat, and every order you place yourself.',
+    a: 'You do, on the agent screen: an auto-invest cap, a cash floor it never breaches, a require-approval threshold, and a single-position cap. The server enforces them, so they are not advisory, and the same engine screens the marketplace, the chat, and every order you place yourself.',
   },
   {
     q: 'What record do I get when something is executed?',
-    a: 'Every settled order produces a contract note — a printable confirmation carrying the executing firm, the regulator, the price, units and fee the firm reported, and references both sides can quote. Figures the firm did not report are omitted rather than estimated. Everything is also written to an append-only audit log that nobody, including CCN, can edit.',
+    a: 'Every settled order produces a contract note: a printable confirmation carrying the executing firm, the regulator, the price, units and fee the firm reported, and references both sides can quote. Figures the firm did not report are omitted rather than estimated. Everything is also written to an append-only audit log that nobody, including CCN, can edit.',
   },
   {
     q: 'What does CCN cost?',
@@ -42,11 +43,11 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'Which currencies are supported?',
-    a: 'Balances can be shown in USD, JMD, TTD, GYD, BBD, XCD and BSD. Conversions use published central-bank rates where available, and every converted figure names the rate’s source and date — a number nobody can date is not shown as fact.',
+    a: 'Balances can be shown in USD, JMD, TTD, GYD, BBD, XCD and BSD. Conversions use published central-bank rates where available, and every converted figure names the rate’s source and date. A number nobody can date is not shown as fact.',
   },
   {
     q: 'Can a firm say no?',
-    a: 'Yes — to taking you on as a client, to an order, or to a withdrawal. Each decision reaches you with the firm’s reason where one is required, and the record of who decided what is kept on the audit trail.',
+    a: 'Yes: to taking you on as a client, to an order, or to a withdrawal. Each decision reaches you with the firm’s reason where one is required, and the record of who decided what is kept on the audit trail.',
   },
   {
     q: 'Is my money safe with CCN?',
@@ -75,9 +76,14 @@ export default function HelpPage() {
         ))}
       </div>
       <p className="mt-8 text-[13.5px] text-faint">
-        Want the bigger picture first? Read <Link href="/how-it-works">how it works</Link>, or
-        explore the <Link href="/demo/home">live demo</Link> — every figure there is labelled as
-        sample data.
+        Want the bigger picture first? Read <Link href="/how-it-works">how it works</Link>
+        {DEMO_ENABLED && (
+          <>
+            , or explore the <Link href="/demo/home">live demo</Link>. Every figure there is
+            labelled as sample data
+          </>
+        )}
+        .
       </p>
     </MarketingPage>
   );

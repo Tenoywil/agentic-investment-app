@@ -2,6 +2,7 @@
 
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
 import { Button } from '@/app/_components/ui/button';
+import { DEMO_ENABLED } from '@/lib/config';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type * as React from 'react';
@@ -60,7 +61,13 @@ export function MarketingNav() {
           >
             Sign in
           </Button>
-          <Button onClick={() => router.push('/demo/home')}>See a demo</Button>
+          {DEMO_ENABLED ? (
+            <Button onClick={() => router.push('/demo/home')}>See a demo</Button>
+          ) : (
+            <Button onClick={() => router.push('/sign-in')} className="max-[480px]:hidden">
+              Get started
+            </Button>
+          )}
         </div>
       </div>
     </div>

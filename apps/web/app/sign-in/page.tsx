@@ -3,6 +3,7 @@
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
+import { DEMO_ENABLED } from '@/lib/config';
 import { CircleAlert, Landmark, Lock, ShieldCheck, Target } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -133,18 +134,22 @@ export default function SignInPage() {
                 </output>
               ) : null}
             </div>
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-border" />
-              <span className="text-[13px] text-faint">or</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => router.push('/demo/home')}
-              className="w-full text-teal2"
-            >
-              Explore the demo instead
-            </Button>
+            {DEMO_ENABLED && (
+              <>
+                <div className="my-5 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-[13px] text-faint">or</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/demo/home')}
+                  className="w-full text-teal2"
+                >
+                  Explore the demo instead
+                </Button>
+              </>
+            )}
             <div className="mt-[22px] flex items-center justify-center gap-2 text-[13px] text-faint">
               <Lock className="h-3.5 w-3.5" aria-hidden />
               Bank-level encryption · KYC handled by your partner

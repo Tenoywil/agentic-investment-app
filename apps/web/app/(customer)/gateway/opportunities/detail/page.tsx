@@ -102,7 +102,7 @@ function IntroductionDialog({
             {done ? 'Request sent' : 'Request an introduction'}
           </DialogTitle>
           <DialogDescription>
-            An analyst reviews every introduction request before you're connected — this is never
+            An analyst reviews every introduction request before you're connected. This is never
             automatic.
           </DialogDescription>
         </DialogHeader>
@@ -368,7 +368,7 @@ function DetailContent() {
 
       <div className="mb-2 mt-[30px] flex items-center gap-2 text-[13.5px] text-dim">
         <ShieldCheck className="h-3.5 w-3.5 flex-none text-success" aria-hidden />
-        Introductions are human-gated — an analyst reviews every request before you're connected.
+        Introductions are human-gated: an analyst reviews every request before you're connected.
       </div>
 
       {error && (

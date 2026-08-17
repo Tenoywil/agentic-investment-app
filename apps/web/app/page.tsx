@@ -4,7 +4,13 @@ import { PartnerMark } from '@/app/_components/PartnerMark';
 import { MARKETING_CONTAINER, MarketingFooter, MarketingNav } from '@/app/_components/marketing';
 import { Button } from '@/app/_components/ui/button';
 import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
+import { DEMO_ENABLED } from '@/lib/config';
 import { getMe, landingPathFor } from '@/lib/me-api';
+import {
+  type PublicPartnerMark,
+  getPublicPartnerMarks,
+  publicPartnerLogoUrl,
+} from '@/lib/public-api';
 import {
   ArrowRight,
   CircleAlert,
@@ -15,7 +21,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * The landing page, cut down to one job: tell a visitor what CCN is in a
@@ -38,6 +44,26 @@ function GoogleG() {
   );
 }
 
+/**
+ * The institutions on the network, by their full names — not ticker shorthand.
+ * This curated list is what the strip always shows. The public partner-marks
+ * endpoint only ENRICHES it: when the live record for a code carries an
+ * uploaded logo or brand colors, the mark wears them. It never replaces the
+ * list or the names — the deployed database may hold fewer firms or stale
+ * spellings (it briefly held exactly one), and a marketing strip that
+ * collapses to whatever a half-seeded table returns is worse than the curated
+ * truth. Names and brand colors mirror packages/db reference data.
+ */
+const NETWORK_PARTNERS: { code: string; name: string; color: string; tint: string }[] = [
+  { code: 'NCB', name: 'NCB Capital Markets', color: '#1a4aa0', tint: '#e7edf8' },
+  { code: 'SAG', name: 'Sagicor Investments', color: '#1f7a44', tint: '#e6f2ea' },
+  { code: 'JMMB', name: 'JMMB Group', color: '#c4362b', tint: '#fae8e6' },
+  { code: 'PRV', name: 'PROVEN Wealth', color: '#9a6a1e', tint: '#f6efe0' },
+  { code: 'BAR', name: 'Barita Investments', color: '#6b4a9e', tint: '#f0eaf8' },
+  { code: 'REP', name: 'Republic Bank', color: '#1a6aa0', tint: '#e7f0f8' },
+  { code: 'SYG', name: 'Sygnus Capital', color: '#8a5a2e', tint: '#f6eee2' },
+];
+
 const PILLARS: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: LineChart,
@@ -47,7 +73,7 @@ const PILLARS: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: Target,
     title: 'An agent with limits',
-    body: 'It researches and screens the region for you — and can never move money without your yes.',
+    body: 'It researches and screens the region for you, and it can never move money without your yes.',
   },
   {
     Icon: ShieldCheck,
@@ -60,6 +86,22 @@ export default function LandingPage() {
   const router = useRouter();
   const { start: google, pending, slow, error } = useGoogleSignIn();
   const demo = () => router.push('/demo/home');
+
+  // The live records, for enrichment only (real uploaded logos, brand
+  // colors). Keyed by partner code; a fetch that fails just means the strip
+  // keeps its own colors and monograms.
+  const [liveMarks, setLiveMarks] = useState<Map<string, PublicPartnerMark> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getPublicPartnerMarks()
+      .then((m) => {
+        if (!cancelled) setLiveMarks(new Map(m.map((mark) => [mark.code, mark])));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Somebody already signed in does not belong on the marketing page; a failed
   // check means "not signed in" and the page simply stays.
@@ -109,10 +151,12 @@ export default function LandingPage() {
               <GoogleG />
               {pending ? 'Connecting to Google…' : 'Continue with Google'}
             </Button>
-            <Button variant="outline" size="lg" onClick={demo} className="text-base">
-              See a live demo
-              <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
-            </Button>
+            {DEMO_ENABLED && (
+              <Button variant="outline" size="lg" onClick={demo} className="text-base">
+                See a live demo
+                <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
+              </Button>
+            )}
           </div>
           {/* Fixed height whichever state shows, so the hero does not resize
               under the button that was just pressed. */}
@@ -124,7 +168,7 @@ export default function LandingPage() {
               </p>
             ) : slow ? (
               <output className="block text-sm text-dim">
-                Waking the server — this can take up to a minute the first time.
+                Waking the server. This can take up to a minute the first time.
               </output>
             ) : null}
           </div>
@@ -141,22 +185,35 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* PARTNER STRIP — the institutions the network is built around. Static
-          monogram chips (the landing is unauthenticated, so nothing is
-          fetched): the same codes as before, now wearing the product's own
-          brand-mark tiles. */}
+      {/* PARTNER STRIP — the institutions the network is built around, by
+          their full names, wearing their real uploaded logos when the public
+          brand endpoint answers and their brand-color monograms until then. */}
       <div className="border-x-0 border-y border-solid border-border bg-card">
         <div className={`flex flex-wrap items-center gap-x-7 gap-y-3 py-5 ${MARKETING_CONTAINER}`}>
           <span className="text-[13px] font-semibold uppercase tracking-wide text-faint">
             Institutions on the network
           </span>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
-            {['NCB', 'SAGICOR', 'JMMB', 'PROVEN', 'BARITA', 'REPUBLIC', 'SYGNUS'].map((p) => (
-              <span key={p} className="inline-flex items-center gap-2">
-                <PartnerMark name={p} code={p} size="sm" />
-                <span className="font-mono text-[13.5px] font-semibold text-dim">{p}</span>
-              </span>
-            ))}
+          <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+            {NETWORK_PARTNERS.map((p) => {
+              const live = liveMarks?.get(p.code);
+              return (
+                <span key={p.code} className="inline-flex items-center gap-2.5">
+                  {/* The curated name always wins; the live record contributes
+                      only its uploaded logo and brand colors when it has them. */}
+                  <PartnerMark
+                    name={p.name}
+                    code={p.code}
+                    id={live?.id}
+                    hasLogo={live?.hasLogo}
+                    logoUrl={live ? publicPartnerLogoUrl(live.id) : undefined}
+                    color={live?.color ?? p.color}
+                    tint={live?.tint ?? p.tint}
+                    size="md"
+                  />
+                  <span className="text-[13.5px] font-semibold text-dim">{p.name}</span>
+                </span>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -195,7 +252,7 @@ export default function LandingPage() {
             Your money, working across the region.
           </h2>
           <p className="mx-auto mt-2.5 max-w-[440px] text-[15.5px] leading-relaxed text-white/80">
-            Free to start. One flat platform fee when you invest — every other cost is shown before
+            Free to start. One flat platform fee when you invest. Every other cost is shown before
             you approve.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
@@ -209,14 +266,16 @@ export default function LandingPage() {
             >
               {pending ? 'Connecting to Google…' : 'Get started with Google'}
             </Button>
-            <Button
-              size="lg"
-              variant="ghost"
-              onClick={demo}
-              className="text-base text-white hover:bg-white/10 hover:text-white"
-            >
-              See a live demo →
-            </Button>
+            {DEMO_ENABLED && (
+              <Button
+                size="lg"
+                variant="ghost"
+                onClick={demo}
+                className="text-base text-white hover:bg-white/10 hover:text-white"
+              >
+                See a live demo →
+              </Button>
+            )}
           </div>
         </div>
       </div>

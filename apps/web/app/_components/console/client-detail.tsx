@@ -470,7 +470,7 @@ export function ClientDetailDialog({
                   <input
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="Why — the client is told this"
+                    placeholder="Why? The client is told this"
                     className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
                   />
                 </label>

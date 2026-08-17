@@ -1,12 +1,54 @@
 import './globals.css';
 import { Tour } from '@/app/_components/tour/tour';
+import { SITE_URL } from '@/lib/site';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
+const DESCRIPTION =
+  'The financial operating system of the Caribbean. One agent watches your whole regional portfolio, and FSC-licensed partners execute every move on your approval.';
+
+/**
+ * Site-wide SEO. The icon set (favicon.ico for legacy and Safari, icon.svg
+ * for modern browsers, apple-icon.png for iOS home screens) and the social
+ * card (opengraph-image.png) are file conventions in this directory; Next
+ * wires the tags. metadataBase makes every relative URL in here absolute,
+ * which crawlers and social scrapers require.
+ */
 export const metadata: Metadata = {
-  title: 'Caribbean Capital Network',
-  description:
-    'The financial operating system of the Caribbean — one agent for your whole regional portfolio, executed by FSC-licensed partners on your approval.',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'Caribbean Capital Network',
+    template: '%s · Caribbean Capital Network',
+  },
+  description: DESCRIPTION,
+  applicationName: 'Caribbean Capital Network',
+  category: 'finance',
+  keywords: [
+    'Caribbean investing',
+    'Jamaica investments',
+    'diaspora investing',
+    'AI investment agent',
+    'regulated investment platform',
+    'Caribbean portfolio',
+  ],
+  openGraph: {
+    type: 'website',
+    siteName: 'Caribbean Capital Network',
+    url: '/',
+    title: 'Caribbean Capital Network',
+    description: DESCRIPTION,
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Caribbean Capital Network',
+    description: DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+  },
 };
 
 /**

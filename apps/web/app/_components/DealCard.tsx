@@ -176,8 +176,10 @@ export function DealCard({
  * The screened-out card — a DealCard sibling, not a stranger. It shares the
  * family's grammar (chips left, mono abbr right, name then region, the firm's
  * mark on the trust line) so the eye reads it as "a deal, in a different
- * state" rather than a foreign widget, and keeps the terra edge as that
- * state's mark.
+ * state" rather than a foreign widget. It wears the family's own border —
+ * the thick terra left edge it used to carry made it read as an alert, not
+ * a card — and its state shows in the content instead: the "Screened out"
+ * badge, the warm reason chips, and the agent's attributed note.
  *
  * Deliberate choices:
  *
@@ -210,10 +212,7 @@ export function ScreenedOutCard({
   onOpen: () => void;
 }) {
   return (
-    <div
-      className="flex flex-col rounded-2xl border border-solid border-[#ecd2c2] bg-card p-6 dark:border-[#5a3f2e]"
-      style={{ borderLeft: '4px solid #c56a3e' }}
-    >
+    <div className="flex flex-col rounded-2xl border border-solid border-border bg-card p-6">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-[#f2e7de] px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[.5px] text-[#7d4f36]">
