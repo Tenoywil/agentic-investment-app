@@ -1,6 +1,6 @@
-import { kycStatus, limits, partners, userProfiles } from '@ccn/db';
+import { connectedAccounts, kycStatus, limits, partners, userProfiles } from '@ccn/db';
 import { createMemoryStore, createRateLimiter } from '@ccn/security';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
@@ -164,6 +164,22 @@ export function createApp(deps: AppDeps) {
         .where(eq(userProfiles.userId, tenant.user.id));
       const [limit] = await tx.select().from(limits).where(eq(limits.userId, tenant.user.id));
       const [kyc] = await tx.select().from(kycStatus).where(eq(kycStatus.userId, tenant.user.id));
+      // Firms that asked this person to finish verification (0032). The web
+      // shows the ask only while onboarding is actually incomplete, so a
+      // stale request after completion costs nothing.
+      const kycRequests = await tx
+        .select({
+          partner: partners.name,
+          requestedAt: connectedAccounts.kycRequestedAt,
+        })
+        .from(connectedAccounts)
+        .innerJoin(partners, eq(partners.id, connectedAccounts.partnerId))
+        .where(
+          and(
+            eq(connectedAccounts.userId, tenant.user.id),
+            isNotNull(connectedAccounts.kycRequestedAt),
+          ),
+        );
       const [partner] = tenant.partnerId
         ? await tx
             .select({
@@ -182,7 +198,13 @@ export function createApp(deps: AppDeps) {
             .from(partners)
             .where(eq(partners.id, tenant.partnerId))
         : [];
-      return { profile: profile ?? null, limits: limit ?? null, kyc: kyc ?? null, partner };
+      return {
+        profile: profile ?? null,
+        limits: limit ?? null,
+        kyc: kyc ?? null,
+        partner,
+        kycRequests,
+      };
     });
 
     const { kyc, partner, ...rest } = data;

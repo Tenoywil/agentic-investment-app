@@ -1,5 +1,6 @@
 'use client';
 
+import { EquityChart } from '@/app/_components/EquityChart';
 import { Button } from '@/app/_components/ui/button';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { useSheetDismiss } from '@/app/_lib/sheet';
@@ -268,6 +269,26 @@ export function ClientDetailDialog({
                   ))}
                 </div>
               )}
+            </section>
+
+            {/* The relationship over time: what this person holds through
+                THIS firm, one recorded point per day (0032) — deliberately
+                not their cross-firm net worth, which is theirs alone. */}
+            <section className="mt-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <b className="font-display text-[15px]">Value with you over time</b>
+                <span className="text-[12px] text-faint">Recorded once a day, in USD</span>
+              </div>
+              <div className="mt-2">
+                <EquityChart
+                  points={(detail.equity ?? []).map((p) => ({
+                    label: p.takenOn,
+                    valueMinor: p.heldMinor,
+                  }))}
+                  fmt={(minor) => fmtMinor(minor, 'USD')}
+                  emptyNote="This relationship's history starts today. The first point lands tonight."
+                />
+              </div>
             </section>
 
             {/* The documents behind the declarations. A desk deciding whether

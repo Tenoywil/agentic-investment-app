@@ -172,7 +172,7 @@ export const reconciliationItems = pgTable('reconciliation_items', {
  */
 export const valueSnapshots = pgTable('value_snapshots', {
   id: uuid('id').defaultRandom().primaryKey(),
-  scope: text('scope').notNull(), // 'user' | 'partner' (CHECK-enforced)
+  scope: text('scope').notNull(), // 'user' | 'partner' | 'client' (CHECK-enforced)
   userId: uuid('user_id').references(() => user.id, { onDelete: 'cascade' }),
   partnerId: uuid('partner_id').references(() => partners.id, { onDelete: 'cascade' }),
   takenOn: date('taken_on').notNull(),

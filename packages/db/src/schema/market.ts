@@ -111,6 +111,9 @@ export const connectedAccounts = pgTable('connected_accounts', {
   status: connectionStatus('status').notNull().default('pending'),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
   declineReason: text('decline_reason'),
+  /** When the firm last asked this client to finish KYC (0032). Written only
+   *  through partner_request_kyc; the 0015 trigger announces the update. */
+  kycRequestedAt: timestamp('kyc_requested_at', { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

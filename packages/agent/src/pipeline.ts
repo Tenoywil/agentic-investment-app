@@ -46,6 +46,17 @@ import type { FitResult } from './fit';
 
 export type PipelineStageName = 'research' | 'fit' | 'suitability' | 'coordination';
 
+/** One cited research claim: what is asserted, and how well it is supported.
+ *  The status vocabulary is research.ts's evidence labels, carried verbatim. */
+export interface ResearchSourceClaim {
+  category: string | null;
+  label: string;
+  value: string;
+  /** verified | partially_verified | self_reported | unverified | contradicted */
+  status: string;
+  detail: string | null;
+}
+
 /** One stage's visible record: who ran, what it concluded, the facts behind it. */
 export interface StageTrace {
   stage: PipelineStageName;
@@ -55,6 +66,12 @@ export interface StageTrace {
   summary: string;
   /** Supporting facts, one per line. */
   detail: string[];
+  /**
+   * Cited evidence, per candidate — today only the research stage writes it,
+   * from the dossier's claims. Optional and additive: traces recorded before
+   * citations existed simply have none, and no renderer invents any.
+   */
+  sources?: { name: string; claims: ResearchSourceClaim[] }[];
 }
 
 export interface PipelineCandidate {
@@ -84,6 +101,9 @@ export interface ResearchSignal {
   missing: string[];
   /** A single contradiction is a veto, not a discount. */
   contradicted: boolean;
+  /** The dossier's claims, for the trace's citations. Optional: a signal
+   *  without them still ranks and vetoes exactly as before. */
+  sources?: ResearchSourceClaim[];
 }
 
 /** How the coordinator should size the chosen candidate above its minimum.
@@ -194,6 +214,15 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     const missing = signal.missing.length > 0 ? `; ${signal.missing.join(', ')}` : '';
     return `${base}; research confidence ${signal.confidence}/100${missing}`;
   };
+  // The citations: each shortlisted candidate's claims, capped so the trace
+  // stays a readable record rather than a dossier dump.
+  const citedSources = shortlist
+    .map((c) => ({
+      name: c.name,
+      claims: (signals.get(c.instrumentId)?.sources ?? []).slice(0, 6),
+    }))
+    .filter((s) => s.claims.length > 0)
+    .slice(0, 3);
   trace.push({
     stage: 'research',
     agent: 'Research agent',
@@ -206,6 +235,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
       ...shortlist.map(describeResearch),
       ...vetoed.map((c) => `${c.name}: set aside. Its research turned up contradicted evidence.`),
     ],
+    ...(citedSources.length > 0 ? { sources: citedSources } : {}),
   });
 
   // ---- 2. Fit: the person's own portfolio and goals ----------------------

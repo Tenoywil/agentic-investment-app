@@ -29,6 +29,7 @@ import {
   AlreadyPendingError,
   type Approval,
   type ApprovalType,
+  type TraceStageDisplay,
   approveApproval,
   createApproval,
   getAgentHistory,
@@ -151,9 +152,7 @@ function formatMoney(minor: string, currency: string): string {
  * A malformed entry drops rather than rendering a half-claim about how a
  * recommendation about someone's money was made.
  */
-function decisionTrace(
-  snapshot: unknown,
-): { stage: string; agent: string; summary: string; detail: string[] }[] | null {
+function decisionTrace(snapshot: unknown): TraceStageDisplay[] | null {
   if (!snapshot || typeof snapshot !== 'object') return null;
   const t = (snapshot as Record<string, unknown>).trace;
   if (!Array.isArray(t)) return null;
@@ -169,6 +168,36 @@ function decisionTrace(
       detail: Array.isArray(r.detail)
         ? r.detail.filter((d): d is string => typeof d === 'string')
         : [],
+      // Citations (0032+): per-candidate research claims, read as defensively
+      // as everything else off this JSONB — a malformed entry drops.
+      sources: Array.isArray(r.sources)
+        ? r.sources
+            .filter(
+              (s): s is Record<string, unknown> =>
+                !!s &&
+                typeof s === 'object' &&
+                typeof (s as Record<string, unknown>).name === 'string' &&
+                Array.isArray((s as Record<string, unknown>).claims),
+            )
+            .map((s) => ({
+              name: s.name as string,
+              claims: (s.claims as unknown[])
+                .filter(
+                  (cl): cl is Record<string, unknown> =>
+                    !!cl &&
+                    typeof cl === 'object' &&
+                    typeof (cl as Record<string, unknown>).label === 'string' &&
+                    typeof (cl as Record<string, unknown>).status === 'string',
+                )
+                .map((cl) => ({
+                  category: typeof cl.category === 'string' ? cl.category : null,
+                  label: cl.label as string,
+                  value: typeof cl.value === 'string' ? cl.value : '',
+                  status: cl.status as string,
+                  detail: typeof cl.detail === 'string' ? cl.detail : null,
+                })),
+            }))
+        : undefined,
     }));
   return rows.length > 0 ? rows : null;
 }

@@ -227,11 +227,24 @@ export interface FitDisplayData {
   concerns: string[];
 }
 
+/** One cited research claim, with how well the evidence supports it. */
+export interface TraceSourceClaim {
+  category: string | null;
+  label: string;
+  value: string;
+  /** verified | partially_verified | self_reported | unverified | contradicted */
+  status: string;
+  detail: string | null;
+}
+
 export interface TraceStageDisplay {
   stage: string;
   agent: string;
   summary: string;
   detail: string[];
+  /** Citations, per candidate — written by the research stage when a dossier
+   *  exists. Absent on traces from before citations, and never invented. */
+  sources?: { name: string; claims: TraceSourceClaim[] }[];
 }
 
 export interface PipelineDisplayData {

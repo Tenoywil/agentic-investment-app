@@ -373,6 +373,16 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
                 confidence: dossier.confidence,
                 missing: dossier.criticalMissingItems,
                 contradicted: dossier.hasContradictedEvidence,
+                // The claims travel too, so the trace can cite what the
+                // research actually found and how well each point is
+                // supported, rather than a bare confidence number.
+                sources: dossier.claims.map((cl) => ({
+                  category: cl.category,
+                  label: cl.label,
+                  value: cl.value,
+                  status: cl.evidenceStatus,
+                  detail: cl.evidenceDetail,
+                })),
               };
             },
           }

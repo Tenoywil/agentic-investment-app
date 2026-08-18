@@ -225,6 +225,13 @@
       "when": 1786740000000,
       "tag": "0031_value_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786740060000,
+      "tag": "0032_kyc_request_and_client_equity",
+      "breakpoints": true
     }
   ]
 }

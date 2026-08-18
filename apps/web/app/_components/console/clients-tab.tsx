@@ -41,6 +41,7 @@ export function ClientsTab({
   clientBusyId,
   clientActionError,
   onReviewClient,
+  onRequestKyc,
   onOpenClient,
   funnel,
   funnelError,
@@ -72,6 +73,7 @@ export function ClientsTab({
   clientBusyId: string | null;
   clientActionError: string | null;
   onReviewClient: (id: string, accept: boolean, reason?: string) => void;
+  onRequestKyc: (id: string) => void;
   onOpenClient: (client: ConsoleClient) => void;
   funnel: ConsoleFunnelStage[];
   funnelError: string | null;
@@ -135,6 +137,7 @@ export function ClientsTab({
         busyId={clientBusyId}
         actionError={clientActionError}
         onReview={onReviewClient}
+        onRequestKyc={onRequestKyc}
         onOpen={onOpenClient}
       />
 
