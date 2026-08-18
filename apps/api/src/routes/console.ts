@@ -33,6 +33,7 @@ import {
   partnerClients,
   partnerConfirmFunds,
   partnerDecideWithdrawal,
+  partnerRequestKyc,
   partnerReviewClient,
   partnerToggleInstrument,
   partnerUpdateLogo,
@@ -694,13 +695,31 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         .from(kycDocuments)
         .where(eq(kycDocuments.userId, client.user_id))
         .orderBy(desc(kycDocuments.createdAt));
-      return { client, holdings, orders: clientOrders, audit: history, documents };
+      // The relationship over time: this client's value held through THIS
+      // firm, one point per day (scope 'client', 0032) — never their
+      // cross-firm net worth, which is theirs and not any one firm's to see.
+      const equity = await tx
+        .select({ takenOn: valueSnapshots.takenOn, heldMinor: valueSnapshots.netWorthMinor })
+        .from(valueSnapshots)
+        .where(
+          and(
+            eq(valueSnapshots.scope, 'client'),
+            eq(valueSnapshots.partnerId, scope.partnerId),
+            eq(valueSnapshots.userId, client.user_id),
+          ),
+        )
+        .orderBy(valueSnapshots.takenOn)
+        .limit(366);
+      return { client, holdings, orders: clientOrders, audit: history, documents, equity };
     });
 
     // Not found and not-yours are the same answer, so an account id cannot be
     // probed by watching which one comes back.
     if (!detail) return c.json({ error: 'client not found' }, 404);
-    return c.json(detail);
+    return c.json({
+      ...detail,
+      equity: detail.equity.map((p) => ({ takenOn: p.takenOn, heldMinor: p.heldMinor.toString() })),
+    });
   });
 
   /**
@@ -791,6 +810,41 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
 
   app.post('/clients/:id/accept', review(true));
   app.post('/clients/:id/decline', review(false));
+
+  /**
+   * Ask a client to finish their KYC — the desk's third verb.
+   *
+   * A half-finished package left the operator with accept (refused when the
+   * package is empty) or decline (which the client reads as rejection). The
+   * request is the honest middle: the firm asks, the client's screens are told
+   * in realtime (the 0015 trigger on connected_accounts), and the asking is on
+   * the audit trail as `kyc.requested` with the package as it stood.
+   */
+  app.post('/clients/:id/request-kyc', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    try {
+      const requestedAt = await withTenant(deps, tenant, (tx) =>
+        partnerRequestKyc(tx, c.req.param('id')),
+      );
+      deps.logger.info('partner requested client KYC', { partner: scope.partnerId });
+      return c.json({ requestedAt });
+    } catch (err) {
+      if (raisedBy(err, 'already completed KYC')) {
+        return c.json({ error: 'this client has already completed their KYC' }, 409);
+      }
+      if (raisedBy(err, 'already requested recently')) {
+        return c.json(
+          { error: 'you asked within the last day; give the client time to respond' },
+          409,
+        );
+      }
+      return c.json({ error: 'that client is not one of yours' }, 409);
+    }
+  });
 
   /**
    * The firm confirms a client's funding has settled.

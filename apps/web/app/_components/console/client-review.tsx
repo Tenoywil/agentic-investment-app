@@ -100,6 +100,7 @@ export function ClientReview({
   busyId,
   actionError,
   onReview,
+  onRequestKyc,
   onOpen,
 }: {
   clients: ConsoleClient[];
@@ -108,6 +109,8 @@ export function ClientReview({
   busyId: string | null;
   actionError: string | null;
   onReview: (id: string, accept: boolean, reason?: string) => void;
+  /** Ask this person to finish their KYC (0032) — the desk's third verb. */
+  onRequestKyc: (id: string) => void;
   /** Open the drill-down: positions, orders, and the record with this firm. */
   onOpen: (client: ConsoleClient) => void;
 }) {
@@ -120,6 +123,23 @@ export function ClientReview({
     const busy = busyId === c.account_id;
     const awaiting = c.status === 'pending';
     const noPackage = c.kyc_tier === 'none';
+    // The third verb: a package with anything unticked can be asked for.
+    // Re-asking is rate-limited server-side; the button says when it was used.
+    const kycIncomplete =
+      !c.identity_verified || !c.compliance_confirmed || !c.risk_completed || !c.funds_confirmed;
+    const askedRecently =
+      c.kyc_requested_at != null && daysSince(c.kyc_requested_at) < 1 ? c.kyc_requested_at : null;
+    const askButton =
+      kycIncomplete && (awaiting || c.status === 'active') ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy || askedRecently !== null}
+          onClick={() => onRequestKyc(c.account_id)}
+        >
+          {askedRecently ? `Asked ${timeAgo(askedRecently)}` : 'Ask to finish KYC'}
+        </Button>
+      ) : null;
     return (
       <div key={c.account_id} className={`py-4 last:border-b-0 ${ROW_DIVIDER}`}>
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -245,7 +265,7 @@ export function ClientReview({
               </Button>
             </form>
           ) : (
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 disabled={busy || noPackage}
@@ -253,6 +273,7 @@ export function ClientReview({
               >
                 {busy ? 'Accepting…' : 'Accept as client'}
               </Button>
+              {askButton}
               <Button
                 size="sm"
                 variant="ghost"
@@ -264,6 +285,8 @@ export function ClientReview({
               </Button>
             </div>
           )
+        ) : askButton ? (
+          <div className="mt-3">{askButton}</div>
         ) : null}
       </div>
     );

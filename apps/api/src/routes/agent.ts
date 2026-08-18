@@ -1,9 +1,12 @@
 import {
+  type AgentDisplay,
   type ChatMessage,
   ResponseCache,
   buildContext,
   runAgent,
+  stripCards,
   stripReasoning,
+  turnMemory,
 } from '@ccn/agent';
 import { agentMessages } from '@ccn/db';
 import { agentMessageSchema } from '@ccn/domain';
@@ -51,11 +54,18 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
     // tags were stripped are still in the table, and /agent replays the last 50
     // on every load — so without this the same wall of "let me try funds…"
     // greets the customer forever. Reading is also the only place it can be
-    // done safely: agent_messages is append-only to the app role.
+    // done safely: agent_messages is append-only to the app role. `stripCards`
+    // removes the conversation-memory appendix the same way: those blocks are
+    // for the model's history, never for a human surface.
     return c.json({
       messages: rows
         .reverse()
-        .map((r) => (r.role === 'agent' ? { ...r, content: stripReasoning(r.content) } : r)),
+        .map((r) =>
+          r.role === 'agent' ? { ...r, content: stripCards(stripReasoning(r.content)) } : r,
+        )
+        // A card-only turn strips to nothing here (its cards were drawn live
+        // and its memory block is model-facing); an empty bubble helps nobody.
+        .filter((r) => r.content.length > 0),
     });
   });
 
@@ -70,12 +80,15 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
     // Short tx: snapshot + prior turns, then persist the user message.
     const { snapshot, history } = await withTenant(deps, tenant, async (tx) => {
       const snap = await loadAgentSnapshot(tx, tenant.user.id);
+      // The model's history keeps the `<card>` memory blocks (unlike /history,
+      // which strips them): they are the record of what the user was shown,
+      // and follow-ups like "propose the second one" resolve against them.
       const rows = await tx
         .select({ role: agentMessages.role, content: agentMessages.content })
         .from(agentMessages)
         .where(eq(agentMessages.userId, tenant.user.id))
         .orderBy(desc(agentMessages.createdAt))
-        .limit(20);
+        .limit(30);
       await tx
         .insert(agentMessages)
         .values({ userId: tenant.user.id, role: 'user', content: message });
@@ -91,7 +104,7 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
     /** Structured proposals the model prepared during this turn. */
     const proposals: unknown[] = [];
     /** Structured tool results the client draws as inline cards. */
-    const displays: unknown[] = [];
+    const displays: AgentDisplay[] = [];
     const { textStream } = runAgent({
       onError: (error) => {
         gatewayError = error;
@@ -142,14 +155,16 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
         gatewayError = error;
       }
 
-      // A turn that produced no text is a failure, whether or not anything was
-      // thrown. This used to be treated as success: the catch was bare, an empty
-      // stream fell straight through, and the screen rendered an empty reply
-      // bubble with no error and no log — which is what "the agent is not
-      // working" looked like from the outside, with nothing on the server to
-      // act on. The gateway host and model are recorded because they are the
-      // two values most often wrong; the key never is.
-      if (full.length === 0) {
+      // A turn that produced no text AND no cards is a failure, whether or not
+      // anything was thrown. This used to be treated as success: the catch was
+      // bare, an empty stream fell straight through, and the screen rendered an
+      // empty reply bubble with no error and no log — which is what "the agent
+      // is not working" looked like from the outside, with nothing on the
+      // server to act on. The gateway host and model are recorded because they
+      // are the two values most often wrong; the key never is. A card-only
+      // turn, by contrast, is a real answer the user saw drawn — it persists
+      // below as memory even with no prose around it.
+      if (full.length === 0 && displays.length === 0 && proposals.length === 0) {
         deps.logger.error('agent produced no text', {
           error: gatewayError,
           gateway: deps.config.OPENAI_BASE_URL,
@@ -176,14 +191,17 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
             streamedChars: full.length,
           });
         }
-        // Stored clean. The middleware has already taken the tags out of the
-        // stream, so this is the belt to its braces — a malformed or truncated
-        // block that slipped through must not become a permanent row.
+        // Stored clean, plus the turn's conversation memory: a compact record
+        // of every card and proposal the user was shown, appended as `<card>`
+        // blocks. The model reads them back on later turns (so "the second
+        // one" means something); /history strips them before a human sees the
+        // message. The reasoning strip is the belt to the middleware's braces —
+        // a malformed or truncated block must not become a permanent row.
         await withTenant(deps, tenant, (tx) =>
           tx.insert(agentMessages).values({
             userId: tenant.user.id,
             role: 'agent',
-            content: stripReasoning(full),
+            content: stripReasoning(full) + turnMemory(displays, proposals),
           }),
         );
       }

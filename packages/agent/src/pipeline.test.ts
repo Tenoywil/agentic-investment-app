@@ -132,6 +132,44 @@ describe('proposal pipeline with research, fit and sizing', () => {
     expect(outcome.chosen?.fit?.score).toBe(90);
   });
 
+  test("the research stage cites the dossier's claims as sources", async () => {
+    const outcome = await runProposalPipeline({
+      candidates: [c('cited', 'low', 100n, 'Cited Fund')],
+      excluded: new Set(),
+      fmt,
+      research: () => ({
+        confidence: 80,
+        missing: [],
+        contradicted: false,
+        sources: [
+          {
+            category: 'returns',
+            label: 'Stated yield',
+            value: '7.5% per year',
+            status: 'self_reported',
+            detail: 'Only the listing asserts it',
+          },
+        ],
+      }),
+      gate: () => ({ decision: 'requires_approval', code: 'above_auto_invest' }),
+    });
+    const research = outcome.trace.find((t) => t.stage === 'research');
+    expect(research?.sources?.[0]?.name).toBe('Cited Fund');
+    expect(research?.sources?.[0]?.claims[0]?.status).toBe('self_reported');
+    expect(research?.sources?.[0]?.claims[0]?.value).toContain('7.5%');
+  });
+
+  test('a signal without sources leaves the trace citation-free, not empty-cited', async () => {
+    const outcome = await runProposalPipeline({
+      candidates: [c('bare', 'low', 100n, 'Bare Fund')],
+      excluded: new Set(),
+      fmt,
+      research: () => ({ confidence: 80, missing: [], contradicted: false }),
+      gate: () => ({ decision: 'requires_approval', code: 'above_auto_invest' }),
+    });
+    expect(outcome.trace.find((t) => t.stage === 'research')?.sources).toBeUndefined();
+  });
+
   test('contradicted evidence is a veto, named in the trace, not a discount', async () => {
     const outcome = await runProposalPipeline({
       candidates: [

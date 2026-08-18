@@ -41,6 +41,7 @@ import {
   pullReconciliation,
   rejectOrder,
   rejectReconciliation,
+  requestClientKyc,
   reviewClient,
   settleOrder,
   toggleProductLive,
@@ -395,6 +396,29 @@ export default function InstitutionsPage() {
     }
   }
 
+  /**
+   * Asking a client to finish KYC. Not optimistic either: the row's "Asked
+   * 2h ago" state comes from the server's own timestamp, and a refused ask
+   * (already complete, or asked within the last day) reads back its reason.
+   */
+  async function handleRequestKyc(id: string) {
+    setClientBusyId(id);
+    setClientActionError(null);
+    try {
+      const { requestedAt } = await requestClientKyc(id);
+      setClients((cs) =>
+        cs.map((c) => (c.account_id === id ? { ...c, kyc_requested_at: requestedAt } : c)),
+      );
+      void getAudit(50)
+        .then((r) => setAudit(r.entries))
+        .catch(() => {});
+    } catch (err) {
+      setClientActionError(errorMessage(err, 'Could not send that request.'));
+    } finally {
+      setClientBusyId(null);
+    }
+  }
+
   async function handleMatch(id: string) {
     setReconBusyId(id);
     setReconActionError(null);
@@ -624,6 +648,7 @@ export default function InstitutionsPage() {
             clientBusyId={clientBusyId}
             clientActionError={clientActionError}
             onReviewClient={handleReviewClient}
+            onRequestKyc={handleRequestKyc}
             onOpenClient={(c) => setOpenClientId(c.account_id)}
             partner={partner}
             funnel={funnel}

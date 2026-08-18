@@ -20,7 +20,7 @@ import {
   getPortfolio,
   regulatorLabel,
 } from '@/lib/portfolio-api';
-import { CheckCheck, CircleAlert, PieChart, Sparkles, Wallet } from 'lucide-react';
+import { CheckCheck, CircleAlert, PieChart, ShieldAlert, Sparkles, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -271,6 +271,28 @@ export default function HomePage() {
           screen that had it. The real account menu now lives in the sidebar
           footer, where it is on every screen and always in view. */}
       <PageHead eyebrow={todayLabel()} title={greeting(userName)} />
+
+      {/* A firm asked this person to finish verification, and their KYC is
+          genuinely incomplete: one banner naming the firm, one door to the
+          flow that clears it. Gone the moment onboarding completes. */}
+      {me && !me.onboarding.complete && (me.kycRequests?.length ?? 0) > 0 && (
+        <div className="mb-[18px] flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-solid border-[#e3d3b8] bg-[#f9f3e4] px-4 py-3 dark:border-[#5a4a2e] dark:bg-[#2c2517]">
+          <ShieldAlert className="h-5 w-5 flex-none text-[#8a6a1e] dark:text-gold" aria-hidden />
+          <p className="m-0 min-w-0 flex-1 text-[14px] leading-snug text-[#5c4d2e] dark:text-[#e2d3ae]">
+            <b>
+              {(me.kycRequests ?? [])
+                .map((r) => r.partner)
+                .filter((p, i, all) => all.indexOf(p) === i)
+                .join(' and ')}
+            </b>{' '}
+            asked you to finish verifying your identity. It takes a few minutes, and it is what lets
+            the firm act on your instructions.
+          </p>
+          <Button size="sm" asChild className="flex-none">
+            <Link href="/onboarding">Finish verification</Link>
+          </Button>
+        </div>
+      )}
 
       {/* Hero card */}
       <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5] dark:bg-[#124e48]">

@@ -16,6 +16,7 @@ export * from './tools';
 export * from './cache';
 export * from './provider';
 export * from './reasoning';
+export * from './memory';
 export * from './run';
 export * from './gateway/matching';
 export * from './gateway/readiness';

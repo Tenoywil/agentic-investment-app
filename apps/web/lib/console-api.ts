@@ -199,6 +199,8 @@ export interface ConsoleClient {
   requested_at: string;
   reviewed_at: string | null;
   decline_reason: string | null;
+  /** When the firm last asked this person to finish KYC; null = never asked. */
+  kyc_requested_at: string | null;
   user_id: string;
   client_name: string;
   client_email: string;
@@ -427,6 +429,12 @@ export interface ConsoleClientDocument {
   createdAt: string;
 }
 
+/** One day of a client's value held through this firm, minor units as string. */
+export interface ClientEquityPoint {
+  takenOn: string;
+  heldMinor: string;
+}
+
 export interface ConsoleClientDetail {
   client: ConsoleClient;
   holdings: ConsoleClientHolding[];
@@ -435,10 +443,22 @@ export interface ConsoleClientDetail {
   /** What stands behind the declarations. Empty = they uploaded nothing yet,
    *  and the review screen says so rather than hiding the section. */
   documents: ConsoleClientDocument[];
+  /** The relationship's curve: value held through THIS firm, one point per
+   *  day since 0032 shipped. Never the client's cross-firm net worth. */
+  equity: ClientEquityPoint[];
 }
 
 export function getClient(accountId: string): Promise<ConsoleClientDetail> {
   return consoleFetch(`/clients/${accountId}`);
+}
+
+/**
+ * Ask a client to finish their KYC. Returns the request's timestamp; the
+ * server refuses a repeat ask within a day, and refuses when the package is
+ * already complete — both surface as ConsoleApiError with the reason.
+ */
+export function requestClientKyc(accountId: string): Promise<{ requestedAt: string }> {
+  return consoleFetch(`/clients/${accountId}/request-kyc`, { method: 'POST' });
 }
 
 /** Download target for one document — a plain link; the session cookie rides

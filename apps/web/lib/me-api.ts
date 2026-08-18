@@ -46,6 +46,10 @@ export interface Me {
   profile: Record<string, unknown> | null;
   limits: Record<string, unknown> | null;
   onboarding: MeOnboarding;
+  /** Firms that asked this person to finish verification (0032). Shown only
+   *  while onboarding is incomplete — a stale ask after completion is noise.
+   *  Optional: an API from before 0032 simply doesn't send it. */
+  kycRequests?: { partner: string; requestedAt: string | null }[];
 }
 
 export class MeApiError extends Error {

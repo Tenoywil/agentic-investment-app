@@ -61,6 +61,16 @@ export function RiskBadge({ risk }: { risk: string }) {
   );
 }
 
+/** How well a cited claim is supported, as a chip colour: independent support
+ *  reads as go, the product's own say-so as neutral, a contradiction as stop. */
+const EVIDENCE_VARIANT: Record<string, BadgeProps['variant']> = {
+  verified: 'success',
+  partially_verified: 'secondary',
+  self_reported: 'secondary',
+  unverified: 'warning',
+  contradicted: 'terra',
+};
+
 /** Colour band for a 0-100 fit score: high reads as go, low as caution. */
 function fitVariant(score: number): BadgeProps['variant'] {
   if (score >= 70) return 'success';
@@ -464,6 +474,39 @@ export function TraceDisplay({ trace }: { trace: TraceStageDisplay[] }) {
                         <li key={line}>{line}</li>
                       ))}
                     </ul>
+                  </details>
+                )}
+                {(s.sources?.length ?? 0) > 0 && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-[12px] font-semibold text-teal2">
+                      Sources and evidence
+                    </summary>
+                    <div className="mt-1.5 flex flex-col gap-2">
+                      {(s.sources ?? []).map((src) => (
+                        <div key={src.name}>
+                          <div className="text-[12px] font-bold text-foreground">{src.name}</div>
+                          <ul className="m-0 mt-0.5 flex list-none flex-col gap-1 p-0">
+                            {src.claims.map((claim) => (
+                              <li
+                                key={`${claim.label}-${claim.value}`}
+                                className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
+                              >
+                                <Badge
+                                  variant={EVIDENCE_VARIANT[claim.status] ?? 'secondary'}
+                                  className="font-mono text-[10px]"
+                                >
+                                  {claim.status.replaceAll('_', ' ')}
+                                </Badge>
+                                <span className="text-faint">
+                                  {claim.label}: {claim.value}
+                                  {claim.detail ? ` (${claim.detail})` : ''}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
                   </details>
                 )}
               </div>

@@ -381,6 +381,21 @@ export async function partnerReviewClient(
 }
 
 /**
+ * Ask one client to finish KYC. Returns the request's timestamp. Throws when
+ * the connection is not this partner's, the package is already complete, or
+ * the firm asked less than a day ago (a nudge, not a drumbeat). The 0015
+ * trigger on connected_accounts announces the update to the client's screens.
+ */
+export async function partnerRequestKyc(tx: Transaction, accountId: string): Promise<string> {
+  const result = await tx.execute(
+    sql`select partner_request_kyc(${accountId}::uuid) as requested_at`,
+  );
+  const row = (result as unknown as { requested_at: string | Date }[])[0];
+  if (!row) throw new Error('partner_request_kyc returned nothing');
+  return row.requested_at instanceof Date ? row.requested_at.toISOString() : row.requested_at;
+}
+
+/**
  * One instrument as `partner_upsert_instrument` returns it.
  *
  * Snake_case and driver-shaped, because this is `RETURNS instruments` coming
