@@ -1,4 +1,4 @@
-import { type ModelMessage, stepCountIs, streamText } from 'ai';
+import { type LanguageModel, type ModelMessage, stepCountIs, streamText } from 'ai';
 import { ResponseCache } from './cache';
 import type { AgentContext } from './context';
 import { SYSTEM_PROMPT } from './prompt';
@@ -11,7 +11,13 @@ export interface ChatMessage {
 }
 
 export interface RunAgentArgs {
-  gateway: GatewayConfig;
+  /** Production gateway configuration. Required unless a model is injected. */
+  gateway?: GatewayConfig;
+  /**
+   * Injectable model seam for deterministic tests and alternate runtimes.
+   * Production omits this and receives the SSRF-guarded gateway model below.
+   */
+  model?: LanguageModel;
   ctx: AgentContext;
   /** Prior turns, oldest first. */
   history: ChatMessage[];
@@ -137,8 +143,11 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     { role: 'user', content: args.message },
   ];
 
+  const model = args.model ?? (args.gateway ? createGatewayModel(args.gateway) : null);
+  if (!model) throw new Error('runAgent requires either a gateway configuration or a model');
+
   const result = streamText({
-    model: createGatewayModel(args.gateway),
+    model,
     system,
     messages,
     tools,

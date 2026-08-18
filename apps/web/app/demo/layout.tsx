@@ -11,5 +11,15 @@ import type { ReactNode } from 'react';
  */
 export default function DemoLayout({ children }: { children: ReactNode }) {
   if (!DEMO_ENABLED) notFound();
-  return children;
+  return (
+    <>
+      <aside
+        aria-label="Demo status"
+        className="sticky top-0 z-[100] border-b border-solid border-[#2c6f68] bg-primary px-4 py-2 text-center text-[12px] font-bold uppercase tracking-[0.7px] text-white shadow-sm"
+      >
+        Interactive demo · sample data only · no real accounts or transactions
+      </aside>
+      {children}
+    </>
+  );
 }
