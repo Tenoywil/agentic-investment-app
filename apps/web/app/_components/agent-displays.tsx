@@ -128,8 +128,156 @@ function SliceLegend({ title, slices }: { title: string; slices: AllocationSlice
   );
 }
 
+function clampPct(value: number): number {
+  return Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
+}
+
+/** A real SVG donut rather than the old ten-pixel allocation strip. The
+ *  server-provided percentages drive every arc; the model never draws one. */
+function AllocationPieChart({ data }: { data: AllocationDisplayData }) {
+  const held = data.byType.filter((slice) => slice.pct > 0);
+  const heldTotal = held.reduce((sum, slice) => sum + clampPct(slice.pct), 0);
+  let cumulative = 0;
+  const arcs = held.map((slice) => {
+    const start = cumulative;
+    // The API percentages are rounded for human display and can sum to 99.9
+    // or 100.1. Normalize only the SVG geometry so the pie closes cleanly;
+    // labels continue to show the server's original figures.
+    const segmentPct = heldTotal > 0 ? (clampPct(slice.pct) / heldTotal) * 100 : 0;
+    cumulative += segmentPct;
+    return { ...slice, segmentPct, start };
+  });
+  const accessibleBreakdown = held.map((slice) => `${slice.label} ${slice.pct}%`).join(', ');
+
+  return (
+    <figure
+      className="m-0 rounded-xl border border-solid border-border/70 bg-muted/30 p-3"
+      data-chart="allocation-pie"
+    >
+      <svg
+        viewBox="0 0 120 120"
+        className="mx-auto block h-auto w-full max-w-[190px]"
+        role="img"
+        aria-label={
+          accessibleBreakdown
+            ? `Portfolio allocation pie chart: ${accessibleBreakdown}`
+            : 'Portfolio allocation pie chart: no holdings yet'
+        }
+      >
+        <circle
+          cx="60"
+          cy="60"
+          r="42"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="18"
+          className="text-muted"
+        />
+        {arcs.map((slice) => (
+          <circle
+            key={slice.key}
+            cx="60"
+            cy="60"
+            r="42"
+            fill="none"
+            pathLength="100"
+            stroke={typeColor(slice.key)}
+            strokeWidth="18"
+            strokeDasharray={`${slice.segmentPct} ${100 - slice.segmentPct}`}
+            strokeDashoffset={-slice.start}
+            transform="rotate(-90 60 60)"
+          />
+        ))}
+        <text
+          x="60"
+          y="57"
+          textAnchor="middle"
+          className="fill-faint text-[8px] font-bold uppercase tracking-[.5px]"
+        >
+          Total
+        </text>
+        <text x="60" y="70" textAnchor="middle" className="fill-foreground text-[9px] font-bold">
+          {data.total}
+        </text>
+      </svg>
+      <figcaption className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11.5px]">
+        {held.map((slice) => (
+          <span key={slice.key} className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="h-2 w-2 flex-none rounded-sm"
+              style={{ background: typeColor(slice.key) }}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1 truncate text-dim">{slice.label}</span>
+            <b className="font-mono text-foreground">{slice.pct}%</b>
+          </span>
+        ))}
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Current and target values share one 0-100 scale, so the visual distance is
+ *  an honest gap rather than two unrelated progress indicators. */
+function AllocationBarChart({ data }: { data: AllocationDisplayData }) {
+  const accessibleBreakdown = data.byType
+    .map((slice) => `${slice.label} ${slice.pct}% current and ${slice.targetPct}% target`)
+    .join(', ');
+  return (
+    <figure
+      className="m-0 rounded-xl border border-solid border-border/70 bg-muted/30 p-3"
+      data-chart="allocation-bars"
+      role="img"
+      aria-label={`Bar graph comparing current portfolio allocation with the target allocation: ${accessibleBreakdown}`}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3 text-[10.5px] font-bold uppercase tracking-[.4px] text-faint">
+        <span>Current vs target</span>
+        <span className="font-mono normal-case tracking-normal">0–100%</span>
+      </div>
+      <div className="flex flex-col gap-2.5">
+        {data.byType.map((slice) => {
+          const current = clampPct(slice.pct);
+          const target = clampPct(slice.targetPct);
+          return (
+            <div
+              key={slice.key}
+              aria-label={`${slice.label}: ${slice.pct}% current, ${slice.targetPct}% target`}
+            >
+              <div className="mb-1 flex items-baseline justify-between gap-2 text-[11.5px]">
+                <span className="min-w-0 truncate font-semibold text-foreground">
+                  {slice.label}
+                </span>
+                <span className="flex-none font-mono text-dim">
+                  <b className="text-foreground">{slice.pct}%</b> / {slice.targetPct}%
+                </span>
+              </div>
+              <div className="grid gap-1" aria-hidden>
+                <span className="block h-2 overflow-hidden rounded-full bg-muted">
+                  <span
+                    className="block h-full rounded-full"
+                    style={{ width: `${current}%`, background: typeColor(slice.key) }}
+                  />
+                </span>
+                <span className="block h-1.5 overflow-hidden rounded-full bg-muted">
+                  <span
+                    className="block h-full rounded-full border border-solid border-foreground/35 bg-foreground/15"
+                    style={{ width: `${target}%` }}
+                  />
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <figcaption className="mt-2.5 flex items-center gap-3 text-[10.5px] text-faint">
+        <span>Thick: current</span>
+        <span>Thin: target</span>
+      </figcaption>
+    </figure>
+  );
+}
+
 export function AllocationDisplay({ data }: { data: AllocationDisplayData }) {
-  const held = data.byType.filter((t) => t.pct > 0);
   return (
     <div>
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -141,38 +289,10 @@ export function AllocationDisplay({ data }: { data: AllocationDisplayData }) {
           <b className="font-mono text-[13.5px]">{data.total}</b>
         </span>
       </div>
-      <div className="mb-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-        {held.map((t) => (
-          <span
-            key={t.key}
-            style={{ width: `${t.pct}%`, background: typeColor(t.key) }}
-            className="h-full"
-          />
-        ))}
+      <div className="grid gap-3 min-[620px]:grid-cols-[minmax(170px,.75fr)_minmax(250px,1.25fr)]">
+        <AllocationPieChart data={data} />
+        <AllocationBarChart data={data} />
       </div>
-      {/* Current vs target, every mix key — a 0% row with a target IS the gap. */}
-      <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-        {data.byType.map((t) => {
-          const off = Math.abs(t.gapPts) >= 5;
-          return (
-            <li key={t.key} className="flex items-center gap-2 text-[13px]">
-              <span
-                className="h-2.5 w-2.5 flex-none rounded-[3px]"
-                style={{ background: typeColor(t.key) }}
-                aria-hidden
-              />
-              <span className="min-w-0 flex-1 truncate text-dim">{t.label}</span>
-              {off && (
-                <span className="flex-none rounded-full bg-[#f6efdf] px-2 py-px text-[11.5px] font-bold text-[#7a5712] dark:bg-[#38301a] dark:text-[#e2bd6b]">
-                  {Math.abs(t.gapPts)} pts {t.gapPts > 0 ? 'under' : 'over'} target
-                </span>
-              )}
-              <b className="flex-none font-mono text-foreground">{t.pct}%</b>
-              <span className="flex-none font-mono text-[12px] text-faint">of {t.targetPct}%</span>
-            </li>
-          );
-        })}
-      </ul>
       <div className="mt-3 grid gap-2.5 min-[561px]:grid-cols-2">
         <SliceLegend title="By firm" slices={data.byPartner} />
         <SliceLegend title="By currency" slices={data.byCurrency} />

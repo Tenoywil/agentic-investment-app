@@ -2,6 +2,7 @@
 
 import { AppScreen } from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
+import { AgentDisplayCard } from '@/app/_components/agent-displays';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -17,6 +18,7 @@ import { Input } from '@/app/_components/ui/input';
 import { Label } from '@/app/_components/ui/label';
 import { Switch } from '@/app/_components/ui/switch';
 import { cn } from '@/app/_lib/utils';
+import type { AgentDisplayData } from '@/lib/agent-api';
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,7 +32,7 @@ import {
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 
-type Msg = { role: 'agent' | 'user'; text: string };
+type Msg = { role: 'agent' | 'user'; text: string } | { role: 'agent'; display: AgentDisplayData };
 
 const SEED: Msg[] = [
   {
@@ -50,7 +52,7 @@ const SEED: Msg[] = [
 
 const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
   { label: 'Summarize my week', mobileLabel: 'Weekly recap', key: 'summary' },
-  { label: 'Rebalance ideas', mobileLabel: 'Rebalance', key: 'rebalance' },
+  { label: 'Chart my allocation', mobileLabel: 'Allocation chart', key: 'rebalance' },
   { label: 'Best income deal?', mobileLabel: 'Income idea', key: 'income' },
 ];
 
@@ -70,6 +72,110 @@ const REPLIES: Record<string, string> = {
   kyc: 'Your identity checks live with the licensed partners, not with me. NCB already verified you to Tier 2, and with your consent CCN reuses that status across partners, so there’s no new paperwork. Each partner remains the regulated entity responsible for KYC and AML on its own accounts.',
 };
 
+/** Sample-only numbers for the public preview. The live surface receives this
+ *  same shape from the read-only allocation tool over the structured display
+ *  channel; neither surface asks the model to invent chart coordinates. */
+const REBALANCE_DISPLAY: AgentDisplayData = {
+  kind: 'allocation',
+  data: {
+    currency: 'USD',
+    total: 'US$28,600',
+    band: 'balanced income',
+    byType: [
+      {
+        key: 'cash',
+        label: 'Cash',
+        valueMinor: '572000',
+        value: 'US$5,720',
+        pct: 20,
+        targetPct: 10,
+        gapPts: -10,
+      },
+      {
+        key: 'bond',
+        label: 'Fixed income',
+        valueMinor: '1315600',
+        value: 'US$13,156',
+        pct: 46,
+        targetPct: 30,
+        gapPts: -16,
+      },
+      {
+        key: 'fund',
+        label: 'Funds',
+        valueMinor: '228800',
+        value: 'US$2,288',
+        pct: 8,
+        targetPct: 15,
+        gapPts: 7,
+      },
+      {
+        key: 'equity',
+        label: 'Equities',
+        valueMinor: '400400',
+        value: 'US$4,004',
+        pct: 14,
+        targetPct: 25,
+        gapPts: 11,
+      },
+      {
+        key: 'real_estate',
+        label: 'Real estate',
+        valueMinor: '343200',
+        value: 'US$3,432',
+        pct: 12,
+        targetPct: 10,
+        gapPts: -2,
+      },
+      {
+        key: 'private',
+        label: 'Private markets',
+        valueMinor: '0',
+        value: 'US$0',
+        pct: 0,
+        targetPct: 10,
+        gapPts: 10,
+      },
+    ],
+    byPartner: [
+      {
+        key: 'ncb',
+        label: 'NCB',
+        valueMinor: '1887600',
+        value: 'US$18,876',
+        pct: 66,
+      },
+      {
+        key: 'sagicor',
+        label: 'Sagicor',
+        valueMinor: '572000',
+        value: 'US$5,720',
+        pct: 20,
+      },
+      {
+        key: 'barita',
+        label: 'Barita',
+        valueMinor: '400400',
+        value: 'US$4,004',
+        pct: 14,
+      },
+    ],
+    byCurrency: [
+      {
+        key: 'USD',
+        label: 'USD',
+        valueMinor: '2860000',
+        value: 'US$28,600',
+        pct: 100,
+      },
+    ],
+  },
+};
+
+const REPLY_DISPLAYS: Partial<Record<string, AgentDisplayData>> = {
+  rebalance: REBALANCE_DISPLAY,
+};
+
 const FALLBACK =
   'I research regional opportunities, screen them against your suitability profile, and prepare them for your approval. Execution, custody and settlement always stay with the licensed partner that holds the instrument. Ask me about income, rebalancing, idle cash, fees, or how your data and KYC are handled.';
 
@@ -81,6 +187,7 @@ function classify(text: string): string {
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
   if (/summar|week|overview/.test(t)) return 'summary';
+  if (/chart|graph|pie|bar graph|plot|visual/.test(t)) return 'rebalance';
   if (/rebalanc|allocat|overweight|diversif/.test(t)) return 'rebalance';
   if (/income|yield|best|deal|coupon|bond/.test(t)) return 'income';
   if (/idle|cash|spare|sitting/.test(t)) return 'idle';
@@ -339,7 +446,12 @@ export default function AgentPage() {
 
   function reply(key: string) {
     const text = REPLIES[key] ?? FALLBACK;
-    setChat((c) => [...c, { role: 'agent', text }]);
+    const display = REPLY_DISPLAYS[key];
+    setChat((c) =>
+      display
+        ? [...c, { role: 'agent', text }, { role: 'agent', display }]
+        : [...c, { role: 'agent', text }],
+    );
     setReplying(false);
     replyTimerRef.current = null;
   }
@@ -499,8 +611,19 @@ export default function AgentPage() {
             aria-label="Conversation with your agent"
             className="agent-chat__log flex max-h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px] max-[900px]:gap-3 max-[900px]:px-3 max-[900px]:py-4"
           >
-            {chat.map((m, i) =>
-              m.role === 'agent' ? (
+            {chat.map((m, i) => {
+              if ('display' in m) {
+                return (
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
+                    key={i}
+                    className="ml-9 min-w-0 max-w-[95%] max-[900px]:ml-8"
+                  >
+                    <AgentDisplayCard display={m.display} />
+                  </div>
+                );
+              }
+              return m.role === 'agent' ? (
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
                   key={i}
@@ -523,8 +646,8 @@ export default function AgentPage() {
                     {m.text}
                   </div>
                 </div>
-              ),
-            )}
+              );
+            })}
             {replying ? (
               <output
                 className="flex max-w-[680px] items-start gap-2"

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { buildContext } from './context';
 import { sampleSnapshot } from './eval-fixtures';
 import { untrustedBlock } from './prompt';
-import { runAgent } from './run';
+import { runAgent, visualToolForRequest } from './run';
 import { MUTATING_VERBS, TOOL_NAMES, assertReadOnly, buildTools } from './tools';
 
 /**
@@ -119,5 +119,50 @@ group('the orchestration loop is network-independent under test', () => {
 
   test('fails fast when neither the production gateway nor a model is supplied', () => {
     expect(() => runAgent({ ctx, history: [], message: 'hello' })).toThrow(/gateway|model/i);
+  });
+
+  test('classifies explicit portfolio and goal visual requests without guessing generic charts', () => {
+    expect(visualToolForRequest('Show my portfolio as a pie chart')).toBe('get_allocation');
+    expect(visualToolForRequest('Make a bar graph of my goal progress')).toBe('get_goals');
+    expect(visualToolForRequest('Can you chart that?')).toBeNull();
+    expect(visualToolForRequest('How am I invested?')).toBe('get_allocation');
+    expect(visualToolForRequest('What am I invested in?')).toBe('get_allocation');
+  });
+
+  test('forces the allocation tool on the first step of an explicit pie-chart request', async () => {
+    type DoStream = MockLanguageModelV4['doStream'];
+    let firstToolChoice: unknown;
+    const model = new MockLanguageModelV4({
+      doStream: async (options) => {
+        firstToolChoice ??= options.toolChoice;
+        return {
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'text-start', id: 'text-1' },
+              { type: 'text-delta', id: 'text-1', delta: 'Here is your allocation.' },
+              { type: 'text-end', id: 'text-1' },
+              {
+                type: 'finish',
+                finishReason: 'stop',
+                usage: { inputTokens: 8, outputTokens: 6, totalTokens: 14 },
+              },
+            ],
+          }),
+          warnings: [],
+        } as unknown as Awaited<ReturnType<DoStream>>;
+      },
+    });
+
+    const result = runAgent({
+      model,
+      ctx,
+      history: [],
+      message: 'Show my portfolio as a pie chart',
+    });
+    for await (const _chunk of result.textStream) {
+      // Drain the stream so the SDK executes the prepared first step.
+    }
+
+    expect(firstToolChoice).toEqual({ type: 'tool', toolName: 'get_allocation' });
   });
 });
