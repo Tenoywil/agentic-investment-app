@@ -269,4 +269,25 @@ describe('app shell controls', () => {
     expect(readingOrder.every((position) => position >= 0)).toBe(true);
     expect(readingOrder).toEqual([...readingOrder].sort((a, b) => a - b));
   });
+
+  test('administration links attention to bounded, audited resolution controls', () => {
+    const admin = code(join(WEB, 'app/(admin)/admin/page.tsx'));
+    const person = code(join(WEB, 'app/(admin)/admin/person.tsx'));
+    const client = code(join(WEB, 'lib/admin-api.ts'));
+    const route = code(resolve(WEB, '../api/src/routes/admin.ts'));
+
+    expect(admin).toContain('Resolution center');
+    expect(admin).toContain('No impersonation or money movement');
+    expect(admin).toContain("openOrders('created')");
+    expect(admin).toContain("openPeople('approvals')");
+    expect(admin).toContain('setSelected(o.investorId)');
+    expect(person).toContain('Pending investor decisions');
+    expect(person).toContain('Recent orders');
+
+    expect(client).toContain('JSON.stringify({ status, expectedStatus, reason })');
+    expect(route).toContain('reason.length < 8');
+    expect(route).toContain('reason,');
+    expect(admin).not.toContain('Approve for investor');
+    expect(admin).not.toContain('Settle order');
+  });
 });

@@ -194,10 +194,21 @@ suite('administration surface', () => {
     expect(mine).toBeTruthy();
     expect(mine?.status).toBe('live');
 
+    // A high-impact switch without a reason is refused: the audit record must
+    // answer why the product disappeared, not only who pressed the button.
+    const unexplained = await app().request(`/api/admin/products/${listingId}/toggle`, {
+      method: 'POST',
+      headers: { cookie: cookies.admin ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'paused', expectedStatus: 'live' }),
+    });
+    expect(unexplained.status).toBe(400);
+
     // Take it down, and the column the marketplace filters on really changes.
+    const reason = 'Partner requested a prospectus correction';
     const paused = await app().request(`/api/admin/products/${listingId}/toggle`, {
       method: 'POST',
-      headers: { cookie: cookies.admin ?? '' },
+      headers: { cookie: cookies.admin ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'paused', expectedStatus: 'live', reason }),
     });
     expect(paused.status).toBe(200);
     expect(((await paused.json()) as { status: string }).status).toBe('paused');
@@ -206,6 +217,13 @@ suite('administration surface', () => {
       .from(instruments)
       .where(eq(instruments.id, listingId));
     expect(row?.status).toBe('paused');
+
+    const stale = await app().request(`/api/admin/products/${listingId}/toggle`, {
+      method: 'POST',
+      headers: { cookie: cookies.admin ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'paused', expectedStatus: 'live', reason }),
+    });
+    expect(stale.status).toBe(409);
 
     // A customer cannot reach the takedown control at all.
     const refused = await app().request(`/api/admin/products/${listingId}/toggle`, {
@@ -217,10 +235,11 @@ suite('administration surface', () => {
     // And the decision is on the audit trail, named, with who made it.
     const auditRes = await get('/api/admin/audit?limit=50', 'admin');
     const { entries } = (await auditRes.json()) as {
-      entries: { action: string; detail: { by?: string } | null }[];
+      entries: { action: string; detail: { by?: string; reason?: string } | null }[];
     };
     const taken = entries.find((e) => e.action === 'instrument.paused');
     expect(taken).toBeTruthy();
+    expect(taken?.detail?.reason).toBe(reason);
 
     await db.delete(instruments).where(eq(instruments.id, listingId));
   });

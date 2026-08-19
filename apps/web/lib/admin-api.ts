@@ -1,21 +1,34 @@
 import { API_URL } from './config';
 
 /**
- * The administration read. One surface, one client.
+ * The administration client. One surface, one boundary.
  *
- * Everything here is read-only, and that is not a convention — the migration
- * that opens these rows to `admin` grants SELECT and nothing else, so a write
- * would be refused by the database. Anything that changes state still goes
- * through the product's own choke points.
+ * Cross-tenant diagnosis is read-only by default. The small set of mutations
+ * below each has its own database policy and append-only audit event: roles,
+ * partner reference facts, marketplace status, reference data, and FX refresh.
+ * There is intentionally no generic update client.
  */
 
 export interface AdminOverview {
   /** `total` is people; the other three count how many hold each role. */
   people: { total: number; customers: number; operators: number; admins: number };
-  onboarding: { started: number; tierNone: number; tier1: number; tier2: number };
+  onboarding: {
+    started: number;
+    notStarted: number;
+    tierNone: number;
+    tier1: number;
+    tier2: number;
+  };
   partners: { total: number; live: number; sandbox: number };
   products: { total: number; live: number; paused: number };
-  orders: { total: number; created: number; accepted: number; settled: number; rejected: number };
+  orders: {
+    total: number;
+    created: number;
+    accepted: number;
+    settled: number;
+    rejected: number;
+    expired: number;
+  };
   approvals: { pending: number };
 }
 
@@ -39,6 +52,8 @@ export interface AdminInvestor {
   /** Sum of their USD-denominated holdings, minor units. Non-USD lines are in
    *  the count but not this sum — mixing currencies unconverted would lie. */
   usdValueMinor: string;
+  /** Investor decisions that are still waiting on this person. */
+  pendingApprovals: number;
 }
 
 export interface AdminPartner {
@@ -63,7 +78,7 @@ export interface AdminProduct {
   id: string;
   name: string;
   type: string | null;
-  status: 'live' | 'paused' | null;
+  status: 'live' | 'paused';
   /** Screened out of suitability — a different fact from paused. */
   blocked: boolean;
   risk: string | null;
@@ -79,6 +94,7 @@ export interface AdminProduct {
 
 export interface AdminOrder {
   id: string;
+  investorId: string;
   status: string;
   amountMinor: string;
   currency: string;
@@ -96,6 +112,8 @@ export interface AdminAuditEntry {
   entityType: string | null;
   entityId: string | null;
   actorType: string | null;
+  /** The person this entry concerns, when the event is user-scoped. */
+  userId?: string | null;
   /** Who the action concerned, and what the writer recorded about it. */
   subjectEmail?: string | null;
   detail?: unknown;
@@ -109,6 +127,15 @@ export interface AdminInvestorDetail {
   profile: Record<string, unknown> | null;
   holdings: { id: string; name: string; valueMinor: string; currency: string }[];
   approvals: { id: string; type: string; title: string; status: string; createdAt: string }[];
+  orders: {
+    id: string;
+    status: string;
+    amountMinor: string;
+    currency: string;
+    partnerName: string | null;
+    instrumentName: string | null;
+    createdAt: string;
+  }[];
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -125,28 +152,36 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const getAdminOverview = () => get<AdminOverview>('/overview');
-export const getAdminInvestors = (q = '') =>
+export const getAdminInvestors = (q = '', attention?: 'kyc' | 'approvals' | 'unassigned') =>
   get<{ investors: AdminInvestor[] }>(
-    `/investors?limit=200${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+    `/investors?limit=500${q ? `&q=${encodeURIComponent(q)}` : ''}${attention ? `&attention=${attention}` : ''}`,
   );
 export const getAdminPartners = () => get<{ partners: AdminPartner[] }>('/partners');
 export const getAdminProducts = () => get<{ products: AdminProduct[] }>('/products');
-export const getAdminOrders = () => get<{ orders: AdminOrder[] }>('/orders?limit=100');
+export const getAdminOrders = (status?: string) =>
+  get<{ orders: AdminOrder[] }>(
+    `/orders?limit=100${status ? `&status=${encodeURIComponent(status)}` : ''}`,
+  );
 export const getAdminAudit = () => get<{ entries: AdminAuditEntry[] }>('/audit?limit=100');
 
 export const getAdminInvestor = (id: string) => get<AdminInvestorDetail>(`/investors/${id}`);
 
 /**
- * Take a listing off the marketplace, or put it back — the network's takedown
- * control. The server flips `listing_status` and nothing else, audits who did
- * it, and the pause gates the marketplace and both order paths exactly as the
- * firm's own switch does.
+ * Set a listing's marketplace status — the network's takedown control. The
+ * server checks the status has not changed since the dialog opened, changes
+ * `listing_status` and nothing else, and records the supplied reason.
  */
-export async function toggleAdminProduct(id: string): Promise<{ status: 'live' | 'paused' }> {
+export async function setAdminProductStatus(
+  id: string,
+  status: 'live' | 'paused',
+  expectedStatus: 'live' | 'paused',
+  reason: string,
+): Promise<{ status: 'live' | 'paused' }> {
   const res = await fetch(`${API_URL}/api/admin/products/${id}/toggle`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, expectedStatus, reason }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {

@@ -12,6 +12,7 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { useMe } from '@/app/_lib/session';
+import { useSheetDismiss } from '@/app/_lib/sheet';
 import {
   type AdminAuditEntry,
   type AdminInvestor,
@@ -27,9 +28,10 @@ import {
   getAdminProducts,
   loadAdminReferenceData,
   refreshAdminFxRates,
-  toggleAdminProduct,
+  setAdminProductStatus,
 } from '@/lib/admin-api';
 import { authClient } from '@/lib/auth-client';
+import type { ConsoleCurrency } from '@/lib/console-api';
 import {
   Building2,
   CircleAlert,
@@ -39,6 +41,7 @@ import {
   Receipt,
   RefreshCw,
   Users,
+  X,
 } from 'lucide-react';
 import * as React from 'react';
 import { PartnerForm } from './partner-form';
@@ -51,9 +54,9 @@ import { PersonPanel } from './person';
  * nobody could run the business — answering "who is stuck in onboarding" or
  * "what is this partner offering" meant a SQL client pointed at production.
  *
- * Read-only, and not by convention: the migration behind it grants `admin`
- * SELECT and nothing more, so the database refuses a write from here. Every
- * action that changes state stays on its existing path, where it is audited.
+ * Cross-tenant diagnosis is read-only. A narrow set of corrections has explicit
+ * database policies and append-only audit events; financial execution and
+ * investor decisions remain outside this surface.
  *
  * Nothing on this screen is invented. Where the schema holds no answer, the
  * screen says so rather than showing a number — the standing rule everywhere in
@@ -67,6 +70,9 @@ import { PersonPanel } from './person';
 // Overview look wrong.
 const TABS = ['Overview', 'People', 'Partners', 'Products', 'Orders', 'Activity'] as const;
 type Tab = (typeof TABS)[number];
+type PeopleFilter = 'all' | 'kyc' | 'approvals' | 'unassigned';
+type ProductFilter = 'all' | 'live' | 'paused' | 'screened';
+type OrderFilter = 'all' | 'created' | 'accepted' | 'settled' | 'rejected' | 'expired';
 
 const LABEL = 'text-[12px] font-bold uppercase tracking-[.6px] text-dim';
 
@@ -163,6 +169,161 @@ function onboardingState(i: AdminInvestor): { label: string; tone: 'ok' | 'part'
   return { label: `${done} of 4`, tone: 'part' };
 }
 
+function ResolutionRow({
+  count,
+  title,
+  owner,
+  action,
+  onOpen,
+}: {
+  count: number;
+  title: string;
+  owner: string;
+  action: string;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-0 border-b border-solid border-border py-3 last:border-b-0">
+      <span className="grid h-9 min-w-9 place-items-center rounded-[10px] bg-muted px-2 font-display text-lg font-bold">
+        {count}
+      </span>
+      <div className="min-w-[180px] flex-1">
+        <div className="text-[14.5px] font-semibold">{title}</div>
+        <div className="mt-0.5 text-[12.5px] text-faint">Next owner: {owner}</div>
+      </div>
+      <Button type="button" size="sm" variant="outline" onClick={onOpen}>
+        {action}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * A marketplace status change is reversible, but it is not casual: investors
+ * either can or cannot discover and order this product. Requiring a short
+ * reason makes the existing audit event useful during a regulator, partner, or
+ * customer follow-up instead of recording only that a switch moved.
+ */
+function ListingStatusDialog({
+  product,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  product: AdminProduct;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (reason: string) => Promise<boolean>;
+}) {
+  const dialogRef = React.useRef<HTMLDialogElement>(null);
+  const openerRef = React.useRef<HTMLElement | null>(null);
+  const busyRef = React.useRef(busy);
+  busyRef.current = busy;
+  const titleId = React.useId();
+  const [reason, setReason] = React.useState('');
+  const next = product.status === 'live' ? 'paused' : 'live';
+
+  React.useEffect(() => {
+    openerRef.current = document.activeElement as HTMLElement | null;
+    const el = dialogRef.current;
+    if (!el) return;
+    if (!el.open) el.showModal();
+    const onBackdrop = (event: MouseEvent) => {
+      if (event.target === el && !busyRef.current) el.close();
+    };
+    el.addEventListener('click', onBackdrop);
+    return () => el.removeEventListener('click', onBackdrop);
+  }, []);
+
+  const close = React.useCallback(() => {
+    if (!busy) dialogRef.current?.close();
+  }, [busy]);
+  useSheetDismiss(dialogRef, close);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="app-modal"
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        if (busy) event.preventDefault();
+      }}
+      onClose={() => {
+        openerRef.current?.focus();
+        onClose();
+      }}
+    >
+      <button
+        type="button"
+        data-sheet-handle
+        onClick={close}
+        aria-label="Close"
+        className="app-sheet__handle app-modal__handle"
+      />
+      <div className="flex flex-none items-start justify-between gap-3 border-0 border-b border-solid border-border px-[22px] py-4">
+        <div className="min-w-0">
+          <h2 id={titleId} className="font-display text-lg font-bold">
+            {next === 'paused' ? 'Take off the marketplace' : 'Restore to the marketplace'}
+          </h2>
+          <p className="mb-0 mt-1 text-[13.5px] text-dim">{product.name}</p>
+        </div>
+        <Button type="button" size="sm" variant="ghost" onClick={close} aria-label="Close">
+          <X className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
+      <form
+        className="px-[22px] py-[18px] pb-[max(22px,env(safe-area-inset-bottom))]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onConfirm(reason).then((changed) => {
+            if (changed) dialogRef.current?.close();
+          });
+        }}
+      >
+        <p className="mt-0 text-[14px] leading-relaxed text-dim">
+          {next === 'paused'
+            ? 'This immediately removes the listing from investor discovery and both order paths. Existing orders are unchanged.'
+            : 'This makes the listing discoverable and orderable again. Confirm that the issue has been resolved first.'}
+        </p>
+        <label className="mt-4 block text-[13.5px]">
+          <span className={LABEL}>Reason recorded in the audit trail</span>
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            className="mt-1.5 block min-h-[104px] w-full resize-y rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14.5px] text-foreground"
+            minLength={8}
+            maxLength={240}
+            required
+            placeholder={
+              next === 'paused'
+                ? 'For example: Partner requested a temporary takedown while correcting the prospectus.'
+                : 'For example: Partner confirmed the corrected prospectus is published.'
+            }
+          />
+          <span className="mt-1 block text-[12.5px] text-faint">
+            {reason.length}/240 characters · at least 8 required
+          </span>
+        </label>
+        {error ? <Failed message={error} /> : null}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={busy || reason.trim().length < 8}>
+            {busy
+              ? 'Saving…'
+              : next === 'paused'
+                ? 'Take off marketplace'
+                : 'Restore to marketplace'}
+          </Button>
+          <Button type="button" variant="ghost" onClick={close} disabled={busy}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
 export default function AdminPage() {
   const me = useMe();
   const [tab, setTab] = React.useState<Tab>('Overview');
@@ -177,24 +338,40 @@ export default function AdminPage() {
   /** The person whose detail panel is open, if any. */
   const [selected, setSelected] = React.useState<string | null>(null);
   /**
-   * Finding a person. A list capped at 200 with no way to narrow it is not a
+   * Finding a person. A list capped at 500 with no way to narrow it is not a
    * way to find someone — it is a way to scroll past them. The query re-runs
    * the server search, matched on the two things an administrator is actually
    * handed: a name or an email.
    */
   const [personQuery, setPersonQuery] = React.useState('');
+  const [peopleFilter, setPeopleFilter] = React.useState<PeopleFilter>('all');
+  const [productFilter, setProductFilter] = React.useState<ProductFilter>('all');
+  const [orderFilter, setOrderFilter] = React.useState<OrderFilter>('all');
+  const [activityQuery, setActivityQuery] = React.useState('');
   /** The listing being paused or restored, and why it failed if it did. */
   const [productBusy, setProductBusy] = React.useState<string | null>(null);
   const [productError, setProductError] = React.useState<string | null>(null);
+  const [productChange, setProductChange] = React.useState<AdminProduct | null>(null);
 
-  async function toggleProduct(id: string) {
-    setProductBusy(id);
+  async function changeProductStatus(product: AdminProduct, reason: string): Promise<boolean> {
+    setProductBusy(product.id);
     setProductError(null);
     try {
-      const { status } = await toggleAdminProduct(id);
-      setProducts((ps) => (ps ?? []).map((p) => (p.id === id ? { ...p, status } : p)));
+      const expectedStatus = product.status === 'paused' ? 'paused' : 'live';
+      const desiredStatus = expectedStatus === 'live' ? 'paused' : 'live';
+      const { status } = await setAdminProductStatus(
+        product.id,
+        desiredStatus,
+        expectedStatus,
+        reason,
+      );
+      setProducts((ps) => (ps ?? []).map((p) => (p.id === product.id ? { ...p, status } : p)));
+      await load();
+      return true;
     } catch (err) {
       setProductError(err instanceof Error ? err.message : 'Could not change the listing.');
+      await load();
+      return false;
     } finally {
       setProductBusy(null);
     }
@@ -230,10 +407,10 @@ export default function AdminPage() {
     setRefreshing(true);
     return Promise.all([
       getAdminOverview(),
-      getAdminInvestors(personQuery),
+      getAdminInvestors(personQuery, peopleFilter === 'all' ? undefined : peopleFilter),
       getAdminPartners(),
       getAdminProducts(),
-      getAdminOrders(),
+      getAdminOrders(orderFilter === 'all' ? undefined : orderFilter),
       getAdminAudit(),
     ])
       .then(([o, i, pa, pr, or, au]) => {
@@ -255,7 +432,7 @@ export default function AdminPage() {
       .finally(() => {
         if (!gone.current) setRefreshing(false);
       });
-  }, [personQuery]);
+  }, [orderFilter, peopleFilter, personQuery]);
 
   React.useEffect(() => {
     void load();
@@ -352,6 +529,50 @@ export default function AdminPage() {
     </div>
   );
 
+  const visibleInvestors = (investors ?? []).filter((person) => {
+    if (peopleFilter === 'kyc') return person.kycTier === null || person.kycTier === 'none';
+    if (peopleFilter === 'approvals') return person.pendingApprovals > 0;
+    if (peopleFilter === 'unassigned') return person.roles.length === 0;
+    return true;
+  });
+  const visibleProducts = (products ?? []).filter((product) => {
+    if (productFilter === 'screened') return product.blocked;
+    if (productFilter === 'live' || productFilter === 'paused') {
+      return product.status === productFilter;
+    }
+    return true;
+  });
+  const visibleOrders = (orders ?? []).filter(
+    (order) => orderFilter === 'all' || order.status === orderFilter,
+  );
+  const normalizedActivityQuery = activityQuery.trim().toLowerCase();
+  const visibleAudit = (audit ?? []).filter((entry) => {
+    if (!normalizedActivityQuery) return true;
+    return [
+      auditActionLabel(entry.action),
+      auditEntityLabel(entry.entityType),
+      entry.subjectEmail,
+      entry.actorType,
+      entry.seq,
+    ].some((value) => value?.toLowerCase().includes(normalizedActivityQuery));
+  });
+
+  function openPeople(filter: PeopleFilter) {
+    setPersonQuery('');
+    setPeopleFilter(filter);
+    setTab('People');
+  }
+
+  function openProducts(filter: ProductFilter) {
+    setProductFilter(filter);
+    setTab('Products');
+  }
+
+  function openOrders(filter: OrderFilter) {
+    setOrderFilter(filter);
+    setTab('Orders');
+  }
+
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
       <header className="border-0 border-b border-solid border-border bg-card">
@@ -429,8 +650,8 @@ export default function AdminPage() {
             time, and on a phone it cost four lines above the content it was
             explaining. It stays for a screen reader at every size. */}
         <p className="mt-1 text-[14.5px] text-dim max-[680px]:sr-only">
-          Every investor, partner, product and order, read across all tenants. This surface makes no
-          changes — actions stay on their own audited paths.
+          Every investor, partner, product and order, read across all tenants. Corrections are
+          narrow and audited; investor decisions and money movement stay in their owning workflows.
         </p>
 
         {fxNote ? <output className="mt-2 block text-[13px] text-dim">{fxNote}</output> : null}
@@ -530,6 +751,62 @@ export default function AdminPage() {
                 />
               </div>
 
+              <Card className="mt-[18px] p-[22px]">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className={LABEL}>Resolution center</div>
+                    <h2 className="mt-1 font-display text-lg font-bold">What needs a next step</h2>
+                    <p className="mb-0 mt-1 max-w-[72ch] text-[13.5px] leading-relaxed text-dim">
+                      These are factual workflow states, not automatic incident labels. Open the
+                      relevant queue, identify the owner, and use only that workflow&rsquo;s audited
+                      control.
+                    </p>
+                  </div>
+                  <Badge variant="secondary">No impersonation or money movement</Badge>
+                </div>
+                <div className="mt-3 grid gap-x-6 min-[860px]:grid-cols-2">
+                  <div>
+                    <ResolutionRow
+                      count={overview.orders.created}
+                      title="Orders awaiting partner acceptance"
+                      owner="Partner desk"
+                      action="Open orders"
+                      onOpen={() => openOrders('created')}
+                    />
+                    <ResolutionRow
+                      count={overview.orders.accepted}
+                      title="Accepted orders awaiting settlement"
+                      owner="Partner desk"
+                      action="Open orders"
+                      onOpen={() => openOrders('accepted')}
+                    />
+                    <ResolutionRow
+                      count={overview.approvals.pending}
+                      title="Approvals waiting on investors"
+                      owner="Investor"
+                      action="Find people"
+                      onOpen={() => openPeople('approvals')}
+                    />
+                  </div>
+                  <div>
+                    <ResolutionRow
+                      count={overview.onboarding.notStarted + overview.onboarding.tierNone}
+                      title="People without a KYC tier"
+                      owner="Investor or compliance"
+                      action="Open people"
+                      onOpen={() => openPeople('kyc')}
+                    />
+                    <ResolutionRow
+                      count={overview.products.paused}
+                      title="Listings currently off the marketplace"
+                      owner="Partner or CCN admin"
+                      action="Review listings"
+                      onOpen={() => openProducts('paused')}
+                    />
+                  </div>
+                </div>
+              </Card>
+
               <div className="g2 mt-[18px]">
                 <Card className="p-[22px]">
                   <div className={LABEL}>Onboarding</div>
@@ -537,6 +814,10 @@ export default function AdminPage() {
                     <div className="flex justify-between gap-4">
                       <dt className="text-dim">Started</dt>
                       <dd className="font-semibold">{overview.onboarding.started}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-dim">Not started</dt>
+                      <dd className="font-semibold">{overview.onboarding.notStarted}</dd>
                     </div>
                     <div className="flex justify-between gap-4">
                       <dt className="text-dim">No tier yet</dt>
@@ -571,6 +852,10 @@ export default function AdminPage() {
                     <div className="flex justify-between gap-4">
                       <dt className="text-dim">Rejected</dt>
                       <dd className="font-semibold">{overview.orders.rejected}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-dim">Expired</dt>
+                      <dd className="font-semibold">{overview.orders.expired}</dd>
                     </div>
                     <div className="flex justify-between gap-4 border-0 border-t border-solid border-border pt-2">
                       <dt className="text-dim">Approvals waiting on investors</dt>
@@ -608,39 +893,71 @@ export default function AdminPage() {
                 <label className="min-w-[220px] flex-1">
                   <span className="sr-only">Search people by name or email</span>
                   <input
+                    key={personQuery}
                     name="q"
                     defaultValue={personQuery}
                     placeholder="Search by name or email"
                     className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
                   />
                 </label>
+                <label>
+                  <span className="sr-only">Filter people</span>
+                  <select
+                    value={peopleFilter}
+                    onChange={(event) => setPeopleFilter(event.target.value as PeopleFilter)}
+                    className="rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                  >
+                    <option value="all">Everyone</option>
+                    <option value="kyc">No KYC tier</option>
+                    <option value="approvals">Approvals waiting</option>
+                    <option value="unassigned">No roles assigned</option>
+                  </select>
+                </label>
                 <Button type="submit" size="sm" variant="outline">
                   Search
                 </Button>
-                {personQuery ? (
+                {personQuery || peopleFilter !== 'all' ? (
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
-                    onClick={() => setPersonQuery('')}
+                    onClick={() => {
+                      setPersonQuery('');
+                      setPeopleFilter('all');
+                    }}
                   >
-                    Clear
+                    Clear view
                   </Button>
                 ) : null}
               </form>
-              {selected ? (
-                <PersonPanel
-                  id={selected}
-                  partners={partners ?? []}
-                  onClose={() => setSelected(null)}
-                  onChanged={load}
-                />
-              ) : null}
-              {investors.length === 0 ? (
+              {visibleInvestors.length === 0 ? (
                 <EmptyState
                   icon={Users}
-                  title="Nobody has signed in yet"
-                  body="Everyone who signs in appears here, with how far through onboarding they are and what they hold."
+                  title={
+                    personQuery || peopleFilter !== 'all'
+                      ? 'No people match this view'
+                      : 'Nobody has signed in yet'
+                  }
+                  body={
+                    personQuery || peopleFilter !== 'all'
+                      ? 'Try a different name, email, or attention filter. No account data was changed.'
+                      : 'Everyone who signs in appears here, with how far through onboarding they are and what they hold.'
+                  }
+                  action={
+                    personQuery || peopleFilter !== 'all' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setPersonQuery('');
+                          setPeopleFilter('all');
+                        }}
+                      >
+                        Show everyone
+                      </Button>
+                    ) : undefined
+                  }
                 />
               ) : (
                 <Table
@@ -654,7 +971,7 @@ export default function AdminPage() {
                     '',
                   ]}
                 >
-                  {investors.map((i) => {
+                  {visibleInvestors.map((i) => {
                     const state = onboardingState(i);
                     return (
                       <tr key={i.id}>
@@ -677,6 +994,11 @@ export default function AdminPage() {
                             <Badge variant={state.tone === 'ok' ? 'default' : 'secondary'}>
                               {state.label}
                             </Badge>
+                            {i.pendingApprovals > 0 ? (
+                              <Badge variant="secondary">
+                                {plural(i.pendingApprovals, 'approval')} waiting
+                              </Badge>
+                            ) : null}
                             {i.kycTier ? <span>{i.kycTier}</span> : null}
                             {i.residency ? <span>{i.residency}</span> : null}
                           </PhoneOnly>
@@ -705,6 +1027,11 @@ export default function AdminPage() {
                           <Badge variant={state.tone === 'ok' ? 'default' : 'secondary'}>
                             {state.label}
                           </Badge>
+                          {i.pendingApprovals > 0 ? (
+                            <div className="mt-1 text-[12.5px] text-dim">
+                              {plural(i.pendingApprovals, 'approval')} waiting
+                            </div>
+                          ) : null}
                         </td>
                         <td className={CELL_WIDE}>
                           {/* What they hold — the list showed only paperwork,
@@ -741,6 +1068,28 @@ export default function AdminPage() {
               only just been stood up, and an empty <table> renders as a bare
               header row — which reads as a request that failed rather than a
               network with nothing in it yet. */}
+          {selected ? (
+            <PersonPanel
+              id={selected}
+              partners={partners ?? []}
+              onClose={() => setSelected(null)}
+              onChanged={load}
+            />
+          ) : null}
+
+          {productChange ? (
+            <ListingStatusDialog
+              product={productChange}
+              busy={productBusy === productChange.id}
+              error={productError}
+              onClose={() => {
+                setProductChange(null);
+                setProductError(null);
+              }}
+              onConfirm={(reason) => changeProductStatus(productChange, reason)}
+            />
+          ) : null}
+
           {partnerForm ? (
             <PartnerForm
               partner={partnerForm === 'new' ? null : partnerForm}
@@ -838,127 +1187,224 @@ export default function AdminPage() {
 
           {!loading && !error && tab === 'Products' && products && products.length > 0 ? (
             <>
-              <p className="mb-3.5 text-[13.5px] text-dim">
-                What the marketplace offers, live from the table investors see. Pausing a listing
-                takes it off the marketplace and out of both order paths — the same switch the
-                listing firm has, for when a regulator flags a product or a firm asks CCN to pull
-                one. It is reversible and audited.
-              </p>
-              {productError ? <Failed message={productError} /> : null}
-              <Table
-                head={[
-                  'Product',
-                  { label: 'Partner', wide: true },
-                  { label: 'Headline', wide: true },
-                  { label: 'Minimum', wide: true },
-                  'Status',
-                ]}
-              >
-                {products.map((p) => (
-                  <tr key={p.id}>
-                    <td className={CELL}>
-                      <span className="font-semibold">{p.name}</span>
-                      <div className="text-[12.5px] text-dim">
-                        {[p.type, p.risk ? `${p.risk} risk` : null].filter(Boolean).join(' · ')}
-                      </div>
-                      <PhoneOnly>
-                        {p.partnerName ? <span>{p.partnerName}</span> : null}
-                        {p.metric ? <span>{p.metric}</span> : null}
-                      </PhoneOnly>
-                    </td>
-                    <td className={CELL_WIDE}>
-                      {p.partnerName ?? '—'}
-                      {p.partnerCode ? (
-                        <div className="text-[12.5px] text-dim">{p.partnerCode}</div>
-                      ) : null}
-                    </td>
-                    <td className={CELL_WIDE}>
-                      {/* No figure claimed is shown as nothing, not a blank
+              <div className="mb-3.5 flex flex-wrap items-end justify-between gap-3">
+                <p className="mb-0 max-w-[76ch] text-[13.5px] leading-relaxed text-dim">
+                  What investors can discover and order. Status changes are reversible, require a
+                  reason, and append who changed what to the audit trail; they never alter an
+                  existing order.
+                </p>
+                <label className="text-[12.5px] font-semibold text-dim">
+                  Show
+                  <select
+                    value={productFilter}
+                    onChange={(event) => setProductFilter(event.target.value as ProductFilter)}
+                    className="ml-2 rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                  >
+                    <option value="all">All listings</option>
+                    <option value="live">Live</option>
+                    <option value="paused">Off marketplace</option>
+                    <option value="screened">Screened by suitability</option>
+                  </select>
+                </label>
+              </div>
+              {visibleProducts.length === 0 ? (
+                <EmptyState
+                  icon={Package}
+                  title="No listings match this view"
+                  body="The catalog is still intact. Choose a different status to review it."
+                  action={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setProductFilter('all')}
+                    >
+                      Show all listings
+                    </Button>
+                  }
+                />
+              ) : (
+                <Table
+                  head={[
+                    'Product',
+                    { label: 'Partner', wide: true },
+                    { label: 'Headline', wide: true },
+                    { label: 'Minimum', wide: true },
+                    'Status',
+                  ]}
+                >
+                  {visibleProducts.map((p) => (
+                    <tr key={p.id}>
+                      <td className={CELL}>
+                        <span className="font-semibold">{p.name}</span>
+                        <div className="text-[12.5px] text-dim">
+                          {[p.type, p.risk ? `${p.risk} risk` : null].filter(Boolean).join(' · ')}
+                        </div>
+                        <PhoneOnly>
+                          {p.partnerName ? <span>{p.partnerName}</span> : null}
+                          {p.metric ? <span>{p.metric}</span> : null}
+                        </PhoneOnly>
+                      </td>
+                      <td className={CELL_WIDE}>
+                        {p.partnerName ?? '—'}
+                        {p.partnerCode ? (
+                          <div className="text-[12.5px] text-dim">{p.partnerCode}</div>
+                        ) : null}
+                      </td>
+                      <td className={CELL_WIDE}>
+                        {/* No figure claimed is shown as nothing, not a blank
                           that reads like a load failure. */}
-                      {p.metric ? (
-                        <>
-                          <span className="font-mono">{p.metric}</span>
-                          {p.metricLabel ? (
-                            <div className="text-[12.5px] text-dim">{p.metricLabel}</div>
-                          ) : null}
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className={CELL_WIDE}>
-                      {p.minInvestmentMinor === '0'
-                        ? 'No minimum'
-                        : `${p.currency} ${(Number(p.minInvestmentMinor) / 100).toLocaleString()}`}
-                    </td>
-                    <td className={CELL}>
-                      <Badge variant={p.status === 'live' ? 'default' : 'secondary'}>
-                        {p.status ?? 'unknown'}
-                      </Badge>
-                      {p.blocked ? <Badge variant="secondary">screened</Badge> : null}
-                      <button
-                        type="button"
-                        disabled={productBusy === p.id}
-                        onClick={() => void toggleProduct(p.id)}
-                        className="mt-1.5 block font-semibold text-teal2 underline-offset-4 hover:underline disabled:opacity-60"
-                      >
-                        {productBusy === p.id
-                          ? 'Working…'
-                          : p.status === 'live'
-                            ? 'Take off marketplace'
-                            : 'Restore to marketplace'}
-                        <span className="sr-only"> {p.name}</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </Table>
+                        {p.metric ? (
+                          <>
+                            <span className="font-mono">{p.metric}</span>
+                            {p.metricLabel ? (
+                              <div className="text-[12.5px] text-dim">{p.metricLabel}</div>
+                            ) : null}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className={CELL_WIDE}>
+                        {p.minInvestmentMinor === '0'
+                          ? 'No minimum'
+                          : `${p.currency} ${(Number(p.minInvestmentMinor) / 100).toLocaleString()}`}
+                      </td>
+                      <td className={CELL}>
+                        <Badge variant={p.status === 'live' ? 'default' : 'secondary'}>
+                          {p.status ?? 'unknown'}
+                        </Badge>
+                        {p.blocked ? <Badge variant="secondary">screened</Badge> : null}
+                        <button
+                          type="button"
+                          disabled={productBusy === p.id}
+                          onClick={() => {
+                            setProductError(null);
+                            setProductChange(p);
+                          }}
+                          className="mt-1.5 block font-semibold text-teal2 underline-offset-4 hover:underline disabled:opacity-60"
+                        >
+                          {productBusy === p.id
+                            ? 'Working…'
+                            : p.status === 'live'
+                              ? 'Take off marketplace'
+                              : 'Restore to marketplace'}
+                          <span className="sr-only"> {p.name}</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              )}
             </>
           ) : null}
 
           {!loading && !error && tab === 'Orders' && orders?.length === 0 ? (
             <EmptyState
               icon={Receipt}
-              title="No orders yet"
-              body="Every order on the network appears here the moment it is placed, whichever partner it was routed to."
+              title={orderFilter === 'all' ? 'No orders yet' : 'No orders match this status'}
+              body={
+                orderFilter === 'all'
+                  ? 'Every order on the network appears here the moment it is placed, whichever partner it was routed to.'
+                  : 'The order history is unchanged. Choose another status to inspect it.'
+              }
+              action={
+                orderFilter !== 'all' ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setOrderFilter('all')}
+                  >
+                    Show all orders
+                  </Button>
+                ) : undefined
+              }
             />
           ) : null}
 
           {!loading && !error && tab === 'Orders' && orders && orders.length > 0 ? (
-            <Table
-              head={[
-                { label: 'Placed', wide: true },
-                'Investor',
-                { label: 'Product', wide: true },
-                { label: 'Partner', wide: true },
-                'Amount',
-                'Status',
-              ]}
-            >
-              {orders.map((o) => (
-                <tr key={o.id}>
-                  <td className={CELL_WIDE}>{new Date(o.createdAt).toLocaleString()}</td>
-                  <td className={CELL}>
-                    <span className="break-all">{o.investorEmail ?? '—'}</span>
-                    <PhoneOnly>
-                      <span>{new Date(o.createdAt).toLocaleString()}</span>
-                      {o.instrumentName ? <span>{o.instrumentName}</span> : null}
-                      {o.partnerName ? <span>{o.partnerName}</span> : null}
-                    </PhoneOnly>
-                  </td>
-                  <td className={CELL_WIDE}>{o.instrumentName ?? '—'}</td>
-                  <td className={CELL_WIDE}>{o.partnerName ?? '—'}</td>
-                  <td className={CELL}>
-                    {o.currency} {(Number(o.amountMinor) / 100).toLocaleString()}
-                  </td>
-                  <td className={CELL}>
-                    <Badge variant={o.status === 'settled' ? 'default' : 'secondary'}>
-                      {o.status}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </Table>
+            <>
+              <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+                <p className="mb-0 text-[13.5px] text-dim">
+                  Latest {orders.length} orders. Open the investor for their onboarding, approvals,
+                  holdings, recent orders, and audit history.
+                </p>
+                <label className="text-[12.5px] font-semibold text-dim">
+                  Show
+                  <select
+                    value={orderFilter}
+                    onChange={(event) => setOrderFilter(event.target.value as OrderFilter)}
+                    className="ml-2 rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="created">Awaiting partner</option>
+                    <option value="accepted">Awaiting settlement</option>
+                    <option value="settled">Settled</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="expired">Expired</option>
+                  </select>
+                </label>
+              </div>
+              {visibleOrders.length === 0 ? (
+                <EmptyState
+                  icon={Receipt}
+                  title="No orders match this status"
+                  body="The order history is unchanged. Choose another status to inspect it."
+                  action={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setOrderFilter('all')}
+                    >
+                      Show all orders
+                    </Button>
+                  }
+                />
+              ) : (
+                <Table
+                  head={[
+                    { label: 'Placed', wide: true },
+                    'Investor',
+                    { label: 'Product', wide: true },
+                    { label: 'Partner', wide: true },
+                    'Amount',
+                    'Status',
+                  ]}
+                >
+                  {visibleOrders.map((o) => (
+                    <tr key={o.id}>
+                      <td className={CELL_WIDE}>{new Date(o.createdAt).toLocaleString()}</td>
+                      <td className={CELL}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(o.investorId)}
+                          className="break-all text-left font-semibold text-teal2 underline-offset-4 hover:underline"
+                        >
+                          {o.investorEmail ?? 'Open investor'}
+                        </button>
+                        <PhoneOnly>
+                          <span>{new Date(o.createdAt).toLocaleString()}</span>
+                          {o.instrumentName ? <span>{o.instrumentName}</span> : null}
+                          {o.partnerName ? <span>{o.partnerName}</span> : null}
+                        </PhoneOnly>
+                      </td>
+                      <td className={CELL_WIDE}>{o.instrumentName ?? '—'}</td>
+                      <td className={CELL_WIDE}>{o.partnerName ?? '—'}</td>
+                      <td className={CELL}>
+                        {fmtMinor(o.amountMinor, o.currency as ConsoleCurrency)}
+                      </td>
+                      <td className={CELL}>
+                        <Badge variant={o.status === 'settled' ? 'default' : 'secondary'}>
+                          {o.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              )}
+            </>
           ) : null}
 
           {!loading && !error && tab === 'Activity' && audit?.length === 0 ? (
@@ -971,64 +1417,104 @@ export default function AdminPage() {
 
           {!loading && !error && tab === 'Activity' && audit && audit.length > 0 ? (
             <>
-              <p className="mb-3 text-[13.5px] text-dim">
-                Appended by the database and never rewritten — updates and deletes on this table are
-                rejected outright.
-              </p>
-              <Table
-                head={[
-                  { label: '#', wide: true },
-                  'When',
-                  'Action',
-                  { label: 'Entity', wide: true },
-                  { label: 'Actor', wide: true },
-                ]}
-              >
-                {audit.map((a) => {
-                  /**
-                   * The writer's own identifiers, put into words. This printed
-                   * `instrument.listed` and the bare table name at the person
-                   * running the network — the same fix the partner console got,
-                   * from the same vocabulary, so the two surfaces cannot
-                   * disagree about what an action is called.
-                   */
-                  const why = auditReason(a.detail);
-                  const by =
-                    a.detail &&
-                    typeof a.detail === 'object' &&
-                    'by' in (a.detail as Record<string, unknown>) &&
-                    typeof (a.detail as Record<string, unknown>).by === 'string'
-                      ? ((a.detail as Record<string, unknown>).by as string)
-                      : null;
-                  return (
-                    <tr key={a.id}>
-                      <td className={CELL_WIDE}>{a.seq}</td>
-                      <td className={CELL}>{new Date(a.createdAt).toLocaleString()}</td>
-                      <td className={CELL}>
-                        <span className="font-semibold">{auditActionLabel(a.action)}</span>
-                        {a.subjectEmail || by ? (
-                          <div className="text-[12.5px] text-dim">
-                            {[
-                              a.subjectEmail ? `re ${a.subjectEmail}` : null,
-                              by ? `by ${by}` : null,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </div>
-                        ) : null}
-                        {why ? <div className="text-[12.5px] italic text-faint">{why}</div> : null}
-                        <PhoneOnly>
-                          <span>#{a.seq}</span>
-                          {a.entityType ? <span>{auditEntityLabel(a.entityType)}</span> : null}
-                          {a.actorType ? <span>{a.actorType}</span> : null}
-                        </PhoneOnly>
-                      </td>
-                      <td className={CELL_WIDE}>{auditEntityLabel(a.entityType) ?? '—'}</td>
-                      <td className={CELL_WIDE}>{a.actorType ?? '—'}</td>
-                    </tr>
-                  );
-                })}
-              </Table>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="mb-0 max-w-[70ch] text-[13.5px] text-dim">
+                  Appended by the database and never rewritten. Search the latest {audit.length}{' '}
+                  entries by action, person, entity, actor, or sequence.
+                </p>
+                <label className="min-w-[240px] flex-1 min-[760px]:max-w-[340px]">
+                  <span className="sr-only">Search recent activity</span>
+                  <input
+                    type="search"
+                    value={activityQuery}
+                    onChange={(event) => setActivityQuery(event.target.value)}
+                    placeholder="Search recent activity"
+                    className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                  />
+                </label>
+              </div>
+              {visibleAudit.length === 0 ? (
+                <EmptyState
+                  icon={History}
+                  title="No activity matches that search"
+                  body="Try an action such as “order”, a person’s email, an entity, or a sequence number."
+                  action={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setActivityQuery('')}
+                    >
+                      Clear search
+                    </Button>
+                  }
+                />
+              ) : (
+                <Table
+                  head={[
+                    { label: '#', wide: true },
+                    'When',
+                    'Action',
+                    { label: 'Entity', wide: true },
+                    { label: 'Actor', wide: true },
+                  ]}
+                >
+                  {visibleAudit.map((a) => {
+                    /**
+                     * The writer's own identifiers, put into words. This printed
+                     * `instrument.listed` and the bare table name at the person
+                     * running the network — the same fix the partner console got,
+                     * from the same vocabulary, so the two surfaces cannot
+                     * disagree about what an action is called.
+                     */
+                    const why = auditReason(a.detail);
+                    const by =
+                      a.detail &&
+                      typeof a.detail === 'object' &&
+                      'by' in (a.detail as Record<string, unknown>) &&
+                      typeof (a.detail as Record<string, unknown>).by === 'string'
+                        ? ((a.detail as Record<string, unknown>).by as string)
+                        : null;
+                    return (
+                      <tr key={a.id}>
+                        <td className={CELL_WIDE}>{a.seq}</td>
+                        <td className={CELL}>{new Date(a.createdAt).toLocaleString()}</td>
+                        <td className={CELL}>
+                          <span className="font-semibold">{auditActionLabel(a.action)}</span>
+                          {a.subjectEmail || by ? (
+                            <div className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-dim">
+                              {a.subjectEmail ? (
+                                a.userId ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelected(a.userId ?? null)}
+                                    className="font-semibold text-teal2 underline-offset-4 hover:underline"
+                                  >
+                                    re {a.subjectEmail}
+                                  </button>
+                                ) : (
+                                  <span>re {a.subjectEmail}</span>
+                                )
+                              ) : null}
+                              {by ? <span>by {by}</span> : null}
+                            </div>
+                          ) : null}
+                          {why ? (
+                            <div className="text-[12.5px] italic text-faint">{why}</div>
+                          ) : null}
+                          <PhoneOnly>
+                            <span>#{a.seq}</span>
+                            {a.entityType ? <span>{auditEntityLabel(a.entityType)}</span> : null}
+                            {a.actorType ? <span>{a.actorType}</span> : null}
+                          </PhoneOnly>
+                        </td>
+                        <td className={CELL_WIDE}>{auditEntityLabel(a.entityType) ?? '—'}</td>
+                        <td className={CELL_WIDE}>{a.actorType ?? '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </Table>
+              )}
             </>
           ) : null}
         </div>

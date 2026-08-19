@@ -389,7 +389,64 @@ export function PersonPanel({
             </div>
 
             <div>
-              <div className={LABEL}>Activity</div>
+              <div className={LABEL}>Pending investor decisions</div>
+              {detail.approvals.filter((approval) => approval.status === 'pending').length > 0 ? (
+                <ul className="mt-2 space-y-2 text-[13.5px]">
+                  {detail.approvals
+                    .filter((approval) => approval.status === 'pending')
+                    .map((approval) => (
+                      <li
+                        key={approval.id}
+                        className="rounded-[10px] border border-solid border-border px-3 py-2.5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold">{approval.title}</span>
+                          <Badge variant="secondary">Investor decides</Badge>
+                        </div>
+                        <div className="mt-1 text-[12.5px] text-faint">
+                          {approval.type.replace(/_/g, ' ')} · requested{' '}
+                          {timeAgo(approval.createdAt)}
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-[13.5px] text-dim">Nothing is waiting on this investor.</p>
+              )}
+
+              <div className={`${LABEL} mt-6`}>Recent orders</div>
+              {detail.orders.length > 0 ? (
+                <ul className="mt-2 space-y-2 text-[13.5px]">
+                  {detail.orders.map((order) => (
+                    <li
+                      key={order.id}
+                      className="rounded-[10px] border border-solid border-border px-3 py-2.5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="min-w-0 font-semibold">
+                          {order.instrumentName ?? 'Order without a linked product'}
+                        </span>
+                        <Badge variant={order.status === 'settled' ? 'default' : 'secondary'}>
+                          {order.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-faint">
+                        <span>{order.partnerName ?? 'Partner not recorded'}</span>
+                        <span className="font-mono text-dim">
+                          {fmtMinor(order.amountMinor, order.currency as ConsoleCurrency)}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[12px] text-faint">
+                        Placed {timeAgo(order.createdAt)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-[13.5px] text-dim">No orders recorded for this person.</p>
+              )}
+
+              <div className={`${LABEL} mt-6`}>Activity</div>
               <p className="mt-1 text-[12.5px] text-faint">
                 Appended by the database and never rewritten.
               </p>
