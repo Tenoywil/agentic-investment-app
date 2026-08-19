@@ -69,13 +69,13 @@ export function buildTools(ctx: AgentContext): ToolSet {
     }),
     get_allocation: tool({
       description:
-        "Get the user's portfolio allocation by asset type (with their band's target mix and the gap against it), by firm, and by currency. The result is shown to the user as a chart — use it for 'how am I invested', 'am I diversified', or any question about the right combination of assets. Don't re-list every number; add your judgment.",
+        "Get the user's portfolio allocation by asset type (with their band's target mix and the gap against it), by firm, and by currency. The result is shown in chat as a pie chart and a current-versus-target bar graph. Use it for 'how am I invested', 'am I diversified', any request to chart or graph the portfolio, or any question about the right combination of assets. Don't re-list every number; add your judgment.",
       inputSchema: z.object({}),
       execute: async () => ctx.getAllocation(),
     }),
     get_goals: tool({
       description:
-        "Get the user's goals: what each is for, how funded it is, and its horizon. The result is shown to the user as progress charts — use it for 'am I on track' questions. Don't re-list every number; add your judgment.",
+        "Get the user's goals: what each is for, how funded it is, and its horizon. The result is shown in chat as progress bar graphs. Use it for 'am I on track' questions and any request to chart or graph goal progress. Don't re-list every number; add your judgment.",
       inputSchema: z.object({}),
       execute: async () => ctx.getGoals(),
     }),

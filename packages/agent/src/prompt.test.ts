@@ -59,6 +59,13 @@ describe('the agent system prompt', () => {
     expect(SYSTEM_PROMPT).toContain('Conversation history preserves intent');
     expect(SYSTEM_PROMPT).toContain('ask one short clarifying question');
   });
+
+  it('requires explicit chart requests to produce a structured visual', () => {
+    expect(SYSTEM_PROMPT).toContain('never answer with prose alone');
+    expect(SYSTEM_PROMPT).toContain('allocation pie chart');
+    expect(SYSTEM_PROMPT).toContain('current-versus-target bar graph');
+    expect(SYSTEM_PROMPT).toContain('call get_goals');
+  });
 });
 
 describe('untrustedBlock', () => {

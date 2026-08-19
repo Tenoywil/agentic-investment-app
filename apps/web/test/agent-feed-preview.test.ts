@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'bun:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { AllocationDisplay } from '../app/_components/agent-displays';
 import { agentFeedPreview } from '../app/_lib/utils';
-import { streamAgentMessage } from '../lib/agent-api';
+import { type AllocationDisplayData, streamAgentMessage } from '../lib/agent-api';
 
 const realFetch = globalThis.fetch;
 
@@ -122,5 +125,44 @@ describe('agent SSE client', () => {
 
     expect(errors).toEqual(['the agent is temporarily unavailable']);
     expect(done).toBe(1);
+  });
+});
+
+describe('agent allocation visual', () => {
+  it('renders an accessible pie chart and current-versus-target bar graph', () => {
+    const data: AllocationDisplayData = {
+      currency: 'USD',
+      total: 'US$10,000',
+      band: 'balanced income',
+      byType: [
+        {
+          key: 'cash',
+          label: 'Cash',
+          valueMinor: '600000',
+          value: 'US$6,000',
+          pct: 60,
+          targetPct: 20,
+          gapPts: -40,
+        },
+        {
+          key: 'bond',
+          label: 'Bonds',
+          valueMinor: '400000',
+          value: 'US$4,000',
+          pct: 40,
+          targetPct: 50,
+          gapPts: 10,
+        },
+      ],
+      byPartner: [],
+      byCurrency: [],
+    };
+
+    const html = renderToStaticMarkup(createElement(AllocationDisplay, { data }));
+    expect(html).toContain('data-chart="allocation-pie"');
+    expect(html).toContain('Portfolio allocation pie chart: Cash 60%, Bonds 40%');
+    expect(html).toContain('data-chart="allocation-bars"');
+    expect(html).toContain('Bar graph comparing current portfolio allocation');
+    expect(html).toContain('Cash: 60% current, 20% target');
   });
 });

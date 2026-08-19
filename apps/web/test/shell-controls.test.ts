@@ -239,4 +239,11 @@ describe('app shell controls', () => {
     expect(agent).toContain('no transaction placed');
     expect(agent).toContain('no money moved');
   });
+
+  test('the demo agent uses the real inline chart renderer for visual requests', () => {
+    const agent = code(join(WEB, 'app/demo/agent/page.tsx'));
+    expect(agent).toContain('<AgentDisplayCard display={m.display} />');
+    expect(agent).toContain("kind: 'allocation'");
+    expect(agent).toMatch(/chart\|graph\|pie/);
+  });
 });

@@ -89,6 +89,44 @@ const DISPLAY_TOOLS: Record<string, AgentDisplayKind> = {
   run_pipeline: 'pipeline',
 };
 
+export type VisualToolName = 'get_allocation' | 'get_goals';
+
+/**
+ * Route current-account views and explicit visual requests to the read-only
+ * tool that owns the facts. This is intentionally narrow: a request for an
+ * unspecified "chart" still needs one short clarification, while "what am I
+ * invested in?", portfolio pies/bars and goal progress have an unambiguous
+ * source. The forced tool runs only on step zero; the model then receives its
+ * result and remains free to explain it normally.
+ */
+export function visualToolForRequest(message: string): VisualToolName | null {
+  const asksForVisual =
+    /\b(?:bar(?:\s+graph)?|chart|donut|graph|pie|plot|visuali[sz](?:e|ation))\b/i;
+  const visual = asksForVisual.test(message);
+
+  if (
+    /\b(?:am i on[ -]track|goal progress|how (?:close|funded) (?:am i|are my goals)|my goals?)\b/i.test(
+      message,
+    ) ||
+    (visual && /\b(?:goal|goals|funded|funding|on[ -]track|target progress)\b/i.test(message))
+  ) {
+    return 'get_goals';
+  }
+  if (
+    /\b(?:am i diversified|how am i invested|my allocation|my asset mix|my holdings|my portfolio|what am i invested in)\b/i.test(
+      message,
+    ) ||
+    (visual &&
+      /\b(?:allocation|asset mix|diversif(?:y|ied|ication)|holding|holdings|invested|portfolio)\b/i.test(
+        message,
+      )) ||
+    (visual && /\b(?:donut|pie)\b/i.test(message))
+  ) {
+    return 'get_allocation';
+  }
+  return null;
+}
+
 export interface RunAgentResult {
   /** The reply text, streamed. */
   textStream: AsyncIterable<string>;
@@ -127,6 +165,10 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
   const system = args.system ?? SYSTEM_PROMPT;
   const tools = buildTools(args.ctx);
   assertReadOnly(tools);
+  const visualTool = visualToolForRequest(args.message);
+  // A chart request must execute the data tool on this turn. Replaying a
+  // text-only cache entry would reproduce the exact defect this route fixes.
+  const cache = visualTool === null ? args.cache : undefined;
 
   const key = ResponseCache.key({
     system,
@@ -134,8 +176,8 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     message: args.message,
     scope: args.cacheScope ?? null,
   });
-  if (args.cache?.has(key)) {
-    return { textStream: once(args.cache.get(key) ?? ''), cached: true };
+  if (cache?.has(key)) {
+    return { textStream: once(cache.get(key) ?? ''), cached: true };
   }
 
   const messages: ModelMessage[] = [
@@ -152,6 +194,17 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     messages,
     tools,
     stopWhen: stepCountIs(args.maxSteps ?? 8),
+    ...(visualTool === null
+      ? {}
+      : {
+          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            stepNumber === 0
+              ? {
+                  activeTools: [visualTool],
+                  toolChoice: { type: 'tool' as const, toolName: visualTool },
+                }
+              : undefined,
+        }),
     onError: ({ error }) => args.onError?.(error),
     onStepFinish: ({ toolResults }) => {
       for (const r of toolResults) {
@@ -162,8 +215,6 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     },
   });
 
-  const textStream = args.cache
-    ? teeIntoCache(result.textStream, args.cache, key)
-    : result.textStream;
+  const textStream = cache ? teeIntoCache(result.textStream, cache, key) : result.textStream;
   return { textStream, cached: false };
 }
