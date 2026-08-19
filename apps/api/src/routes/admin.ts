@@ -11,7 +11,7 @@ import {
   userProfiles,
   userRoles,
 } from '@ccn/db';
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
@@ -29,23 +29,21 @@ import { refreshFxRates } from '../services/fx';
  * onboarding", "what is this partner actually offering" or "what changed today"
  * meant opening a SQL client against production.
  *
- * **Read-only, enforced by the database.** 0008_admin_read.sql grants `admin`
- * SELECT and nothing else, so a handler here that tried to write across tenants
- * would be refused by Postgres rather than by a code review. Everything that
- * changes state keeps going through the choke points the product already has —
- * `create_order`, `accept_order`, `settle_order`, the limits engine, the
- * approval loop — so an administrative screen can never become a second,
- * unaudited way to move money.
+ * **Read-only by default, enforced by the database.** 0008_admin_read.sql grants
+ * the cross-tenant SELECT. Later migrations open a deliberately small set of
+ * audited correction paths: roles, partner reference facts, marketplace status,
+ * and reference data. Money and investor decisions still go only through
+ * `create_order`, `accept_order`, `settle_order`, the limits engine, and the
+ * approval loop, so administration never becomes a second execution path.
  *
  * Counts are computed in SQL rather than by loading rows and measuring the
  * array, because this is the one surface whose queries are unbounded by a
  * tenant and the difference is the whole table.
  *
- * The one write: a person's roles. 0009_admin_role_writes.sql opens
- * `user_roles` and nothing else, and refuses `admin` at the policy — the only
- * route to becoming an administrator stays the ADMIN_EMAILS environment
- * variable, so a compromised admin account cannot promote a second one. Every
- * change goes through `audit_append`, which is append-only by trigger.
+ * Role correction remains especially constrained: 0009_admin_role_writes.sql
+ * refuses `admin` at the policy, so the only route to becoming an administrator
+ * stays the ADMIN_EMAILS environment variable. Every correction goes through
+ * `audit_append`, which is append-only by trigger.
  *
  * What is deliberately absent: subscriptions and billing. There is no such
  * table in this schema, and inventing a figure on an administrative screen —
@@ -103,7 +101,8 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
           count(*) filter (where status = 'created')  as created,
           count(*) filter (where status = 'accepted') as accepted,
           count(*) filter (where status = 'settled')  as settled,
-          count(*) filter (where status = 'rejected') as rejected
+          count(*) filter (where status = 'rejected') as rejected,
+          count(*) filter (where status = 'expired')  as expired
         from orders
       `)) as unknown as [Record<string, string>];
 
@@ -155,6 +154,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
       },
       onboarding: {
         started: n(data.onboarding?.profiles),
+        notStarted: Math.max(0, n(data.roleCounts?.total) - n(data.onboarding?.profiles)),
         tierNone: n(data.onboarding?.tier_none),
         tier1: n(data.onboarding?.tier1),
         tier2: n(data.onboarding?.tier2),
@@ -175,6 +175,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         accepted: n(data.orderCounts?.accepted),
         settled: n(data.orderCounts?.settled),
         rejected: n(data.orderCounts?.rejected),
+        expired: n(data.orderCounts?.expired),
       },
       approvals: { pending: n(data.approvalRow?.pending) },
     });
@@ -194,6 +195,12 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
      * two things an administrator is actually handed: a name or an email.
      */
     const q = (c.req.query('q') ?? '').trim();
+    const attention = c.req.query('attention');
+    const ATTENTION = ['kyc', 'approvals', 'unassigned'] as const;
+    if (attention && !(ATTENTION as readonly string[]).includes(attention)) {
+      return c.json({ error: `attention must be one of ${ATTENTION.join(', ')}` }, 400);
+    }
+    const attentionFilter = attention as (typeof ATTENTION)[number] | undefined;
 
     /**
      * People first, roles second — two queries rather than one join with a
@@ -202,65 +209,97 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
      * partners each would silently push real people off the end of a list whose
      * whole purpose is to be complete.
      */
-    const { people, roles, positions } = await withTenant(deps, tenant, async (tx) => {
-      const found = await tx
-        .select({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          createdAt: user.createdAt,
-          kycTier: kycStatus.tier,
-          identityVerified: kycStatus.identityVerified,
-          complianceConfirmed: kycStatus.complianceConfirmed,
-          riskCompleted: kycStatus.riskCompleted,
-          fundsConfirmed: kycStatus.fundsConfirmed,
-          residency: userProfiles.residencyCountry,
-        })
-        .from(user)
-        .leftJoin(kycStatus, eq(kycStatus.userId, user.id))
-        .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
-        .where(q ? or(ilike(user.name, `%${q}%`), ilike(user.email, `%${q}%`)) : undefined)
-        .orderBy(desc(user.createdAt))
-        .limit(limit);
-      const ids = found.map((p) => p.id);
-      return {
-        people: found,
-        roles: ids.length
-          ? await tx
-              .select({
-                userId: userRoles.userId,
-                role: userRoles.role,
-                partnerId: userRoles.partnerId,
-                // The firm's code, so an operator row can say "SAG" rather
-                // than a uuid nobody can act on.
-                partnerCode: partners.code,
-              })
-              .from(userRoles)
-              .leftJoin(partners, eq(partners.id, userRoles.partnerId))
-              .where(inArray(userRoles.userId, ids))
-          : [],
-        /**
-         * What each person actually holds. The route has always promised "how
-         * far through onboarding they are, and what they hold" and served only
-         * the first half — the list showed a person's paperwork and nothing
-         * about their money. Values are summed in USD minor units per holding
-         * currency-converted nowhere: mixing currencies into one sum without a
-         * rate table would misstate it, so the count is exact and the sum is
-         * only of USD-denominated lines, labelled as such by the client.
-         */
-        positions: ids.length
-          ? await tx
-              .select({
-                userId: holdings.userId,
-                holdings: sql<string>`count(*)`,
-                usdMinor: sql<string>`coalesce(sum(${holdings.valueMinor}) filter (where ${holdings.currency} = 'USD'), 0)`,
-              })
-              .from(holdings)
-              .where(inArray(holdings.userId, ids))
-              .groupBy(holdings.userId)
-          : [],
-      };
-    });
+    const { people, roles, positions, approvalCounts } = await withTenant(
+      deps,
+      tenant,
+      async (tx) => {
+        const searchFilter = q
+          ? or(ilike(user.name, `%${q}%`), ilike(user.email, `%${q}%`))
+          : undefined;
+        const queueFilter =
+          attentionFilter === 'kyc'
+            ? or(isNull(kycStatus.tier), eq(kycStatus.tier, 'none'))
+            : attentionFilter === 'approvals'
+              ? sql<boolean>`exists (
+                  select 1 from approvals pending_approval
+                   where pending_approval.user_id = ${user.id}
+                     and pending_approval.status = 'pending'
+                )`
+              : attentionFilter === 'unassigned'
+                ? sql<boolean>`not exists (
+                    select 1 from user_roles assigned_role
+                     where assigned_role.user_id = ${user.id}
+                  )`
+                : undefined;
+        const found = await tx
+          .select({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            createdAt: user.createdAt,
+            kycTier: kycStatus.tier,
+            identityVerified: kycStatus.identityVerified,
+            complianceConfirmed: kycStatus.complianceConfirmed,
+            riskCompleted: kycStatus.riskCompleted,
+            fundsConfirmed: kycStatus.fundsConfirmed,
+            residency: userProfiles.residencyCountry,
+          })
+          .from(user)
+          .leftJoin(kycStatus, eq(kycStatus.userId, user.id))
+          .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+          .where(and(searchFilter, queueFilter))
+          .orderBy(desc(user.createdAt))
+          .limit(limit);
+        const ids = found.map((p) => p.id);
+        return {
+          people: found,
+          roles: ids.length
+            ? await tx
+                .select({
+                  userId: userRoles.userId,
+                  role: userRoles.role,
+                  partnerId: userRoles.partnerId,
+                  // The firm's code, so an operator row can say "SAG" rather
+                  // than a uuid nobody can act on.
+                  partnerCode: partners.code,
+                })
+                .from(userRoles)
+                .leftJoin(partners, eq(partners.id, userRoles.partnerId))
+                .where(inArray(userRoles.userId, ids))
+            : [],
+          /**
+           * What each person actually holds. The route has always promised "how
+           * far through onboarding they are, and what they hold" and served only
+           * the first half — the list showed a person's paperwork and nothing
+           * about their money. Values are summed in USD minor units per holding
+           * currency-converted nowhere: mixing currencies into one sum without a
+           * rate table would misstate it, so the count is exact and the sum is
+           * only of USD-denominated lines, labelled as such by the client.
+           */
+          positions: ids.length
+            ? await tx
+                .select({
+                  userId: holdings.userId,
+                  holdings: sql<string>`count(*)`,
+                  usdMinor: sql<string>`coalesce(sum(${holdings.valueMinor}) filter (where ${holdings.currency} = 'USD'), 0)`,
+                })
+                .from(holdings)
+                .where(inArray(holdings.userId, ids))
+                .groupBy(holdings.userId)
+            : [],
+          approvalCounts: ids.length
+            ? await tx
+                .select({
+                  userId: approvals.userId,
+                  pending: sql<string>`count(*)`,
+                })
+                .from(approvals)
+                .where(and(inArray(approvals.userId, ids), eq(approvals.status, 'pending')))
+                .groupBy(approvals.userId)
+            : [],
+        };
+      },
+    );
 
     const held = new Map<
       string,
@@ -275,6 +314,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     }
 
     const byPerson = new Map(positions.map((r) => [r.userId, r]));
+    const approvalsByPerson = new Map(approvalCounts.map((r) => [r.userId, Number(r.pending)]));
     return c.json({
       investors: people.map((p) => ({
         ...p,
@@ -283,6 +323,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         partnerCode: held.get(p.id)?.partnerCode ?? null,
         holdingsCount: Number(byPerson.get(p.id)?.holdings ?? 0),
         usdValueMinor: String(byPerson.get(p.id)?.usdMinor ?? 0),
+        pendingApprovals: approvalsByPerson.get(p.id) ?? 0,
       })),
     });
   });
@@ -521,14 +562,41 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
    * A firm can pause its own product; until 0022 nobody else could, so a
    * listing flagged by a regulator or listed in error could only be withdrawn
    * with SQL against production. The write is the admin's own, through the
-   * `instruments_admin_correct` policy, flips `listing_status` and nothing
-   * else, and is audited with who did it — the pause gates the marketplace
-   * query and both order paths, exactly as the firm's own switch does.
+   * `instruments_admin_correct` policy, changes `listing_status` and nothing
+   * else, and is audited with who did it and why. Expected status is checked in
+   * the UPDATE so a stale takedown dialog can never restore a listing (or vice
+   * versa) after somebody else changes it.
    */
   app.post('/products/:id/toggle', async (c) => {
     const tenant = c.get('tenant');
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const id = c.req.param('id');
+    const body = (await c.req.json().catch(() => null)) as {
+      status?: unknown;
+      expectedStatus?: unknown;
+      reason?: unknown;
+    } | null;
+    const status = body?.status;
+    const expectedStatus = body?.expectedStatus;
+    if (
+      (status !== 'live' && status !== 'paused') ||
+      (expectedStatus !== 'live' && expectedStatus !== 'paused')
+    ) {
+      return c.json(
+        { error: 'Choose a live or paused status and refresh the listing first.' },
+        400,
+      );
+    }
+    if (status === expectedStatus) {
+      return c.json({ error: `The listing is already expected to be ${status}.` }, 400);
+    }
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+    if (reason.length < 8) {
+      return c.json({ error: 'Give a short reason (at least 8 characters) for this change.' }, 400);
+    }
+    if (reason.length > 240) {
+      return c.json({ error: 'Keep the reason to 240 characters or fewer.' }, 400);
+    }
 
     const attempted = await attempt(() =>
       withTenant(deps, tenant, async (tx) => {
@@ -539,14 +607,25 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
           .limit(1);
         if (!before) return { error: 'not found' as const, httpStatus: 404 as const };
 
-        const next = before.status === 'live' ? ('paused' as const) : ('live' as const);
+        if (before.status !== expectedStatus) {
+          return {
+            error:
+              'The listing changed while you were reviewing it. Close this dialog and review the current status before trying again.' as const,
+            httpStatus: 409 as const,
+          };
+        }
+        const next = status;
         const [row] = await tx
           .update(instruments)
           .set({ listingStatus: next, updatedAt: new Date() })
-          .where(eq(instruments.id, id))
+          .where(and(eq(instruments.id, id), eq(instruments.listingStatus, expectedStatus)))
           .returning({ status: instruments.listingStatus });
         if (!row) {
-          return { error: 'the listing was not changed' as const, httpStatus: 400 as const };
+          return {
+            error:
+              'The listing changed while you were reviewing it. Close this dialog and review the current status before trying again.' as const,
+            httpStatus: 409 as const,
+          };
         }
 
         await auditAppend(tx, {
@@ -557,7 +636,13 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
           action: next === 'paused' ? 'instrument.paused' : 'instrument.live',
           entityType: 'instruments',
           entityId: id,
-          detail: { name: before.name, from: before.status, to: next, by: tenant.user.email },
+          detail: {
+            name: before.name,
+            from: before.status,
+            to: next,
+            reason,
+            by: tenant.user.email,
+          },
         });
         return { status: row.status };
       }),
@@ -565,7 +650,11 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
     if ('pending' in attempted) return c.json({ error: MIGRATION_PENDING }, 503);
     const result = attempted.ok;
     if ('error' in result) return c.json({ error: result.error }, result.httpStatus);
-    deps.logger.info('administrator toggled a listing', { actor: tenant.user.id, id });
+    deps.logger.info('administrator changed a listing status', {
+      actor: tenant.user.id,
+      id,
+      status: result.status,
+    });
     return c.json(result);
   });
 
@@ -584,6 +673,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
       tx
         .select({
           id: orders.id,
+          investorId: orders.userId,
           status: orders.status,
           amountMinor: orders.amountMinor,
           currency: orders.currency,
@@ -624,6 +714,7 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
           entityType: auditLog.entityType,
           entityId: auditLog.entityId,
           actorType: auditLog.actorType,
+          userId: auditLog.userId,
           // Who it concerned and what the writer recorded — the two halves
           // that turn "user_roles.changed" into an answerable question.
           subjectEmail: user.email,
@@ -655,8 +746,28 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         .where(eq(userProfiles.userId, id))
         .limit(1);
       const held = await tx.select().from(holdings).where(eq(holdings.userId, id));
-      const waiting = await tx.select().from(approvals).where(eq(approvals.userId, id));
-      return { person, roles, kyc, profile, held, waiting };
+      const waiting = await tx
+        .select()
+        .from(approvals)
+        .where(and(eq(approvals.userId, id), eq(approvals.status, 'pending')))
+        .orderBy(desc(approvals.createdAt));
+      const recentOrders = await tx
+        .select({
+          id: orders.id,
+          status: orders.status,
+          amountMinor: orders.amountMinor,
+          currency: orders.currency,
+          partnerName: partners.name,
+          instrumentName: instruments.name,
+          createdAt: orders.createdAt,
+        })
+        .from(orders)
+        .leftJoin(partners, eq(partners.id, orders.partnerId))
+        .leftJoin(instruments, eq(instruments.id, orders.instrumentId))
+        .where(eq(orders.userId, id))
+        .orderBy(desc(orders.createdAt))
+        .limit(20);
+      return { person, roles, kyc, profile, held, waiting, recentOrders };
     });
 
     if (!data) return c.json({ error: 'not found' }, 404);
@@ -678,6 +789,10 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
         title: a.title,
         status: a.status,
         createdAt: a.createdAt,
+      })),
+      orders: data.recentOrders.map((o) => ({
+        ...o,
+        amountMinor: String(o.amountMinor),
       })),
     });
   });
