@@ -26,6 +26,7 @@ const inst = (
   over: Partial<SnapshotInstrument> &
     Pick<SnapshotInstrument, 'id' | 'slug' | 'type' | 'name' | 'risk'>,
 ): SnapshotInstrument => ({
+  partnerId: 'ncb',
   abbr: over.id.slice(0, 3).toUpperCase(),
   region: null,
   metricLabel: null,
@@ -86,6 +87,7 @@ export function sampleSnapshot(): AgentSnapshot {
         risk: 'medium',
         region: 'Jamaica · Commercial property',
         minInvestmentMinor: 500_000n,
+        partnerId: 'sag',
         partnerName: 'Sagicor',
       }),
       inst({
@@ -96,6 +98,7 @@ export function sampleSnapshot(): AgentSnapshot {
         risk: 'high',
         region: 'Regional · Private credit',
         minInvestmentMinor: 1_000_000n,
+        partnerId: 'sygnus',
         partnerName: 'Sygnus',
       }),
       inst({
@@ -106,6 +109,7 @@ export function sampleSnapshot(): AgentSnapshot {
         risk: 'high',
         region: 'St. Lucia · Pre-construction',
         minInvestmentMinor: 2_500_000n,
+        partnerId: 'sygnus',
         partnerName: 'Sygnus',
         blocked: true,
         blockReasons: [
@@ -152,12 +156,26 @@ export function sampleSnapshot(): AgentSnapshot {
       ],
       connections: [
         {
+          partnerId: 'sag',
           partner: 'Sagicor Investments',
           status: 'pending',
           declineReason: null,
           requestedAt: '2026-08-11T16:00:00.000Z',
         },
+        {
+          partnerId: 'ncb',
+          partner: 'NCB',
+          status: 'active',
+          declineReason: null,
+          requestedAt: '2026-01-10T12:00:00.000Z',
+        },
       ],
+    },
+    compliance: {
+      identityVerified: true,
+      complianceConfirmed: true,
+      riskCompleted: true,
+      fundsConfirmed: true,
     },
     goals: [
       {

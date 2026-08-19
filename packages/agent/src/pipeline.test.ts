@@ -1,8 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { type PipelineCandidate, runProposalPipeline } from './pipeline';
+import {
+  type ComplianceVerdict,
+  type PipelineCandidate,
+  type PipelineInput,
+  runProposalPipeline as executeProposalPipeline,
+} from './pipeline';
 
 /**
- * The three-specialist pipeline, deterministically. What matters: research
+ * The pipeline, deterministically. What matters: research
  * ranks gentlest-first and honours the quiet set; suitability keeps every
  * verdict including the losers'; coordination appears only when something was
  * chosen and always routes to an approval; and the trace tells the story a
@@ -10,6 +15,14 @@ import { type PipelineCandidate, runProposalPipeline } from './pipeline';
  */
 
 const fmt = (minor: bigint) => `US$${(Number(minor) / 100).toLocaleString('en-US')}`;
+const clearedCompliance = (): ComplianceVerdict => ({
+  decision: 'clear',
+  reasons: [],
+  checks: ['Test readiness verified'],
+});
+const runProposalPipeline = (
+  input: Omit<PipelineInput, 'compliance'> & Pick<Partial<PipelineInput>, 'compliance'>,
+) => executeProposalPipeline({ ...input, compliance: input.compliance ?? clearedCompliance });
 
 const c = (
   id: string,
@@ -46,8 +59,13 @@ describe('proposal pipeline', () => {
     expect(outcome.chosen?.candidate.instrumentId).toBe('mild');
     // First fit stops the screening — no need to gate the rest.
     expect(gated).toHaveLength(1);
-    expect(outcome.trace.map((t) => t.stage)).toEqual(['research', 'suitability', 'coordination']);
-    expect(outcome.trace[2]?.summary).toContain('approval');
+    expect(outcome.trace.map((t) => t.stage)).toEqual([
+      'research',
+      'suitability',
+      'compliance',
+      'coordination',
+    ]);
+    expect(outcome.trace[3]?.summary).toContain('approval');
   });
 
   test('rejections stay on the record and the next candidate is tried', async () => {
@@ -67,7 +85,7 @@ describe('proposal pipeline', () => {
     );
     expect(suitability?.detail.join('\n')).toContain('Beta Bond: fits');
     // Even an auto-act verdict routes to an approval on this path.
-    expect(outcome.trace[2]?.detail.join('\n')).toContain('approval card');
+    expect(outcome.trace[3]?.detail.join('\n')).toContain('approval card');
   });
 
   test('the quiet set is honoured and an empty outcome still explains itself', async () => {
@@ -80,16 +98,80 @@ describe('proposal pipeline', () => {
       },
     });
     expect(outcome.chosen).toBeNull();
-    expect(outcome.trace).toHaveLength(2); // no coordination stage without a choice
+    expect(outcome.trace).toHaveLength(3); // compliance records the empty handoff; no coordination
     expect(outcome.trace[0]?.summary).toContain('resting after a recent proposal');
     expect(outcome.trace[1]?.summary).toContain('Nothing reached screening');
+  });
+
+  test('compliance clears after suitability and leaves its evidence in the trace', async () => {
+    const outcome = await runProposalPipeline({
+      candidates: [c('a', 'low', 100n, 'Alpha Fund')],
+      excluded: new Set(),
+      fmt,
+      gate: () => ({ decision: 'requires_approval', code: 'above_auto_invest' }),
+      compliance: () => ({
+        decision: 'clear',
+        reasons: [],
+        checks: ['Identity verified', 'Active account with NCB'],
+      }),
+    });
+    expect(outcome.chosen?.candidate.instrumentId).toBe('a');
+    expect(outcome.trace.map((trace) => trace.stage)).toEqual([
+      'research',
+      'suitability',
+      'compliance',
+      'coordination',
+    ]);
+    expect(
+      outcome.trace.find((trace) => trace.stage === 'compliance')?.detail.join('\n'),
+    ).toContain('Identity verified');
+  });
+
+  test('a compliance refusal tries the next suitable candidate and records both handoffs', async () => {
+    const outcome = await runProposalPipeline({
+      candidates: [c('a', 'low', 100n, 'Alpha Fund'), c('b', 'low', 200n, 'Beta Bond')],
+      excluded: new Set(),
+      fmt,
+      gate: () => ({ decision: 'requires_approval', code: 'above_auto_invest' }),
+      compliance: (candidate) =>
+        candidate.instrumentId === 'a'
+          ? {
+              decision: 'blocked',
+              reasons: ['There is no active account with the executing firm.'],
+              checks: ['Identity verified'],
+            }
+          : { decision: 'clear', reasons: [], checks: ['All checks clear'] },
+    });
+    expect(outcome.chosen?.candidate.instrumentId).toBe('b');
+    const suitability = outcome.trace.find((trace) => trace.stage === 'suitability');
+    expect(suitability?.detail.join('\n')).toContain('Alpha Fund: fits');
+    expect(suitability?.detail.join('\n')).toContain('Beta Bond: fits');
+    const compliance = outcome.trace.find((trace) => trace.stage === 'compliance');
+    expect(compliance?.detail.join('\n')).toContain('Alpha Fund: stopped');
+    expect(compliance?.detail.join('\n')).toContain('Beta Bond: cleared');
+  });
+
+  test('a compliance lookup failure fails closed without leaking the exception', async () => {
+    const outcome = await runProposalPipeline({
+      candidates: [c('a', 'low', 100n, 'Alpha Fund')],
+      excluded: new Set(),
+      fmt,
+      gate: () => ({ decision: 'requires_approval', code: 'above_auto_invest' }),
+      compliance: () => {
+        throw new Error('database detail that must not be shown');
+      },
+    });
+    expect(outcome.chosen).toBeNull();
+    const detail = outcome.trace.find((trace) => trace.stage === 'compliance')?.detail.join('\n');
+    expect(detail).toContain('Compliance readiness could not be verified');
+    expect(detail).not.toContain('database detail');
   });
 });
 
 /**
- * The injected specialists — research signal, portfolio fit, sizing policy.
- * All optional (the tests above prove the caller that passes none is
- * untouched); with them, ranking runs on conviction, contradicted evidence is
+ * The injected enrichment specialists — research signal, portfolio fit and
+ * sizing policy — are optional; compliance is always explicit. With the
+ * enrichments, ranking runs on conviction, contradicted evidence is
  * a veto, low conviction is passed over even when the limits fit, and any
  * size above the minimum is re-gated before it is proposed.
  */
@@ -122,6 +204,7 @@ describe('proposal pipeline with research, fit and sizing', () => {
       'research',
       'fit',
       'suitability',
+      'compliance',
       'coordination',
     ]);
     expect(outcome.trace[0]?.summary).toContain('strongest conviction first');

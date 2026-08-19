@@ -5,6 +5,8 @@ import {
   instruments,
   kycDocuments,
   orders as ordersTable,
+  partnerWebhookDeliveries,
+  partnerWebhookEndpoints,
   partners,
   reconciliationItems,
   user as userTable,
@@ -17,6 +19,7 @@ import {
   decideWithdrawalSchema,
   listInstrumentSchema,
   partnerProfileSchema,
+  partnerWebhookSchema,
   rejectSchema,
   settleOrderSchema,
 } from '@ccn/domain';
@@ -47,6 +50,7 @@ import {
 import { requireAuth } from '../middleware';
 import { renderContractNote } from '../services/contract-note';
 import { pullStatements } from '../services/ingestion';
+import type { PartnerWebhookAdminRuntime } from '../services/partner-webhooks';
 import { maskRef } from './util';
 
 const RECEIPT_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -151,7 +155,10 @@ function readPage(c: Context<AppEnv>): { limit: number; offset: number } {
   };
 }
 
-export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
+export function consoleRoutes(
+  deps: AppDeps,
+  partnerWebhooks: PartnerWebhookAdminRuntime,
+): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
 
@@ -413,6 +420,192 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         .limit(limit),
     );
     return c.json({ entries });
+  });
+
+  /**
+   * Optional machine-to-machine export of the same immutable audit stream.
+   * Only sanitized endpoint metadata and tenant-scoped delivery history leave
+   * this route; the encrypted signing secret is never selected.
+   */
+  app.get('/webhook', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const result = await withTenant(deps, tenant, async (tx) => {
+      const [endpoint] = await tx
+        .select({
+          id: partnerWebhookEndpoints.id,
+          url: partnerWebhookEndpoints.url,
+          active: partnerWebhookEndpoints.active,
+          createdAt: partnerWebhookEndpoints.createdAt,
+          updatedAt: partnerWebhookEndpoints.updatedAt,
+        })
+        .from(partnerWebhookEndpoints)
+        .where(eq(partnerWebhookEndpoints.partnerId, scope.partnerId));
+      const deliveries = await tx
+        .select({
+          id: partnerWebhookDeliveries.id,
+          eventId: partnerWebhookDeliveries.eventId,
+          eventType: partnerWebhookDeliveries.eventType,
+          status: partnerWebhookDeliveries.status,
+          attemptCount: partnerWebhookDeliveries.attemptCount,
+          responseStatus: partnerWebhookDeliveries.responseStatus,
+          lastError: partnerWebhookDeliveries.lastError,
+          lastAttemptAt: partnerWebhookDeliveries.lastAttemptAt,
+          nextAttemptAt: partnerWebhookDeliveries.nextAttemptAt,
+          deliveredAt: partnerWebhookDeliveries.deliveredAt,
+          createdAt: partnerWebhookDeliveries.createdAt,
+        })
+        .from(partnerWebhookDeliveries)
+        .where(eq(partnerWebhookDeliveries.partnerId, scope.partnerId))
+        .orderBy(desc(partnerWebhookDeliveries.createdAt))
+        .limit(20);
+      return { endpoint: endpoint ?? null, deliveries };
+    });
+    return c.json({ ...result, allowedHosts: partnerWebhooks.allowedHosts });
+  });
+
+  /** Create or update the endpoint; a new/rotated secret is shown once. */
+  app.put('/webhook', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const parsed = partnerWebhookSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+    }
+    try {
+      await partnerWebhooks.assertTarget(parsed.data.url);
+    } catch {
+      return c.json(
+        {
+          error: 'That destination is not an approved public webhook host.',
+          allowedHosts: partnerWebhooks.allowedHosts,
+        },
+        400,
+      );
+    }
+
+    const result = await withTenant(deps, tenant, async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(partnerWebhookEndpoints)
+        .where(eq(partnerWebhookEndpoints.partnerId, scope.partnerId));
+      const endpointId = existing?.id ?? partnerWebhooks.newEndpointId();
+      const shouldRotate = !existing || parsed.data.rotateSecret;
+      const signingSecret = shouldRotate ? partnerWebhooks.newSigningSecret() : null;
+      const secretCiphertext = signingSecret
+        ? await partnerWebhooks.encryptSecret(signingSecret, endpointId)
+        : existing?.secretCiphertext;
+      if (!secretCiphertext) throw new Error('webhook secret was not available');
+
+      const now = new Date();
+      if (existing) {
+        await tx
+          .update(partnerWebhookEndpoints)
+          .set({
+            url: parsed.data.url,
+            active: parsed.data.active,
+            secretCiphertext,
+            updatedBy: tenant.user.id,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(partnerWebhookEndpoints.id, endpointId),
+              eq(partnerWebhookEndpoints.partnerId, scope.partnerId),
+            ),
+          );
+      } else {
+        await tx.insert(partnerWebhookEndpoints).values({
+          id: endpointId,
+          partnerId: scope.partnerId,
+          url: parsed.data.url,
+          active: parsed.data.active,
+          secretCiphertext,
+          createdBy: tenant.user.id,
+          updatedBy: tenant.user.id,
+        });
+      }
+
+      const action = !existing
+        ? 'webhook.configured'
+        : shouldRotate
+          ? 'webhook.secret_rotated'
+          : existing.active !== parsed.data.active
+            ? parsed.data.active
+              ? 'webhook.enabled'
+              : 'webhook.disabled'
+            : 'webhook.updated';
+      await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: scope.partnerId,
+        action,
+        entityType: 'partner_webhook_endpoint',
+        entityId: endpointId,
+        detail: {
+          active: parsed.data.active,
+          endpointHost: new URL(parsed.data.url).hostname,
+          secretRotated: shouldRotate,
+        },
+      });
+      return {
+        endpoint: {
+          id: endpointId,
+          url: parsed.data.url,
+          active: parsed.data.active,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        },
+        signingSecret,
+      };
+    });
+    deps.logger.info('partner webhook configuration changed', {
+      partner: scope.partnerId,
+      active: result.endpoint.active,
+      secretRotated: result.signingSecret !== null,
+    });
+    return c.json(result);
+  });
+
+  /** Queue a signed test event through the exact production outbox path. */
+  app.post('/webhook/test', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+
+    const result = await withTenant(deps, tenant, async (tx) => {
+      const [endpoint] = await tx
+        .select({ id: partnerWebhookEndpoints.id, active: partnerWebhookEndpoints.active })
+        .from(partnerWebhookEndpoints)
+        .where(eq(partnerWebhookEndpoints.partnerId, scope.partnerId));
+      if (!endpoint) return { error: 'Configure a webhook before sending a test.' as const };
+      if (!endpoint.active) return { error: 'Enable the webhook before sending a test.' as const };
+      const eventId = await auditAppend(tx, {
+        actorType: 'user',
+        actorId: tenant.user.id,
+        userId: tenant.user.id,
+        partnerId: scope.partnerId,
+        action: 'webhook.test',
+        entityType: 'partner_webhook_endpoint',
+        entityId: endpoint.id,
+        detail: { requestedBy: tenant.user.name },
+      });
+      return { eventId };
+    });
+    if ('error' in result) return c.json(result, 409);
+    deps.logger.info('partner webhook test queued', {
+      partner: scope.partnerId,
+      eventId: result.eventId,
+    });
+    return c.json({ queued: true, eventId: result.eventId }, 202);
   });
 
   /**

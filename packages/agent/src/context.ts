@@ -10,7 +10,7 @@ import {
 import { type LimitsDecision, evaluate } from '@ccn/limits-engine';
 import { type Currency, convert, formatMoney, money } from '@ccn/money';
 import { type FitResult, assessPortfolioFit } from './fit';
-import { type StageTrace, runProposalPipeline } from './pipeline';
+import { type StageTrace, assessTransactionCompliance, runProposalPipeline } from './pipeline';
 import type { AgentSnapshot, SnapshotInstrument } from './snapshot';
 
 /**
@@ -38,7 +38,7 @@ export interface AgentContext {
   compareOpportunities(input: { instrumentIds: string[] }): ComparisonView;
   proposeMove(input: { instrumentId: string; amountMinor: number }): ProposalView;
   /** Run the multi-specialist pipeline (research → fit → suitability →
-   *  coordination) over the whole marketplace snapshot. Read/propose only,
+   *  compliance → coordination) over the whole marketplace snapshot. Read/propose only,
    *  like everything here — the outcome is a recommendation with its working
    *  shown. */
   scoutMarketplace(): Promise<ScoutView>;
@@ -281,6 +281,20 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
    *  agent must never do is stack a second one on top of it. */
   const pendingCardFor = (instrumentId: string) =>
     snapshot.activity.approvals.find((a) => a.instrumentId === instrumentId);
+
+  /** One compliance policy for direct proposals and autonomous scouting. A
+   * model choosing the narrower propose_move tool must not route around the
+   * readiness stage used by the full specialist pipeline. */
+  const complianceFor = (inst: SnapshotInstrument) =>
+    assessTransactionCompliance({
+      ...snapshot.compliance,
+      activeExecutingFirm:
+        inst.partnerId !== null &&
+        snapshot.activity.connections.some(
+          (connection) => connection.partnerId === inst.partnerId && connection.status === 'active',
+        ),
+      executingFirmName: inst.partnerName,
+    });
 
   return {
     getActivity() {
@@ -568,6 +582,22 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
         },
         band: snapshot.band,
       });
+      if (decision.decision !== 'blocked') {
+        const compliance = complianceFor(inst);
+        if (compliance.decision === 'blocked') {
+          return {
+            instrumentId,
+            name: inst.name,
+            amount: formatMoney(amount),
+            amountMinor: amount.minor.toString(),
+            decision: 'blocked',
+            code: 'compliance_not_ready',
+            reasons: compliance.reasons,
+            requiresHumanApproval: true,
+            summary: `I will not prepare this until the compliance checks are complete: ${compliance.reasons.join('; ')}`,
+          };
+        }
+      }
       const reasons =
         decision.decision === 'blocked'
           ? decision.reasons
@@ -602,7 +632,7 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
     },
 
     /**
-     * The three-specialist pipeline over the snapshot — the same stages the
+     * The five-specialist pipeline over the snapshot — the same stages the
      * background sweep runs, gated by the same Limits Engine, with the same
      * visible trace. The chat's gate is the snapshot-backed evaluate; the
      * sweep's is the DB-backed one; the pipeline cannot tell them apart.
@@ -640,6 +670,16 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
           const inst = byId.get(c.instrumentId);
           if (!inst) return { score: 0, reasons: [], concerns: ['Unknown instrument.'] };
           return fitFor(inst);
+        },
+        compliance: (c) => {
+          const inst = byId.get(c.instrumentId);
+          return inst
+            ? complianceFor(inst)
+            : {
+                decision: 'blocked' as const,
+                reasons: ['The executing firm could not be verified.'],
+                checks: [],
+              };
         },
         gate: (c, amountMinor) => {
           const inst = byId.get(c.instrumentId);

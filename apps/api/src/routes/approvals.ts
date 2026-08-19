@@ -6,7 +6,7 @@ import type { AppDeps, AppEnv } from '../context';
 import { withTenant } from '../context';
 import { auditAppend, createOrder } from '../db-fns';
 import { requireAuth } from '../middleware';
-import { loadInstrument, runGate } from '../services/gate';
+import { assessExecutionCompliance, loadInstrument, runGate } from '../services/gate';
 import { maskRef } from './util';
 
 /**
@@ -62,6 +62,25 @@ export function approvalsRoutes(deps: AppDeps): Hono<AppEnv> {
         .limit(1);
       if (existing)
         return { status: 409 as const, body: { error: 'already_pending', approval: existing } };
+
+      // The HTTP endpoint is a security boundary too: a caller must not bypass
+      // the compliance specialist by posting the proposal the UI would refuse.
+      const instrument = await loadInstrument(tx, instrumentId, deps.logger);
+      if (!instrument?.partnerId) {
+        return { status: 409 as const, body: { error: 'instrument not investable' } };
+      }
+      const compliance = await assessExecutionCompliance(tx, tenant.user.id, instrument.partnerId);
+      if (compliance.decision === 'blocked') {
+        return {
+          status: 409 as const,
+          body: {
+            decision: 'blocked' as const,
+            code: 'compliance_not_ready',
+            reasons: compliance.reasons,
+            checks: compliance.checks,
+          },
+        };
+      }
 
       const created = await tx
         .insert(approvalsTable)
@@ -151,6 +170,20 @@ export function approvalsRoutes(deps: AppDeps): Hono<AppEnv> {
         return {
           status: 409 as const,
           body: { error: 'this product is no longer offered by the listing firm' },
+        };
+      }
+      // Re-check at the execution choke point. KYC standing or the exact firm
+      // relationship may have changed while the approval card was waiting.
+      const compliance = await assessExecutionCompliance(tx, tenant.user.id, instrument.partnerId);
+      if (compliance.decision === 'blocked') {
+        return {
+          status: 409 as const,
+          body: {
+            decision: 'blocked' as const,
+            code: 'compliance_not_ready',
+            reasons: compliance.reasons,
+            checks: compliance.checks,
+          },
         };
       }
       // Re-gate on approval: guardrails may have changed since the card opened.

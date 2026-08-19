@@ -172,6 +172,47 @@ export const partnerProfileSchema = z.object({
 export type PartnerProfileInput = z.infer<typeof partnerProfileSchema>;
 
 /**
+ * PUT /api/console/webhook — a partner-managed audit-event export target.
+ *
+ * The deployment allowlist is enforced separately by the API's outbound
+ * network guard. This schema keeps the stored value unambiguous: TLS only,
+ * no credentials, and no query/fragment where secrets are too easily hidden.
+ */
+export const partnerWebhookSchema = z.object({
+  url: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2048)
+    .transform((raw, ctx) => {
+      try {
+        const url = new URL(raw);
+        if (
+          url.protocol !== 'https:' ||
+          url.username !== '' ||
+          url.password !== '' ||
+          url.port !== '' ||
+          url.search !== '' ||
+          url.hash !== ''
+        ) {
+          throw new Error('unsafe webhook URL');
+        }
+        return url.toString();
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'expected an HTTPS URL without credentials, a custom port, query parameters, or a fragment',
+        });
+        return z.NEVER;
+      }
+    }),
+  active: z.boolean().default(true),
+  rotateSecret: z.boolean().default(false),
+});
+export type PartnerWebhookInput = z.infer<typeof partnerWebhookSchema>;
+
+/**
  * POST /api/portfolio/withdrawals — the investor asks their firm for money
  * back. The firm decides; recorded cash falls only when it confirms it paid.
  */

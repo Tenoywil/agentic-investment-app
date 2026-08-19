@@ -235,7 +235,7 @@ describe('app shell controls', () => {
     expect(layout).toContain('no real accounts or transactions');
 
     const agent = code(join(WEB, 'app/demo/agent/page.tsx'));
-    expect(agent).toContain('How the four agents reached this');
+    expect(agent).toContain('How the agents reached this');
     expect(agent).toContain('no transaction placed');
     expect(agent).toContain('no money moved');
   });

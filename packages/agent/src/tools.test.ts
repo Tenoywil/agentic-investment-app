@@ -86,6 +86,17 @@ group('propose_move — the verdict is the Limits Engine, surfaced honestly', ()
     const p = ctx.proposeMove({ instrumentId: 'does-not-exist', amountMinor: 1000 });
     expect(p.decision).toBe('blocked');
   });
+
+  test('a direct proposal cannot route around the compliance specialist', () => {
+    const snapshot = sampleSnapshot();
+    snapshot.activity.connections = snapshot.activity.connections.map((connection) =>
+      connection.partnerId === 'ncb' ? { ...connection, status: 'pending' as const } : connection,
+    );
+    const p = buildContext(snapshot).proposeMove({ instrumentId: 'goj', amountMinor: 150_000 });
+    expect(p.decision).toBe('blocked');
+    expect(p.code).toBe('compliance_not_ready');
+    expect(p.reasons.join(' ')).toContain('active account with the executing firm');
+  });
 });
 
 group('explain', () => {

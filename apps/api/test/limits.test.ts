@@ -77,6 +77,12 @@ describe('parseLimitsUpdate', () => {
     }
   });
 
+  test('rejects amounts that cannot be represented safely or stored as bigint', () => {
+    expect(parseLimitsUpdate({ autoInvestCapMinor: Number.MAX_SAFE_INTEGER + 1 }).ok).toBe(false);
+    expect(parseLimitsUpdate({ autoInvestCapMinor: '9223372036854775808' }).ok).toBe(false);
+    expect(parseLimitsUpdate({ autoInvestCapMinor: '9223372036854775807' }).ok).toBe(true);
+  });
+
   test('rejects an out-of-range percentage and spread', () => {
     expect(parseLimitsUpdate({ singlePositionMaxPct: 0 }).ok).toBe(false);
     expect(parseLimitsUpdate({ singlePositionMaxPct: 101 }).ok).toBe(false);

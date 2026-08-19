@@ -13,6 +13,42 @@ import { z } from 'zod';
 
 const appEnv = z.enum(['development', 'staging', 'production']);
 
+/**
+ * Webhook destinations are partner data, but the hosts CCN may dial are
+ * deployment policy. Keep the allowlist exact (no wildcards, paths, schemes or
+ * ports) so the outbound SSRF guard can compare one canonical hostname.
+ */
+const hostnameList = z
+  .string()
+  .default('')
+  .transform((raw, ctx) => {
+    const hosts = [
+      ...new Set(
+        raw
+          .split(',')
+          .map((host) => host.trim().toLowerCase().replace(/\.$/, ''))
+          .filter(Boolean),
+      ),
+    ];
+    for (const host of hosts) {
+      if (host.includes('/') || host.includes('@') || host.includes(':')) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'expected comma-separated hostnames without scheme, path, credentials or port',
+        });
+        return z.NEVER;
+      }
+      try {
+        const parsed = new URL(`https://${host}`);
+        if (parsed.hostname.toLowerCase() !== host || parsed.pathname !== '/') throw new Error();
+      } catch {
+        ctx.addIssue({ code: 'custom', message: `invalid webhook hostname ${host}` });
+        return z.NEVER;
+      }
+    }
+    return hosts;
+  });
+
 /** Keys whose values must never be logged or surfaced. */
 const SECRET_KEYS = new Set([
   'DATABASE_URL',
@@ -109,6 +145,14 @@ const serverSchema = z.object({
   // then ranks without a research signal and spends no model tokens in the
   // background. Wired only from the composition root, like the sweep.
   AGENT_RESEARCH_TTL_MS: z.coerce.number().int().nonnegative().default(86_400_000),
+
+  // Partner audit-event exports. Empty is the production-safe default: no
+  // partner-configured URL can become an outbound destination until its exact
+  // host has passed CCN's integration review and is named here. The request
+  // timeout is bounded at boot so neither 0 (effectively unbounded) nor an
+  // incident-length wait can occupy the dispatcher.
+  PARTNER_WEBHOOK_ALLOWED_HOSTS: hostnameList,
+  PARTNER_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().min(500).max(15_000).default(5_000),
 
   // Crypto
   FIELD_ENCRYPTION_KEY: z.string().min(1),

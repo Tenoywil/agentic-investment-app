@@ -58,6 +58,28 @@ export function createOutboundGuard(config: ServerConfig): SsrfGuard {
 }
 
 /**
+ * Separate egress boundary for partner webhooks. Partner-approved hosts never
+ * join the AI/OAuth allowlist, redirects are refused rather than followed, and
+ * private/link-local destinations stay blocked in every environment.
+ */
+export function createPartnerWebhookGuard(config: ServerConfig): SsrfGuard {
+  return createSsrfGuard(
+    {
+      allowedHosts: config.PARTNER_WEBHOOK_ALLOWED_HOSTS,
+      allowPrivate: false,
+      maxRedirects: 0,
+    },
+    {
+      resolve: async (hostname) => {
+        const records = await dns.lookup(hostname, { all: true });
+        return records.map((record) => record.address);
+      },
+      fetch: (input, init) => globalThis.fetch(input, init),
+    },
+  );
+}
+
+/**
  * Field cipher for PII / KYC references.
  * `FIELD_ENCRYPTION_KEY` holds the primary key; `FIELD_ENCRYPTION_KEY_PREVIOUS`
  * (optional, comma-separated `id:material` pairs) keeps retired keys readable

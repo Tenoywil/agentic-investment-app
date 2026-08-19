@@ -75,6 +75,42 @@ export interface ConsoleAuditEntry {
   createdAt: string;
 }
 
+export type ConsoleWebhookDeliveryStatus =
+  | 'pending'
+  | 'processing'
+  | 'delivered'
+  | 'failed'
+  | 'dead';
+
+export interface ConsoleWebhookEndpoint {
+  id: string;
+  url: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConsoleWebhookDelivery {
+  id: string;
+  eventId: string;
+  eventType: string;
+  status: ConsoleWebhookDeliveryStatus;
+  attemptCount: number;
+  responseStatus: number | null;
+  lastError: string | null;
+  lastAttemptAt: string | null;
+  nextAttemptAt: string;
+  deliveredAt: string | null;
+  createdAt: string;
+}
+
+export interface ConsoleWebhookView {
+  endpoint: ConsoleWebhookEndpoint | null;
+  deliveries: ConsoleWebhookDelivery[];
+  /** Exact hostnames deployment governance has approved for egress. */
+  allowedHosts: string[];
+}
+
 export interface ConsoleOrder {
   id: string;
   userId: string;
@@ -302,6 +338,25 @@ export function putPartnerLogo(
 /** Real audit rows for this partner, newest first. Server clamps limit to 200. */
 export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> {
   return consoleFetch(`/audit?limit=${limit}`);
+}
+
+/** The partner's optional audit-event export and its last 20 deliveries. */
+export function getPartnerWebhook(): Promise<ConsoleWebhookView> {
+  return consoleFetch('/webhook');
+}
+
+/** A signing secret is returned only when created or explicitly rotated. */
+export function savePartnerWebhook(input: {
+  url: string;
+  active: boolean;
+  rotateSecret?: boolean;
+}): Promise<{ endpoint: ConsoleWebhookEndpoint; signingSecret: string | null }> {
+  return consoleFetch('/webhook', { method: 'PUT', body: JSON.stringify(input) });
+}
+
+/** Queue a test through the same transactional outbox and dispatcher as real events. */
+export function queuePartnerWebhookTest(): Promise<{ queued: true; eventId: string }> {
+  return consoleFetch('/webhook/test', { method: 'POST' });
 }
 
 // ---- Orders ----

@@ -108,7 +108,7 @@ export function buildTools(ctx: AgentContext): ToolSet {
     }),
     propose_move: tool({
       description:
-        'PROPOSE an investment of a given amount into an instrument. Runs the deterministic Limits Engine and returns its verdict (auto-act / requires approval / blocked) with reasons. This PREPARES a proposal only — it never creates or executes an order.',
+        'PROPOSE an investment of a given amount into an instrument. Runs the deterministic Limits Engine and the same compliance-readiness check as the full pipeline, then returns the verdict with reasons. This PREPARES a proposal only — it never creates or executes an order.',
       inputSchema: z.object({
         instrumentId: z.string(),
         amountMinor: z.number().int().positive().describe('amount in minor units (cents)'),
@@ -117,7 +117,7 @@ export function buildTools(ctx: AgentContext): ToolSet {
     }),
     run_pipeline: tool({
       description:
-        'Run the full three-specialist pipeline — research ranks the live marketplace, suitability screens every shortlisted product through the deterministic Limits Engine, and coordination sizes the best fit and routes it for approval. Returns the visible stage-by-stage trace plus the chosen candidate (or none). Use this when the user asks what they should invest in, or asks you to look for something for them. Narrate the stages faithfully from the trace; never invent a stage outcome.',
+        'Run the full five-specialist pipeline — research ranks the live marketplace, portfolio fit weighs holdings and goals, suitability applies the deterministic Limits Engine, compliance verifies KYC and the executing-firm relationship, and coordination sizes the best cleared fit and routes it for approval. Returns the visible stage-by-stage trace plus the chosen candidate (or none). Use this when the user asks what they should invest in, or asks you to look for something for them. Narrate the stages faithfully from the trace; never invent a stage outcome.',
       inputSchema: z.object({}),
       execute: async () => ctx.scoutMarketplace(),
     }),

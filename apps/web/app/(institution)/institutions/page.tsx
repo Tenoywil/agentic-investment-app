@@ -514,7 +514,7 @@ export default function InstitutionsPage() {
             {partner?.name ?? 'Partner console'}
           </div>
           <div className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
-            Partner console
+            {me?.user.name ? `Signed in · ${me.user.name}` : 'Partner console'}
           </div>
         </div>
       </header>
@@ -522,6 +522,7 @@ export default function InstitutionsPage() {
       <ConsoleSidebar
         dialogRef={navRef}
         partner={partner}
+        operator={me?.user ?? null}
         pendingOrders={ordersError ? 0 : orders.filter((o) => o.status === 'created').length}
         pendingReconciliation={reconciliationError ? 0 : reconciliation.length}
         signingOut={signingOut}

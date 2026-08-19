@@ -5,9 +5,28 @@ import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/_components/ui/dialog';
+import { Input } from '@/app/_components/ui/input';
+import { Label } from '@/app/_components/ui/label';
 import { Switch } from '@/app/_components/ui/switch';
 import { cn } from '@/app/_lib/utils';
-import { ArrowLeft, ArrowRight, Mic, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleAlert,
+  Mic,
+  SlidersHorizontal,
+  Sparkles,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 
@@ -109,6 +128,10 @@ const APPROVALS: {
         summary: 'Checked the risk band, minimum, cash floor and single-position cap.',
       },
       {
+        agent: 'Compliance agent',
+        summary: 'Verified KYC readiness and the active Sagicor account relationship.',
+      },
+      {
         agent: 'Coordinator',
         summary: 'Sized the sample move to the coupon and prepared it for human approval.',
       },
@@ -139,6 +162,10 @@ const APPROVALS: {
         summary: 'Verified the cash floor, approval threshold and enabled sweep rule.',
       },
       {
+        agent: 'Compliance agent',
+        summary: 'Verified KYC readiness and the active NCB account relationship.',
+      },
+      {
         agent: 'Coordinator',
         summary: 'Prepared the sample sweep for a person to approve before NCB executes.',
       },
@@ -150,22 +177,113 @@ const APPROVALS: {
  *  be shown without the demo ever asking the browser for microphone access. */
 const DICTATION_SCRIPT = 'What about the idle cash?';
 
-const RULES = [
+type DemoRuleKey = 'autoInvest' | 'cashFloor' | 'approval' | 'singlePosition' | 'dailyCap';
+
+interface DemoLimits {
+  autoInvestCap: string;
+  cashFloor: string;
+  approvalThreshold: string;
+  singlePositionPct: string;
+  dailyCap: string;
+}
+
+const DEMO_LIMITS: DemoLimits = {
+  autoInvestCap: '500',
+  cashFloor: '1000',
+  approvalThreshold: '1000',
+  singlePositionPct: '15',
+  dailyCap: '2500',
+};
+
+const RULES: {
+  key: DemoRuleKey;
+  label: string;
+  note: string;
+  value: (limits: DemoLimits) => string;
+}[] = [
   {
+    key: 'autoInvest',
     label: 'Auto-invest idle cash',
-    note: 'Into your money-market fund',
-    value: '≤ US$500',
-    on: true,
+    note: 'The most it may commit without asking',
+    value: (limits) => `≤ ${formatDemoUsd(limits.autoInvestCap)}`,
   },
-  { label: 'Keep a cash floor', note: 'Never swept below this', value: 'US$1,000', on: true },
-  { label: 'FX spread guardrail', note: 'Holds transfers for review', value: '≤ 0.3%', on: true },
   {
+    key: 'cashFloor',
+    label: 'Keep a cash floor',
+    note: 'Never swept below this',
+    value: (limits) => formatDemoUsd(limits.cashFloor),
+  },
+  {
+    key: 'approval',
     label: 'Require approval above',
     note: 'Bigger moves always ask you',
-    value: 'US$1,000',
-    on: true,
+    value: (limits) => formatDemoUsd(limits.approvalThreshold),
+  },
+  {
+    key: 'singlePosition',
+    label: 'Single-position cap',
+    note: 'Share of your portfolio in any one holding',
+    value: (limits) => `≤ ${limits.singlePositionPct}%`,
+  },
+  {
+    key: 'dailyCap',
+    label: 'Daily cap',
+    note: 'Total it may commit in a single day',
+    value: (limits) => formatDemoUsd(limits.dailyCap),
   },
 ];
+
+const DEMO_RULES: Record<DemoRuleKey, boolean> = {
+  autoInvest: true,
+  cashFloor: true,
+  approval: true,
+  singlePosition: true,
+  dailyCap: true,
+};
+
+const DEMO_LIMIT_FIELDS: {
+  key: keyof DemoLimits;
+  label: string;
+  note: string;
+  inputMode: 'decimal' | 'numeric';
+}[] = [
+  {
+    key: 'autoInvestCap',
+    label: 'Auto-invest cap (USD)',
+    note: 'Most it may commit alone.',
+    inputMode: 'decimal',
+  },
+  {
+    key: 'approvalThreshold',
+    label: 'Always ask above (USD)',
+    note: 'Approval takes priority.',
+    inputMode: 'decimal',
+  },
+  {
+    key: 'cashFloor',
+    label: 'Cash floor (USD)',
+    note: 'Cash it must leave untouched.',
+    inputMode: 'decimal',
+  },
+  {
+    key: 'singlePositionPct',
+    label: 'Single-position maximum (%)',
+    note: 'Whole percentage from 1 to 100.',
+    inputMode: 'numeric',
+  },
+  {
+    key: 'dailyCap',
+    label: 'Daily commitment cap (USD)',
+    note: 'Total it may commit in one day.',
+    inputMode: 'decimal',
+  },
+];
+
+function formatDemoUsd(value: string): string {
+  const amount = Number(value.replaceAll(',', ''));
+  if (!Number.isFinite(amount)) return 'Not set';
+  return `US$${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
 
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
 
@@ -180,7 +298,11 @@ export default function AgentPage() {
   const [chat, setChat] = useState<Msg[]>(SEED);
   const [draft, setDraft] = useState('');
   const [voice, setVoice] = useState(false);
-  const [rules, setRules] = useState(RULES.map((r) => r.on));
+  const [rules, setRules] = useState(DEMO_RULES);
+  const [limits, setLimits] = useState(DEMO_LIMITS);
+  const [limitsDraft, setLimitsDraft] = useState(DEMO_LIMITS);
+  const [limitsOpen, setLimitsOpen] = useState(false);
+  const [limitsError, setLimitsError] = useState<string | null>(null);
   /** Approval cards live locally: pending → approved, or dismissed away. */
   const [cardState, setCardState] = useState<Record<string, 'pending' | 'approved'>>(
     Object.fromEntries(APPROVALS.map((a) => [a.id, 'pending'])),
@@ -271,6 +393,34 @@ export default function AgentPage() {
         }, 450);
       }
     }, 220);
+  }
+
+  function openLimits() {
+    setLimitsDraft(limits);
+    setLimitsError(null);
+    setLimitsOpen(true);
+  }
+
+  function saveLimits() {
+    const moneyFields: { key: keyof DemoLimits; label: string }[] = [
+      { key: 'autoInvestCap', label: 'Auto-invest cap' },
+      { key: 'cashFloor', label: 'Cash floor' },
+      { key: 'approvalThreshold', label: 'Approval threshold' },
+      { key: 'dailyCap', label: 'Daily cap' },
+    ];
+    for (const { key, label } of moneyFields) {
+      if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(limitsDraft[key].trim())) {
+        setLimitsError(`${label} must be a non-negative dollar amount with up to two decimals.`);
+        return;
+      }
+    }
+    const positionPct = Number(limitsDraft.singlePositionPct);
+    if (!Number.isInteger(positionPct) || positionPct < 1 || positionPct > 100) {
+      setLimitsError('Single-position maximum must be a whole percentage from 1 to 100.');
+      return;
+    }
+    setLimits(limitsDraft);
+    setLimitsOpen(false);
   }
 
   const visibleCards = APPROVALS.filter((a) => !dismissed.includes(a.id));
@@ -490,7 +640,7 @@ export default function AgentPage() {
                 <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
                 <details className="mb-3 rounded-lg border border-solid border-border bg-muted/40 px-3 py-2 text-[12.5px]">
                   <summary className="cursor-pointer font-bold text-teal2">
-                    How the four agents reached this
+                    How the agents reached this
                   </summary>
                   <ol className="mb-0 mt-2 space-y-1.5 pl-4 text-dim">
                     {a.trace.map((stage) => (
@@ -523,9 +673,21 @@ export default function AgentPage() {
           </Card>
 
           <Card className="p-5" data-tour="customer-limits">
-            <div className="mb-3.5 flex items-baseline justify-between gap-2.5">
-              <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
-              <span className="text-[12.5px] text-faint">what it may do alone</span>
+            <div className="mb-3.5 flex items-center justify-between gap-2.5">
+              <div>
+                <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
+                <span className="ml-2 text-[12.5px] text-faint">what it may do alone</span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2.5 text-teal2"
+                onClick={openLimits}
+              >
+                <SlidersHorizontal className="mr-1.5 h-4 w-4" aria-hidden />
+                Adjust
+              </Button>
             </div>
             {RULES.map((r, i) => (
               <div
@@ -539,15 +701,77 @@ export default function AgentPage() {
                   <div className="text-[14.5px] font-bold">{r.label}</div>
                   <div className="text-[12.5px] text-faint">{r.note}</div>
                 </div>
-                <span className="font-mono text-[13.5px] font-bold text-teal2">{r.value}</span>
+                <span
+                  className={cn(
+                    'font-mono text-[13.5px] font-bold',
+                    rules[r.key] ? 'text-teal2' : 'text-faint line-through',
+                  )}
+                >
+                  {r.value(limits)}
+                </span>
                 <Switch
-                  checked={rules[i]}
-                  onCheckedChange={() => setRules((rs) => rs.map((v, j) => (j === i ? !v : v)))}
-                  aria-label={`${r.label}, ${rules[i] ? 'on' : 'off'}`}
+                  checked={rules[r.key]}
+                  onCheckedChange={() =>
+                    setRules((current) => ({ ...current, [r.key]: !current[r.key] }))
+                  }
+                  aria-label={`${r.label}, ${rules[r.key] ? 'on' : 'off'}`}
                   className="flex-none"
                 />
               </div>
             ))}
+            <Dialog open={limitsOpen} onOpenChange={setLimitsOpen}>
+              <DialogContent className="max-w-[620px] p-0">
+                <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
+                  <DialogTitle>Adjust your agent limits</DialogTitle>
+                  <DialogDescription>
+                    Try the same controls available on the live account. These sample changes stay
+                    inside this walkthrough and never reach an account.
+                  </DialogDescription>
+                </DialogHeader>
+                <form
+                  className="grid gap-5 px-6 pb-6"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    saveLimits();
+                  }}
+                >
+                  <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                    {DEMO_LIMIT_FIELDS.map(({ key, label, note, inputMode }) => (
+                      <div className="grid gap-2" key={key}>
+                        <Label htmlFor={`demo-${key}`}>{label}</Label>
+                        <Input
+                          id={`demo-${key}`}
+                          inputMode={inputMode}
+                          value={limitsDraft[key]}
+                          onChange={(event) =>
+                            setLimitsDraft((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                        />
+                        <p className="m-0 text-xs text-faint">{note}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {limitsError && (
+                    <p
+                      className="m-0 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra"
+                      aria-live="polite"
+                    >
+                      <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+                      {limitsError}
+                    </p>
+                  )}
+                  <DialogFooter className="justify-end max-sm:flex-col-reverse">
+                    <Button type="button" variant="outline" onClick={() => setLimitsOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">Apply sample limits</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </Card>
         </div>
       </div>

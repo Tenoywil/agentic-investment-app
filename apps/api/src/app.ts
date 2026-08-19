@@ -29,14 +29,22 @@ import { planningRoutes } from './routes/planning';
 import { portfolioRoutes } from './routes/portfolio';
 import { publicRoutes } from './routes/public';
 import { RATE_LIMITS, type RateLimitClass, createClientIpResolver } from './security';
+import {
+  type PartnerWebhookAdminRuntime,
+  createPartnerWebhookAdminRuntime,
+} from './services/partner-webhooks';
 
 /**
  * The CCN API surface. Better Auth owns /api/auth/*; every other /api/* route is
  * session-gated and reads/writes only through the caller's RLS-scoped
  * transaction (withTenant). Handlers close over injected deps — no globals.
  */
-export function createApp(deps: AppDeps) {
+export function createApp(
+  deps: AppDeps,
+  services: { partnerWebhooks?: PartnerWebhookAdminRuntime } = {},
+) {
   const app = new Hono<AppEnv>();
+  const partnerWebhooks = services.partnerWebhooks ?? createPartnerWebhookAdminRuntime(deps.config);
 
   // One limiter per route class. The in-memory store is correct for a single
   // instance; swap in the Postgres store when the API scales past one machine
@@ -235,7 +243,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/orders', ordersRoutes(deps));
   app.route('/api/approvals', approvalsRoutes(deps));
   app.route('/api/portfolio', portfolioRoutes(deps));
-  app.route('/api/console', consoleRoutes(deps));
+  app.route('/api/console', consoleRoutes(deps, partnerWebhooks));
   app.route('/api/admin', adminRoutes(deps));
   app.route('/api/agent', agentRoutes(deps));
   app.route('/api/ingestion', ingestionRoutes(deps));

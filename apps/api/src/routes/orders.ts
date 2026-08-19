@@ -9,7 +9,7 @@ import { requireAuth } from '../middleware';
 import { readOrDegrade } from '../migrations';
 import { adapterFor } from '../services/adapters';
 import { renderContractNote } from '../services/contract-note';
-import { loadInstrument, runGate } from '../services/gate';
+import { assessExecutionCompliance, loadInstrument, runGate } from '../services/gate';
 import { maskRef } from './util';
 
 /**
@@ -202,6 +202,18 @@ export function ordersRoutes(deps: AppDeps): Hono<AppEnv> {
         };
       }
       const partnerCode = instrument.partnerCode;
+      const compliance = await assessExecutionCompliance(tx, tenant.user.id, instrument.partnerId);
+      if (compliance.decision === 'blocked') {
+        return {
+          status: 409 as const,
+          body: {
+            decision: 'blocked' as const,
+            code: 'compliance_not_ready',
+            reasons: compliance.reasons,
+            checks: compliance.checks,
+          },
+        };
+      }
       const decision = await runGate(tx, {
         userId: tenant.user.id,
         instrument,

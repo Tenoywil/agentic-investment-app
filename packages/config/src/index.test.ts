@@ -19,6 +19,8 @@ group('loadServerConfig', () => {
     expect(cfg.OPENAI_BASE_URL).toBe('https://api.minimax.io/v1');
     expect(cfg.AI_MODEL).toBe('MiniMax-M2');
     expect(cfg.SUPABASE_STORAGE_BUCKET).toBe('ccn-private');
+    expect(cfg.PARTNER_WEBHOOK_ALLOWED_HOSTS).toEqual([]);
+    expect(cfg.PARTNER_WEBHOOK_TIMEOUT_MS).toBe(5_000);
   });
 
   test('throws with a readable report on a short auth secret', () => {
@@ -67,5 +69,38 @@ group('loadServerConfig', () => {
   test('gateway tier overrides are honored when set', () => {
     const cfg = loadServerConfig({ ...valid, GATEWAY_MODEL_HIGH: 'big-model' });
     expect(cfg.GATEWAY_MODEL_HIGH).toBe('big-model');
+  });
+
+  test('normalizes an exact partner webhook host allowlist', () => {
+    const cfg = loadServerConfig({
+      ...valid,
+      PARTNER_WEBHOOK_ALLOWED_HOSTS: 'Hooks.Example.com., events.bank.example, hooks.example.com',
+    });
+    expect(cfg.PARTNER_WEBHOOK_ALLOWED_HOSTS).toEqual(['hooks.example.com', 'events.bank.example']);
+  });
+
+  test('rejects webhook host entries that smuggle URL syntax', () => {
+    for (const value of [
+      'https://hooks.example.com',
+      'hooks.example.com/path',
+      'user@hooks.example.com',
+      'hooks.example.com:443',
+    ]) {
+      expect(() => loadServerConfig({ ...valid, PARTNER_WEBHOOK_ALLOWED_HOSTS: value })).toThrow(
+        /PARTNER_WEBHOOK_ALLOWED_HOSTS/,
+      );
+    }
+  });
+
+  test('bounds the partner webhook timeout', () => {
+    expect(() => loadServerConfig({ ...valid, PARTNER_WEBHOOK_TIMEOUT_MS: '0' })).toThrow(
+      /PARTNER_WEBHOOK_TIMEOUT_MS/,
+    );
+    expect(() => loadServerConfig({ ...valid, PARTNER_WEBHOOK_TIMEOUT_MS: '15001' })).toThrow(
+      /PARTNER_WEBHOOK_TIMEOUT_MS/,
+    );
+    expect(
+      loadServerConfig({ ...valid, PARTNER_WEBHOOK_TIMEOUT_MS: '500' }).PARTNER_WEBHOOK_TIMEOUT_MS,
+    ).toBe(500);
   });
 });

@@ -1,7 +1,10 @@
+import { assessTransactionCompliance } from '@ccn/agent';
 import type { Transaction } from '@ccn/db';
 import {
+  connectedAccounts,
   holdings,
   instruments,
+  kycStatus,
   limits as limitsTable,
   orders,
   partners,
@@ -45,6 +48,44 @@ export interface LoadedInstrument {
    * the firm having taken the product off the shelf for everyone.
    */
   listingStatus: 'live' | 'paused';
+}
+
+/** Authoritative readiness at the transaction boundary. Shared by direct
+ * orders and approval execution so neither HTTP path can route around the
+ * compliance specialist used by the agent pipeline. */
+export async function assessExecutionCompliance(
+  tx: Transaction,
+  userId: string,
+  partnerId: string,
+) {
+  const [kyc] = await tx
+    .select({
+      identityVerified: kycStatus.identityVerified,
+      complianceConfirmed: kycStatus.complianceConfirmed,
+      riskCompleted: kycStatus.riskCompleted,
+      fundsConfirmed: kycStatus.fundsConfirmed,
+    })
+    .from(kycStatus)
+    .where(eq(kycStatus.userId, userId));
+  const [activeAccount] = await tx
+    .select({ id: connectedAccounts.id })
+    .from(connectedAccounts)
+    .where(
+      and(
+        eq(connectedAccounts.userId, userId),
+        eq(connectedAccounts.partnerId, partnerId),
+        eq(connectedAccounts.status, 'active'),
+      ),
+    )
+    .limit(1);
+  return assessTransactionCompliance({
+    identityVerified: kyc?.identityVerified ?? false,
+    complianceConfirmed: kyc?.complianceConfirmed ?? false,
+    riskCompleted: kyc?.riskCompleted ?? false,
+    fundsConfirmed: kyc?.fundsConfirmed ?? false,
+    activeExecutingFirm: Boolean(activeAccount),
+    executingFirmName: null,
+  });
 }
 
 /**

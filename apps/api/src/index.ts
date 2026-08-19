@@ -8,6 +8,11 @@ import { createLogger } from './logger';
 import { checkMigrations } from './migrations';
 import { createOutboundGuard } from './security';
 import { startAgentSweep } from './services/agent-sweep';
+import {
+  createPartnerWebhookAdminRuntime,
+  createPartnerWebhookDispatcherDeps,
+  startPartnerWebhookDispatcher,
+} from './services/partner-webhooks';
 import { startValueSnapshots } from './services/value-snapshots';
 import { resolveTenant } from './tenant';
 import { startEventBridge } from './ws/bridge';
@@ -28,7 +33,8 @@ const logger = createLogger({
   base: { service: 'ccn-api', env: config.APP_ENV },
 });
 const deps = { db, auth, config, logger };
-const app = createApp(deps);
+const partnerWebhooks = createPartnerWebhookAdminRuntime(config);
+const app = createApp(deps, { partnerWebhooks });
 
 /**
  * State the effective auth wiring once, at boot.
@@ -234,6 +240,17 @@ startAgentSweep({ ...deps, research });
  * chart. Same composition-root-only, same kill switch as the sweep.
  */
 startValueSnapshots(deps);
+
+/**
+ * At-least-once export of partner audit events. An empty deployment allowlist
+ * is the explicit off switch; no cipher or outbound client is constructed in
+ * that state, which keeps webhook configuration optional and fail-closed.
+ */
+if (config.PARTNER_WEBHOOK_ALLOWED_HOSTS.length === 0) {
+  logger.info('partner webhook dispatcher disabled (no approved hosts)');
+} else {
+  startPartnerWebhookDispatcher(createPartnerWebhookDispatcherDeps(config, db, logger));
+}
 
 /** Per-connection state: the tenant (fixed at upgrade) and its hub registration. */
 interface WsData {

@@ -12,7 +12,7 @@ import type {
   PipelineDisplayData,
   TraceStageDisplay,
 } from '@/lib/agent-api';
-import { type LucideIcon, Route, Scale, Search, ShieldCheck } from 'lucide-react';
+import { BadgeCheck, type LucideIcon, Route, Scale, Search, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 /**
@@ -400,6 +400,7 @@ const STAGE_ICON: Record<string, LucideIcon> = {
   research: Search,
   fit: Scale,
   suitability: ShieldCheck,
+  compliance: BadgeCheck,
   coordination: Route,
 };
 
