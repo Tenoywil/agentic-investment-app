@@ -246,4 +246,27 @@ describe('app shell controls', () => {
     expect(agent).toContain("kind: 'allocation'");
     expect(agent).toMatch(/chart\|graph\|pie/);
   });
+
+  test('the compliance page locks unapproved webhooks and packs cards by column', () => {
+    const compliance = code(join(SHELL, 'console/compliance-tab.tsx'));
+    const fieldStart = compliance.indexOf('id="partner-webhook-url"');
+    const field = compliance.slice(fieldStart, compliance.indexOf('/>', fieldStart));
+
+    expect(fieldStart).toBeGreaterThan(-1);
+    expect(field).toContain('disabled={!exportAvailable || busy}');
+    expect(compliance.match(/disabled=\{!exportAvailable \|\| busy\}/g)).toHaveLength(3);
+    expect(compliance).toContain('disabled={!exportAvailable || !endpoint?.active || busy}');
+    expect(compliance).toContain('disabled={!exportAvailable || busy || !url.trim()}');
+
+    const liveLayout = compliance.slice(compliance.indexOf('export function ComplianceTab'));
+    expect(liveLayout.match(/grid min-w-0 content-start gap-\[18px\]/g)).toHaveLength(2);
+    const readingOrder = [
+      'Agreement &amp; residency',
+      '<WebhookExportCard />',
+      'Audit trail',
+      'How CCN works with your firm',
+    ].map((part) => liveLayout.indexOf(part));
+    expect(readingOrder.every((position) => position >= 0)).toBe(true);
+    expect(readingOrder).toEqual([...readingOrder].sort((a, b) => a - b));
+  });
 });
