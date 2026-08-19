@@ -63,36 +63,48 @@ export function createApp(
   };
 
   /**
-   * A database behind the code answers 503 and says so, not 500.
+   * A database behind the code answers 503, not 500.
    *
    * Reads degrade (services/fx.ts, the marketplace, the orders list). Writes
    * cannot: there is no older version of `partner_upsert_instrument` to fall
    * back to, and inventing one would mean writing the wrong table. So a write
-   * fails — but it fails *legibly*, naming the cause and the command, instead
-   * of the unexplained 500 a partner operator got when they pressed "List a
-   * product" against a database missing `0017`.
+   * fails safely. Deployment details remain in the request-correlated server
+   * log; the public response says what the operator can act on and gives them
+   * a reference support can trace, without exposing infrastructure internals.
    *
    * 503 rather than 500 because it is exactly that: the service is
    * temporarily unable to do this, a specific person can fix it in a minute,
    * and it is not a bug in the request.
    */
   app.onError((err, c) => {
+    const reference = c.get('requestId') ?? crypto.randomUUID();
     if (isDatabaseBehind(err)) {
-      deps.logger.error(
+      (c.get('log') ?? deps.logger).error(
         `a request needed a migration this database does not have. ${MIGRATION_PENDING}`,
         { path: c.req.path, method: c.req.method, error: err },
       );
       return c.json(
         {
-          error:
-            'This action needs a database change that has not been applied to this environment yet. Nothing was saved. Whoever deploys CCN needs to run the outstanding migrations.',
-          code: 'migration_pending',
+          error: `We couldn't complete that action right now. Your existing data is unchanged. Please try again shortly. If this continues, contact support and share reference ${reference}.`,
+          code: 'service_temporarily_unavailable',
+          reference,
         },
         503,
       );
     }
-    deps.logger.error('unhandled error', { path: c.req.path, method: c.req.method, error: err });
-    return c.json({ error: 'internal error' }, 500);
+    (c.get('log') ?? deps.logger).error('unhandled error', {
+      path: c.req.path,
+      method: c.req.method,
+      error: err,
+    });
+    return c.json(
+      {
+        error: `Something went wrong while completing your request. Please try again. If this continues, contact support and share reference ${reference}.`,
+        code: 'request_failed',
+        reference,
+      },
+      500,
+    );
   });
 
   app.use('*', secureHeaders());

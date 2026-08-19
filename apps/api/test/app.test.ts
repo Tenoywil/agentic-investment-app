@@ -46,6 +46,46 @@ describe('api app', () => {
     const res = await app.request('/api/me');
     expect(res.status).toBe(401);
   });
+
+  test('keeps migration and deployment details out of public errors', async () => {
+    const { app, records } = appWithCapturedLogs();
+    app.get('/test/database-behind', () => {
+      throw Object.assign(new Error('function partner_webhook_upsert does not exist'), {
+        code: '42883',
+      });
+    });
+
+    const res = await app.request('/test/database-behind');
+    const body = (await res.json()) as { error: string; code: string; reference: string };
+    const requestId = res.headers.get('x-request-id');
+    if (!requestId) throw new Error('response did not include a request id');
+
+    expect(res.status).toBe(503);
+    expect(body.code).toBe('service_temporarily_unavailable');
+    expect(body.reference).toBe(requestId);
+    expect(body.error).toContain(body.reference);
+    expect(body.error).not.toMatch(/database|migration|deploy|environment|CCN/i);
+    expect(records.some((record) => record.message.includes('migration'))).toBe(true);
+  });
+
+  test('unexpected failures use safe public copy and a traceable reference', async () => {
+    const { app, records } = appWithCapturedLogs();
+    app.get('/test/unexpected-error', () => {
+      throw new Error('sensitive internal detail');
+    });
+
+    const res = await app.request('/test/unexpected-error');
+    const body = (await res.json()) as { error: string; code: string; reference: string };
+    const requestId = res.headers.get('x-request-id');
+    if (!requestId) throw new Error('response did not include a request id');
+
+    expect(res.status).toBe(500);
+    expect(body.code).toBe('request_failed');
+    expect(body.reference).toBe(requestId);
+    expect(body.error).toContain(body.reference);
+    expect(body.error).not.toContain('sensitive internal detail');
+    expect(records.some((record) => record.message === 'unhandled error')).toBe(true);
+  });
 });
 
 describe('request correlation', () => {

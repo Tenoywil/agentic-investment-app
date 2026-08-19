@@ -30,6 +30,14 @@ export const TABS: { key: TabKey; label: string; Icon: LucideIcon }[] = [
   { key: 'compliance', label: 'Compliance', Icon: ShieldCheck },
 ];
 
+/**
+ * Turn a URL section into a real console destination. Unknown or absent
+ * values land on Overview rather than producing a tab shell with no content.
+ */
+export function consoleTab(value: string | null): TabKey {
+  return TABS.some(({ key }) => key === value) ? (value as TabKey) : 'overview';
+}
+
 /* ---- shared class fragments -------------------------------------------- */
 
 export const uppr = 'text-[11px] font-bold uppercase tracking-wider text-faint';
