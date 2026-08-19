@@ -19,6 +19,30 @@ covered in a compliance conversation.
   `apps/api/src/routes/gateway.ts`'s three agent passes — same
   `createOutboundGuard(deps.config)` instance, not a second guard to keep in sync).
 
+#### Partner audit-event webhook boundary
+
+Partner webhooks use a separate `createPartnerWebhookGuard` instance. Their destinations never join
+the AI, OAuth, or Supabase allowlist, and redirects are refused instead of followed. The institution
+console is fail-closed: while `PARTNER_WEBHOOK_ALLOWED_HOSTS` is empty, the URL field, activation
+switch, and save action remain disabled and the API composition root does not start the dispatcher.
+
+Approval and enablement procedure:
+
+1. Collect the partner's exact receiving hostname and verify hostname ownership, TLS, receiver
+   purpose, and the applicable data-processing terms.
+2. Add only that hostname to the comma-separated `PARTNER_WEBHOOK_ALLOWED_HOSTS` environment value
+   on the Render API service. Entries are hostnames only—no scheme, path, port, query, fragment,
+   wildcard, or suffix rule.
+3. Preserve other approved hosts that remain in service, save the setting, and redeploy. The config
+   is immutable for the lifetime of the API process.
+4. Confirm the Compliance page names the approved host before allowing the operator to configure a
+   URL. Store the one-time HMAC signing secret in the partner's secrets manager and send a test event.
+
+Removing a hostname from the environment and redeploying locks it out immediately at both the
+configuration route and delivery guard. Never unlock the browser controls without this server-side
+allowlist: public-IP validation alone does not close the DNS-rebinding window between resolution and
+the outbound socket.
+
 **Residual:** DNS rebinding. Addresses are validated, then `fetch` opens the
 socket, so a name answering differently between the two is a TOCTOU window. The
 exact-host allowlist is what makes this unreachable in practice — an attacker

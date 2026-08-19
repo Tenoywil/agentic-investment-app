@@ -1,52 +1,105 @@
-# Caribbean Capital Network Platform
+# Caribbean Capital Network
 
-An agentic investment platform prototype for the Caribbean Capital Network (CCN).
-The platform pairs a conversational AI investment agent with portfolio dashboards,
-goal-based planning, and investment opportunity flows.
+Caribbean Capital Network (CCN) is a multi-tenant investment platform for Caribbean investors and
+regulated financial institutions. It combines a conversational investment agent, suitability and
+limits controls, human approvals, portfolio aggregation, partner order workflows, compliance
+review, and an immutable audit trail.
 
-## Contents
+The repository is a Bun monorepo. The live product is not the legacy root-level static prototype.
 
-The site is a single page: the **Warm theme** prototype, served as `index.html`.
+## Repository map
 
-| File | Description |
+| Path | Responsibility |
 | --- | --- |
-| `index.html` | The Warm-themed CCN platform prototype — landing, sign-up, home, portfolio, opportunities, agent, and planning views. Boots a React UI through the shared `support.js` runtime. |
-| `story.html` | **Guided tour** — a self-contained presenter that walks a client or investor through the product story (problem → unified portfolio → agent → limits → one-tap approval → marketplace → cross-border planning → trust). Served at `/story.html`. Keyboard: `←/→` navigate, `Space` next, `A` autoplay, `F` fullscreen. Visuals live in `demo/assets/`. |
+| `apps/web` | Next.js investor, institution, compliance, and administration surfaces |
+| `apps/api` | Hono API, authentication, tenant boundaries, agent orchestration, webhooks, and realtime events |
+| `packages/db` | Drizzle schema, Postgres migrations, RLS policies, security-definer functions, and reference data |
+| `packages/agent` | Agent tools, prompts, display contracts, evaluations, and model gateway |
+| `packages/security` | SSRF controls, field encryption, redaction, rate limiting, and IP validation |
+| `packages/domain` | Shared schemas and domain contracts |
+| `design/agents` | Architecture, orchestration, approval, integration, and KYC diagrams |
+| `apps/ops/runbooks` | Deployment, migration, incident, and security operating procedures |
 
-### Runtime
+## Local development
 
-- `support.js` — the shared `dc-runtime` bundle that parses the page's `<x-dc>`
-  document and renders it with React (loaded from a CDN at runtime). Generated
-  from `dc-runtime/src/*.ts` (do not edit by hand).
-- `.thumbnail` — WebP preview thumbnail of the prototype.
-- `favicon.svg` / `favicon-32.png` / `apple-touch-icon.png` — site favicon (the
-  CCN "C" logo mark on the brand teal), linked from `index.html`.
+Requirements:
 
-### Assets
+- Bun 1.3 or newer (`.bun-version` is authoritative for CI)
+- Node.js 24 or newer
+- PostgreSQL 16 with pgvector for database-backed integration tests
 
-- `screenshots/` — iteration screenshots captured while designing the platform.
-- `uploads/` — source references used while building the prototype (sketches,
-  pasted design frames, and voice notes).
-
-## Viewing the prototype
-
-Because the page loads `support.js` relatively, serve the directory over HTTP
-rather than opening the file directly:
+Copy `.env.example` to `.env.local`, replace every placeholder, then install dependencies:
 
 ```bash
-# from the repository root
-python3 -m http.server 8000
-# then open http://localhost:8000/
+bun install
 ```
 
-No build step is required; `support.js` loads React at runtime, so the page
-needs network access to its CDN the first time it renders.
+Apply migrations before starting an environment that writes data:
 
-## System design
+```bash
+cd packages/db
+bun run db:migrate
+```
 
-The agent architecture and workflow diagrams live in
-[`design/agents/`](design/agents/README.md) — system architecture, multi-agent
-orchestration, the end-to-end agentic workflow (inputs → decisions →
-human-in-the-loop → outputs), the approval sequence, the data/API integration
-map, and the KYC onboarding gate. Diagrams are authored in Mermaid with rendered
-SVG/PNG exports.
+Run the API and web application from their workspace directories:
+
+```bash
+cd apps/api && bun run dev
+cd apps/web && bun run dev
+```
+
+## Partner audit-event webhooks
+
+Webhook configuration is deliberately **locked by default**. When
+`PARTNER_WEBHOOK_ALLOWED_HOSTS` is empty, the institution console disables the destination field,
+activation switch, and save action, and the API does not start the dispatcher. This is a security
+boundary, not a feature flag the browser may override.
+
+To enable a partner destination:
+
+1. Obtain the exact HTTPS receiving hostname from the partner, for example
+   `events.partner.example`. Do not include a scheme, path, port, query string, or wildcard.
+2. Complete the integration/security review: confirm the partner owns the hostname, TLS is valid,
+   the receiver expects CCN audit events, and the data-processing agreement covers the export.
+3. Add the exact hostname to the API service's comma-separated
+   `PARTNER_WEBHOOK_ALLOWED_HOSTS` value in Render. Keep previously approved hosts that must remain
+   active.
+4. Redeploy the API. The allowlist is loaded once at process start; changing the dashboard value
+   without a redeploy does not unlock the console.
+5. Sign in as the partner operator, open **Compliance → Audit-event webhook**, configure the full
+   HTTPS URL, save the one-time signing secret in a secrets manager, and send a test event.
+
+Example:
+
+```text
+PARTNER_WEBHOOK_ALLOWED_HOSTS=events.partner.example,hooks.second-partner.example
+```
+
+The API still resolves every approved hostname and refuses loopback, private, link-local, metadata,
+CGNAT, reserved, non-HTTPS, credential-bearing, custom-port, query-string, fragment, and redirect
+destinations. Never use `*`, a suffix wildcard, or a shared catch-all webhook host to make the field
+available. See the [security posture](apps/ops/runbooks/security-posture.md) for the enforced egress
+controls.
+
+## Verification
+
+Before merging a change:
+
+```bash
+bunx biome lint .
+bun run typecheck
+bun run test
+```
+
+Database-dependent tests run when `DATABASE_URL` points to a migrated test database. The pre-commit
+hook also runs Gitleaks; do not bypass it.
+
+## Deployment and operations
+
+- [Database migrations](apps/ops/runbooks/database-migrations.md)
+- [Security posture](apps/ops/runbooks/security-posture.md)
+- [Demo-day readiness](apps/ops/runbooks/demo-day.md)
+- [Agent system design](design/agents/README.md)
+
+Render's free plan does not run pre-deploy migrations. Any merge containing a migration requires the
+manual procedure in the database runbook before the affected feature is used.
