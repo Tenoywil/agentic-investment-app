@@ -124,6 +124,15 @@ export const reconciliationStatus = pgEnum('reconciliation_status', [
   'rejected',
 ]);
 
+/** Durable delivery state for partner-owned audit-event webhook exports. */
+export const webhookDeliveryStatus = pgEnum('webhook_delivery_status', [
+  'pending',
+  'processing',
+  'delivered',
+  'failed',
+  'dead',
+]);
+
 // UI accessibility prefs persisted per user (packages/ui text-size + contrast controls).
 export const uiScale = pgEnum('ui_scale', ['base', 'lg', 'xl', 'xxl']);
 export const contrastPref = pgEnum('contrast_pref', ['normal', 'high']);

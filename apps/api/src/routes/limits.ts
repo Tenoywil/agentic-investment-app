@@ -77,6 +77,10 @@ type ParseResult =
 
 const MONEY_FIELDS = ['autoInvestCapMinor', 'cashFloorMinor', 'requireApprovalAboveMinor'] as const;
 
+/** PostgreSQL bigint's positive ceiling. Reject larger wire values before an
+ * attempted upsert can turn a client validation mistake into a database 500. */
+const MAX_MONEY_MINOR = 9_223_372_036_854_775_807n;
+
 const FLAG_FIELDS = [
   'autoInvestEnabled',
   'cashFloorEnabled',
@@ -90,9 +94,12 @@ const FLAG_FIELDS = [
  *  string (bigint has no JSON form). Mirrors @ccn/domain's amountMinorSchema. */
 function parseMinor(value: unknown): bigint | null {
   if (typeof value === 'number') {
-    return Number.isInteger(value) && value >= 0 ? BigInt(value) : null;
+    return Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : null;
   }
-  if (typeof value === 'string' && /^\d+$/.test(value)) return BigInt(value);
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const parsed = BigInt(value);
+    return parsed <= MAX_MONEY_MINOR ? parsed : null;
+  }
   return null;
 }
 

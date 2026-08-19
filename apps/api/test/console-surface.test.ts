@@ -7,6 +7,8 @@ import {
   instruments,
   kycStatus,
   orders,
+  partnerWebhookDeliveries,
+  partnerWebhookEndpoints,
   partners,
   reconciliationItems,
   session,
@@ -17,6 +19,7 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { createApp } from '../src/app';
 import { createAuth } from '../src/auth';
 import { createLogger } from '../src/logger';
+import type { PartnerWebhookAdminRuntime } from '../src/services/partner-webhooks';
 
 /**
  * The partner console's data surface, proven at the HTTP boundary.
@@ -72,14 +75,28 @@ suite('partner console data surface', () => {
       FIELD_ENCRYPTION_KEY: 'base64:key',
     });
 
+  let webhookSecretSequence = 0;
+  const partnerWebhooks: PartnerWebhookAdminRuntime = {
+    allowedHosts: ['hooks.bank.test'],
+    async assertTarget(rawUrl) {
+      if (new URL(rawUrl).hostname !== 'hooks.bank.test') throw new Error('host not approved');
+    },
+    newEndpointId: () => crypto.randomUUID(),
+    newSigningSecret: () => `whsec_test_${++webhookSecretSequence}`,
+    encryptSecret: async (secret, endpointId) => `encrypted:${endpointId}:${secret}`,
+  };
+
   function app() {
     const config = configFor();
-    return createApp({
-      db,
-      auth: createAuth(db, config),
-      config,
-      logger: createLogger({ level: 'error', sink: () => {} }),
-    });
+    return createApp(
+      {
+        db,
+        auth: createAuth(db, config),
+        config,
+        logger: createLogger({ level: 'error', sink: () => {} }),
+      },
+      { partnerWebhooks },
+    );
   }
 
   const ids: Record<string, string> = {};
@@ -247,6 +264,11 @@ suite('partner console data surface', () => {
   });
 
   afterAll(async () => {
+    if (sagId) {
+      // Deliveries cascade with their endpoint. Audit rows deliberately remain
+      // append-only, just like the other actions exercised by this suite.
+      await db.delete(partnerWebhookEndpoints).where(eq(partnerWebhookEndpoints.partnerId, sagId));
+    }
     const all = Object.values(ids);
     if (all.length > 0) {
       await db.delete(session).where(inArray(session.userId, all));
@@ -292,6 +314,89 @@ suite('partner console data surface', () => {
     expect(ncb.partner.id).toBe(ncbId);
     expect(ncb.partner.code).toBe('NCB');
     expect(ncb.partner.name).not.toBe(sag.partner.name);
+  });
+
+  test('webhook export is tenant-scoped, secret-once, rotatable and durably enqueued', async () => {
+    const put = async (body: Record<string, unknown>) =>
+      app().request('/api/console/webhook', {
+        method: 'PUT',
+        headers: {
+          cookie: cookies.sagOperator ?? '',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+    const created = await put({ url: 'https://hooks.bank.test/ccn/events', active: true });
+    expect(created.status).toBe(200);
+    const createdBody = (await created.json()) as {
+      endpoint: { id: string; url: string; active: boolean };
+      signingSecret: string | null;
+    };
+    expect(createdBody.endpoint.url).toBe('https://hooks.bank.test/ccn/events');
+    expect(createdBody.endpoint.active).toBe(true);
+    expect(createdBody.signingSecret).toBe('whsec_test_1');
+
+    const read = await app().request('/api/console/webhook', {
+      headers: { cookie: cookies.sagOperator ?? '' },
+    });
+    expect(read.status).toBe(200);
+    const readBody = (await read.json()) as {
+      endpoint: Record<string, unknown> | null;
+      deliveries: { eventId: string; eventType: string }[];
+      allowedHosts: string[];
+    };
+    expect(readBody.endpoint).not.toBeNull();
+    expect(readBody.endpoint).not.toHaveProperty('secretCiphertext');
+    expect(readBody.endpoint).not.toHaveProperty('signingSecret');
+    expect(readBody.allowedHosts).toEqual(['hooks.bank.test']);
+    expect(
+      readBody.deliveries.some((delivery) => delivery.eventType === 'webhook.configured'),
+    ).toBe(true);
+
+    const otherTenant = await app().request('/api/console/webhook', {
+      headers: { cookie: cookies.ncbOperator ?? '' },
+    });
+    expect(otherTenant.status).toBe(200);
+    const otherBody = (await otherTenant.json()) as {
+      endpoint: unknown;
+      deliveries: unknown[];
+    };
+    expect(otherBody.endpoint).toBeNull();
+    expect(otherBody.deliveries).toEqual([]);
+
+    const unchanged = await put({ url: 'https://hooks.bank.test/ccn/events', active: true });
+    expect(unchanged.status).toBe(200);
+    expect(((await unchanged.json()) as { signingSecret: string | null }).signingSecret).toBeNull();
+
+    const rotated = await put({
+      url: 'https://hooks.bank.test/ccn/events',
+      active: true,
+      rotateSecret: true,
+    });
+    expect(rotated.status).toBe(200);
+    expect(((await rotated.json()) as { signingSecret: string | null }).signingSecret).toBe(
+      'whsec_test_2',
+    );
+
+    const testEvent = await app().request('/api/console/webhook/test', {
+      method: 'POST',
+      headers: { cookie: cookies.sagOperator ?? '' },
+    });
+    expect(testEvent.status).toBe(202);
+    const { eventId } = (await testEvent.json()) as { eventId: string };
+    const [queued] = await db
+      .select({
+        partnerId: partnerWebhookDeliveries.partnerId,
+        eventType: partnerWebhookDeliveries.eventType,
+        status: partnerWebhookDeliveries.status,
+      })
+      .from(partnerWebhookDeliveries)
+      .where(eq(partnerWebhookDeliveries.eventId, eventId));
+    expect(queued).toEqual({ partnerId: sagId, eventType: 'webhook.test', status: 'pending' });
+
+    const refused = await put({ url: 'https://unapproved.example/events', active: true });
+    expect(refused.status).toBe(400);
   });
 
   test('/console/orders carries instrument names', async () => {

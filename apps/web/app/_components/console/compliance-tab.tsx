@@ -1,13 +1,36 @@
 'use client';
 
 import { PartnerMark, markFor, usePartnerMarks } from '@/app/_components/PartnerMark';
+import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
-import { type ConsoleAuditEntry, putPartnerLogo } from '@/lib/console-api';
+import { Input } from '@/app/_components/ui/input';
+import { Label } from '@/app/_components/ui/label';
+import { Switch } from '@/app/_components/ui/switch';
+import {
+  type ConsoleAuditEntry,
+  type ConsoleWebhookDelivery,
+  type ConsoleWebhookDeliveryStatus,
+  type ConsoleWebhookEndpoint,
+  getPartnerWebhook,
+  putPartnerLogo,
+  queuePartnerWebhookTest,
+  savePartnerWebhook,
+} from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import { partnerLogoUrl } from '@/lib/portfolio-api';
-import { Pencil, ScrollText, ShieldCheck } from 'lucide-react';
+import {
+  CheckCircle2,
+  Copy,
+  Pencil,
+  RefreshCw,
+  RotateCw,
+  ScrollText,
+  Send,
+  ShieldCheck,
+  Webhook,
+} from 'lucide-react';
 import * as React from 'react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import {
@@ -45,6 +68,324 @@ const PROFILE_FIELD =
  *  operator gets a kind sentence instead of a request/response round trip. */
 const LOGO_MIMES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
 const LOGO_MAX_BYTES = 256 * 1024;
+
+const DELIVERY_VARIANT: Record<
+  ConsoleWebhookDeliveryStatus,
+  'secondary' | 'success' | 'warning' | 'terra'
+> = {
+  pending: 'secondary',
+  processing: 'warning',
+  delivered: 'success',
+  failed: 'warning',
+  dead: 'terra',
+};
+
+/**
+ * Partner-owned machine export of immutable audit events. Configuration and
+ * delivery evidence sit beside the human audit trail because they are two
+ * views of the same record, not an unrelated developer setting.
+ */
+function WebhookExportCard() {
+  const [endpoint, setEndpoint] = React.useState<ConsoleWebhookEndpoint | null>(null);
+  const [deliveries, setDeliveries] = React.useState<ConsoleWebhookDelivery[]>([]);
+  const [allowedHosts, setAllowedHosts] = React.useState<string[]>([]);
+  const [url, setUrl] = React.useState('');
+  const [active, setActive] = React.useState(true);
+  const [loading, setLoading] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
+  const [signingSecret, setSigningSecret] = React.useState<string | null>(null);
+  const [confirmRotation, setConfirmRotation] = React.useState(false);
+
+  const load = React.useCallback(async (syncForm: boolean) => {
+    try {
+      const result = await getPartnerWebhook();
+      setEndpoint(result.endpoint);
+      setDeliveries(result.deliveries);
+      setAllowedHosts(result.allowedHosts);
+      if (syncForm) {
+        setUrl(result.endpoint?.url ?? '');
+        setActive(result.endpoint?.active ?? true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load webhook settings.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void load(true);
+  }, [load]);
+
+  async function save(rotateSecret: boolean) {
+    setError(null);
+    setNotice(null);
+    setSigningSecret(null);
+    let parsed: URL;
+    try {
+      parsed = new URL(url.trim());
+      if (
+        parsed.protocol !== 'https:' ||
+        parsed.username ||
+        parsed.password ||
+        parsed.port ||
+        parsed.search ||
+        parsed.hash
+      ) {
+        throw new Error('unsafe URL');
+      }
+    } catch {
+      setError(
+        'Enter an HTTPS URL without credentials, a custom port, query parameters, or a fragment.',
+      );
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const result = await savePartnerWebhook({
+        url: parsed.toString(),
+        active,
+        rotateSecret,
+      });
+      setEndpoint(result.endpoint);
+      setSigningSecret(result.signingSecret);
+      setConfirmRotation(false);
+      setNotice(
+        rotateSecret
+          ? 'Signing secret rotated. Replace the previous secret in your receiver now.'
+          : 'Webhook settings saved.',
+      );
+      await load(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save webhook settings.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTest() {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const result = await queuePartnerWebhookTest();
+      setNotice(`Test queued with event ID ${result.eventId}.`);
+      await load(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not queue a test event.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copySecret() {
+    if (!signingSecret) return;
+    try {
+      await navigator.clipboard.writeText(signingSecret);
+      setNotice('Signing secret copied. Store it in your secrets manager.');
+    } catch {
+      setError('Could not access the clipboard. Select and copy the secret manually.');
+    }
+  }
+
+  const exportAvailable = allowedHosts.length > 0;
+
+  return (
+    <Card className="p-6 min-[901px]:col-span-2" data-tour="institution-webhook-export">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <Webhook className="h-[18px] w-[18px] text-teal2" aria-hidden />
+            <b className="font-display text-[17px]">Audit-event webhook</b>
+            {endpoint ? (
+              <Badge variant={endpoint.active ? 'success' : 'outline'}>
+                {endpoint.active ? 'Active' : 'Disabled'}
+              </Badge>
+            ) : null}
+          </div>
+          <p className="mb-0 mt-1 max-w-[760px] text-[13px] leading-relaxed text-faint">
+            Sync each new immutable audit event into your compliance, CRM or data platform. Delivery
+            is signed, retryable and at least once; deduplicate on the stable event ID.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={loading || busy}
+          onClick={() => void load(false)}
+        >
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          Refresh
+        </Button>
+      </div>
+
+      {loading ? <RowsSkeleton rows={2} label="Loading webhook settings" /> : null}
+
+      {!loading ? (
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,.8fr)]">
+          <form
+            className="grid content-start gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void save(false);
+            }}
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="partner-webhook-url">HTTPS destination</Label>
+              <Input
+                id="partner-webhook-url"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                placeholder="https://events.yourfirm.com/ccn/audit"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                aria-describedby="partner-webhook-hint"
+                disabled={!exportAvailable || busy}
+                required
+              />
+              <p id="partner-webhook-hint" className="m-0 text-[12px] leading-relaxed text-faint">
+                {exportAvailable
+                  ? `Approved host${allowedHosts.length === 1 ? '' : 's'}: ${allowedHosts.join(', ')}. Paths are allowed; URL credentials, custom ports, query parameters, fragments and redirects are refused.`
+                  : 'No outbound host has been approved for this deployment. Ask CCN to review and allowlist your receiving hostname before enabling an export.'}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-solid border-border bg-muted/30 p-3.5">
+              <div>
+                <Label htmlFor="partner-webhook-active">Deliver new audit events</Label>
+                <p className="m-0 mt-1 text-[12px] leading-snug text-faint">
+                  Disabling keeps the endpoint and history but queues no new events.
+                </p>
+              </div>
+              <Switch
+                id="partner-webhook-active"
+                checked={active}
+                onCheckedChange={setActive}
+                disabled={!exportAvailable || busy}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" disabled={!exportAvailable || busy || !url.trim()}>
+                {busy ? 'Working…' : endpoint ? 'Save webhook' : 'Create webhook'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!endpoint?.active || busy}
+                onClick={() => void sendTest()}
+              >
+                <Send className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                Send test event
+              </Button>
+              {endpoint ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={confirmRotation ? 'destructive' : 'ghost'}
+                  disabled={busy}
+                  onClick={() => {
+                    if (confirmRotation) void save(true);
+                    else setConfirmRotation(true);
+                  }}
+                >
+                  <RotateCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                  {confirmRotation ? 'Confirm secret rotation' : 'Rotate signing secret'}
+                </Button>
+              ) : null}
+              {confirmRotation ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => setConfirmRotation(false)}
+                >
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
+
+            {signingSecret ? (
+              <div className="rounded-xl border border-solid border-[#b8dec9] bg-[#edf8f1] p-4 dark:border-[#2c5a46] dark:bg-[#122c23]">
+                <div className="flex items-center gap-2 text-sm font-bold text-success-ink">
+                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                  Save this signing secret now — it will not be shown again
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    aria-label="New webhook signing secret"
+                    value={signingSecret}
+                    readOnly
+                    className="font-mono text-[12px]"
+                  />
+                  <Button type="button" variant="outline" onClick={() => void copySecret()}>
+                    <Copy className="h-4 w-4" aria-hidden />
+                    <span className="sr-only">Copy signing secret</span>
+                  </Button>
+                </div>
+                <p className="mb-0 mt-2 text-[12px] leading-relaxed text-dim">
+                  Verify <code>x-ccn-signature</code> as HMAC-SHA256 over{' '}
+                  <code>{'timestamp.eventId.body'}</code> before accepting an event.
+                </p>
+              </div>
+            ) : null}
+
+            <div aria-live="polite">
+              {error ? <ErrorNote message={error} /> : null}
+              {notice ? <p className="m-0 text-[13px] font-semibold text-teal2">{notice}</p> : null}
+            </div>
+          </form>
+
+          <div className="min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <b className="text-[14px]">Recent deliveries</b>
+              <span className="text-[11px] text-faint">Last {deliveries.length} of 20</span>
+            </div>
+            {deliveries.length === 0 ? (
+              <p className="mt-3 rounded-xl bg-muted/40 p-4 text-[13px] leading-relaxed text-faint">
+                No deliveries yet. Save an active endpoint, then send a test event through the same
+                signed outbox path used in production.
+              </p>
+            ) : (
+              <ol className="m-0 mt-2 list-none p-0">
+                {deliveries.map((delivery) => (
+                  <li key={delivery.id} className={`py-2.5 ${ROW_DIVIDER} last:border-b-0`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 truncate font-mono text-[12px] text-foreground">
+                        {delivery.eventType}
+                      </span>
+                      <Badge variant={DELIVERY_VARIANT[delivery.status]}>
+                        {delivery.status === 'dead' ? 'Stopped' : delivery.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 text-[11.5px] leading-relaxed text-faint">
+                      {timeAgo(delivery.createdAt)} · attempt {delivery.attemptCount}
+                      {delivery.responseStatus ? ` · HTTP ${delivery.responseStatus}` : ''}
+                      {delivery.lastError ? ` · ${delivery.lastError.replaceAll('_', ' ')}` : ''}
+                    </div>
+                    <div
+                      className="mt-0.5 truncate font-mono text-[10.5px] text-faint"
+                      title={delivery.eventId}
+                    >
+                      Event {delivery.eventId}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
 
 /**
  * The firm's logo — upload, preview, remove.
@@ -583,6 +924,8 @@ export function ComplianceTab({
           );
         })}
       </Card>
+
+      <WebhookExportCard />
 
       {/* CCN's standing terms with a firm, in one place. These paragraphs used
           to sit as cards on the Overview and Clients tabs — informational copy

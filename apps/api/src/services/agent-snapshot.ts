@@ -6,6 +6,7 @@ import {
   goals,
   holdings,
   instruments,
+  kycStatus,
   orders,
   partners,
 } from '@ccn/db';
@@ -22,7 +23,12 @@ import { loadBand, loadLimits } from './gate';
  * the caller's RLS scope; reference tables (instruments/partners) are world-read.
  */
 export async function loadAgentSnapshot(tx: Transaction, userId: string): Promise<AgentSnapshot> {
-  const [limits, band] = await Promise.all([loadLimits(tx, userId), loadBand(tx, userId)]);
+  const [limits, band, kycRows] = await Promise.all([
+    loadLimits(tx, userId),
+    loadBand(tx, userId),
+    tx.select().from(kycStatus).where(eq(kycStatus.userId, userId)).limit(1),
+  ]);
+  const kyc = kycRows[0];
 
   const holdingRows = await tx
     .select({
@@ -59,6 +65,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
 
   const instrumentColumns = {
     id: instruments.id,
+    partnerId: instruments.partnerId,
     slug: instruments.slug,
     abbr: instruments.abbr,
     type: instruments.type,
@@ -100,6 +107,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
 
   const instrumentList: SnapshotInstrument[] = instrumentRows.map((i) => ({
     id: i.id,
+    partnerId: i.partnerId,
     slug: i.slug,
     abbr: i.abbr,
     type: i.type,
@@ -199,6 +207,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
 
   const connectionRows = await tx
     .select({
+      partnerId: connectedAccounts.partnerId,
       partner: partners.name,
       status: connectedAccounts.status,
       declineReason: connectedAccounts.declineReason,
@@ -233,6 +242,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
       createdAt: a.createdAt.toISOString(),
     })),
     connections: connectionRows.map((cn) => ({
+      partnerId: cn.partnerId,
       partner: cn.partner,
       status: cn.status,
       declineReason: cn.declineReason,
@@ -242,6 +252,12 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
 
   return {
     activity,
+    compliance: {
+      identityVerified: kyc?.identityVerified ?? false,
+      complianceConfirmed: kyc?.complianceConfirmed ?? false,
+      riskCompleted: kyc?.riskCompleted ?? false,
+      fundsConfirmed: kyc?.fundsConfirmed ?? false,
+    },
     portfolio: {
       currency: 'USD',
       netWorthMinor,

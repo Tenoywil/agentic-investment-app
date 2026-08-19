@@ -32,6 +32,7 @@ import { TABS, agreementDot, agreementHeadline, regulatorLabel } from './lib';
  */
 export function ConsoleSidebar({
   partner,
+  operator,
   pendingOrders,
   pendingReconciliation,
   signingOut,
@@ -39,6 +40,7 @@ export function ConsoleSidebar({
   dialogRef,
 }: {
   partner: MePartner | null;
+  operator: { name: string; email: string } | null;
   pendingOrders: number;
   pendingReconciliation: number;
   signingOut: boolean;
@@ -50,6 +52,12 @@ export function ConsoleSidebar({
   const fallbackRef = React.useRef<HTMLDialogElement>(null);
   const agreement = agreementHeadline(partner?.agreementStatus);
   const regulator = regulatorLabel(partner?.regulator);
+  const operatorInitials = operator?.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
 
   const close = React.useCallback(() => dialogRef?.current?.close(), [dialogRef]);
   useSheetDismiss(dialogRef ?? fallbackRef, close);
@@ -116,6 +124,23 @@ export function ConsoleSidebar({
       </TabsList>
 
       <div className="console-sidebar__grow flex-1" />
+
+      {/* The accountable human behind this session. The audit trail signs
+          decisions with the same identity, so an operator can verify which
+          account they are about to act as before touching a client's record. */}
+      {operator ? (
+        <div className="mb-3 flex items-center gap-2.5 border-0 border-t border-solid border-white/15 px-1 pt-3">
+          <Avatar className="h-9 w-9 flex-none">
+            <AvatarFallback className="bg-white/10 text-xs font-bold text-white">
+              {operatorInitials || 'OP'}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-bold text-white">{operator.name}</div>
+            <div className="truncate text-[11px] text-[#d3e0da]/70">{operator.email}</div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Hidden entirely when the partner row carries no agreement status —
           asserting one for a firm that has not signed is the exact failure

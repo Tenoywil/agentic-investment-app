@@ -4,6 +4,7 @@ import {
   createDb,
   holdings,
   instruments,
+  kycStatus,
   limits,
   partners,
   riskProfiles,
@@ -12,7 +13,7 @@ import {
 } from '@ccn/db';
 import { eq, sql } from 'drizzle-orm';
 import { acceptOrder, createOrder, settleOrder } from '../src/db-fns';
-import { loadInstrument, runGate } from '../src/services/gate';
+import { assessExecutionCompliance, loadInstrument, runGate } from '../src/services/gate';
 import { startEventBridge } from '../src/ws/bridge';
 import { WsHub } from '../src/ws/hub';
 
@@ -119,7 +120,7 @@ suite('trading: gate → order → accept → settle + realtime', () => {
 
     const [acct] = await db
       .insert(connectedAccounts)
-      .values({ userId: u1, partnerId: ncbId, label: 'NCB' })
+      .values({ userId: u1, partnerId: ncbId, label: 'NCB', status: 'active' })
       .returning({ id: connectedAccounts.id });
     await db.insert(holdings).values([
       {
@@ -138,6 +139,14 @@ suite('trading: gate → order → accept → settle + realtime', () => {
       }, // US$8,200
     ]);
     await db.insert(limits).values({ userId: u1 }); // schema defaults
+    await db.insert(kycStatus).values({
+      userId: u1,
+      tier: 'tier2',
+      identityVerified: true,
+      complianceConfirmed: true,
+      riskCompleted: true,
+      fundsConfirmed: true,
+    });
     await db
       .insert(riskProfiles)
       .values({ userId: u1, answers: {}, score: 9, band: 'high_moderate' });
@@ -154,6 +163,16 @@ suite('trading: gate → order → accept → settle + realtime', () => {
       return runGate(tx, { userId: u1, instrument, amountMinor: 40_000n, currency: 'USD' });
     });
     expect(decision.decision).toBe('auto_act');
+  });
+
+  test('execution compliance requires readiness and the exact active firm', async () => {
+    const [ncb, sygnus] = await withRls(db, { userId: u1, dbRole: APP }, async (tx) => [
+      await assessExecutionCompliance(tx, u1, ncbId),
+      await assessExecutionCompliance(tx, u1, sygId),
+    ]);
+    expect(ncb.decision).toBe('clear');
+    expect(sygnus.decision).toBe('blocked');
+    expect(sygnus.reasons.join(' ')).toContain('active account with the executing firm');
   });
 
   test('a blocked instrument returns its curated reasons', async () => {

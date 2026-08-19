@@ -232,6 +232,13 @@
       "when": 1786740060000,
       "tag": "0032_kyc_request_and_client_equity",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786740120000,
+      "tag": "0033_partner_webhook_exports",
+      "breakpoints": true
     }
   ]
 }

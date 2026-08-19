@@ -14,7 +14,17 @@ import {
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/_components/ui/dialog';
 import { EmptyState } from '@/app/_components/ui/empty';
+import { Input } from '@/app/_components/ui/input';
+import { Label } from '@/app/_components/ui/label';
 import { Skeleton, SkeletonCard, SkeletonRegion } from '@/app/_components/ui/skeleton';
 import { Switch } from '@/app/_components/ui/switch';
 import { useSheetDismiss } from '@/app/_lib/sheet';
@@ -42,7 +52,6 @@ import {
   LimitsApiError,
   type LimitsFlag,
   type LimitsResponse,
-  formatBps,
   formatLimitMinor,
   getLimits,
   updateLimits,
@@ -342,8 +351,7 @@ const RULES: {
   flag: LimitsFlag;
   label: string;
   note: string;
-  /** Null means the rule has no amount set yet, so its row is not rendered. */
-  value: (limits: Limits) => string | null;
+  value: (limits: Limits) => string;
 }[] = [
   {
     flag: 'autoInvestEnabled',
@@ -389,7 +397,7 @@ const RULES: {
     flag: 'dailyCapEnabled',
     label: 'Daily cap',
     note: 'Total it may commit in a single day',
-    value: (l) => (l.dailyCapMinor === null ? null : formatLimitMinor(l.dailyCapMinor)),
+    value: (l) => (l.dailyCapMinor === null ? 'Not set' : formatLimitMinor(l.dailyCapMinor)),
   },
 ];
 
@@ -464,12 +472,224 @@ function AgentStats() {
  * failure rolls the switch back and says why, rather than leaving the screen
  * claiming a rule the engine isn't applying.
  */
+interface LimitsDraft {
+  autoInvestCap: string;
+  cashFloor: string;
+  approvalThreshold: string;
+  singlePositionPct: string;
+  dailyCap: string;
+}
+
+function minorToMajor(minor: string | null): string {
+  if (minor === null) return '';
+  const cents = BigInt(minor);
+  const whole = cents / 100n;
+  const fraction = (cents % 100n).toString().padStart(2, '0');
+  return fraction === '00' ? whole.toString() : `${whole}.${fraction}`;
+}
+
+function draftFromLimits(limits: Limits): LimitsDraft {
+  return {
+    autoInvestCap: minorToMajor(limits.autoInvestCapMinor),
+    cashFloor: minorToMajor(limits.cashFloorMinor),
+    approvalThreshold: minorToMajor(limits.requireApprovalAboveMinor),
+    singlePositionPct: limits.singlePositionMaxPct.toString(),
+    dailyCap: minorToMajor(limits.dailyCapMinor),
+  };
+}
+
+function majorToMinor(value: string, label: string): string {
+  const input = value.trim();
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(input)) {
+    throw new Error(
+      `${label} must be a non-negative dollar amount with no more than two decimals.`,
+    );
+  }
+  const normalized = input.replaceAll(',', '');
+  const [whole, fraction = ''] = normalized.split('.');
+  const minor = BigInt(whole ?? '0') * 100n + BigInt(fraction.padEnd(2, '0'));
+  if (minor > 9_223_372_036_854_775_807n) {
+    throw new Error(`${label} is too large.`);
+  }
+  return minor.toString();
+}
+
+function LimitsEditor({
+  open,
+  limits,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  limits: Limits;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (response: LimitsResponse) => void;
+}) {
+  const [draft, setDraft] = useState<LimitsDraft>(() => draftFromLimits(limits));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft(draftFromLimits(limits));
+    setError(null);
+  }, [limits, open]);
+
+  function field(name: keyof LimitsDraft, value: string) {
+    setDraft((current) => ({ ...current, [name]: value }));
+  }
+
+  async function save() {
+    setError(null);
+    try {
+      const singlePositionMaxPct = Number(draft.singlePositionPct);
+      if (
+        !Number.isInteger(singlePositionMaxPct) ||
+        singlePositionMaxPct < 1 ||
+        singlePositionMaxPct > 100
+      ) {
+        throw new Error('Single-position maximum must be a whole percentage from 1 to 100.');
+      }
+      const dailyCapMinor = draft.dailyCap.trim()
+        ? majorToMinor(draft.dailyCap, 'Daily cap')
+        : null;
+      setSaving(true);
+      const response = await updateLimits({
+        autoInvestCapMinor: majorToMinor(draft.autoInvestCap, 'Auto-invest cap'),
+        cashFloorMinor: majorToMinor(draft.cashFloor, 'Cash floor'),
+        requireApprovalAboveMinor: majorToMinor(draft.approvalThreshold, 'Approval threshold'),
+        singlePositionMaxPct,
+        dailyCapMinor,
+        // Entering the first daily-cap amount turns the protection on. Removing
+        // the amount turns it off so the engine can never hold an empty rule.
+        dailyCapEnabled:
+          dailyCapMinor === null
+            ? false
+            : limits.dailyCapMinor === null
+              ? true
+              : limits.dailyCapEnabled,
+      });
+      onSaved(response);
+      onOpenChange(false);
+    } catch (err) {
+      setError(
+        err instanceof LimitsApiError || err instanceof Error
+          ? err.message
+          : 'Could not save your limits. Try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
+      <DialogContent className="max-w-[620px] p-0">
+        <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
+          <DialogTitle>Adjust your agent limits</DialogTitle>
+          <DialogDescription>
+            Set the boundaries CCN checks before every proposal. Amounts are in USD and changes take
+            effect immediately.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-5 px-6 pb-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+            <div className="grid gap-2">
+              <Label htmlFor="auto-invest-cap">Auto-invest cap (USD)</Label>
+              <Input
+                id="auto-invest-cap"
+                inputMode="decimal"
+                value={draft.autoInvestCap}
+                onChange={(event) => field('autoInvestCap', event.target.value)}
+                disabled={saving}
+              />
+              <p className="m-0 text-xs text-faint">Most it may commit without asking.</p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="approval-threshold">Always ask above (USD)</Label>
+              <Input
+                id="approval-threshold"
+                inputMode="decimal"
+                value={draft.approvalThreshold}
+                onChange={(event) => field('approvalThreshold', event.target.value)}
+                disabled={saving}
+              />
+              <p className="m-0 text-xs text-faint">This approval rule takes priority.</p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="cash-floor">Cash floor (USD)</Label>
+              <Input
+                id="cash-floor"
+                inputMode="decimal"
+                value={draft.cashFloor}
+                onChange={(event) => field('cashFloor', event.target.value)}
+                disabled={saving}
+              />
+              <p className="m-0 text-xs text-faint">Cash the agent must leave untouched.</p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="single-position-cap">Single-position maximum (%)</Label>
+              <Input
+                id="single-position-cap"
+                inputMode="numeric"
+                value={draft.singlePositionPct}
+                onChange={(event) => field('singlePositionPct', event.target.value)}
+                disabled={saving}
+              />
+              <p className="m-0 text-xs text-faint">Whole percentage from 1 to 100.</p>
+            </div>
+          </div>
+          <div className="grid gap-2 rounded-xl bg-muted/40 p-4">
+            <Label htmlFor="daily-cap">Daily commitment cap (USD)</Label>
+            <Input
+              id="daily-cap"
+              inputMode="decimal"
+              placeholder="No daily cap"
+              value={draft.dailyCap}
+              onChange={(event) => field('dailyCap', event.target.value)}
+              disabled={saving}
+            />
+            <p className="m-0 text-xs text-faint">
+              Entering an amount activates this protection. Leave it blank to remove the cap.
+            </p>
+          </div>
+          {error && (
+            <div aria-live="polite">
+              <InlineError>{error}</InlineError>
+            </div>
+          )}
+          <DialogFooter className="justify-end max-sm:flex-col-reverse">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save limits'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LimitsCard() {
   const [data, setData] = useState<LimitsResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingFlag, setSavingFlag] = useState<LimitsFlag | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -493,6 +713,10 @@ function LimitsCard() {
 
   async function toggle(flag: LimitsFlag) {
     if (!data || savingFlag) return;
+    if (flag === 'dailyCapEnabled' && !data.limits.dailyCapEnabled && !data.limits.dailyCapMinor) {
+      setEditorOpen(true);
+      return;
+    }
     const previous = data;
     const next = !data.limits[flag];
     setData({ ...data, limits: { ...data.limits, [flag]: next } });
@@ -513,9 +737,23 @@ function LimitsCard() {
 
   return (
     <Card className="p-5" data-tour="customer-limits">
-      <div className="mb-1 flex items-baseline justify-between gap-2.5">
-        <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
-        <span className="text-[12.5px] text-faint">what it may do alone</span>
+      <div className="mb-1 flex items-center justify-between gap-2.5">
+        <div>
+          <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
+          <span className="ml-2 text-[12.5px] text-faint">what it may do alone</span>
+        </div>
+        {state === 'ready' && data && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2.5 text-teal2"
+            onClick={() => setEditorOpen(true)}
+          >
+            <SlidersHorizontal className="mr-1.5 h-4 w-4" aria-hidden />
+            Adjust
+          </Button>
+        )}
       </div>
 
       {state === 'ready' && data && (
@@ -553,11 +791,8 @@ function LimitsCard() {
 
       {state === 'ready' &&
         data &&
-        // A rule with no amount set has nothing to enforce, so it isn't shown —
-        // a switch the server would refuse is worse than no switch at all.
-        RULES.map((rule) => ({ rule, value: rule.value(data.limits) }))
-          .filter((r): r is { rule: (typeof RULES)[number]; value: string } => r.value !== null)
-          .map(({ rule, value }, i) => {
+        RULES.map((rule) => ({ rule, value: rule.value(data.limits) })).map(
+          ({ rule, value }, i) => {
             const on = data.limits[rule.flag];
             return (
               <div
@@ -588,7 +823,19 @@ function LimitsCard() {
                 />
               </div>
             );
-          })}
+          },
+        )}
+      {data && (
+        <LimitsEditor
+          open={editorOpen}
+          limits={data.limits}
+          onOpenChange={setEditorOpen}
+          onSaved={(response) => {
+            setData(response);
+            setSaveError(null);
+          }}
+        />
+      )}
     </Card>
   );
 }

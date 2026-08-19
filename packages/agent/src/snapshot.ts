@@ -11,6 +11,7 @@ import type { Currency } from '@ccn/money';
 
 export interface SnapshotInstrument {
   id: string;
+  partnerId: string | null;
   slug: string;
   abbr: string;
   type: string;
@@ -90,6 +91,7 @@ export interface SnapshotGoal {
 }
 
 export interface SnapshotConnection {
+  partnerId: string;
   partner: string;
   status: 'pending' | 'active' | 'declined';
   declineReason: string | null;
@@ -102,12 +104,21 @@ export interface SnapshotActivity {
   connections: SnapshotConnection[];
 }
 
+/** Authoritative onboarding facts consumed by the compliance specialist. */
+export interface AgentComplianceSnapshot {
+  identityVerified: boolean;
+  complianceConfirmed: boolean;
+  riskCompleted: boolean;
+  fundsConfirmed: boolean;
+}
+
 export interface AgentSnapshot {
   portfolio: SnapshotPortfolio;
   limits: EngineLimits;
   band: RiskBand;
   instruments: SnapshotInstrument[];
   activity: SnapshotActivity;
+  compliance: AgentComplianceSnapshot;
   /** The person's goals — what the money is for. Read by the fit agent
    *  (liquidity vs. a dated goal) and the goals view. */
   goals: SnapshotGoal[];

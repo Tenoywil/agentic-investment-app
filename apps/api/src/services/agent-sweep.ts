@@ -4,6 +4,7 @@ import {
   type ResearchFn,
   type SizingChoice,
   assessPortfolioFit,
+  assessTransactionCompliance,
   runProposalPipeline,
 } from '@ccn/agent';
 import { withRls } from '@ccn/db';
@@ -14,6 +15,7 @@ import {
   goals as goalsTable,
   holdings,
   instruments,
+  kycStatus,
   orders,
   partners,
   riskProfiles,
@@ -254,7 +256,13 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
       .from(goalsTable)
       .where(eq(goalsTable.userId, userId));
 
-    const [limits, band] = await Promise.all([loadLimits(tx, userId), loadBand(tx, userId)]);
+    const [limits, band, kycRows] = await Promise.all([
+      loadLimits(tx, userId),
+      loadBand(tx, userId),
+      tx.select().from(kycStatus).where(eq(kycStatus.userId, userId)).limit(1),
+    ]);
+    const kyc = kycRows[0];
+    const activePartnerIds = new Set(partnerIds);
 
     /**
      * Candidates: live, unblocked, with a real minimum, at a firm the person
@@ -265,6 +273,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
     const universe = await tx
       .select({
         id: instruments.id,
+        partnerId: instruments.partnerId,
         name: instruments.name,
         type: instruments.type,
         region: instruments.region,
@@ -332,8 +341,9 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
      * scout_marketplace tool runs, with the DB-backed gate injected instead of
      * the snapshot one. Research ranks (with the shared per-asset dossier when
      * the composition root wired it), fit weighs the person's own portfolio
-     * and goals, suitability screens through their limits, coordination sizes
-     * and routes; every verdict lands in the trace the approval carries.
+     * and goals, suitability screens through their limits, compliance verifies
+     * readiness and the firm relationship, and coordination sizes and routes;
+     * every verdict lands in the trace the approval carries.
      */
     const outcome = await runProposalPipeline({
       candidates: universe.map((c) => ({
@@ -406,6 +416,17 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
           now: new Date(),
         });
       },
+      compliance: (c) => {
+        const row = universeById.get(c.instrumentId);
+        return assessTransactionCompliance({
+          identityVerified: kyc?.identityVerified ?? false,
+          complianceConfirmed: kyc?.complianceConfirmed ?? false,
+          riskCompleted: kyc?.riskCompleted ?? false,
+          fundsConfirmed: kyc?.fundsConfirmed ?? false,
+          activeExecutingFirm: Boolean(row?.partnerId && activePartnerIds.has(row.partnerId)),
+          executingFirmName: row?.partnerName ?? null,
+        });
+      },
       sizeFor,
       gate: async (c, amountMinor) => {
         const instrument = await loadInstrument(tx, c.instrumentId, deps.logger);
@@ -435,7 +456,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
 
     const sizedAboveMinimum = amountMinor > candidate.minInvestmentMinor;
     const body = [
-      `Found by your agent's pipeline — research scanned the marketplace, portfolio fit weighed it against your holdings and goals, suitability screened it against your limits, coordination sized it: ${name}`,
+      `Found by your agent's pipeline — research scanned the marketplace, portfolio fit weighed it against your holdings and goals, suitability screened it against your limits, compliance verified readiness and the executing-firm relationship, and coordination sized it: ${name}`,
       candidate.partnerName ? ` at ${candidate.partnerName}` : '',
       candidate.risk ? `, ${RISK_WORD[candidate.risk] ?? candidate.risk} risk` : '',
       sizedAboveMinimum
@@ -486,7 +507,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
     await tx.insert(agentMessages).values({
       userId,
       role: 'agent',
-      content: `While you were away my research agent scanned the marketplace, the portfolio-fit check weighed the shortlist against your holdings and goals, the suitability check screened it against your limits, and ${name}${candidate.partnerName ? ` at ${candidate.partnerName}` : ''} came through. I've put it in your approvals — ${amount}, with the full stage-by-stage reasoning on the card. It stays there until you decide.`,
+      content: `While you were away my research agent scanned the marketplace, the portfolio-fit check weighed the shortlist against your holdings and goals, the suitability check screened it against your limits, and the compliance agent verified readiness and the executing-firm relationship. ${name}${candidate.partnerName ? ` at ${candidate.partnerName}` : ''} came through. I've put it in your approvals — ${amount}, with the full stage-by-stage reasoning on the card. It stays there until you decide.`,
     });
 
     await auditAppend(tx, {

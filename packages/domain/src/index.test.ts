@@ -24,10 +24,36 @@ import {
   nextGatewayStatus,
   nextIntroductionStatus,
   nextStatus,
+  partnerWebhookSchema,
   proposeOrderSchema,
   rejectSchema,
   scoreToBand,
 } from './index';
+
+group('partner webhook boundary', () => {
+  test('accepts and normalizes an HTTPS path', () => {
+    expect(
+      partnerWebhookSchema.parse({ url: ' https://events.example.com/ccn/audit ', active: true }),
+    ).toEqual({
+      url: 'https://events.example.com/ccn/audit',
+      active: true,
+      rotateSecret: false,
+    });
+  });
+
+  test('rejects insecure or ambiguous destinations', () => {
+    for (const url of [
+      'http://events.example.com/ccn',
+      'https://user:pass@events.example.com/ccn',
+      'https://events.example.com:8443/ccn',
+      'https://events.example.com/ccn?token=secret',
+      'https://events.example.com/ccn#fragment',
+      'not a url',
+    ]) {
+      expect(partnerWebhookSchema.safeParse({ url }).success).toBe(false);
+    }
+  });
+});
 
 group('order state machine', () => {
   test('the happy path created → accepted → settled', () => {

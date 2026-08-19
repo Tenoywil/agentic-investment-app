@@ -1,5 +1,5 @@
 /**
- * The multi-agent proposal pipeline: four specialists, one visible record.
+ * The multi-agent proposal pipeline: five specialists, one visible record.
  *
  * The product says "your agent discovers, screens and coordinates execution" —
  * different jobs, and until now they were one interleaved loop whose working
@@ -22,7 +22,11 @@
  *                  is PASSED OVER: proposing nothing beats proposing something
  *                  mediocre, and it is what keeps approval cards meaning
  *                  something.
- *   4. COORDINATION — sizes the chosen candidate (at its minimum, or toward a
+ *   4. COMPLIANCE — verifies the investor's identity, declarations,
+ *                  source-of-funds status and active relationship with the
+ *                  executing firm. The caller injects the authoritative
+ *                  check; a failure stops that candidate before coordination.
+ *   5. COORDINATION — sizes the chosen candidate (at its minimum, or toward a
  *                  goal when the caller provides a sizing policy — any size
  *                  above the minimum is re-gated before it is proposed),
  *                  decides the route (always an approval card; the pipeline
@@ -38,13 +42,13 @@
  * (services/gate.ts); the chat passes the snapshot-backed Limits Engine
  * evaluate. The research signal, fit assessor, and sizing policy are injected
  * the same way and are all optional — a caller that provides none gets
- * exactly the original three-stage behavior. The pipeline itself touches no
+ * exactly the original legacy behavior. The pipeline itself touches no
  * database and calls no model, so it is deterministic and testable.
  */
 
 import type { FitResult } from './fit';
 
-export type PipelineStageName = 'research' | 'fit' | 'suitability' | 'coordination';
+export type PipelineStageName = 'research' | 'fit' | 'suitability' | 'compliance' | 'coordination';
 
 /** One cited research claim: what is asserted, and how well it is supported.
  *  The status vocabulary is research.ts's evidence labels, carried verbatim. */
@@ -90,6 +94,48 @@ export interface GateVerdict {
   reasons?: string[];
 }
 
+export interface ComplianceVerdict {
+  decision: 'clear' | 'blocked';
+  /** Plain-language reasons when blocked. */
+  reasons: string[];
+  /** Checks that cleared, retained in the visible trace. */
+  checks: string[];
+}
+
+/** Facts required before coordination may hand a proposal to an executing firm. */
+export interface TransactionComplianceFacts {
+  identityVerified: boolean;
+  complianceConfirmed: boolean;
+  riskCompleted: boolean;
+  fundsConfirmed: boolean;
+  activeExecutingFirm: boolean;
+  executingFirmName: string | null;
+}
+
+/** Shared, deterministic compliance policy for chat and background agents. */
+export function assessTransactionCompliance(facts: TransactionComplianceFacts): ComplianceVerdict {
+  const reasons: string[] = [];
+  const checks: string[] = [];
+  if (facts.identityVerified) checks.push('Identity verified');
+  else reasons.push('Identity verification is incomplete.');
+  if (facts.complianceConfirmed) checks.push('Compliance declarations confirmed');
+  else reasons.push('Compliance declarations are incomplete.');
+  if (facts.riskCompleted) checks.push('Risk assessment complete');
+  else reasons.push('Risk assessment is incomplete.');
+  if (facts.fundsConfirmed) checks.push('Source of funds confirmed');
+  else reasons.push('Source-of-funds verification is incomplete.');
+  if (facts.activeExecutingFirm) {
+    checks.push(`Active account with ${facts.executingFirmName ?? 'executing firm'}`);
+  } else {
+    reasons.push('There is no active account with the executing firm.');
+  }
+  return {
+    decision: reasons.length === 0 ? 'clear' : 'blocked',
+    reasons,
+    checks,
+  };
+}
+
 /** What the research pass concluded about one candidate — mapped down from
  *  the full dossier so the pipeline stays decoupled from its shape. Null from
  *  the callback means "research unavailable": the pipeline degrades to a
@@ -125,6 +171,9 @@ export interface PipelineInput {
   shortlist?: number;
   /** The deterministic gate. May be async (DB-backed) or sync (snapshot). */
   gate: (c: PipelineCandidate, amountMinor: bigint) => Promise<GateVerdict> | GateVerdict;
+  /** Authoritative investor/firm readiness check. Required so no caller can
+   * route a candidate around the distinct, fail-closed compliance stage. */
+  compliance: (c: PipelineCandidate) => Promise<ComplianceVerdict> | ComplianceVerdict;
   /** Money formatter in the caller's display conventions. */
   fmt: (minor: bigint, currency: string) => string;
   /** Per-asset research signal (shared dossier cache behind it). Optional —
@@ -150,9 +199,9 @@ export interface PipelineOutcome {
     fit: FitResult | null;
     research: ResearchSignal | null;
   } | null;
-  /** The stages' records, in running order — research and suitability always
-   *  present; fit only when a fit assessor was provided; coordination only
-   *  when something was chosen. */
+  /** The stages' records, in running order — research, suitability and
+   *  compliance always present; fit when its assessor is provided;
+   *  coordination only when something was chosen. */
   trace: StageTrace[];
 }
 
@@ -255,6 +304,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
 
   // ---- 3. Suitability: the gate decides, and every verdict is kept -------
   const verdicts: string[] = [];
+  const complianceVerdicts: string[] = [];
   let chosen: PipelineOutcome['chosen'] = null;
   for (const c of shortlist) {
     const amountMinor = c.minInvestmentMinor;
@@ -273,6 +323,30 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     }
     verdicts.push(
       `${c.name}: fits your limits${verdict.code ? ` (${verdict.code.replace(/_/g, ' ')})` : ''}`,
+    );
+    let compliance: ComplianceVerdict;
+    try {
+      compliance = await input.compliance(c);
+    } catch {
+      // Compliance is the one specialist that must fail closed. A transient
+      // readiness lookup is not evidence that a person may transact.
+      compliance = {
+        decision: 'blocked',
+        reasons: ['Compliance readiness could not be verified. Try again later.'],
+        checks: [],
+      };
+    }
+    if (compliance.decision === 'blocked') {
+      const clearedChecks = compliance.checks.length
+        ? ` Cleared: ${compliance.checks.join('; ')}.`
+        : '';
+      complianceVerdicts.push(
+        `${c.name}: stopped: ${compliance.reasons.join('; ') || 'compliance readiness did not clear'}${clearedChecks}`,
+      );
+      continue;
+    }
+    complianceVerdicts.push(
+      `${c.name}: cleared${compliance.checks.length > 0 ? `. ${compliance.checks.join('; ')}` : ''}`,
     );
     chosen = {
       candidate: c,
@@ -296,7 +370,18 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     detail: verdicts,
   });
 
-  // ---- 4. Coordination: size it, route it, say it plainly ----------------
+  trace.push({
+    stage: 'compliance',
+    agent: 'Compliance agent',
+    summary: chosen
+      ? `Verified investor readiness and the executing-firm relationship. ${chosen.candidate.name} cleared.`
+      : complianceVerdicts.length === 0
+        ? 'Nothing reached compliance review.'
+        : 'No candidate cleared the compliance checks required before coordination.',
+    detail: complianceVerdicts,
+  });
+
+  // ---- 5. Coordination: size it, route it, say it plainly ----------------
   if (chosen) {
     const minimum = chosen.candidate.minInvestmentMinor;
     let sizingNote = `at its ${input.fmt(minimum, chosen.candidate.currency)} minimum`;

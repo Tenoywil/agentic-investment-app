@@ -254,13 +254,16 @@ export interface AuditArgs {
   detail?: Record<string, unknown>;
 }
 
-/** Append one immutable, hash-chained audit row via the SECURITY DEFINER fn. */
-export async function auditAppend(tx: Transaction, a: AuditArgs): Promise<void> {
-  await tx.execute(
+/** Append one immutable, hash-chained audit row and return its stable event id. */
+export async function auditAppend(tx: Transaction, a: AuditArgs): Promise<string> {
+  const rows = (await tx.execute(
     sql`select audit_append(${a.actorType}::actor_type, ${a.actorId}::uuid, ${a.userId}::uuid,
       ${a.partnerId}::uuid, ${a.action}::text, ${a.entityType}::text, ${a.entityId}::uuid,
-      ${JSON.stringify(a.detail ?? {})}::jsonb)`,
-  );
+      ${JSON.stringify(a.detail ?? {})}::jsonb) as id`,
+  )) as unknown as { id: string }[];
+  const row = rows[0];
+  if (!row) throw new Error('audit_append returned no id');
+  return row.id;
 }
 
 /**
