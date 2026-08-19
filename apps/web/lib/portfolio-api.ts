@@ -238,6 +238,12 @@ export function sendFundingNotice(input: {
   partnerCode: string;
   amountMinor: string;
   currency: Currency;
+  reference?: string;
+  receipt?: {
+    name: string;
+    mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+    data: string;
+  };
 }): Promise<{ ok: true }> {
   return apiFetch('/api/portfolio/funding-notice', {
     method: 'POST',

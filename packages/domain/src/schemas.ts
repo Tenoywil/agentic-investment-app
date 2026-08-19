@@ -204,6 +204,16 @@ export const fundingNoticeSchema = z.object({
   partnerCode: z.string().min(2).max(12),
   amountMinor: positiveAmountMinorSchema,
   currency: currencySchema.default('USD'),
+  reference: z.string().trim().min(3).max(120).optional(),
+  receipt: z
+    .object({
+      name: z.string().trim().min(1).max(180),
+      mime: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+      // Two binary megabytes encode to at most 2,796,204 base64 characters.
+      // The API decodes and checks the exact byte count before storing it.
+      data: z.string().min(1).max(2_800_000),
+    })
+    .optional(),
 });
 export type FundingNoticeInput = z.infer<typeof fundingNoticeSchema>;
 

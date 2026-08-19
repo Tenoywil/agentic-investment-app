@@ -159,7 +159,7 @@ export function OrderAction({
   if (asking === 'accept') {
     return (
       <form
-        className="flex flex-wrap items-end justify-end gap-2"
+        className="grid w-full max-w-[560px] grid-cols-2 gap-2 rounded-xl bg-muted/30 p-3"
         onSubmit={(e) => {
           e.preventDefault();
           onAccept(order.id, eta ? new Date(eta).toISOString() : undefined);
@@ -210,7 +210,7 @@ export function OrderAction({
           clear();
         }}
       >
-        <label className="w-[92px] text-[13px]">
+        <label className="min-w-0 text-[13px]">
           <span className={MICRO}>Unit price</span>
           <input
             value={price}
@@ -220,7 +220,7 @@ export function OrderAction({
             className={FIELD}
           />
         </label>
-        <label className="w-[80px] text-[13px]">
+        <label className="min-w-0 text-[13px]">
           <span className={MICRO}>Units</span>
           <input
             value={units}
@@ -230,7 +230,7 @@ export function OrderAction({
             className={FIELD}
           />
         </label>
-        <label className="w-[80px] text-[13px]">
+        <label className="min-w-0 text-[13px]">
           <span className={MICRO}>Fee</span>
           <input
             value={fee}
@@ -240,7 +240,7 @@ export function OrderAction({
             className={FIELD}
           />
         </label>
-        <label className="w-[120px] text-[13px]">
+        <label className="min-w-0 text-[13px]">
           <span className={MICRO}>Your reference</span>
           <input
             value={ref}
@@ -249,18 +249,20 @@ export function OrderAction({
             className={FIELD}
           />
         </label>
-        <Button
-          type="submit"
-          size="sm"
-          variant="outline"
-          className={TERRA_OUTLINE_BTN}
-          disabled={busy}
-        >
-          {busy ? 'Settling…' : 'Confirm settled'}
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={clear}>
-          Cancel
-        </Button>
+        <div className="col-span-2 flex flex-wrap justify-end gap-2 pt-1">
+          <Button
+            type="submit"
+            size="sm"
+            variant="outline"
+            className={TERRA_OUTLINE_BTN}
+            disabled={busy}
+          >
+            {busy ? 'Settling…' : 'Confirm settled'}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={clear}>
+            Cancel
+          </Button>
+        </div>
       </form>
     );
   }

@@ -46,8 +46,11 @@ type HasAccount = 'yes' | 'new' | null;
 export function ConnectAccountDialog({
   onClose,
   onConnected,
+  excludedPartnerCodes,
 }: {
   onClose: () => void;
+  /** Active and pending relationships are not valid choices for another request. */
+  excludedPartnerCodes: string[];
   onConnected: (summary: {
     partner: string;
     status: 'pending' | 'active';
@@ -64,7 +67,7 @@ export function ConnectAccountDialog({
    * knows the partners this investor has already connected — which is nobody,
    * for the account that most needs this dialog.
    */
-  const [partners, setPartners] = React.useState<
+  const [networkPartners, setNetworkPartners] = React.useState<
     { code: string; name: string; kind: string | null; regulator: string | null }[]
   >([]);
   const [code, setCode] = React.useState('');
@@ -77,8 +80,7 @@ export function ConnectAccountDialog({
     getNetworkPartners()
       .then((rows) => {
         if (cancelled) return;
-        setPartners(rows);
-        setCode((current) => current || (rows[0]?.code ?? ''));
+        setNetworkPartners(rows);
       })
       .catch(() => {
         if (!cancelled) setError('Could not load the institutions on the network.');
@@ -89,6 +91,21 @@ export function ConnectAccountDialog({
   }, []);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const excluded = React.useMemo(
+    () => new Set(excludedPartnerCodes.map((value) => value.trim().toUpperCase())),
+    [excludedPartnerCodes],
+  );
+  const partners = React.useMemo(
+    () => networkPartners.filter((row) => !excluded.has(row.code.trim().toUpperCase())),
+    [excluded, networkPartners],
+  );
+
+  React.useEffect(() => {
+    if (partners.some((row) => row.code === code)) return;
+    setCode(partners[0]?.code ?? '');
+    setHasAccount(null);
+  }, [code, partners]);
 
   React.useEffect(() => {
     openerRef.current = document.activeElement as HTMLElement | null;
@@ -174,8 +191,8 @@ export function ConnectAccountDialog({
 
         {partners.length === 0 ? (
           <p className="text-[14.5px] leading-relaxed text-dim">
-            There are no institutions on the network yet, so there is nothing to connect to. An
-            administrator loads the catalogue.
+            You have already connected to, or requested access from, every institution currently
+            available on the network.
           </p>
         ) : (
           <>

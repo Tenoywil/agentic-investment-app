@@ -302,7 +302,7 @@ export default function InstitutionsPage() {
         </Button>
       </dialog>
 
-      <main className="min-w-0 flex-1 px-8 pb-[60px] pt-[26px]">
+      <main className="min-w-0 flex-1 px-8 pb-[60px] pt-[26px]" data-tour="demo-institution-shell">
         {/* Header. The h1 names the tab — the sidebar and phone bar already
             name the firm, same reasoning as the live console's header. The
             sample-data chip stays: it is the one honest label on this page. */}
@@ -405,9 +405,7 @@ export default function InstitutionsPage() {
                 </div>
                 {WHY.map((w) => (
                   <div key={w} className="mb-3 flex gap-2.5 text-[14.5px] leading-normal">
-                    <span aria-hidden className="flex-none font-bold text-peach">
-                      +
-                    </span>
+                    <span aria-hidden className="mt-2 h-2 w-2 flex-none rounded-full bg-peach" />
                     <span className="text-white">{w}</span>
                   </div>
                 ))}

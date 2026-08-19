@@ -102,6 +102,95 @@ function splitList(s: string): string[] {
     .filter(Boolean);
 }
 
+function mandateMoney(value: string, currency: Currency): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 'Not set';
+  return `${currency} ${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+function MandateSummary({ form }: { form: FormState }) {
+  const countries = splitList(form.countries);
+  const sectors = splitList(form.sectors);
+  const stages = splitList(form.stagePreferences);
+  const ready = validate(form) === null;
+  return (
+    <Card className="p-6 lg:sticky lg:top-6" data-tour="gateway-mandate-summary">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-bold">Mandate snapshot</h2>
+        <span
+          className={cn(
+            'rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[.5px]',
+            ready ? 'bg-mint text-primary' : 'bg-muted text-dim',
+          )}
+        >
+          {ready ? 'Ready to match' : 'Needs details'}
+        </span>
+      </div>
+      <p className="mb-5 text-[13.5px] leading-relaxed text-dim">
+        This is the brief used to rank private deals. Saving updates matching; it never commits
+        capital or contacts an issuer.
+      </p>
+
+      <div className="mb-5 grid grid-cols-2 gap-2.5">
+        <div className="rounded-xl bg-muted/45 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-[.5px] text-faint">Cheque</div>
+          <div className="mt-1 text-sm font-bold">
+            {form.minCheck && form.maxCheck
+              ? `${mandateMoney(form.minCheck, form.currency)} to ${mandateMoney(form.maxCheck, form.currency)}`
+              : 'Not set'}
+          </div>
+        </div>
+        <div className="rounded-xl bg-muted/45 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-[.5px] text-faint">Horizon</div>
+          <div className="mt-1 text-sm font-bold">
+            {form.horizonYears ? `${form.horizonYears} years` : 'Not set'}
+          </div>
+        </div>
+        <div className="rounded-xl bg-muted/45 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-[.5px] text-faint">Target</div>
+          <div className="mt-1 text-sm font-bold">
+            {form.targetReturnPct ? `${form.targetReturnPct}% a year` : 'Not set'}
+          </div>
+        </div>
+        <div className="rounded-xl bg-muted/45 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-[.5px] text-faint">Profile</div>
+          <div className="mt-1 text-sm font-bold capitalize">
+            {form.riskAppetite && form.liquidityNeed
+              ? `${form.riskAppetite} risk, ${form.liquidityNeed} liquidity`
+              : 'Not set'}
+          </div>
+        </div>
+      </div>
+
+      {[
+        ['Countries', countries],
+        ['Sectors', sectors],
+        ['Stages', stages],
+      ].map(([label, values]) => (
+        <div key={label as string} className="mb-4 last:mb-0">
+          <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[.5px] text-faint">
+            {label as string}
+          </div>
+          {(values as string[]).length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {(values as string[]).map((value) => (
+                <span
+                  key={value}
+                  className="rounded-full bg-mint px-2.5 py-1 text-xs font-semibold text-primary"
+                >
+                  {value}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-[13px] text-faint">Open to any</span>
+          )}
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 /** Validates the form matches gatewayMandateSchema's constraints; returns the
  *  first problem found, or null when the form is ready to submit. */
 function validate(f: FormState): string | null {
@@ -395,83 +484,110 @@ export default function GatewayMandatePage() {
         title="Your investor mandate"
       />
 
-      <Card className="mx-auto max-w-[620px] p-8">
-        {stage === 'loading' && <p className="text-sm text-dim">Loading your mandate…</p>}
+      <div className="mx-auto grid max-w-[1100px] items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,.85fr)]">
+        <Card className="p-5 sm:p-8" data-tour="gateway-mandate-form">
+          {stage === 'loading' && <p className="text-sm text-dim">Loading your mandate…</p>}
 
-        {stage === 'narrative' && (
-          <div>
-            <p className="mb-4 text-[15px] leading-relaxed text-dim">
-              Describe what you're looking for in a sentence or two: country, sector, cheque size,
-              risk appetite, anything that matters to you. The agent drafts a structured mandate for
-              you to review before anything is saved.
-            </p>
-            <div className={FIELD}>
-              <Label htmlFor="narrative">Your mandate, in your own words</Label>
-              <Textarea
-                id="narrative"
-                value={narrative}
-                onChange={(e) => setNarrative(e.target.value)}
-                placeholder="I'm looking to put US$10,000–500,000 into growth-stage renewable energy or tech deals in Jamaica and Trinidad, medium risk, 5+ year horizon…"
-                rows={5}
-              />
-            </div>
-            {error && (
-              <p className="mb-4 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
-                <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
-                {error}
+          {stage === 'narrative' && (
+            <div>
+              <p className="mb-4 text-[15px] leading-relaxed text-dim">
+                Describe what you're looking for in a sentence or two: country, sector, cheque size,
+                risk appetite, anything that matters to you. The agent drafts a structured mandate
+                for you to review before anything is saved.
               </p>
-            )}
-            <Button onClick={handleExtract} disabled={busy} size="lg" className="w-full">
-              <Sparkles className="h-4 w-4" aria-hidden />
-              {busy ? 'Reading your description…' : 'Draft my mandate'}
-            </Button>
-          </div>
-        )}
-
-        {(stage === 'confirm' || stage === 'edit') && (
-          <div>
-            {stage === 'confirm' && (
-              <p className="mb-5 text-[15px] leading-relaxed text-dim">
-                Here's what the agent drew from your description. Review and edit before saving;
-                nothing is guessed silently.
-              </p>
-            )}
-            <MandateForm
-              form={form}
-              setForm={setForm}
-              missingFields={stage === 'confirm' ? missingFields : undefined}
-            />
-            {error && (
-              <p className="mb-4 mt-1 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
-                <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
-                {error}
-              </p>
-            )}
-            {savedAt && stage === 'edit' && !error && (
-              <p className="mb-4 flex items-center gap-2 text-sm text-success">
-                <Check className="h-4 w-4 flex-none" aria-hidden />
-                Mandate saved.
-              </p>
-            )}
-            <div className="mt-2 flex gap-2.5">
-              {stage === 'edit' && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setStage('narrative');
-                    setError(null);
-                  }}
-                >
-                  Describe again
-                </Button>
+              <div className={FIELD}>
+                <Label htmlFor="narrative">Your mandate, in your own words</Label>
+                <Textarea
+                  id="narrative"
+                  value={narrative}
+                  onChange={(e) => setNarrative(e.target.value)}
+                  placeholder="I'm looking to put US$10,000 to US$500,000 into growth-stage renewable energy or technology deals in Jamaica and Trinidad, with medium risk and a horizon of 5 years or more."
+                  rows={5}
+                />
+              </div>
+              {error && (
+                <p className="mb-4 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+                  <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+                  {error}
+                </p>
               )}
-              <Button onClick={handleSave} disabled={busy} size="lg" className="flex-1">
-                {busy ? 'Saving…' : 'Save mandate'}
+              <Button onClick={handleExtract} disabled={busy} size="lg" className="w-full">
+                <Sparkles className="h-4 w-4" aria-hidden />
+                {busy ? 'Reading your description…' : 'Draft my mandate'}
               </Button>
             </div>
-          </div>
+          )}
+
+          {(stage === 'confirm' || stage === 'edit') && (
+            <div>
+              {stage === 'confirm' && (
+                <p className="mb-5 text-[15px] leading-relaxed text-dim">
+                  Here's what the agent drew from your description. Review and edit before saving;
+                  nothing is guessed silently.
+                </p>
+              )}
+              <MandateForm
+                form={form}
+                setForm={setForm}
+                missingFields={stage === 'confirm' ? missingFields : undefined}
+              />
+              {error && (
+                <p className="mb-4 mt-1 flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+                  <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+                  {error}
+                </p>
+              )}
+              {savedAt && stage === 'edit' && !error && (
+                <p className="mb-4 flex items-center gap-2 text-sm text-success">
+                  <Check className="h-4 w-4 flex-none" aria-hidden />
+                  Mandate saved.
+                </p>
+              )}
+              <div className="mt-2 flex gap-2.5">
+                {stage === 'edit' && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setStage('narrative');
+                      setError(null);
+                    }}
+                  >
+                    Describe again
+                  </Button>
+                )}
+                <Button onClick={handleSave} disabled={busy} size="lg" className="flex-1">
+                  {busy ? 'Saving…' : 'Save mandate'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {stage === 'confirm' || stage === 'edit' ? (
+          <MandateSummary form={form} />
+        ) : (
+          <Card className="p-6" data-tour="gateway-mandate-process">
+            <h2 className="mb-3 font-display text-lg font-bold">From brief to private deal</h2>
+            <ol className="m-0 space-y-3 pl-5 text-[13.5px] leading-relaxed text-dim">
+              <li>
+                <b className="text-foreground">Describe:</b> write the mandate in your own words.
+              </li>
+              <li>
+                <b className="text-foreground">Review:</b> confirm the structured filters before
+                saving.
+              </li>
+              <li>
+                <b className="text-foreground">Match:</b> compare ranked deals and request an
+                introduction.
+              </li>
+            </ol>
+            <p className="mb-0 mt-4 text-[12.5px] leading-relaxed text-faint">
+              A mandate is a screening brief. It does not authorise an investment or share your data
+              with an issuer.
+            </p>
+          </Card>
         )}
-      </Card>
+      </div>
     </AppScreen>
   );
 }

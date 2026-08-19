@@ -90,21 +90,18 @@ function partnerStyle(code: string, index: number): { tint: string; color: strin
  * under the 4.5:1 floor. Tailwind classes with a dark variant instead, so each
  * theme gets ink tuned for its own surface.
  */
-const APPROVAL_TAG: Record<ApprovalType, { label: string; className: string; rule: string }> = {
+const APPROVAL_TAG: Record<ApprovalType, { label: string; className: string }> = {
   investment_rec: {
     label: 'Investment',
     className: 'bg-primary/10 text-primary dark:bg-teal2/15 dark:text-teal2',
-    rule: 'hsl(var(--primary))',
   },
   fund_transfer: {
     label: 'Transfer',
     className: 'bg-terra/10 text-terra-ink dark:bg-terra/15 dark:text-terra-ink',
-    rule: 'hsl(var(--terra))',
   },
   plan_enrollment: {
     label: 'Plan',
     className: 'bg-gold/15 text-[#7a5316] dark:bg-gold/15 dark:text-gold',
-    rule: 'hsl(var(--gold))',
   },
 };
 
@@ -355,7 +352,7 @@ export default function HomePage() {
           plain doors into the product, in the order a person uses them.
         */}
         <div
-          className="min-h-[207px] border-l border-[#eafaf5]/[.16] pl-[26px] max-[900px]:min-h-[297px]"
+          className="min-h-[207px] pl-[26px] max-[900px]:min-h-[297px]"
           data-tour="customer-agent"
         >
           <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.78]')}>
@@ -528,8 +525,7 @@ export default function HomePage() {
               return (
                 <div
                   key={a.id}
-                  className="mb-3 rounded-xl border border-solid border-border p-4"
-                  style={{ borderLeft: `3px solid ${tag.rule}` }}
+                  className="mb-3 rounded-xl border border-solid border-border bg-muted/20 p-4"
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <span

@@ -8,7 +8,7 @@ import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
-import { AgentCard, DemoAgentCard, NavLinks, navGroupsFor } from './AppSidebar';
+import { AgentCard, NavLinks, navGroupsFor } from './AppSidebar';
 import type { NavGroup } from './AppSidebar';
 
 /**
@@ -71,7 +71,7 @@ export function MobileNav({
   }, [pathname, close]);
 
   return (
-    <div className="app-mobilenav" data-tour={basePath ? undefined : 'customer-nav'}>
+    <div className="app-mobilenav" data-tour="customer-nav">
       {/* Stickiness lives on .app-mobilenav (globals.css), not here: a sticky
           element can never leave its parent's box, and this wrapper used to be
           exactly one header tall — so the bar scrolled away with the page. */}
@@ -161,15 +161,12 @@ export function MobileNav({
 
           <div className="pt-3">
             {basePath ? (
-              <>
-                <DemoAgentCard basePath={basePath} />
-                <Link
-                  href={`${basePath}/institutions`}
-                  className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
-                >
-                  For institutions
-                </Link>
-              </>
+              <Link
+                href={`${basePath}/institutions`}
+                className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
+              >
+                For institutions
+              </Link>
             ) : (
               <AgentCard />
             )}

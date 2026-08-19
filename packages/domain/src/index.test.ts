@@ -13,6 +13,7 @@ import {
   canApplyGatewayEvent,
   canApplyIntroductionEvent,
   fitsSuitability,
+  fundingNoticeSchema,
   gatewayEventForGuardrailDecision,
   gatewayMandateSchema,
   gatewayOpportunitySchema,
@@ -136,6 +137,34 @@ group('request schemas', () => {
   test('rejectSchema allows an optional reason', () => {
     expect(rejectSchema.parse({}).reason).toBeUndefined();
     expect(rejectSchema.parse({ reason: 'FX spread too wide' }).reason).toBe('FX spread too wide');
+  });
+
+  test('fundingNoticeSchema accepts a bank reference or a supported receipt', () => {
+    const base = { partnerCode: 'SAG', amountMinor: '100000', currency: 'USD' as const };
+    expect(fundingNoticeSchema.parse({ ...base, reference: 'TRD-88214' }).reference).toBe(
+      'TRD-88214',
+    );
+    const receipt = fundingNoticeSchema.parse({
+      ...base,
+      receipt: { name: 'wire.pdf', mime: 'application/pdf', data: 'dGVzdA==' },
+    }).receipt;
+    expect(receipt?.name).toBe('wire.pdf');
+  });
+
+  test('fundingNoticeSchema rejects executable receipt types and oversized data', () => {
+    const base = { partnerCode: 'SAG', amountMinor: '100000', currency: 'USD' as const };
+    expect(() =>
+      fundingNoticeSchema.parse({
+        ...base,
+        receipt: { name: 'receipt.svg', mime: 'image/svg+xml', data: 'dGVzdA==' },
+      }),
+    ).toThrow();
+    expect(() =>
+      fundingNoticeSchema.parse({
+        ...base,
+        receipt: { name: 'receipt.pdf', mime: 'application/pdf', data: 'a'.repeat(2_800_001) },
+      }),
+    ).toThrow();
   });
 });
 

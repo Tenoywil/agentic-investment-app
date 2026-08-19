@@ -37,6 +37,22 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ConnectAccountDialog } from './connect-account';
 
 const CURRENCY_OPTIONS: Currency[] = ['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'];
+const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
+type ReceiptType = (typeof RECEIPT_TYPES)[number];
+
+function receiptAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that receipt.'));
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const separator = result.indexOf(',');
+      if (separator < 0) reject(new Error('Could not read that receipt.'));
+      else resolve(result.slice(separator + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 /** Symbol prefixes for the withdraw dialog's charge estimate, which is
  *  computed client-side as the person types. Everything the server sends
@@ -142,6 +158,8 @@ function MoneyDialog({
   const titleId = useId();
   const [amt, setAmt] = useState('');
   const [currency, setCurrency] = useState<Currency>('USD');
+  const [reference, setReference] = useState('');
+  const [receipt, setReceipt] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -179,21 +197,46 @@ function MoneyDialog({
       setError('Enter the amount.');
       return;
     }
-    setBusy(true);
     setError(null);
-    const input = {
-      partnerCode: partner.code,
-      amountMinor: String(Math.round(major * 100)),
-      currency,
-    };
+    if (mode === 'fund' && reference.trim() && reference.trim().length < 3) {
+      setError('Enter at least 3 characters for the transaction reference.');
+      return;
+    }
+    if (mode === 'fund' && receipt) {
+      if (!RECEIPT_TYPES.includes(receipt.type as ReceiptType)) {
+        setError('Upload a PDF, JPEG, PNG or WebP receipt.');
+        return;
+      }
+      if (receipt.size > 2 * 1024 * 1024) {
+        setError('The receipt must be 2MB or smaller.');
+        return;
+      }
+    }
+    setBusy(true);
     try {
       if (mode === 'fund') {
-        await sendFundingNotice(input);
+        await sendFundingNotice({
+          partnerCode: partner.code,
+          amountMinor: String(Math.round(major * 100)),
+          currency,
+          reference: reference.trim() || undefined,
+          receipt: receipt
+            ? {
+                name: receipt.name,
+                mime: receipt.type as ReceiptType,
+                data: await receiptAsBase64(receipt),
+              }
+            : undefined,
+        });
         onDone(
           `Told ${partner.name} you've sent money. It appears in your balance once their desk confirms it settled. Nothing is credited before that.`,
         );
       } else {
-        await requestWithdrawal(input);
+        await requestWithdrawal({
+          partnerCode: partner.code,
+          amountMinor: String(Math.round(major * 100)),
+          currency,
+        });
         onDone(
           `Asked ${partner.name} to pay out. The request stays here until they decide, and your balance changes only when they confirm it's paid.`,
         );
@@ -250,36 +293,74 @@ function MoneyDialog({
           </div>
         ) : null}
 
-        <form className="flex flex-wrap items-end gap-2" onSubmit={submit}>
-          <label className="flex w-[150px] flex-col gap-1 text-[12.5px] font-semibold">
-            {mode === 'fund' ? 'Amount you sent' : 'Amount'}
-            <input
-              value={amt}
-              onChange={(e) => setAmt(e.target.value)}
-              inputMode="decimal"
-              placeholder="1,000"
-              disabled={busy}
-              className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-right font-mono text-[14px] font-bold text-foreground"
-            />
-          </label>
-          <label className="flex w-[92px] flex-col gap-1 text-[12.5px] font-semibold">
-            Currency
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value as Currency)}
-              disabled={busy}
-              className="block h-[38px] w-full rounded-[10px] border border-solid border-border bg-card px-2 text-[13.5px] font-semibold text-foreground"
-            >
-              {CURRENCY_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button type="submit" size="sm" disabled={busy}>
-            {busy ? 'Sending…' : mode === 'fund' ? "I've sent it" : 'Request withdrawal'}
-          </Button>
+        <form
+          className="rounded-xl border border-solid border-border bg-muted/20 p-4"
+          onSubmit={submit}
+        >
+          <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-[minmax(0,1fr)_110px]">
+            <label className="flex min-w-0 flex-col gap-1 text-[12.5px] font-semibold">
+              {mode === 'fund' ? 'Amount you sent' : 'Amount'}
+              <input
+                value={amt}
+                onChange={(e) => setAmt(e.target.value)}
+                inputMode="decimal"
+                placeholder="1,000"
+                disabled={busy}
+                className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-left font-mono text-[14px] font-bold text-foreground"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[12.5px] font-semibold">
+              Currency
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as Currency)}
+                disabled={busy}
+                className="block h-[38px] w-full rounded-[10px] border border-solid border-border bg-card px-2 text-[13.5px] font-semibold text-foreground"
+              >
+                {CURRENCY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {mode === 'fund' ? (
+            <div className="mt-3 grid grid-cols-1 gap-3 min-[620px]:grid-cols-2">
+              <label className="flex min-w-0 flex-col gap-1 text-[12.5px] font-semibold">
+                Transaction reference <span className="font-normal text-faint">Optional</span>
+                <input
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  maxLength={120}
+                  placeholder="Bank or wire reference"
+                  disabled={busy}
+                  className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                />
+              </label>
+              <label className="flex min-w-0 flex-col gap-1 text-[12.5px] font-semibold">
+                Receipt <span className="font-normal text-faint">Optional, up to 2MB</span>
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  disabled={busy}
+                  onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+                  className="block w-full rounded-[10px] border border-solid border-border bg-card px-2 py-[7px] text-[12.5px] text-dim file:mr-2 file:rounded-md file:border-0 file:bg-mint file:px-2 file:py-1 file:font-semibold file:text-primary"
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex justify-end">
+            <Button type="submit" disabled={busy} className="max-[440px]:w-full">
+              {busy
+                ? 'Sending…'
+                : mode === 'fund'
+                  ? 'Submit transfer evidence'
+                  : 'Request withdrawal'}
+            </Button>
+          </div>
         </form>
         {/* What the firm's charges do to this amount, before the person asks.
             Shown only when the firm charges anything — a "US$0.00 fee" line
@@ -469,10 +550,19 @@ export default function PortfolioPage() {
           // wraps its own two children but this cluster did not wrap inside
           // itself, so adding the Connect button here pushed the document to
           // 610px in a 390px viewport and the whole screen scrolled sideways.
-          <div className="flex flex-wrap items-center justify-end gap-3">
+          <div
+            className="flex flex-wrap items-center justify-end gap-3"
+            data-tour="customer-portfolio-page"
+          >
             {/* Also in the empty state, but it cannot only live there: an
                 investor with one account still needs to add the second. */}
-            <Button type="button" size="sm" variant="outline" onClick={() => setConnecting(true)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setConnecting(true)}
+              data-tour="customer-portfolio-connect"
+            >
               <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
               Connect an account
             </Button>
@@ -691,6 +781,11 @@ export default function PortfolioPage() {
 
       {connecting ? (
         <ConnectAccountDialog
+          excludedPartnerCodes={(data?.connections ?? [])
+            .filter(
+              (connection) => connection.status === 'active' || connection.status === 'pending',
+            )
+            .map((connection) => connection.code)}
           onClose={() => setConnecting(false)}
           onConnected={(summary) => {
             setConnected(
@@ -706,7 +801,7 @@ export default function PortfolioPage() {
       {data && data.allocation.length > 0 && <AllocationBreakdown slices={data.allocation} />}
 
       {data && data.partners.length > 0 && (
-        <div className="g2">
+        <div className="g2" data-tour="customer-portfolio-accounts">
           {data.partners.map((inst) => {
             const mark = markFor(marks, { code: inst.code, name: inst.name });
             return (
@@ -784,6 +879,7 @@ export default function PortfolioPage() {
                     type="button"
                     size="sm"
                     variant="outline"
+                    data-tour="customer-portfolio-funding"
                     onClick={() => setMoney({ partner: inst, mode: 'fund' })}
                   >
                     <ArrowDownToLine className="mr-1.5 h-3.5 w-3.5" aria-hidden />

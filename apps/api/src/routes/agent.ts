@@ -3,6 +3,7 @@ import {
   type ChatMessage,
   ResponseCache,
   buildContext,
+  conversationContext,
   runAgent,
   stripCards,
   stripReasoning,
@@ -88,13 +89,18 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
         .from(agentMessages)
         .where(eq(agentMessages.userId, tenant.user.id))
         .orderBy(desc(agentMessages.createdAt))
-        .limit(30);
+        .limit(100);
       await tx
         .insert(agentMessages)
         .values({ userId: tenant.user.id, role: 'user', content: message });
-      const hist: ChatMessage[] = rows
-        .reverse()
-        .map((r) => ({ role: r.role === 'agent' ? 'assistant' : 'user', content: r.content }));
+      const hist = conversationContext(
+        rows.reverse().map(
+          (r): ChatMessage => ({
+            role: r.role === 'agent' ? 'assistant' : 'user',
+            content: r.content,
+          }),
+        ),
+      );
       return { snapshot: snap, history: hist };
     });
 

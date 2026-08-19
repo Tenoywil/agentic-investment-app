@@ -248,7 +248,7 @@ export default function HomePage() {
 
       {/* Hero card */}
       <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">
-        <div>
+        <div data-tour="customer-net-worth">
           <div className={cn(UPPR, 'text-[#eafaf5]/[.66]')}>
             Total net worth · 4 licensed partners
           </div>
@@ -277,7 +277,7 @@ export default function HomePage() {
             />
           </svg>
         </div>
-        <div className="border-l border-[#eafaf5]/[.16] pl-[26px]">
+        <div className="pl-[26px]" data-tour="customer-agent">
           <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.66]')}>
             <span className="h-[7px] w-[7px] rounded-full bg-peach" />
             Your agent · acting within your limits
@@ -357,7 +357,7 @@ export default function HomePage() {
 
       {/* Acted / Approvals */}
       <div className="g2 mt-[18px]">
-        <Card className="p-[22px]">
+        <Card className="p-[22px]" data-tour="customer-activity">
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
             <Badge variant="secondary">within your limits</Badge>
@@ -379,7 +379,7 @@ export default function HomePage() {
           </Button>
         </Card>
 
-        <Card className="p-[22px]">
+        <Card className="p-[22px]" data-tour="customer-approvals">
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
             <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
@@ -387,11 +387,7 @@ export default function HomePage() {
             </span>
           </div>
           {APPROVALS.map((a) => (
-            <div
-              key={a.title}
-              className="mb-3 rounded-xl border border-border p-4"
-              style={{ borderLeft: `3px solid ${a.tagColor}` }}
-            >
+            <div key={a.title} className="mb-3 rounded-xl border border-border bg-muted/20 p-4">
               <div className="mb-2 flex items-center justify-between">
                 <span
                   className="rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]"

@@ -189,9 +189,20 @@ suite('withdrawals and funding notices', () => {
 
   test('a funding notice queues for the desk and credits nothing', async () => {
     const before = await cashNow();
+    const receiptText = '%PDF-1.7\nwire receipt fixture';
     const res = await request('/api/portfolio/funding-notice', 'investor', {
       method: 'POST',
-      body: JSON.stringify({ partnerCode: 'SAG', amountMinor: '250000', currency: 'USD' }),
+      body: JSON.stringify({
+        partnerCode: 'SAG',
+        amountMinor: '250000',
+        currency: 'USD',
+        reference: 'TRD-88214',
+        receipt: {
+          name: 'wire-receipt.pdf',
+          mime: 'application/pdf',
+          data: btoa(receiptText),
+        },
+      }),
     });
     expect(res.status).toBe(201);
 
@@ -199,7 +210,11 @@ suite('withdrawals and funding notices', () => {
     expect(await cashNow()).toBe(before);
 
     const items = await db
-      .select({ source: reconciliationItems.source, status: reconciliationItems.status })
+      .select({
+        id: reconciliationItems.id,
+        source: reconciliationItems.source,
+        status: reconciliationItems.status,
+      })
       .from(reconciliationItems)
       .where(
         and(
@@ -209,6 +224,51 @@ suite('withdrawals and funding notices', () => {
       );
     expect(items).toHaveLength(1);
     expect(items[0]?.status).toBe('pending');
+
+    // The desk sees the reference and receipt metadata, not the base64 payload
+    // in its queue response. It fetches the bytes through a partner-scoped
+    // attachment endpoint only when an operator opens the evidence.
+    const queue = await request('/api/console/reconciliation', 'sagOperator');
+    expect(queue.status).toBe(200);
+    const queueBody = (await queue.json()) as {
+      items: { id: string; raw: { reference?: string; receipt?: Record<string, unknown> } }[];
+    };
+    const notice = queueBody.items.find((item) => item.id === items[0]?.id);
+    expect(notice?.raw.reference).toBe('TRD-88214');
+    expect(notice?.raw.receipt?.name).toBe('wire-receipt.pdf');
+    expect(notice?.raw.receipt?.data).toBeUndefined();
+
+    const receipt = await request(
+      `/api/console/reconciliation/${items[0]?.id}/receipt`,
+      'sagOperator',
+    );
+    expect(receipt.status).toBe(200);
+    expect(receipt.headers.get('content-disposition')).toContain('wire-receipt.pdf');
+    expect(await receipt.text()).toBe(receiptText);
+
+    const stranger = await request(
+      `/api/console/reconciliation/${items[0]?.id}/receipt`,
+      'ncbOperator',
+    );
+    expect(stranger.status).toBe(404);
+  });
+
+  test('funding evidence rejects content that does not match the declared file type', async () => {
+    const res = await request('/api/portfolio/funding-notice', 'investor', {
+      method: 'POST',
+      body: JSON.stringify({
+        partnerCode: 'SAG',
+        amountMinor: '100000',
+        currency: 'USD',
+        receipt: {
+          name: 'not-really-a-receipt.pdf',
+          mime: 'application/pdf',
+          data: btoa('<script>alert(1)</script>'),
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain('do not match');
   });
 
   test('a request freezes fee and GCT at request time and deducts nothing', async () => {

@@ -11,8 +11,9 @@ import type {
   ConsoleReconciliationItem,
   ConsoleWithdrawal,
 } from '@/lib/console-api';
+import { reconciliationReceiptUrl } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
-import { ArrowRightLeft, Banknote, Users } from 'lucide-react';
+import { ArrowRightLeft, Banknote, FileText, Users } from 'lucide-react';
 import { ClientReview } from './client-review';
 import {
   ROW_DIVIDER,
@@ -31,6 +32,29 @@ import { SandboxBadge } from './sandbox-badge';
 
 /** Decorative bar fills; the count is printed beside every bar in text. */
 const FUNNEL_COLORS = ['#6b6459', '#7fb5ad', '#17786e', '#124e48'];
+
+function fundingEvidence(raw: unknown): {
+  reference: string | null;
+  receipt: { name: string; size: number | null } | null;
+} | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = raw as Record<string, unknown>;
+  const receiptValue = value.receipt;
+  const receipt =
+    receiptValue && typeof receiptValue === 'object'
+      ? (receiptValue as Record<string, unknown>)
+      : null;
+  return {
+    reference: typeof value.reference === 'string' ? value.reference : null,
+    receipt:
+      receipt && typeof receipt.name === 'string'
+        ? {
+            name: receipt.name,
+            size: typeof receipt.size === 'number' ? receipt.size : null,
+          }
+        : null,
+  };
+}
 
 export function ClientsTab({
   partner,
@@ -238,6 +262,7 @@ export function ClientsTab({
 
         {reconciliation.map((item) => {
           const guess = guessParsedHolding(item.parsed);
+          const evidence = item.source === 'investor_notice' ? fundingEvidence(item.raw) : null;
           const busy = reconBusyId === item.id;
           return (
             <div
@@ -252,6 +277,23 @@ export function ClientsTab({
                   {timeAgo(item.createdAt)}
                   {guess?.returnLabel ? ` · ${guess.returnLabel}` : ''}
                 </div>
+                {evidence?.reference ? (
+                  <div className="mt-1 text-[12.5px] text-dim">
+                    Transaction reference: <b>{evidence.reference}</b>
+                  </div>
+                ) : null}
+                {evidence?.receipt ? (
+                  <a
+                    href={reconciliationReceiptUrl(item.id)}
+                    className="mt-1 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-teal2 underline-offset-2 hover:underline"
+                  >
+                    <FileText className="h-3.5 w-3.5" aria-hidden />
+                    Download {evidence.receipt.name}
+                    {evidence.receipt.size != null
+                      ? ` (${Math.max(1, Math.round(evidence.receipt.size / 1024))} KB)`
+                      : ''}
+                  </a>
+                ) : null}
               </div>
               {guess ? (
                 <span className="min-w-[78px] text-right font-mono text-sm font-bold">

@@ -569,6 +569,11 @@ export function getReconciliation(): Promise<{ items: ConsoleReconciliationItem[
   return consoleFetch('/reconciliation');
 }
 
+/** Partner-scoped attachment endpoint. The API always serves it as a download. */
+export function reconciliationReceiptUrl(id: string): string {
+  return `${API_URL}/api/console/reconciliation/${id}/receipt`;
+}
+
 export function matchReconciliation(id: string): Promise<{ holdingId: string }> {
   return consoleFetch(`/reconciliation/${id}/match`, { method: 'POST' });
 }

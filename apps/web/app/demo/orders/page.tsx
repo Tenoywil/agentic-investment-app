@@ -93,7 +93,7 @@ export default function DemoOrdersPage() {
         }
       />
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden" data-tour="customer-order-flow">
         <ul className="m-0 list-none p-0">
           {ORDERS.map((o) => (
             <li

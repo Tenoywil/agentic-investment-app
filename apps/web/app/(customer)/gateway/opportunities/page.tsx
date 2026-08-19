@@ -29,7 +29,7 @@ function MatchCard({ m }: { m: Match }) {
   const o = m.opportunity;
   const scorePct = Math.round(Number(m.score) * 100);
   return (
-    <Card className="flex flex-col p-[22px]" style={{ borderLeft: '4px solid #124e48' }}>
+    <Card className="flex flex-col bg-muted/20 p-[22px]" data-tour="gateway-deals">
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <span className="text-[12.5px] font-bold uppercase tracking-[.6px] text-teal2">
           {o.sector}
@@ -113,7 +113,10 @@ export default function GatewayOpportunitiesPage() {
       />
 
       {needsMandate && (
-        <Card className="flex flex-wrap items-center gap-4 border-[#cde0d8] bg-mint p-[22px] dark:border-white/10">
+        <Card
+          className="flex flex-wrap items-center gap-4 border-[#cde0d8] bg-mint p-[22px] dark:border-white/10"
+          data-tour="gateway-deals"
+        >
           <Target className="h-8 w-8 flex-none text-teal2" aria-hidden />
           <div className="min-w-[240px] flex-1">
             <div className="mb-1 font-display text-lg font-bold">Set up your mandate first</div>

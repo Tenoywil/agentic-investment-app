@@ -177,7 +177,7 @@ export function OrdersTab({
               the viewport — a phone scrolled 140px sideways onto nothing. */}
           <div className="min-w-[560px]">
             <div
-              className={`grid grid-cols-[2fr_1fr_0.9fr_1.3fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}
+              className={`grid grid-cols-[1.6fr_.8fr_.7fr_2.2fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}
             >
               <span>Order</span>
               <span>Client</span>
@@ -187,7 +187,7 @@ export function OrdersTab({
             {orders.map((o) => (
               <div
                 key={o.id}
-                className={`grid grid-cols-[2fr_1fr_0.9fr_1.3fr] items-center px-6 py-3.5 ${ROW_DIVIDER}`}
+                className={`grid grid-cols-[1.6fr_.8fr_.7fr_2.2fr] items-center gap-4 px-6 py-3.5 ${ROW_DIVIDER}`}
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-bold">{o.instrumentName ?? 'Order'}</div>

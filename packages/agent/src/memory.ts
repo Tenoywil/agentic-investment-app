@@ -1,4 +1,4 @@
-import type { AgentDisplay } from './run';
+import type { AgentDisplay, ChatMessage } from './run';
 
 /**
  * Conversation memory for the turns the user experienced as pictures.
@@ -55,6 +55,67 @@ export function turnMemory(displays: AgentDisplay[], proposals: unknown[]): stri
 }
 
 const CARD_BLOCK = /<card\b[^>]*>[\s\S]*?<\/card\s*>/gi;
+
+const CONTEXT_ANCHOR =
+  /\b(?:actually|avoid|budget|cash floor|currency|do not|don't|goal|horizon|income|instead|liquid|liquidity|limit|must|need|never|only|prefer|preference|retire|retirement|risk|sector|timeline|timeframe|want)\b|\b\d+\s*(?:years?|months?)\b|\b(?:US|J|Bds)\$\s?[\d,]+/i;
+
+export interface ConversationContextOptions {
+  /** Recent messages retained regardless of whether they contain a keyword. */
+  recentMessages?: number;
+  /** Older high-signal messages retained before the recent window. */
+  maxAnchors?: number;
+  /** Hard character ceiling for the model-facing conversation history. */
+  maxChars?: number;
+}
+
+/**
+ * Keep a bounded but useful model history.
+ *
+ * The newest turns remain the source of truth for what pronouns and short
+ * answers refer to. Older small talk can fall away, while explicit goals,
+ * constraints, corrections and structured card records survive as anchors.
+ * This is extraction, not model summarization: no fact is rewritten or
+ * promoted into a system instruction.
+ */
+export function conversationContext(
+  history: ChatMessage[],
+  options: ConversationContextOptions = {},
+): ChatMessage[] {
+  const recentMessages = Math.max(1, options.recentMessages ?? 30);
+  const maxAnchors = Math.max(0, options.maxAnchors ?? 12);
+  const maxChars = Math.max(1, options.maxChars ?? 60_000);
+  const cleaned = history
+    .map((message) => ({ ...message, content: message.content.trim() }))
+    .filter((message) => message.content.length > 0);
+  const recentStart = Math.max(0, cleaned.length - recentMessages);
+  const selected = new Set<number>();
+
+  for (let i = recentStart; i < cleaned.length; i += 1) selected.add(i);
+
+  let anchors = 0;
+  for (let i = recentStart - 1; i >= 0 && anchors < maxAnchors; i -= 1) {
+    const message = cleaned[i];
+    if (!message) continue;
+    const isStructuredRecord = message.role === 'assistant' && /<card\b/i.test(message.content);
+    const isUserIntent = message.role === 'user' && CONTEXT_ANCHOR.test(message.content);
+    if (!isStructuredRecord && !isUserIntent) continue;
+    selected.add(i);
+    anchors += 1;
+  }
+
+  // Spend the budget from newest to oldest. Recent corrections therefore win
+  // over stale preferences when an unusually long conversation reaches the cap.
+  let used = 0;
+  const kept: number[] = [];
+  for (const index of [...selected].sort((a, b) => b - a)) {
+    const size = cleaned[index]?.content.length ?? 0;
+    if (used + size > maxChars) continue;
+    kept.push(index);
+    used += size;
+  }
+
+  return kept.sort((a, b) => a - b).map((index) => cleaned[index] as ChatMessage);
+}
 
 /** Remove `<card>` appendix blocks before text reaches a human surface. */
 export function stripCards(text: string): string {

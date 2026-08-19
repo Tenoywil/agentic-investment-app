@@ -2,9 +2,19 @@
 
 import { AppScreen, PageHead } from '@/app/_components/AppScreen';
 import { EquityChart } from '@/app/_components/EquityChart';
+import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/_components/ui/dialog';
+import { Input } from '@/app/_components/ui/input';
 import { cn } from '@/app/_lib/utils';
-import { ShieldCheck } from 'lucide-react';
+import { Check, ShieldCheck, Upload } from 'lucide-react';
+import { useState } from 'react';
 
 const INSTITUTIONS = [
   {
@@ -101,13 +111,24 @@ function fmtUsdMinor(minor: string): string {
 }
 
 export default function PortfolioPage() {
+  const [fundingPartner, setFundingPartner] = useState<(typeof INSTITUTIONS)[number] | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  function closeFunding() {
+    setFundingPartner(null);
+    setSubmitted(false);
+  }
+
   return (
     <AppScreen active="portfolio" basePath="/demo">
       <PageHead
         eyebrow="Every holding, unified · custodied by licensed partners"
         title="Your portfolio"
         right={
-          <div className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5">
+          <div
+            className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5"
+            data-tour="customer-portfolio-page"
+          >
             <b className="font-display text-xl">US$31,350</b>
             <span className="text-[12.5px] text-dim">
               total
@@ -118,7 +139,7 @@ export default function PortfolioPage() {
         }
       />
 
-      <div className="g2">
+      <div className="g2" data-tour="customer-portfolio-accounts">
         {INSTITUTIONS.map((inst) => (
           <Card key={inst.code} className="p-[22px]">
             <div className="mb-3 flex items-center gap-3">
@@ -156,6 +177,16 @@ export default function PortfolioPage() {
                 </span>
               </div>
             ))}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-2 w-full"
+              data-tour="customer-portfolio-funding"
+              onClick={() => setFundingPartner(inst)}
+            >
+              Add money
+            </Button>
           </Card>
         ))}
       </div>
@@ -180,6 +211,93 @@ export default function PortfolioPage() {
           and monitors; you approve every move.
         </p>
       </div>
+
+      <Dialog open={fundingPartner !== null} onOpenChange={(open) => !open && closeFunding()}>
+        <DialogContent className="max-w-[620px] p-0">
+          <DialogHeader className="border-b border-border px-6 py-5 pr-14">
+            <DialogTitle>Add money at {fundingPartner?.name}</DialogTitle>
+            <DialogDescription>
+              Fixture walkthrough only. No transfer evidence leaves this browser.
+            </DialogDescription>
+          </DialogHeader>
+          {submitted ? (
+            <div className="p-6">
+              <div className="flex items-start gap-3 rounded-xl border border-border bg-mint p-4">
+                <Check className="mt-0.5 h-5 w-5 text-success" aria-hidden />
+                <div>
+                  <b>Evidence ready for partner review</b>
+                  <p className="mb-0 mt-1 text-sm text-dim">
+                    In live use, the institution verifies the receipt or transaction reference
+                    before crediting cash. This demo did not upload or submit anything.
+                  </p>
+                </div>
+              </div>
+              <Button type="button" className="mt-4 w-full" onClick={closeFunding}>
+                Finish walkthrough
+              </Button>
+            </div>
+          ) : (
+            <form
+              className="grid gap-4 p-6"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSubmitted(true);
+              }}
+            >
+              <div className="grid grid-cols-2 gap-3 max-[540px]:grid-cols-1">
+                <label htmlFor="demo-funding-amount" className="grid gap-1.5 text-sm font-semibold">
+                  Amount sent
+                  <Input
+                    id="demo-funding-amount"
+                    required
+                    inputMode="decimal"
+                    placeholder="1,000"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Currency
+                  <select
+                    className="h-10 rounded-lg border border-border bg-card px-3"
+                    defaultValue="USD"
+                  >
+                    <option>USD</option>
+                    <option>JMD</option>
+                  </select>
+                </label>
+              </div>
+              <label
+                htmlFor="demo-funding-reference"
+                className="grid gap-1.5 text-sm font-semibold"
+              >
+                Transaction reference
+                <Input
+                  id="demo-funding-reference"
+                  minLength={3}
+                  maxLength={120}
+                  placeholder="TRD-88214"
+                />
+                <span className="font-normal text-faint">Optional when you attach a receipt.</span>
+              </label>
+              <label
+                htmlFor="demo-funding-receipt"
+                className="grid gap-2 rounded-xl border border-dashed border-border p-4 text-sm font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" aria-hidden />
+                  Receipt or transfer confirmation
+                </span>
+                <Input
+                  id="demo-funding-receipt"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  type="file"
+                />
+                <span className="font-normal text-faint">Optional PDF or image, up to 2 MB.</span>
+              </label>
+              <Button type="submit">Submit fixture evidence</Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppScreen>
   );
 }

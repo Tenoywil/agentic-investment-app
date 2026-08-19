@@ -159,7 +159,7 @@ export default function GatewayReviewPage() {
       ) : null}
 
       {queue && queue.introductions.length > 0 ? (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden" data-tour="gateway-review">
           <ul className="m-0 list-none p-0">
             {queue.introductions.map((intro) => (
               <li
@@ -206,7 +206,7 @@ export default function GatewayReviewPage() {
       ) : null}
 
       {queue && queue.opportunities.length > 0 ? (
-        <Card className="mt-4 p-[22px]">
+        <Card className="mt-4 p-[22px]" data-tour="gateway-review">
           <b className="font-display text-lg">Deals awaiting review</b>
           <p className="mb-3 mt-1 text-[13px] text-faint">
             Submitted for approval by their originator. Deciding these needs the origination

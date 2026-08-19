@@ -45,6 +45,27 @@ const ASSET_CLASS_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+function receiptMatchesMime(bytes: Uint8Array, mime: string): boolean {
+  if (mime === 'application/pdf') {
+    return bytes.length >= 5 && String.fromCharCode(...bytes.slice(0, 5)) === '%PDF-';
+  }
+  if (mime === 'image/jpeg') {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (mime === 'image/png') {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return signature.every((byte, index) => bytes[index] === byte);
+  }
+  if (mime === 'image/webp') {
+    return (
+      bytes.length >= 12 &&
+      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+    );
+  }
+  return false;
+}
+
 /**
  * Unified portfolio: every holding across partners, grouped by institution, with
  * the net worth converted to the caller's display currency by @ccn/money. Ports
@@ -398,6 +419,23 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!parsed.success)
       return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
     const code = parsed.data.partnerCode.trim().toUpperCase();
+    let receiptSize: number | null = null;
+    if (parsed.data.receipt) {
+      let receiptBytes: Uint8Array;
+      try {
+        receiptBytes = Uint8Array.from(atob(parsed.data.receipt.data), (ch) => ch.charCodeAt(0));
+      } catch {
+        return c.json({ error: 'the receipt data is not valid base64' }, 400);
+      }
+      receiptSize = receiptBytes.length;
+      if (receiptSize === 0) return c.json({ error: 'the receipt is empty' }, 400);
+      if (receiptSize > 2 * 1024 * 1024) {
+        return c.json({ error: 'receipts are capped at 2MB; upload a smaller file' }, 413);
+      }
+      if (!receiptMatchesMime(receiptBytes, parsed.data.receipt.mime)) {
+        return c.json({ error: 'the receipt contents do not match its file type' }, 400);
+      }
+    }
 
     const result = await withTenant(deps, tenant, async (tx) => {
       const [account] = await tx
@@ -424,7 +462,14 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
           userId: tenant.user.id,
           partnerId: account.partnerId,
           source: 'investor_notice',
-          raw: { declaredBy: 'investor', at: new Date().toISOString() },
+          raw: {
+            declaredBy: 'investor',
+            at: new Date().toISOString(),
+            reference: parsed.data.reference,
+            receipt: parsed.data.receipt
+              ? { ...parsed.data.receipt, size: receiptSize }
+              : undefined,
+          },
           parsed: {
             name: 'Cash · client-declared funding',
             valueMinor: parsed.data.amountMinor.toString(),
@@ -444,6 +489,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         detail: {
           amount_minor: parsed.data.amountMinor.toString(),
           currency: parsed.data.currency,
+          has_reference: Boolean(parsed.data.reference),
+          has_receipt: Boolean(parsed.data.receipt),
         },
       });
       return { ok: true as const };

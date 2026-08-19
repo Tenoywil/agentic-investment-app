@@ -323,13 +323,10 @@ function formatWhen(iso: string): string {
   return `${diffDay}d ago`;
 }
 
-const APPROVAL_META: Record<
-  ApprovalType,
-  { label: string; variant: BadgeProps['variant']; accent: string }
-> = {
-  investment_rec: { label: 'Recommendation', variant: 'secondary', accent: '#0e5952' },
-  fund_transfer: { label: 'Fund transfer', variant: 'terra', accent: '#c56a3e' },
-  plan_enrollment: { label: 'Plan enrollment', variant: 'outline', accent: '#124e48' },
+const APPROVAL_META: Record<ApprovalType, { label: string; variant: BadgeProps['variant'] }> = {
+  investment_rec: { label: 'Recommendation', variant: 'secondary' },
+  fund_transfer: { label: 'Fund transfer', variant: 'terra' },
+  plan_enrollment: { label: 'Plan enrollment', variant: 'outline' },
 };
 
 /**
@@ -1337,11 +1334,7 @@ export default function AgentPage() {
                   : null;
                 const cased = a.body ? condenseBody(a.body) : null;
                 return (
-                  <div
-                    key={a.id}
-                    className="mb-3 rounded-xl border border-border p-4"
-                    style={{ borderLeft: `3px solid ${meta.accent}` }}
-                  >
+                  <div key={a.id} className="mb-3 rounded-xl border border-border bg-muted/20 p-4">
                     <div className="mb-2 flex items-center justify-between">
                       <Badge variant={meta.variant}>{meta.label}</Badge>
                       <span className="text-[12.5px] text-faint">{formatWhen(a.createdAt)}</span>

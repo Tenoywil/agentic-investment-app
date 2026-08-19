@@ -1,10 +1,9 @@
 'use client';
 
-import type { Surface } from '@/lib/me-api';
 import { type Driver, driver } from 'driver.js';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
-import { stepsFor } from './steps';
+import { type TourSurface, stepsFor } from './steps';
 import 'driver.js/dist/driver.css';
 
 /**
@@ -40,7 +39,8 @@ import 'driver.js/dist/driver.css';
  * control that does nothing.
  */
 
-const DISMISS_KEY = (surface: Surface) => `ccn.tour.${surface}`;
+const DISMISS_KEY = (surface: TourSurface, pathname: string) =>
+  `ccn.tour.${surface}.${encodeURIComponent(pathname)}`;
 
 /**
  * Whether a tour is available on the current screen, as an external store.
@@ -73,7 +73,11 @@ export function useTourAvailable(): boolean {
 
 /** Routes that belong to each dashboard. Onboarding is excluded deliberately —
  *  it is already a step-by-step wizard and a tour on top of it is noise. */
-function surfaceForPath(pathname: string): Surface | null {
+function surfaceForPath(pathname: string): TourSurface | null {
+  if (pathname === '/demo/institutions' || pathname.startsWith('/demo/institutions/')) {
+    return 'demo-institution';
+  }
+  if (pathname === '/demo' || pathname.startsWith('/demo/')) return 'demo-customer';
   if (pathname.startsWith('/institutions')) return 'institution';
   if (
     ['/home', '/portfolio', '/opportunities', '/orders', '/agent', '/planning', '/gateway'].some(
@@ -113,13 +117,13 @@ function screenIsBusy(): boolean {
 }
 
 /** How many of a surface's steps currently have an element to point at. */
-function visibleTargetCount(surface: Surface): number {
-  return stepsFor(surface).filter((s) => visibleTarget(s.target) !== null).length;
+function visibleTargetCount(surface: TourSurface, pathname: string): number {
+  return stepsFor(surface, pathname).filter((s) => visibleTarget(s.target) !== null).length;
 }
 
-function seen(surface: Surface): boolean {
+function seen(surface: TourSurface, pathname: string): boolean {
   try {
-    return localStorage.getItem(DISMISS_KEY(surface)) === 'done';
+    return localStorage.getItem(DISMISS_KEY(surface, pathname)) === 'done';
   } catch {
     // Private-mode or blocked storage: treat as seen rather than reopening the
     // tour on every navigation.
@@ -127,9 +131,9 @@ function seen(surface: Surface): boolean {
   }
 }
 
-function markSeen(surface: Surface): void {
+function markSeen(surface: TourSurface, pathname: string): void {
   try {
-    localStorage.setItem(DISMISS_KEY(surface), 'done');
+    localStorage.setItem(DISMISS_KEY(surface, pathname), 'done');
   } catch {
     /* nothing to do — the tour simply is not remembered */
   }
@@ -144,7 +148,7 @@ export function Tour() {
     if (!surface) return;
     // Only steps whose element is actually on the page. Resolved at start time,
     // not at module load, because the screens render their data asynchronously.
-    const steps = stepsFor(surface)
+    const steps = stepsFor(surface, pathname ?? '')
       .map((s) => ({ el: visibleTarget(s.target), step: s }))
       .filter((x): x is { el: Element; step: (typeof x)['step'] } => x.el !== null)
       .map(({ el, step }) => ({
@@ -176,12 +180,12 @@ export function Tour() {
       // a stray click during the tour would fire a real action.
       disableActiveInteraction: true,
       onDestroyed: () => {
-        markSeen(surface);
+        markSeen(surface, pathname ?? '');
       },
     });
     instance.current = d;
     d.drive();
-  }, [surface]);
+  }, [pathname, surface]);
 
   // Wait for the screen to settle before auto-starting. Polls rather than
   // observes, because the targets arrive with a fetch and the cost of a few
@@ -193,7 +197,7 @@ export function Tour() {
     let previous = -1;
     const id = window.setInterval(() => {
       tries++;
-      const count = visibleTargetCount(surface);
+      const count = visibleTargetCount(surface, pathname ?? '');
       const busy = screenIsBusy();
 
       // The replay item may appear as soon as there is a real screen behind it.
@@ -211,7 +215,7 @@ export function Tour() {
 
       if (settled) {
         window.clearInterval(id);
-        if (!seen(surface)) start();
+        if (!seen(surface, pathname ?? '')) start();
         return;
       }
       if (tries > 40) {
@@ -227,7 +231,7 @@ export function Tour() {
       instance.current?.destroy();
       instance.current = null;
     };
-  }, [surface, start]);
+  }, [pathname, surface, start]);
 
   // Lets a nav item elsewhere replay the tour without importing this component:
   //   window.dispatchEvent(new CustomEvent('ccn:tour'))

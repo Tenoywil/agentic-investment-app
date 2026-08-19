@@ -204,7 +204,7 @@ export default function OrdersPage() {
       ) : null}
 
       {orders && orders.length > 0 ? (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden" data-tour="customer-order-flow">
           <ul className="m-0 list-none p-0">
             {orders.map((o) => {
               const state = STATE[o.status];
