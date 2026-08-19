@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { auditActionLabel, auditEntityLabel } from '../app/_components/console/lib';
+import { auditActionLabel, auditEntityLabel, consoleTab } from '../app/_components/console/lib';
 
 /**
  * The console speaks English, not Postgres.
@@ -119,5 +119,22 @@ describe('console audit vocabulary', () => {
     expect(auditActionLabel('some_future_thing.happened')).toBe('Some future thing happened');
     expect(auditEntityLabel('future_records')).toBe('Future records');
     expect(auditEntityLabel(null)).toBeNull();
+  });
+});
+
+describe('console browser routes', () => {
+  it('restores every institution section from its URL value', () => {
+    expect(['overview', 'orders', 'products', 'clients', 'compliance'].map(consoleTab)).toEqual([
+      'overview',
+      'orders',
+      'products',
+      'clients',
+      'compliance',
+    ]);
+  });
+
+  it('falls back safely when a section is absent or unknown', () => {
+    expect(consoleTab(null)).toBe('overview');
+    expect(consoleTab('not-a-console-section')).toBe('overview');
   });
 });

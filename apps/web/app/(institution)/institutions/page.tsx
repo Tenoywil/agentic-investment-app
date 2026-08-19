@@ -5,8 +5,7 @@ import { ClientsTab } from '@/app/_components/console/clients-tab';
 import { ComplianceTab } from '@/app/_components/console/compliance-tab';
 import { ConsoleHeader } from '@/app/_components/console/console-header';
 import { ConsoleSidebar } from '@/app/_components/console/console-sidebar';
-import type { TabKey } from '@/app/_components/console/lib';
-import { errorMessage } from '@/app/_components/console/lib';
+import { type TabKey, consoleTab, errorMessage } from '@/app/_components/console/lib';
 import { ListProductDialog } from '@/app/_components/console/list-product';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
@@ -48,6 +47,7 @@ import {
   updatePartner,
 } from '@/lib/console-api';
 import { Menu } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -67,6 +67,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * unreachable code guarding a door the layout had already locked.
  */
 export default function InstitutionsPage() {
+  const pathname = usePathname();
+  const router = useRouter();
   const me = useMe();
   // The firm's own name comes from the session, so saving it has to refresh
   // the session — otherwise the sidebar and every header go on showing the old
@@ -75,6 +77,32 @@ export default function InstitutionsPage() {
   const partner = me?.partner ?? null;
   const [tab, setTab] = useState<TabKey>('overview');
   const [signingOut, setSigningOut] = useState(false);
+
+  /**
+   * Each console section has a durable browser route. This keeps refresh,
+   * Back/Forward and copied links on the section the operator chose while
+   * preserving any unrelated query parameters owned by the surrounding app.
+   */
+  useEffect(() => {
+    const syncFromUrl = () => {
+      setTab(consoleTab(new URLSearchParams(window.location.search).get('section')));
+    };
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
+
+  const navigateToTab = useCallback(
+    (next: TabKey) => {
+      setTab(next);
+      const params = new URLSearchParams(window.location.search);
+      if (next === 'overview') params.delete('section');
+      else params.set('section', next);
+      const query = params.toString();
+      router.push(`${pathname}${query ? `?${query}` : ''}`, { scroll: false });
+    },
+    [pathname, router],
+  );
 
   const [orders, setOrders] = useState<ConsoleOrder[]>([]);
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -492,7 +520,7 @@ export default function InstitutionsPage() {
   return (
     <Tabs
       value={tab}
-      onValueChange={(v) => setTab(v as TabKey)}
+      onValueChange={(v) => navigateToTab(v as TabKey)}
       orientation="vertical"
       className="app-shell bg-background font-sans text-foreground"
     >
@@ -551,7 +579,7 @@ export default function InstitutionsPage() {
             }
             hasProducts={products.length > 0}
             hasActiveClient={clients.some((c) => c.status === 'active')}
-            onGoTab={(t) => setTab(t)}
+            onGoTab={navigateToTab}
             onAccept={handleAccept}
             onSettle={handleSettle}
             onReject={handleReject}
