@@ -191,6 +191,8 @@ export default function AgentPage() {
   const [replying, setReplying] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dictationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dictationSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputId = useId();
 
   useEffect(() => {
@@ -207,6 +209,8 @@ export default function AgentPage() {
   useEffect(
     () => () => {
       if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+      if (dictationIntervalRef.current) clearInterval(dictationIntervalRef.current);
+      if (dictationSendTimerRef.current) clearTimeout(dictationSendTimerRef.current);
     },
     [],
   );
@@ -247,20 +251,22 @@ export default function AgentPage() {
    *  question into the composer word by word, then sends it — the feel of the
    *  live dictation flow with nothing captured and nothing asked for. */
   function playDictation() {
-    if (hearing !== null) return;
+    if (hearing !== null || replying || draft.trim() !== '') return;
     const words = DICTATION_SCRIPT.split(' ');
     let i = 0;
     setHearing('');
-    const tick = setInterval(() => {
+    dictationIntervalRef.current = setInterval(() => {
       i += 1;
       const sofar = words.slice(0, i).join(' ');
       setHearing(sofar);
       setDraft(sofar);
       if (i >= words.length) {
-        clearInterval(tick);
-        setTimeout(() => {
+        if (dictationIntervalRef.current) clearInterval(dictationIntervalRef.current);
+        dictationIntervalRef.current = null;
+        dictationSendTimerRef.current = setTimeout(() => {
           setHearing(null);
           setDraft('');
+          dictationSendTimerRef.current = null;
           send(DICTATION_SCRIPT, 'idle');
         }, 450);
       }
@@ -405,7 +411,7 @@ export default function AgentPage() {
                   variant="outline"
                   size="sm"
                   className="h-8 flex-none rounded-[20px] px-3 text-xs font-semibold text-teal2 max-[900px]:min-w-0 max-[900px]:flex-1 max-[900px]:px-1.5"
-                  disabled={replying}
+                  disabled={replying || hearing !== null}
                   onClick={() => send(s.label, s.key)}
                 >
                   <span className="max-[900px]:hidden">{s.label}</span>
@@ -427,6 +433,7 @@ export default function AgentPage() {
                 id={inputId}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                disabled={hearing !== null}
                 autoComplete="off"
                 placeholder="Ask your agent…"
                 className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint max-[900px]:text-sm"
@@ -438,7 +445,7 @@ export default function AgentPage() {
                 aria-label="Voice input (plays a sample question)"
                 aria-pressed={hearing !== null}
                 onClick={playDictation}
-                disabled={replying}
+                disabled={replying || hearing !== null || draft.trim() !== ''}
                 className="h-[38px] w-[38px] flex-none rounded-[10px] max-[900px]:h-9 max-[900px]:w-9"
               >
                 <Mic className={cn('h-[17px] w-[17px]', hearing !== null && 'animate-pulse')} />
@@ -447,7 +454,7 @@ export default function AgentPage() {
                 type="submit"
                 size="icon"
                 aria-label="Send message"
-                disabled={replying || draft.trim() === ''}
+                disabled={replying || hearing !== null || draft.trim() === ''}
                 className="h-[38px] w-[38px] flex-none rounded-[10px] max-[900px]:h-9 max-[900px]:w-9"
               >
                 <ArrowRight className="h-[18px] w-[18px]" />

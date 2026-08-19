@@ -189,7 +189,7 @@ suite('withdrawals and funding notices', () => {
 
   test('a funding notice queues for the desk and credits nothing', async () => {
     const before = await cashNow();
-    const receiptText = 'wire receipt fixture';
+    const receiptText = '%PDF-1.7\nwire receipt fixture';
     const res = await request('/api/portfolio/funding-notice', 'investor', {
       method: 'POST',
       body: JSON.stringify({
@@ -251,6 +251,24 @@ suite('withdrawals and funding notices', () => {
       'ncbOperator',
     );
     expect(stranger.status).toBe(404);
+  });
+
+  test('funding evidence rejects content that does not match the declared file type', async () => {
+    const res = await request('/api/portfolio/funding-notice', 'investor', {
+      method: 'POST',
+      body: JSON.stringify({
+        partnerCode: 'SAG',
+        amountMinor: '100000',
+        currency: 'USD',
+        receipt: {
+          name: 'not-really-a-receipt.pdf',
+          mime: 'application/pdf',
+          data: btoa('<script>alert(1)</script>'),
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain('do not match');
   });
 
   test('a request freezes fee and GCT at request time and deducts nothing', async () => {

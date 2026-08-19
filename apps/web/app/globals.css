@@ -714,7 +714,7 @@ body:has(dialog.app-sheet[open]) {
     border-radius: 0;
   }
   /* Keep the fixture boundary visible without letting it cover the chat's
-     navigation. The phone label is intentionally one line, so its 33px height
+     navigation. The phone label is intentionally one line, so its 24px height
      is stable across the supported narrow viewports. */
   .demo-status {
     display: flex;
