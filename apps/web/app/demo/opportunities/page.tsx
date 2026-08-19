@@ -249,7 +249,7 @@ function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
 }
 
 function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) {
-  const titleId = useId();
+  const formId = useId();
   const [step, setStep] = useState(0);
   const [amt, setAmt] = useState('');
 
@@ -286,9 +286,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
             <div className="text-[12.5px] font-bold uppercase tracking-[.4px] text-[#6d6455]">
               {blocked ? 'Screened out' : opp.type}
             </div>
-            <DialogTitle id={titleId} className="mt-1 text-lg">
-              {opp.name}
-            </DialogTitle>
+            <DialogTitle className="mt-1 text-lg">{opp.name}</DialogTitle>
             <DialogDescription className="sr-only">
               {opp.region} · executed by {opp.partner}
             </DialogDescription>
@@ -367,7 +365,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                   first screen, before anything reads like a commitment. */}
               {!blocked && (
                 <div className="mb-4 flex items-start justify-between rounded-xl border border-border px-4 py-3.5">
-                  <label htmlFor={`${titleId}-amt0`} className="pt-2 text-sm font-semibold">
+                  <label htmlFor={`${formId}-amt0`} className="pt-2 text-sm font-semibold">
                     Amount to invest
                   </label>
                   <div className="flex flex-col items-end gap-1">
@@ -379,7 +377,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                         US$
                       </span>
                       <Input
-                        id={`${titleId}-amt0`}
+                        id={`${formId}-amt0`}
                         value={amt}
                         onChange={(e) => setAmt(e.target.value)}
                         inputMode="numeric"
@@ -411,7 +409,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                   <span className="max-w-[60%] text-right text-sm font-semibold">{opp.name}</span>
                 </div>
                 <div className="flex items-start justify-between border-b border-solid border-x-0 border-t-0 border-[#ece6da] px-4 py-3.5">
-                  <label htmlFor={`${titleId}-amt`} className="pt-2 text-sm text-dim">
+                  <label htmlFor={`${formId}-amt`} className="pt-2 text-sm text-dim">
                     Amount
                   </label>
                   <div className="flex flex-col items-end gap-1">
@@ -423,7 +421,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                         US$
                       </span>
                       <Input
-                        id={`${titleId}-amt`}
+                        id={`${formId}-amt`}
                         value={amt}
                         onChange={(e) => setAmt(e.target.value)}
                         inputMode="numeric"
@@ -454,7 +452,9 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 <div className="flex flex-col gap-1.5">
                   {[
                     'Identity verified (KYC · Tier 2)',
-                    'Suitability: matches your balanced-income profile',
+                    opp.risk === 'High'
+                      ? 'Suitability: within your stated high-risk allocation limit'
+                      : 'Suitability: matches your balanced-income profile',
                     'Source of funds confirmed',
                   ].map((line) => (
                     <div
@@ -623,7 +623,7 @@ export default function OpportunitiesPage() {
         ))}
       </div>
 
-      <div className="g2">
+      <div className="g2" data-tour="customer-marketplace">
         {shown.map((o) => (
           <OppCard key={o.id} o={o} onOpen={setSelected} />
         ))}

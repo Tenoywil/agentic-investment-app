@@ -46,6 +46,19 @@ describe('the agent system prompt', () => {
     expect(SYSTEM_PROMPT).toContain('Match register, never substance');
     expect(SYSTEM_PROMPT).toContain('Simplifying is not the same as softening');
   });
+
+  it('keeps replies flexible without the usual AI punctuation habits', () => {
+    expect(SYSTEM_PROMPT).toContain('Choose the representation that makes the answer easiest');
+    expect(SYSTEM_PROMPT).toContain('Never use an em dash');
+    expect(SYSTEM_PROMPT).toContain('Never use a plus sign to mean "and"');
+    expect(SYSTEM_PROMPT).toContain('Do not force every answer into the same card-like pattern');
+  });
+
+  it('uses conversation for intent but current tools for financial decisions', () => {
+    expect(SYSTEM_PROMPT).toContain('newest explicit user instruction wins');
+    expect(SYSTEM_PROMPT).toContain('Conversation history preserves intent');
+    expect(SYSTEM_PROMPT).toContain('ask one short clarifying question');
+  });
 });
 
 describe('untrustedBlock', () => {

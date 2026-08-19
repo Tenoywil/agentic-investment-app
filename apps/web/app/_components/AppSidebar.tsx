@@ -134,11 +134,7 @@ const GROUPS: NavGroup[] = [
   },
 ];
 
-// Both states of this card must occupy one box. It sits in the rail on every
-// screen, and its height changed when the approval count arrived — measured as
-// the largest single layout-shift source in the app (197px to 173px), shifting
-// every screen rather than one. The heights below hold one line of title and
-// two of body whichever state is showing.
+// The actionable state has a stable title and body height while the count loads.
 const CARD_TITLE = 'mb-1 min-h-[24px] font-display text-base font-semibold';
 const CARD_BODY = 'mb-3 min-h-[38px] text-[13.5px] leading-snug opacity-80';
 
@@ -148,9 +144,8 @@ const CARD_BODY = 'mb-3 min-h-[38px] text-[13.5px] leading-snug opacity-80';
  * This used to be a full navy card on every screen — "Checking with your
  * agent…", a two-line body, a peach button — narrating the agent's idle state
  * to somebody trying to read their portfolio. An assistant with nothing to say
- * should take up one quiet line; the tall card with the button now appears only
- * when approvals are genuinely waiting on the person, which is the one moment
- * it earns the space.
+ * should be absent; the tall card with the button now appears only when approvals
+ * are genuinely waiting on the person, which is the one moment it earns the space.
  */
 export function AgentCard() {
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
@@ -172,20 +167,10 @@ export function AgentCard() {
 
   const pending = approvals?.filter((a) => a.status === 'pending').length ?? 0;
 
-  if (pending === 0) {
-    return (
-      <Link
-        href="/agent"
-        className="app-sidebar__agentcard mb-3 flex items-center gap-2.5 rounded-[13px] border border-solid border-border px-3 py-[11px] text-[14px] font-semibold text-dim no-underline hover:text-foreground"
-      >
-        <span className="h-[7px] w-[7px] flex-none rounded-full bg-success" aria-hidden />
-        <span className="flex-1 whitespace-nowrap">Your agent</span>
-        <span className="whitespace-nowrap text-[12px] font-normal text-faint">
-          nothing waiting
-        </span>
-      </Link>
-    );
-  }
+  // The navigation already has a permanent Agent destination. A second idle
+  // prompt adds no information and competes with the screen a person opened.
+  // The card earns its place only when there is a real decision to make.
+  if (pending === 0) return null;
 
   return (
     <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5] dark:bg-[#124e48]">
@@ -202,27 +187,6 @@ export function AgentCard() {
         className="block rounded-[11px] bg-peach py-[11px] text-center text-[15px] font-bold text-[#3a2415] no-underline"
       >
         Review with agent
-      </Link>
-    </div>
-  );
-}
-
-/** The same card in the fixture-only preview shell, which has no session and
- *  must not call the API. It states what it is instead of inventing counts. */
-export function DemoAgentCard({ basePath }: { basePath: string }) {
-  return (
-    <div className="app-sidebar__agentcard mb-3 rounded-[18px] bg-primary p-[17px] text-[#eafaf5] dark:bg-[#124e48]">
-      <div className="mb-1.5 flex items-center gap-[7px] text-[13.5px] opacity-85">
-        <span className="h-[7px] w-[7px] rounded-full bg-peach" />
-        Your agent · demo
-      </div>
-      <div className={CARD_TITLE}>A preview of the investor app</div>
-      <div className={CARD_BODY}>Sample data. Sign in to see your own position.</div>
-      <Link
-        href={`${basePath}/agent`}
-        className="block rounded-[11px] bg-peach py-[11px] text-center text-[15px] font-bold text-[#3a2415] no-underline"
-      >
-        See the agent
       </Link>
     </div>
   );
@@ -313,7 +277,7 @@ export function AppSidebar({
     <nav
       className="app-sidebar sticky top-0 flex h-screen w-[264px] flex-none flex-col border-r border-border bg-card px-[18px] pb-5 pt-[26px]"
       aria-label="Primary"
-      data-tour={basePath ? undefined : 'customer-nav'}
+      data-tour="customer-nav"
     >
       <Link
         href={`${basePath}/home`}
@@ -343,7 +307,7 @@ export function AppSidebar({
         <NavLinks groups={groups} active={active} basePath={basePath} withTourTargets={!basePath} />
       </div>
 
-      {basePath ? <DemoAgentCard basePath={basePath} /> : <AgentCard />}
+      {basePath ? null : <AgentCard />}
 
       {/* No console link on the customer surface: the institution console is a
           different product for a different account, and /api/console answers a

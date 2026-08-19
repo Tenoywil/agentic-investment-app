@@ -398,6 +398,20 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!parsed.success)
       return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
     const code = parsed.data.partnerCode.trim().toUpperCase();
+    let receiptSize: number | null = null;
+    if (parsed.data.receipt) {
+      try {
+        receiptSize = Uint8Array.from(atob(parsed.data.receipt.data), (ch) =>
+          ch.charCodeAt(0),
+        ).length;
+      } catch {
+        return c.json({ error: 'the receipt data is not valid base64' }, 400);
+      }
+      if (receiptSize === 0) return c.json({ error: 'the receipt is empty' }, 400);
+      if (receiptSize > 2 * 1024 * 1024) {
+        return c.json({ error: 'receipts are capped at 2MB; upload a smaller file' }, 413);
+      }
+    }
 
     const result = await withTenant(deps, tenant, async (tx) => {
       const [account] = await tx
@@ -424,7 +438,14 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
           userId: tenant.user.id,
           partnerId: account.partnerId,
           source: 'investor_notice',
-          raw: { declaredBy: 'investor', at: new Date().toISOString() },
+          raw: {
+            declaredBy: 'investor',
+            at: new Date().toISOString(),
+            reference: parsed.data.reference,
+            receipt: parsed.data.receipt
+              ? { ...parsed.data.receipt, size: receiptSize }
+              : undefined,
+          },
           parsed: {
             name: 'Cash · client-declared funding',
             valueMinor: parsed.data.amountMinor.toString(),
@@ -444,6 +465,8 @@ export function portfolioRoutes(deps: AppDeps): Hono<AppEnv> {
         detail: {
           amount_minor: parsed.data.amountMinor.toString(),
           currency: parsed.data.currency,
+          has_reference: Boolean(parsed.data.reference),
+          has_receipt: Boolean(parsed.data.receipt),
         },
       });
       return { ok: true as const };

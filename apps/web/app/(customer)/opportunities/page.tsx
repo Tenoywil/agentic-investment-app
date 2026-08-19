@@ -886,7 +886,7 @@ export default function OpportunitiesPage() {
       )}
 
       {status === 'ready' && (
-        <>
+        <div data-tour="customer-marketplace">
           <div className="mb-5 flex flex-wrap gap-2.5">
             {FILTERS.map((f) => (
               <button
@@ -977,7 +977,7 @@ export default function OpportunitiesPage() {
             onClose={() => setSelected(null)}
             onWithdrawn={refresh}
           />
-        </>
+        </div>
       )}
     </AppScreen>
   );

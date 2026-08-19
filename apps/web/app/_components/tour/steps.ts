@@ -1,137 +1,228 @@
 import type { Surface } from '@/lib/me-api';
 
-/**
- * What a first-time viewer is walked through, per surface.
- *
- * Each step names a `data-tour` attribute that the screen owns. A step whose
- * element is not on the page is dropped at runtime rather than rendered against
- * nothing — screens differ by account state (a brand-new customer has no
- * approvals card to point at), and a tour that stalls on an empty account is
- * worse than a shorter one.
- *
- * Copy rule: describe what the user can *do*, and never assert a number. These
- * strings are shipped text like any other, and the same no-fabrication rule
- * applies to them.
- */
+export type TourSurface = Surface | 'demo-customer' | 'demo-institution';
 
 export interface TourStep {
-  /** The `data-tour` value on the element to highlight. */
   target: string;
   title: string;
   body: string;
 }
 
-const CUSTOMER: TourStep[] = [
-  {
-    target: 'customer-net-worth',
-    title: 'Everything you own, in one place',
-    body: 'Holdings from every institution you have linked, converted into a single currency. Switch currency here and the whole page follows.',
-  },
-  {
-    target: 'customer-nav',
-    title: 'Your workspace',
-    body: 'Portfolio, opportunities, your agent and your plan. Everything you see is your own data — nothing here is a sample.',
-  },
-  {
-    target: 'customer-portfolio',
-    title: 'Money in, money out',
-    body: 'Your portfolio holds each firm you have connected. On every firm’s card you can add money using their own wire instructions, and request a withdrawal — with the firm’s fee and any tax shown before you confirm.',
-  },
-  {
-    target: 'customer-agent',
-    title: 'The agent proposes; you decide',
-    body: 'Ask it to research, compare or plan. It can never move your money on its own — anything with a consequence comes back to you as an approval.',
-  },
-  {
-    target: 'customer-activity',
-    title: 'It works while you are away',
-    body: 'The agent scans the marketplace in the background against your own limits. Anything it finds waits as an approval card, with the full research → screening → sizing reasoning attached.',
-  },
-  {
-    target: 'customer-limits',
-    title: 'Your guardrails',
-    body: 'The limits the agent must work inside. Change them here and the server enforces the new values immediately.',
-  },
-  {
-    target: 'customer-approvals',
-    title: 'Nothing happens without this step',
-    body: 'Every proposed action waits here for you. Open one and "How this was decided" shows each stage of the reasoning — including the candidates that were rejected, and why. Approve it and a licensed partner executes; ignore it and it expires.',
-  },
-  {
-    target: 'customer-opportunities',
-    title: 'Products from licensed partners',
-    body: 'Regional instruments you can act on. Every card carries the rate as the firm frames it, the minimum, the term, the institution that executes it and the regulator that supervises them.',
-  },
-  {
-    target: 'customer-orders',
-    title: 'Every order, tracked to the end',
-    body: 'Each order you authorise shows where it stands — routed, accepted, settled or declined with the firm’s reason. A settled order carries a printable contract note: your record of exactly what was executed.',
-  },
-];
+const CUSTOMER_NAV: TourStep = {
+  target: 'customer-nav',
+  title: 'Your workspace',
+  body: 'Move between your portfolio, investments, orders, planning and agent. Private-market work has its own section.',
+};
+
+const CUSTOMER_ROUTES: Record<string, TourStep[]> = {
+  '/home': [
+    {
+      target: 'customer-net-worth',
+      title: 'Your position at a glance',
+      body: 'See the value held across connected institutions in your preferred currency.',
+    },
+    {
+      target: 'customer-agent',
+      title: 'Decisions come back to you',
+      body: 'The agent can research and prepare work. Anything consequential waits for your approval.',
+    },
+    {
+      target: 'customer-approvals',
+      title: 'Review before anything happens',
+      body: 'Open a proposed action to inspect the amount, rationale, limits check and execution partner.',
+    },
+    {
+      target: 'customer-activity',
+      title: 'A clear activity record',
+      body: 'Recent research and actions are recorded here so you can see what changed and why.',
+    },
+  ],
+  '/portfolio': [
+    {
+      target: 'customer-portfolio-page',
+      title: 'Your holdings across firms',
+      body: 'Balances stay with each licensed institution. CCN combines the view without holding your money.',
+    },
+    {
+      target: 'customer-portfolio-accounts',
+      title: 'Work with one institution',
+      body: 'Pull statements, submit transfer evidence or request a withdrawal from the relevant account card.',
+    },
+    {
+      target: 'customer-portfolio-funding',
+      title: 'Prove a transfer safely',
+      body: 'Enter a transaction reference or attach a receipt. The partner still verifies the transfer before crediting cash.',
+    },
+    {
+      target: 'customer-portfolio-connect',
+      title: 'Connect another institution',
+      body: 'Only institutions with no active or pending relationship appear in the connection flow.',
+    },
+  ],
+  '/opportunities': [
+    {
+      target: 'customer-marketplace',
+      title: 'Compare available investments',
+      body: 'Filter products listed by partner institutions, then open one to review terms, risk and suitability.',
+    },
+  ],
+  '/orders': [
+    {
+      target: 'customer-order-flow',
+      title: 'Follow every order',
+      body: 'Track when a partner accepts, settles or declines an order. Settled orders include a contract note.',
+    },
+  ],
+  '/agent': [
+    {
+      target: 'customer-agent',
+      title: 'Ask, compare and explore',
+      body: 'The conversation supports prose, lists, tables and purpose-built data views when each is useful.',
+    },
+    {
+      target: 'customer-approvals',
+      title: 'Your approval queue',
+      body: 'Prepared moves wait here. Review the evidence and decide without the agent acting through the tour.',
+    },
+    {
+      target: 'customer-limits',
+      title: 'Deterministic guardrails',
+      body: 'Your limits are enforced by the server. The agent cannot override them.',
+    },
+  ],
+  '/planning': [
+    {
+      target: 'customer-planning',
+      title: 'Turn goals into a plan',
+      body: 'Review projections, contribution paths and goal progress using your current portfolio data.',
+    },
+  ],
+  '/gateway/mandate': [
+    {
+      target: 'gateway-mandate-form',
+      title: 'Describe your private-market mandate',
+      body: 'Start in your own words, then review every structured field before it is saved.',
+    },
+    {
+      target: 'gateway-mandate-summary',
+      title: 'See what matching uses',
+      body: 'Cheque range, horizon, target, risk, geography, sector and stage are visible in one screening brief.',
+    },
+    {
+      target: 'gateway-mandate-process',
+      title: 'A safe three-step path',
+      body: 'Describe, review and match. A mandate does not invest or contact an issuer.',
+    },
+  ],
+  '/gateway/opportunities': [
+    {
+      target: 'gateway-deals',
+      title: 'Deals ranked to your mandate',
+      body: 'Fit reasons and conflicts sit beside each opportunity so a high score never hides the trade-offs.',
+    },
+  ],
+  '/gateway/introductions': [
+    {
+      target: 'gateway-introductions',
+      title: 'Manage private-deal introductions',
+      body: 'Track who received a request and what happens next without presenting an introduction as an investment.',
+    },
+  ],
+  '/gateway/review': [
+    {
+      target: 'gateway-review',
+      title: 'Independent review queue',
+      body: 'Analysts and compliance reviewers can inspect private-market evidence and decisions in one place.',
+    },
+  ],
+};
 
 const INSTITUTION: TourStep[] = [
   {
     target: 'institution-identity',
-    title: 'You are signed in as your institution',
-    body: 'Everything on this console is scoped to your firm. You cannot see another partner’s clients, orders or documents, and neither can they see yours.',
+    title: 'Your institution',
+    body: 'The console is scoped to this firm and its authorised operators.',
   },
   {
     target: 'institution-sections',
-    title: 'The console',
-    body: 'Overview, order flow, products, clients & KYC, and compliance. Each one reads live from your own records.',
+    title: 'The operating desk',
+    body: 'Move between overview, order flow, products, clients and compliance.',
   },
   {
     target: 'institution-checklist',
-    title: 'The path to a working desk',
-    body: 'Four milestones, each computed from your real records — publish funding instructions, list a product, accept a client, take an order. The card retires itself when your desk is live.',
+    title: 'Complete the desk setup',
+    body: 'Funding instructions, products, clients and orders form a practical readiness checklist.',
   },
   {
     target: 'institution-needs-you',
-    title: 'Your to-do list, live',
-    body: 'Orders to accept (with the oldest wait named), clients awaiting review, statement lines to reconcile and withdrawals awaiting your decision — updated the moment any of them changes.',
+    title: 'What needs action',
+    body: 'See orders, client reviews, reconciliation items and withdrawals waiting for your firm.',
   },
   {
     target: 'institution-kpis',
-    title: 'Your referred business',
-    body: 'Volume and client counts attributed to your institution.',
+    title: 'Referred business',
+    body: 'Review live volume and client measures attributed to your institution.',
   },
   {
     target: 'institution-funnel',
-    title: 'Where onboarding stalls',
-    body: 'Each stage a referred client passes through, so you can see which step is losing them.',
+    title: 'Client onboarding',
+    body: 'See where referred clients progress or stall, then open a person for the underlying KYC record.',
+  },
+  {
+    target: 'institution-clients',
+    title: 'Clients and KYC',
+    body: 'Accept, decline or request more information using the verified record available to your desk.',
   },
   {
     target: 'institution-products',
-    title: 'What you have listed',
-    body: 'The products CCN can present to investors on your behalf, and their current state. Pausing a listing takes it off the marketplace instantly.',
+    title: 'Your listed products',
+    body: 'Publish complete product data and pause a listing when it should leave the marketplace.',
   },
   {
     target: 'institution-orders',
-    title: 'Orders awaiting you',
-    body: 'Investor-approved orders routed to your desk. Accept with a settlement date, then settle with the executed price, units and fee — the client’s contract note is built from what you report.',
+    title: 'Order execution',
+    body: 'Accept with a settlement date, then record the actual price, units, fee and reference.',
   },
   {
     target: 'institution-withdrawals',
-    title: 'Money out, on your terms',
-    body: 'Clients ask for money back here. Each request shows your fee and tax, frozen when they asked, and the exact net to pay. Pay with your reference, or decline with a reason they read.',
+    title: 'Withdrawal decisions',
+    body: 'Record payment or decline with a reason the client can see.',
   },
   {
     target: 'institution-decisions',
-    title: 'Who accepted what',
-    body: 'One press narrows the audit trail to signed decisions — client acceptances, settled funds, withdrawals, executions — each carrying the name of the person at your firm who decided it.',
+    title: 'Signed decisions',
+    body: 'Filter the audit trail to the people and decisions that changed client state.',
   },
   {
     target: 'institution-audit',
-    title: 'An audit trail you cannot edit',
-    body: 'Every action is appended here and nothing can rewrite it — the database rejects updates and deletes on this table outright. Export it as CSV whenever a review asks.',
+    title: 'Append-only audit trail',
+    body: 'Review and export the event record used for compliance oversight.',
   },
   {
     target: 'institution-signout',
     title: 'One identity, one surface',
-    body: 'An institution login reaches the console and nothing else. To use CCN as an investor, sign out and sign in with an investor account.',
+    body: 'Sign out before moving between institution and investor identities.',
   },
 ];
 
-export function stepsFor(surface: Surface): TourStep[] {
-  return surface === 'institution' ? INSTITUTION : CUSTOMER;
+const DEMO_INSTITUTION: TourStep[] = [
+  {
+    target: 'demo-institution-shell',
+    title: 'Fixture-only partner console',
+    body: 'Explore seeded products, clients, orders and compliance records. Actions stay inside this browser preview.',
+  },
+];
+
+function routeKey(pathname: string): string {
+  const withoutDemo = pathname.startsWith('/demo/') ? pathname.slice('/demo'.length) : pathname;
+  const match = Object.keys(CUSTOMER_ROUTES)
+    .sort((a, b) => b.length - a.length)
+    .find((key) => withoutDemo === key || withoutDemo.startsWith(`${key}/`));
+  return match ?? '/home';
+}
+
+export function stepsFor(surface: TourSurface, pathname: string): TourStep[] {
+  if (surface === 'institution') return INSTITUTION;
+  if (surface === 'demo-institution') return DEMO_INSTITUTION;
+  return [CUSTOMER_NAV, ...(CUSTOMER_ROUTES[routeKey(pathname)] ?? [])];
 }

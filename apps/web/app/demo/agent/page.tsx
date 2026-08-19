@@ -9,7 +9,7 @@ import { Switch } from '@/app/_components/ui/switch';
 import { cn } from '@/app/_lib/utils';
 import { ArrowLeft, ArrowRight, Mic, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import Link from 'next/link';
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 type Msg = { role: 'agent' | 'user'; text: string };
 
@@ -29,10 +29,10 @@ const SEED: Msg[] = [
   },
 ];
 
-const SUGGESTIONS: { label: string; key: string }[] = [
-  { label: 'Summarize my week', key: 'summary' },
-  { label: 'Rebalance ideas', key: 'rebalance' },
-  { label: 'Best income deal?', key: 'income' },
+const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
+  { label: 'Summarize my week', mobileLabel: 'Weekly recap', key: 'summary' },
+  { label: 'Rebalance ideas', mobileLabel: 'Rebalance', key: 'rebalance' },
+  { label: 'Best income deal?', mobileLabel: 'Income idea', key: 'income' },
 ];
 
 const REPLIES: Record<string, string> = {
@@ -72,7 +72,6 @@ const APPROVALS: {
   id: string;
   tag: string;
   variant: BadgeProps['variant'];
-  accent: string;
   when: string;
   title: string;
   body: string;
@@ -88,7 +87,6 @@ const APPROVALS: {
     id: 'coupon',
     tag: 'Reinvest',
     variant: 'secondary',
-    accent: '#0e5952',
     when: 'Today',
     title: 'Put your GOJ coupon to work',
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
@@ -120,7 +118,6 @@ const APPROVALS: {
     id: 'idle',
     tag: 'Idle cash',
     variant: 'terra',
-    accent: '#c56a3e',
     when: '2d ago',
     title: 'US$2,150 earning nothing',
     body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
@@ -191,35 +188,48 @@ export default function AgentPage() {
   const [dismissed, setDismissed] = useState<string[]>([]);
   /** The simulated dictation: null when idle, else the transcript so far. */
   const [hearing, setHearing] = useState<string | null>(null);
+  const [replying, setReplying] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputId = useId();
 
-  function scrollLog() {
-    requestAnimationFrame(() => {
+  useEffect(() => {
+    if (chat.length === 0 && !replying) return;
+    const frame = requestAnimationFrame(() => {
       const el = logRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (!el) return;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? 'auto' : 'smooth' });
     });
-  }
+    return () => cancelAnimationFrame(frame);
+  }, [chat, replying]);
+
+  useEffect(
+    () => () => {
+      if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+    },
+    [],
+  );
 
   function reply(key: string) {
     const text = REPLIES[key] ?? FALLBACK;
     setChat((c) => [...c, { role: 'agent', text }]);
-    scrollLog();
+    setReplying(false);
+    replyTimerRef.current = null;
   }
 
   function send(text: string, key?: string) {
     const t = text.trim();
-    if (!t) return;
+    if (!t || replying) return;
     setChat((c) => [...c, { role: 'user', text: t }]);
     setDraft('');
-    scrollLog();
-    setTimeout(() => reply(key ?? classify(t)), 500);
+    setReplying(true);
+    replyTimerRef.current = setTimeout(() => reply(key ?? classify(t)), 450);
   }
 
   function approveCard(a: (typeof APPROVALS)[number]) {
     setCardState((s) => ({ ...s, [a.id]: 'approved' }));
     setChat((c) => [...c, { role: 'agent', text: a.confirm }]);
-    scrollLog();
   }
 
   function dismissCard(a: (typeof APPROVALS)[number]) {
@@ -231,7 +241,6 @@ export default function AgentPage() {
         text: `Understood. I've set "${a.title}" aside. I'll flag it again only if the numbers change.`,
       },
     ]);
-    scrollLog();
   }
 
   /** Voice, without a single browser permission: the demo types its sample
@@ -284,22 +293,27 @@ export default function AgentPage() {
 
       <div className="g-agent">
         {/* Chat */}
-        <Card className="agent-chat flex flex-col overflow-hidden">
-          <div className="agent-chat__head flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px]">
+        <Card
+          className="agent-chat agent-chat--demo flex flex-col overflow-hidden"
+          data-tour="customer-agent"
+        >
+          <div className="agent-chat__head flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px] max-[900px]:gap-2 max-[900px]:px-3 max-[900px]:py-3">
             {/* Phone only (CSS): the chat owns the whole screen there. */}
             <Link
               href="/demo/home"
               aria-label="Back to dashboard"
-              className="agent-chat__back h-10 w-10 flex-none place-items-center rounded-[12px] text-foreground hover:bg-muted"
+              className="agent-chat__back h-10 w-10 flex-none place-items-center rounded-[12px] text-foreground hover:bg-muted max-[900px]:h-9 max-[900px]:w-9"
             >
               <ArrowLeft className="h-5 w-5" aria-hidden />
             </Link>
-            <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5]">
+            <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-primary text-[#eafaf5] max-[900px]:h-9 max-[900px]:w-9">
               <Sparkles className="h-5 w-5" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="font-display text-base font-bold">CCN Capital Agent</div>
-              <div className="flex items-center gap-1.5 text-[13px] text-dim">
+              <div className="truncate font-display text-base font-bold max-[900px]:text-[15px]">
+                CCN Capital Agent
+              </div>
+              <div className="flex items-center gap-1.5 text-[13px] text-dim max-[900px]:hidden">
                 <span className="h-[7px] w-[7px] rounded-full bg-success" />
                 Suitability-aware · acts on your approval
               </div>
@@ -307,14 +321,19 @@ export default function AgentPage() {
             <button
               type="button"
               aria-pressed={voice}
+              aria-label={voice ? 'Turn voice replies off' : 'Turn voice replies on'}
               onClick={() => setVoice((v) => !v)}
               className={cn(
-                'inline-flex flex-none items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[13.5px] font-bold',
+                'inline-flex flex-none items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[13.5px] font-bold max-[900px]:h-9 max-[900px]:w-9 max-[900px]:justify-center max-[900px]:p-0',
                 voice ? 'bg-mint text-teal2' : 'bg-card text-dim',
               )}
             >
-              {voice ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-              Voice {voice ? 'on' : 'off'}
+              {voice ? (
+                <Volume2 className="h-4 w-4" aria-hidden />
+              ) : (
+                <VolumeX className="h-4 w-4" aria-hidden />
+              )}
+              <span className="max-[900px]:hidden">Voice {voice ? 'on' : 'off'}</span>
             </button>
           </div>
 
@@ -322,19 +341,19 @@ export default function AgentPage() {
             ref={logRef}
             aria-live="polite"
             aria-label="Conversation with your agent"
-            className="agent-chat__log flex max-h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px]"
+            className="agent-chat__log flex max-h-[440px] flex-col gap-3.5 overflow-y-auto px-5 py-[18px] max-[900px]:gap-3 max-[900px]:px-3 max-[900px]:py-4"
           >
             {chat.map((m, i) =>
               m.role === 'agent' ? (
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
                   key={i}
-                  className="flex max-w-[88%] items-start gap-2.5"
+                  className="flex max-w-[88%] items-start gap-2.5 max-[900px]:max-w-[680px] max-[900px]:gap-2"
                 >
                   <span className="mt-0.5 grid h-[26px] w-[26px] flex-none place-items-center rounded-full bg-mint text-teal2">
                     <Sparkles className="h-[15px] w-[15px]" aria-hidden />
                   </span>
-                  <div className="min-w-0 rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground">
+                  <div className="min-w-0 rounded-[4px_14px_14px_14px] bg-[#f4f0e7] dark:bg-white/[0.05] px-[15px] py-3 text-[14.5px] leading-relaxed text-[#2c2925] dark:text-foreground max-[900px]:px-3 max-[900px]:py-2.5 max-[900px]:text-sm">
                     <ChatMarkdown text={m.text} />
                   </div>
                 </div>
@@ -342,17 +361,32 @@ export default function AgentPage() {
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
                   key={i}
-                  className="max-w-[82%] self-end"
+                  className="max-w-[82%] self-end max-[900px]:max-w-[560px]"
                 >
-                  <div className="rounded-[14px_4px_14px_14px] bg-primary px-[15px] py-3 text-[14.5px] leading-normal text-white">
+                  <div className="rounded-[14px_4px_14px_14px] bg-primary px-[15px] py-3 text-[14.5px] leading-normal text-white max-[900px]:px-3 max-[900px]:py-2.5 max-[900px]:text-sm">
                     {m.text}
                   </div>
                 </div>
               ),
             )}
+            {replying ? (
+              <output
+                className="flex max-w-[680px] items-start gap-2"
+                aria-label="Agent is replying"
+              >
+                <span className="mt-0.5 grid h-[26px] w-[26px] flex-none place-items-center rounded-full bg-mint text-teal2">
+                  <Sparkles className="h-[15px] w-[15px]" aria-hidden />
+                </span>
+                <span className="inline-flex h-10 items-center gap-1 rounded-[4px_14px_14px_14px] bg-[#f4f0e7] px-4 dark:bg-white/[0.05]">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-teal2 [animation-delay:-0.3s] motion-reduce:animate-none" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-teal2 [animation-delay:-0.15s] motion-reduce:animate-none" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-teal2 motion-reduce:animate-none" />
+                </span>
+              </output>
+            ) : null}
           </div>
 
-          <div className="agent-chat__composer px-5 pb-[18px]">
+          <div className="agent-chat__composer px-5 pb-[18px] max-[900px]:mx-auto max-[900px]:w-full max-[900px]:max-w-[720px] max-[900px]:px-3">
             {/* The words as they are "heard" — the live screen's dictation
                 preview, driven by the script above rather than a microphone. */}
             {hearing !== null && (
@@ -364,16 +398,18 @@ export default function AgentPage() {
                 <span className="min-w-0">{hearing || 'Listening…'}</span>
               </output>
             )}
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-3 flex gap-2 max-[900px]:mb-2.5 max-[900px]:gap-1.5">
               {SUGGESTIONS.map((s) => (
                 <Button
                   key={s.key}
                   variant="outline"
                   size="sm"
-                  className="rounded-[20px] font-semibold text-teal2"
+                  className="h-8 flex-none rounded-[20px] px-3 text-xs font-semibold text-teal2 max-[900px]:min-w-0 max-[900px]:flex-1 max-[900px]:px-1.5"
+                  disabled={replying}
                   onClick={() => send(s.label, s.key)}
                 >
-                  {s.label}
+                  <span className="max-[900px]:hidden">{s.label}</span>
+                  <span className="min-[901px]:hidden">{s.mobileLabel}</span>
                 </Button>
               ))}
             </div>
@@ -382,7 +418,7 @@ export default function AgentPage() {
                 e.preventDefault();
                 send(draft);
               }}
-              className="flex items-center gap-2 rounded-[14px] border border-border bg-card py-1.5 pl-3.5 pr-1.5"
+              className="flex items-center gap-2 rounded-[14px] border border-border bg-card py-1.5 pl-3.5 pr-1.5 max-[900px]:gap-1.5 max-[900px]:pl-3"
             >
               <label htmlFor={inputId} className="sr-only">
                 Ask your agent
@@ -392,8 +428,8 @@ export default function AgentPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 autoComplete="off"
-                placeholder="Ask anything about your money…"
-                className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint"
+                placeholder="Ask your agent…"
+                className="min-w-0 flex-1 border-0 bg-transparent font-sans text-[15px] text-foreground outline-none placeholder:text-faint max-[900px]:text-sm"
               />
               <Button
                 type="button"
@@ -402,7 +438,8 @@ export default function AgentPage() {
                 aria-label="Voice input (plays a sample question)"
                 aria-pressed={hearing !== null}
                 onClick={playDictation}
-                className="h-[38px] w-[38px] flex-none rounded-[10px]"
+                disabled={replying}
+                className="h-[38px] w-[38px] flex-none rounded-[10px] max-[900px]:h-9 max-[900px]:w-9"
               >
                 <Mic className={cn('h-[17px] w-[17px]', hearing !== null && 'animate-pulse')} />
               </Button>
@@ -410,7 +447,8 @@ export default function AgentPage() {
                 type="submit"
                 size="icon"
                 aria-label="Send message"
-                className="h-[38px] w-[38px] flex-none rounded-[10px]"
+                disabled={replying || draft.trim() === ''}
+                className="h-[38px] w-[38px] flex-none rounded-[10px] max-[900px]:h-9 max-[900px]:w-9"
               >
                 <ArrowRight className="h-[18px] w-[18px]" />
               </Button>
@@ -420,7 +458,7 @@ export default function AgentPage() {
 
         {/* Approvals + limits */}
         <div className="flex flex-col gap-[18px]">
-          <Card className="p-5">
+          <Card className="p-5" data-tour="customer-approvals">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
               {pendingCount > 0 && (
@@ -436,11 +474,7 @@ export default function AgentPage() {
               </p>
             )}
             {visibleCards.map((a) => (
-              <div
-                key={a.id}
-                className="mb-3 rounded-xl border border-border p-4"
-                style={{ borderLeft: `3px solid ${a.accent}` }}
-              >
+              <div key={a.id} className="mb-3 rounded-xl border border-border bg-muted/20 p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <Badge variant={a.variant}>{a.tag}</Badge>
                   <span className="text-[12.5px] text-faint">{a.when}</span>
@@ -481,7 +515,7 @@ export default function AgentPage() {
             ))}
           </Card>
 
-          <Card className="p-5">
+          <Card className="p-5" data-tour="customer-limits">
             <div className="mb-3.5 flex items-baseline justify-between gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
               <span className="text-[12.5px] text-faint">what it may do alone</span>
@@ -502,7 +536,7 @@ export default function AgentPage() {
                 <Switch
                   checked={rules[i]}
                   onCheckedChange={() => setRules((rs) => rs.map((v, j) => (j === i ? !v : v)))}
-                  aria-label={`${r.label} — ${rules[i] ? 'on' : 'off'}`}
+                  aria-label={`${r.label}, ${rules[i] ? 'on' : 'off'}`}
                   className="flex-none"
                 />
               </div>

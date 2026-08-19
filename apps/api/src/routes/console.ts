@@ -49,6 +49,47 @@ import { renderContractNote } from '../services/contract-note';
 import { pullStatements } from '../services/ingestion';
 import { maskRef } from './util';
 
+const RECEIPT_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+
+function fundingReceipt(raw: unknown): {
+  name: string;
+  mime: string;
+  data: string;
+  size: number | null;
+} | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = (raw as Record<string, unknown>).receipt;
+  if (!value || typeof value !== 'object') return null;
+  const receipt = value as Record<string, unknown>;
+  if (
+    typeof receipt.name !== 'string' ||
+    typeof receipt.mime !== 'string' ||
+    typeof receipt.data !== 'string' ||
+    !RECEIPT_MIMES.has(receipt.mime)
+  ) {
+    return null;
+  }
+  return {
+    name: receipt.name,
+    mime: receipt.mime,
+    data: receipt.data,
+    size: typeof receipt.size === 'number' ? receipt.size : null,
+  };
+}
+
+/** The queue needs evidence metadata, never a multi-megabyte base64 payload. */
+function publicFundingEvidence(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return {};
+  const value = raw as Record<string, unknown>;
+  const receipt = fundingReceipt(raw);
+  return {
+    declaredBy: value.declaredBy,
+    at: value.at,
+    reference: typeof value.reference === 'string' ? value.reference : undefined,
+    receipt: receipt ? { name: receipt.name, mime: receipt.mime, size: receipt.size } : undefined,
+  };
+}
+
 /**
  * Partner console order flow. Every route requires a partner_operator bound to a
  * partner; the RLS scope and the guarded transition functions both check the
@@ -1084,7 +1125,51 @@ export function consoleRoutes(deps: AppDeps): Hono<AppEnv> {
         )
         .orderBy(desc(reconciliationItems.createdAt)),
     );
-    return c.json({ items: rows });
+    return c.json({
+      items: rows.map((row) => ({
+        ...row,
+        raw: row.source === 'investor_notice' ? publicFundingEvidence(row.raw) : row.raw,
+      })),
+    });
+  });
+
+  /** One investor-supplied funding receipt, scoped to this partner's queue. */
+  app.get('/reconciliation/:id/receipt', async (c) => {
+    const tenant = c.get('tenant');
+    if (!tenant) return c.json({ error: 'authentication required' }, 401);
+    const scope = partnerScope(tenant);
+    if ('error' in scope) return c.json(scope, 403);
+    const [item] = await withTenant(deps, tenant, (tx) =>
+      tx
+        .select({ raw: reconciliationItems.raw, source: reconciliationItems.source })
+        .from(reconciliationItems)
+        .where(
+          and(
+            eq(reconciliationItems.id, c.req.param('id')),
+            eq(reconciliationItems.partnerId, scope.partnerId),
+          ),
+        )
+        .limit(1),
+    );
+    const receipt = item?.source === 'investor_notice' ? fundingReceipt(item.raw) : null;
+    if (!receipt) return c.json({ error: 'receipt not found' }, 404);
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(receipt.data), (ch) => ch.charCodeAt(0));
+    } catch {
+      return c.json({ error: 'receipt not found' }, 404);
+    }
+    if (bytes.length === 0 || bytes.length > 2 * 1024 * 1024) {
+      return c.json({ error: 'receipt not found' }, 404);
+    }
+    return new Response(bytes, {
+      headers: {
+        'Content-Type': receipt.mime,
+        'Content-Disposition': `attachment; filename="${receipt.name.replace(/[^\w. -]/g, '_')}"`,
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
   });
 
   app.post('/reconciliation/:id/match', async (c) => {

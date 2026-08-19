@@ -265,115 +265,117 @@ export default function PlanningPage() {
         title="Planning"
       />
 
-      <h2 className="mb-3.5 font-display text-[22px] font-bold">Recommended for you</h2>
-      {productsError && (
-        <div className="mb-3.5">
-          <InlineError message={productsError} />
-        </div>
-      )}
-      {productsLoading ? (
-        // Two cards in the same `g2` grid the real products land in, so the
-        // section holds its height and nothing below it moves when they arrive.
-        <SkeletonRegion label="Loading recommended products" className="g2">
-          <SkeletonCard lines={3} />
-          <SkeletonCard lines={3} />
-        </SkeletonRegion>
-      ) : products.length === 0 && !productsError ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title="No planning products yet"
-          body="Cover, retirement and legacy products from partner institutions will be listed here as they come online."
-        />
-      ) : (
-        <div className="g2">
-          {products.map((p) => (
-            <Card key={p.id} className="p-[22px]">
-              <div className="mb-3 flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-[10px] bg-mint font-mono text-xs font-bold text-teal2">
-                  {p.code}
-                </span>
-                <div className="flex-1">
-                  <div className="text-base font-bold">{p.title}</div>
-                  {p.provider && <div className="text-[13px] text-faint">{p.provider}</div>}
+      <div data-tour="customer-planning">
+        <h2 className="mb-3.5 font-display text-[22px] font-bold">Recommended for you</h2>
+        {productsError && (
+          <div className="mb-3.5">
+            <InlineError message={productsError} />
+          </div>
+        )}
+        {productsLoading ? (
+          // Two cards in the same `g2` grid the real products land in, so the
+          // section holds its height and nothing below it moves when they arrive.
+          <SkeletonRegion label="Loading recommended products" className="g2">
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={3} />
+          </SkeletonRegion>
+        ) : products.length === 0 && !productsError ? (
+          <EmptyState
+            icon={ShieldCheck}
+            title="No planning products yet"
+            body="Cover, retirement and legacy products from partner institutions will be listed here as they come online."
+          />
+        ) : (
+          <div className="g2">
+            {products.map((p) => (
+              <Card key={p.id} className="p-[22px]">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-[10px] bg-mint font-mono text-xs font-bold text-teal2">
+                    {p.code}
+                  </span>
+                  <div className="flex-1">
+                    <div className="text-base font-bold">{p.title}</div>
+                    {p.provider && <div className="text-[13px] text-faint">{p.provider}</div>}
+                  </div>
+                  <Badge variant={STATUS_VARIANT[p.status] ?? 'secondary'}>
+                    {STATUS_LABEL[p.status] ?? p.status}
+                  </Badge>
                 </div>
-                <Badge variant={STATUS_VARIANT[p.status] ?? 'secondary'}>
-                  {STATUS_LABEL[p.status] ?? p.status}
-                </Badge>
-              </div>
-              {p.description && (
-                <p className="mb-4 text-sm leading-relaxed text-dim">{p.description}</p>
-              )}
-              {/* Was a button with no handler on every card. The agent is where
+                {p.description && (
+                  <p className="mb-4 text-sm leading-relaxed text-dim">{p.description}</p>
+                )}
+                {/* Was a button with no handler on every card. The agent is where
                   a question about a product actually goes. */}
-              <Button variant="secondary" className="mt-auto w-full" asChild>
-                <Link href="/agent">Explore with agent</Link>
-              </Button>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <div className="mb-3.5 mt-7 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-[22px] font-bold">Your goals</h2>
-        <Button variant="outline" size="sm" onClick={() => setNewGoalOpen(true)}>
-          <Plus className="h-4 w-4" aria-hidden />
-          Add a goal
-        </Button>
-      </div>
-      {goalsError && (
-        <div className="mb-3.5">
-          <InlineError message={goalsError} />
-        </div>
-      )}
-      {goalsLoading ? (
-        <SkeletonRegion label="Loading your goals" className="g3">
-          <SkeletonCard lines={2} />
-          <SkeletonCard lines={2} />
-          <SkeletonCard lines={2} />
-        </SkeletonRegion>
-      ) : goals.length === 0 && !goalsError ? (
-        <EmptyState
-          icon={Target}
-          title="No goals yet"
-          body="Set a target, such as a home, a university fund or a retirement date, and CCN tracks your progress toward it."
-          action={
-            <Button variant="outline" onClick={() => setNewGoalOpen(true)}>
-              <Plus className="h-4 w-4" aria-hidden />
-              Add your first goal
-            </Button>
-          }
-        />
-      ) : (
-        <div className="g3">
-          {goals.map((g) => {
-            const color = g.color ?? FALLBACK_COLOR;
-            return (
-              <Card key={g.id} className="p-[22px]">
-                <div className="mb-4 flex items-center gap-4">
-                  <Ring pct={g.pct} color={color} />
-                  <div>
-                    <div className="text-base font-bold">{g.name}</div>
-                    {g.fromLabel && <div className="text-[13px] text-faint">{g.fromLabel}</div>}
-                  </div>
-                </div>
-                <div className="border-t border-border pt-3">
-                  <div className="font-mono text-sm">
-                    {formatUSDMinor(g.currentMinor)} of {formatUSDMinor(g.targetMinor)}
-                  </div>
-                  {/* A goal with no timeline set simply shows none. */}
-                  {g.eta && (
-                    <div className="mt-1 text-[13.5px] font-bold" style={{ color }}>
-                      {g.eta}
-                    </div>
-                  )}
-                </div>
+                <Button variant="secondary" className="mt-auto w-full" asChild>
+                  <Link href="/agent">Explore with agent</Link>
+                </Button>
               </Card>
-            );
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      <NewGoalDialog open={newGoalOpen} onOpenChange={setNewGoalOpen} onCreated={loadGoals} />
+        <div className="mb-3.5 mt-7 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-[22px] font-bold">Your goals</h2>
+          <Button variant="outline" size="sm" onClick={() => setNewGoalOpen(true)}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Add a goal
+          </Button>
+        </div>
+        {goalsError && (
+          <div className="mb-3.5">
+            <InlineError message={goalsError} />
+          </div>
+        )}
+        {goalsLoading ? (
+          <SkeletonRegion label="Loading your goals" className="g3">
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
+          </SkeletonRegion>
+        ) : goals.length === 0 && !goalsError ? (
+          <EmptyState
+            icon={Target}
+            title="No goals yet"
+            body="Set a target, such as a home, a university fund or a retirement date, and CCN tracks your progress toward it."
+            action={
+              <Button variant="outline" onClick={() => setNewGoalOpen(true)}>
+                <Plus className="h-4 w-4" aria-hidden />
+                Add your first goal
+              </Button>
+            }
+          />
+        ) : (
+          <div className="g3">
+            {goals.map((g) => {
+              const color = g.color ?? FALLBACK_COLOR;
+              return (
+                <Card key={g.id} className="p-[22px]">
+                  <div className="mb-4 flex items-center gap-4">
+                    <Ring pct={g.pct} color={color} />
+                    <div>
+                      <div className="text-base font-bold">{g.name}</div>
+                      {g.fromLabel && <div className="text-[13px] text-faint">{g.fromLabel}</div>}
+                    </div>
+                  </div>
+                  <div className="border-t border-border pt-3">
+                    <div className="font-mono text-sm">
+                      {formatUSDMinor(g.currentMinor)} of {formatUSDMinor(g.targetMinor)}
+                    </div>
+                    {/* A goal with no timeline set simply shows none. */}
+                    {g.eta && (
+                      <div className="mt-1 text-[13.5px] font-bold" style={{ color }}>
+                        {g.eta}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <NewGoalDialog open={newGoalOpen} onOpenChange={setNewGoalOpen} onCreated={loadGoals} />
+      </div>
     </AppScreen>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { cardNote, stripCards, turnMemory } from './memory';
+import { cardNote, conversationContext, stripCards, turnMemory } from './memory';
 
 /**
  * Conversation memory: cards the user saw are appended to the stored turn as
@@ -40,5 +40,44 @@ describe('turn memory', () => {
 
   it('a card-only turn strips to nothing', () => {
     expect(stripCards(turnMemory([{ kind: 'pipeline', data: { stages: 3 } }], []))).toBe('');
+  });
+
+  it('keeps recent turns plus older goals and structured cards', () => {
+    const comparisonCard = `Here are two choices.${turnMemory(
+      [{ kind: 'comparison', data: { rows: ['Fund A', 'Fund B'] } }],
+      [],
+    )}`;
+    const history = [
+      { role: 'user' as const, content: 'I need the money liquid within 18 months.' },
+      { role: 'assistant' as const, content: 'Understood.' },
+      { role: 'user' as const, content: 'Thanks.' },
+      { role: 'assistant' as const, content: 'Any time.' },
+      {
+        role: 'assistant' as const,
+        content: comparisonCard,
+      },
+      { role: 'user' as const, content: 'What about the second one?' },
+      { role: 'assistant' as const, content: 'Fund B has the shorter term.' },
+    ];
+
+    const context = conversationContext(history, { recentMessages: 2, maxAnchors: 4 });
+    expect(context.map((message) => message.content)).toEqual([
+      'I need the money liquid within 18 months.',
+      comparisonCard,
+      'What about the second one?',
+      'Fund B has the shorter term.',
+    ]);
+  });
+
+  it('spends a hard context budget on the newest messages first', () => {
+    const context = conversationContext(
+      [
+        { role: 'user', content: 'I prefer income.' },
+        { role: 'assistant', content: 'x'.repeat(20) },
+        { role: 'user', content: 'Actually, I need growth.' },
+      ],
+      { recentMessages: 3, maxChars: 30 },
+    );
+    expect(context).toEqual([{ role: 'user', content: 'Actually, I need growth.' }]);
   });
 });

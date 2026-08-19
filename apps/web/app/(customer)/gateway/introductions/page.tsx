@@ -25,7 +25,7 @@ const STATUS_LABEL: Record<IntroductionStatus, string> = {
 
 function IntroductionRow({ intro }: { intro: Introduction }) {
   return (
-    <Card className="flex flex-wrap items-center gap-4 p-[18px]">
+    <Card className="flex flex-wrap items-center gap-4 p-[18px]" data-tour="gateway-introductions">
       <HandHeart className="h-6 w-6 flex-none text-teal2" aria-hidden />
       <div className="min-w-[220px] flex-1">
         <div className="mb-1 flex items-center gap-2">
@@ -76,7 +76,10 @@ export default function GatewayIntroductionsPage() {
       )}
 
       {introductions && introductions.length === 0 && (
-        <Card className="flex flex-wrap items-center gap-4 border-[#cde0d8] bg-mint p-[22px] dark:border-white/10">
+        <Card
+          className="flex flex-wrap items-center gap-4 border-[#cde0d8] bg-mint p-[22px] dark:border-white/10"
+          data-tour="gateway-introductions"
+        >
           <HandHeart className="h-8 w-8 flex-none text-teal2" aria-hidden />
           <div className="min-w-[240px] flex-1">
             <div className="mb-1 font-display text-lg font-bold">No introductions yet</div>

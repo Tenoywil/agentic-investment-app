@@ -144,62 +144,64 @@ export default function PlanningPage() {
         title="Planning"
       />
 
-      <div className="g3">
-        <div className="rounded-2xl bg-primary p-5 text-[#eafaf5]">
-          <div className="text-[13.5px] opacity-80">Financial health</div>
-          <div className="my-1 font-display text-3xl font-bold">72 / 100</div>
-          <div className="text-[13.5px] font-bold text-[#9fe6c6]">Good · on track</div>
+      <div data-tour="customer-planning">
+        <div className="g3">
+          <div className="rounded-2xl bg-primary p-5 text-[#eafaf5]">
+            <div className="text-[13.5px] opacity-80">Financial health</div>
+            <div className="my-1 font-display text-3xl font-bold">72 / 100</div>
+            <div className="text-[13.5px] font-bold text-[#9fe6c6]">Good · on track</div>
+          </div>
+          {STATS.map((s) => (
+            <Card key={s.label} className="p-5">
+              <div className="text-[13.5px] text-dim">{s.label}</div>
+              <div className={cn('my-1 font-display text-3xl font-bold', s.valClass)}>{s.val}</div>
+              <div className="text-[13.5px] text-faint">{s.sub}</div>
+            </Card>
+          ))}
         </div>
-        {STATS.map((s) => (
-          <Card key={s.label} className="p-5">
-            <div className="text-[13.5px] text-dim">{s.label}</div>
-            <div className={cn('my-1 font-display text-3xl font-bold', s.valClass)}>{s.val}</div>
-            <div className="text-[13.5px] text-faint">{s.sub}</div>
-          </Card>
-        ))}
-      </div>
 
-      <h2 className="mb-3.5 mt-7 font-display text-[22px] font-bold">Recommended for you</h2>
-      <div className="g2">
-        {PRODUCTS.map((p) => (
-          <Card key={p.code} className="p-[22px]">
-            <div className="mb-3 flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-[10px] bg-mint font-mono text-xs font-bold text-teal2">
-                {p.code}
-              </span>
-              <div className="flex-1">
-                <div className="text-base font-bold">{p.title}</div>
-                <div className="text-[13px] text-faint">{p.provider}</div>
+        <h2 className="mb-3.5 mt-7 font-display text-[22px] font-bold">Recommended for you</h2>
+        <div className="g2">
+          {PRODUCTS.map((p) => (
+            <Card key={p.code} className="p-[22px]">
+              <div className="mb-3 flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-[10px] bg-mint font-mono text-xs font-bold text-teal2">
+                  {p.code}
+                </span>
+                <div className="flex-1">
+                  <div className="text-base font-bold">{p.title}</div>
+                  <div className="text-[13px] text-faint">{p.provider}</div>
+                </div>
+                <Badge variant={STATUS_VARIANT[p.status] ?? 'secondary'}>{p.status}</Badge>
               </div>
-              <Badge variant={STATUS_VARIANT[p.status] ?? 'secondary'}>{p.status}</Badge>
-            </div>
-            <p className="mb-4 text-sm leading-relaxed text-dim">{p.desc}</p>
-            {/* A door, not a dead control: the demo agent answers planning
+              <p className="mb-4 text-sm leading-relaxed text-dim">{p.desc}</p>
+              {/* A door, not a dead control: the demo agent answers planning
                 questions from its script, which is the feel this preview owes. */}
-            <Button variant="secondary" className="w-full" asChild>
-              <Link href="/demo/agent">Explore with agent</Link>
-            </Button>
-          </Card>
-        ))}
-      </div>
+              <Button variant="secondary" className="w-full" asChild>
+                <Link href="/demo/agent">Explore with agent</Link>
+              </Button>
+            </Card>
+          ))}
+        </div>
 
-      <h2 className="mb-3.5 mt-7 font-display text-[22px] font-bold">Your goals</h2>
-      <div className="g3">
-        {GOALS.map((g) => (
-          <Card key={g.name} className="p-[22px]">
-            <div className="mb-4 flex items-center gap-4">
-              <Ring pct={g.pct} color={g.color} />
-              <div>
-                <div className="text-base font-bold">{g.name}</div>
-                <div className="text-[13px] text-faint">{g.from}</div>
+        <h2 className="mb-3.5 mt-7 font-display text-[22px] font-bold">Your goals</h2>
+        <div className="g3">
+          {GOALS.map((g) => (
+            <Card key={g.name} className="p-[22px]">
+              <div className="mb-4 flex items-center gap-4">
+                <Ring pct={g.pct} color={g.color} />
+                <div>
+                  <div className="text-base font-bold">{g.name}</div>
+                  <div className="text-[13px] text-faint">{g.from}</div>
+                </div>
               </div>
-            </div>
-            <div className="border-t border-border pt-3">
-              <div className="font-mono text-sm">{g.of}</div>
-              <div className={cn('mt-1 text-[13.5px] font-bold', g.etaClass)}>{g.eta}</div>
-            </div>
-          </Card>
-        ))}
+              <div className="border-t border-border pt-3">
+                <div className="font-mono text-sm">{g.of}</div>
+                <div className={cn('mt-1 text-[13.5px] font-bold', g.etaClass)}>{g.eta}</div>
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
     </AppScreen>
   );

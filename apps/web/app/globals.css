@@ -577,6 +577,10 @@ body:has(dialog.app-sheet[open]) {
   display: none;
 }
 
+.demo-status__mobile {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .g-hero,
   .g2,
@@ -708,6 +712,28 @@ body:has(dialog.app-sheet[open]) {
     height: 100dvh;
     border: 0;
     border-radius: 0;
+  }
+  /* Keep the fixture boundary visible without letting it cover the chat's
+     navigation. The phone label is intentionally one line, so its 33px height
+     is stable across the supported narrow viewports. */
+  .demo-status {
+    display: flex;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    padding-top: 0;
+    padding-bottom: 0;
+    white-space: nowrap;
+  }
+  .demo-status__full {
+    display: none;
+  }
+  .demo-status__mobile {
+    display: inline;
+  }
+  .agent-chat--demo {
+    top: 24px;
+    height: calc(100dvh - 24px);
   }
   /* The bar's two edge insets, each reserved once by the element against that
      edge: the header owns the top (status area), the composer the bottom
