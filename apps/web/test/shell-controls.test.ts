@@ -60,7 +60,7 @@ describe('app shell controls', () => {
     for (const file of [...tsxFiles(SHELL), ...tsxFiles(join(WEB, 'app/(customer)'))]) {
       for (const lit of code(file).match(/(?:"[^"\n]*"|`[^`]*`)/g) ?? []) {
         if (/\bfixed\b/.test(lit) && /\bbottom-[[\w.]/.test(lit) && /\bright-[[\w.]/.test(lit)) {
-          owners.add(relative(WEB, file));
+          owners.add(relative(WEB, file).replaceAll('\\', '/'));
         }
       }
     }
@@ -226,5 +226,17 @@ describe('app shell controls', () => {
     expect(demoBranch).toContain('<ThemeToggle />');
     // The account menu belongs to the live branch only.
     expect(sidebar.indexOf('<AccountMenu />')).toBeGreaterThan(sidebar.indexOf('<ThemeToggle />'));
+  });
+
+  test('every demo screen carries an explicit sample-data and no-transaction boundary', () => {
+    const layout = code(join(WEB, 'app/demo/layout.tsx'));
+    expect(layout).toContain('Interactive demo');
+    expect(layout).toContain('sample data only');
+    expect(layout).toContain('no real accounts or transactions');
+
+    const agent = code(join(WEB, 'app/demo/agent/page.tsx'));
+    expect(agent).toContain('How the four agents reached this');
+    expect(agent).toContain('no transaction placed');
+    expect(agent).toContain('no money moved');
   });
 });

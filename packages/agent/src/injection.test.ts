@@ -1,9 +1,11 @@
 import { expect, describe as group, test } from 'bun:test';
-import { type ToolSet, tool } from 'ai';
+import { type ToolSet, simulateReadableStream, tool } from 'ai';
+import { MockLanguageModelV4 } from 'ai/test';
 import { z } from 'zod';
 import { buildContext } from './context';
 import { sampleSnapshot } from './eval-fixtures';
 import { untrustedBlock } from './prompt';
+import { runAgent } from './run';
 import { MUTATING_VERBS, TOOL_NAMES, assertReadOnly, buildTools } from './tools';
 
 /**
@@ -77,5 +79,45 @@ group('injection cannot route around a screen-out', () => {
     const p = ctx.proposeMove({ instrumentId: 'villa', amountMinor: 2_500_000 });
     expect(p.decision).toBe('blocked');
     expect(p.requiresHumanApproval).toBe(true);
+  });
+});
+
+group('the orchestration loop is network-independent under test', () => {
+  test('streams a deterministic injected model without gateway credentials', async () => {
+    type DoStream = MockLanguageModelV4['doStream'];
+    const model = new MockLanguageModelV4({
+      doStream: async () =>
+        ({
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'text-start', id: 'text-1' },
+              { type: 'text-delta', id: 'text-1', delta: 'Your limits remain in control.' },
+              { type: 'text-end', id: 'text-1' },
+              {
+                type: 'finish',
+                finishReason: 'stop',
+                usage: { inputTokens: 8, outputTokens: 6, totalTokens: 14 },
+              },
+            ],
+          }),
+          warnings: [],
+        }) as unknown as Awaited<ReturnType<DoStream>>,
+    });
+
+    const result = runAgent({
+      model,
+      ctx,
+      history: [],
+      message: 'What controls my agent?',
+    });
+    let reply = '';
+    for await (const chunk of result.textStream) reply += chunk;
+
+    expect(reply).toBe('Your limits remain in control.');
+    expect(result.cached).toBe(false);
+  });
+
+  test('fails fast when neither the production gateway nor a model is supplied', () => {
+    expect(() => runAgent({ ctx, history: [], message: 'hello' })).toThrow(/gateway|model/i);
   });
 });

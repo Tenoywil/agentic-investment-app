@@ -13,8 +13,8 @@ pre-commit:
       # the run is ~150ms without it.
       run: bunx turbo run typecheck --no-daemon
     gitleaks:
-      # Soft-skip when gitleaks is not installed locally; CI runs it unconditionally.
-      run: command -v gitleaks >/dev/null 2>&1 && gitleaks protect --staged --no-banner || true
+      # Keep the local secret scan mandatory and portable across Windows and Unix hosts.
+      run: gitleaks protect --staged --no-banner
 
 commit-msg:
   commands:

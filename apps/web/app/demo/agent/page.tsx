@@ -81,6 +81,8 @@ const APPROVALS: {
   confirm: string;
   /** The card's own settled line once approved. */
   done: string;
+  /** The visible specialist hand-offs behind this sample recommendation. */
+  trace: { agent: string; summary: string }[];
 }[] = [
   {
     id: 'coupon',
@@ -92,8 +94,27 @@ const APPROVALS: {
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
     cta: 'Approve reinvestment',
     confirm:
-      "Done. I've routed the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. It settles T+2. You can follow it in My orders, and your blended yield moves to about <b>6.9%</b> once it lands.",
-    done: 'Routed to Sagicor · settles T+2',
+      'Demo complete. In the live app, approval would route the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. The resulting order would remain visible in My orders.',
+    done: 'Sample routed to Sagicor · no transaction placed',
+    trace: [
+      {
+        agent: 'Research agent',
+        summary: 'Flagged the maturing coupon and compared the listed income products.',
+      },
+      {
+        agent: 'Portfolio fit agent',
+        summary:
+          'Favoured real-estate income to reduce the portfolio’s fixed-income concentration.',
+      },
+      {
+        agent: 'Suitability agent',
+        summary: 'Checked the risk band, minimum, cash floor and single-position cap.',
+      },
+      {
+        agent: 'Coordinator',
+        summary: 'Sized the sample move to the coupon and prepared it for human approval.',
+      },
+    ],
   },
   {
     id: 'idle',
@@ -105,8 +126,26 @@ const APPROVALS: {
     body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
     cta: 'Move cash',
     confirm:
-      'Done. Your <b>US$2,150</b> is on its way into the <b>NCB USD Money Market Fund</b> at the current 5.1% rate, worth about <b>US$110/yr</b>, with same-day access whenever you want it back.',
-    done: 'Swept to NCB · same-day access',
+      'Demo complete. In the live app, approval would ask <b>NCB</b> to place <b>US$2,150</b> into its USD Money Market Fund. No money moved in this preview.',
+    done: 'Sample routed to NCB · no money moved',
+    trace: [
+      {
+        agent: 'Research agent',
+        summary: 'Compared the idle balance with listed short-duration cash products.',
+      },
+      {
+        agent: 'Portfolio fit agent',
+        summary: 'Selected the option that preserves same-day access for near-term goals.',
+      },
+      {
+        agent: 'Suitability agent',
+        summary: 'Verified the cash floor, approval threshold and enabled sweep rule.',
+      },
+      {
+        agent: 'Coordinator',
+        summary: 'Prepared the sample sweep for a person to approve before NCB executes.',
+      },
+    ],
   },
 ];
 
@@ -233,7 +272,7 @@ export default function AgentPage() {
         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] text-dim">
           <span className="flex items-center gap-1.5 font-bold text-teal2">
             <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
-            Live
+            Interactive demo
           </span>
           {STATS.slice(0, 2).map((s) => (
             <span key={s.t}>
@@ -408,6 +447,18 @@ export default function AgentPage() {
                 </div>
                 <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
                 <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
+                <details className="mb-3 rounded-lg border border-solid border-border bg-muted/40 px-3 py-2 text-[12.5px]">
+                  <summary className="cursor-pointer font-bold text-teal2">
+                    How the four agents reached this
+                  </summary>
+                  <ol className="mb-0 mt-2 space-y-1.5 pl-4 text-dim">
+                    {a.trace.map((stage) => (
+                      <li key={stage.agent}>
+                        <b className="text-foreground">{stage.agent}:</b> {stage.summary}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
                 {cardState[a.id] === 'approved' ? (
                   <p className="m-0 flex items-center gap-1.5 text-[13.5px] font-bold text-success-ink">
                     <span aria-hidden>✓</span> Approved · {a.done}

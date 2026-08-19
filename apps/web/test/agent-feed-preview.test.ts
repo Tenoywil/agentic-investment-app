@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { agentFeedPreview } from '../app/_lib/utils';
+import { streamAgentMessage } from '../lib/agent-api';
+
+const realFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = realFetch;
+});
 
 /**
  * The home screen's "Acted on your behalf" feed shows the agent's recent
@@ -46,5 +53,74 @@ describe('agentFeedPreview', () => {
     expect(agentFeedPreview('Swept US$400 of idle cash into the money market fund.')).toBe(
       'Swept US$400 of idle cash into the money market fund.',
     );
+  });
+});
+
+describe('agent SSE client', () => {
+  it('delivers split text, display and proposal frames before completing once', async () => {
+    const frames = [
+      'data: {"delta":"Hello "}\n\n',
+      'data: {"delta":"investor."}\n\n',
+      'event: display\ndata: {"kind":"fit","data":{"score":84}}\n\n',
+      'event: proposal\ndata: {"instrumentId":"bond-1","name":"Bond","amount":"US$1,000","amountMinor":"100000","decision":"requires_approval","code":"approval_threshold","reasons":[],"summary":"Fits your band."}\n\n',
+      'event: done\ndata: [DONE]\n\n',
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const wire = frames.join('');
+        // Deliberately cut through frame boundaries and JSON strings.
+        for (const part of [wire.slice(0, 19), wire.slice(19, 77), wire.slice(77)]) {
+          controller.enqueue(encoder.encode(part));
+        }
+        controller.close();
+      },
+    });
+    globalThis.fetch = (async () => new Response(body, { status: 200 })) as unknown as typeof fetch;
+
+    let text = '';
+    let done = 0;
+    const errors: string[] = [];
+    const displays: string[] = [];
+    const proposals: string[] = [];
+    await streamAgentMessage('hello', {
+      onDelta: (delta) => {
+        text += delta;
+      },
+      onDone: () => {
+        done += 1;
+      },
+      onError: (message) => errors.push(message),
+      onDisplay: (display) => displays.push(display.kind),
+      onProposal: (proposal) => proposals.push(proposal.instrumentId),
+    });
+
+    expect(text).toBe('Hello investor.');
+    expect(displays).toEqual(['fit']);
+    expect(proposals).toEqual(['bond-1']);
+    expect(errors).toEqual([]);
+    expect(done).toBe(1);
+  });
+
+  it('surfaces an agent error and still clears the pending state exactly once', async () => {
+    globalThis.fetch = (async () =>
+      new Response(
+        'event: error\ndata: {"error":"the agent is temporarily unavailable"}\n\n' +
+          'event: done\ndata: [DONE]\n\n',
+        { status: 200 },
+      )) as unknown as typeof fetch;
+
+    const errors: string[] = [];
+    let done = 0;
+    await streamAgentMessage('hello', {
+      onDelta: () => {},
+      onDone: () => {
+        done += 1;
+      },
+      onError: (message) => errors.push(message),
+    });
+
+    expect(errors).toEqual(['the agent is temporarily unavailable']);
+    expect(done).toBe(1);
   });
 });
