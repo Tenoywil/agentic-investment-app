@@ -519,11 +519,14 @@ function LimitsEditor({
   limits,
   onOpenChange,
   onSaved,
+  onClosed,
 }: {
   open: boolean;
   limits: Limits;
   onOpenChange: (open: boolean) => void;
   onSaved: (response: LimitsResponse) => void;
+  /** Runs after Radix has completed its close/focus cycle. */
+  onClosed?: () => void;
 }) {
   const [draft, setDraft] = useState<LimitsDraft>(() => draftFromLimits(limits));
   const [saving, setSaving] = useState(false);
@@ -584,7 +587,16 @@ function LimitsEditor({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
-      <DialogContent className="max-w-[620px] p-0">
+      <DialogContent
+        className="max-w-[620px] p-0"
+        onCloseAutoFocus={(event) => {
+          if (!onClosed) return;
+          // The original trigger can live inside a temporarily closed native
+          // sheet. Restore that sheet first and let it own the next focus.
+          event.preventDefault();
+          onClosed();
+        }}
+      >
         <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
           <DialogTitle>Adjust your agent limits</DialogTitle>
           <DialogDescription>
@@ -683,13 +695,27 @@ function LimitsEditor({
   );
 }
 
-function LimitsCard() {
+function LimitsCard({
+  suspendParentModal,
+  restoreParentModal,
+}: {
+  /** Close an enclosing top-layer sheet before the portalled editor opens. */
+  suspendParentModal?: () => boolean;
+  /** Restore that sheet only when this edit began inside it. */
+  restoreParentModal?: () => void;
+}) {
   const [data, setData] = useState<LimitsResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingFlag, setSavingFlag] = useState<LimitsFlag | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const shouldRestoreParent = useRef(false);
+
+  function openEditor() {
+    shouldRestoreParent.current = suspendParentModal?.() ?? false;
+    setEditorOpen(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -714,7 +740,7 @@ function LimitsCard() {
   async function toggle(flag: LimitsFlag) {
     if (!data || savingFlag) return;
     if (flag === 'dailyCapEnabled' && !data.limits.dailyCapEnabled && !data.limits.dailyCapMinor) {
-      setEditorOpen(true);
+      openEditor();
       return;
     }
     const previous = data;
@@ -748,7 +774,7 @@ function LimitsCard() {
             variant="ghost"
             size="sm"
             className="h-8 px-2.5 text-teal2"
-            onClick={() => setEditorOpen(true)}
+            onClick={openEditor}
           >
             <SlidersHorizontal className="mr-1.5 h-4 w-4" aria-hidden />
             Adjust
@@ -834,6 +860,14 @@ function LimitsCard() {
             setData(response);
             setSaveError(null);
           }}
+          onClosed={
+            shouldRestoreParent.current
+              ? () => {
+                  shouldRestoreParent.current = false;
+                  restoreParentModal?.();
+                }
+              : undefined
+          }
         />
       )}
     </Card>
@@ -884,11 +918,17 @@ export default function AgentPage() {
    */
   const panelsRef = useRef<HTMLDialogElement>(null);
   const [panelsOpen, setPanelsOpen] = useState(false);
-  const openPanels = () => {
+  const openPanels = useCallback(() => {
     if (!panelsRef.current?.open) panelsRef.current?.showModal();
     setPanelsOpen(true);
-  };
+  }, []);
   const closePanels = useCallback(() => panelsRef.current?.close(), []);
+  const suspendPanelsForEditor = useCallback(() => {
+    const wasOpen = panelsRef.current?.open === true;
+    if (wasOpen) closePanels();
+    return wasOpen;
+  }, [closePanels]);
+  const restorePanelsAfterEditor = useCallback(() => openPanels(), [openPanels]);
   // Same swipe-down the navigation sheet takes, so the two behave alike.
   useSheetDismiss(panelsRef, closePanels);
   const logRef = useRef<HTMLDivElement>(null);
@@ -1321,7 +1361,7 @@ export default function AgentPage() {
             {/* On a phone these wrap to one per line and cost three rows above
                 the composer. A single strip that scrolls sideways keeps them
                 reachable without pushing the input down the screen. */}
-            <div className="mb-3 flex flex-wrap gap-2 max-[900px]:flex-nowrap max-[900px]:overflow-x-auto max-[900px]:pb-1">
+            <div className="touch-scroll-strip mb-3 flex flex-wrap gap-2 max-[900px]:flex-nowrap max-[900px]:overflow-x-auto max-[900px]:pb-1">
               {SUGGESTIONS.map((s) => (
                 <Button
                   key={s.label}
@@ -1718,7 +1758,10 @@ export default function AgentPage() {
               })}
           </Card>
 
-          <LimitsCard />
+          <LimitsCard
+            suspendParentModal={suspendPanelsForEditor}
+            restoreParentModal={restorePanelsAfterEditor}
+          />
 
           {/* The full explainer lives on its own page — the chat's trace and
               trust disclosures show the pipeline per decision. The link rides
