@@ -3,8 +3,22 @@
 import { Button } from '@/app/_components/ui/button';
 import { useSheetDismiss } from '@/app/_lib/sheet';
 import type { ConsoleProduct, ProductInput } from '@/lib/console-api';
-import { ArrowLeft, ArrowRight, CircleAlert, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleAlert,
+  Download,
+  FileSpreadsheet,
+  Upload,
+  X,
+} from 'lucide-react';
 import * as React from 'react';
+import {
+  PRODUCT_CSV_TEMPLATE,
+  PRODUCT_IMPORT_MAX_ROWS,
+  majorAmountToMinor,
+  parseProductImport,
+} from './lib';
 
 /**
  * Listing a product, and amending one already listed.
@@ -59,27 +73,6 @@ const STEPS = [
   { label: 'Terms', description: 'Economics and suitability' },
   { label: 'Presentation', description: 'Client-facing context' },
 ] as const;
-
-/**
- * Major units off the form → minor units on the wire.
- *
- * Operators type "5,000" and "5000.50"; the API takes an integer of cents.
- * Splitting whole and fractional digits avoids floating-point drift and rejects
- * sub-cent amounts instead of silently changing an operator's entry.
- */
-function toMinor(major: string): { value?: string; error?: string } {
-  const cleaned = major.replace(/[,\s]/g, '');
-  if (cleaned === '') return { value: '0' };
-  if (!/^\d+(?:\.\d{1,2})?$/.test(cleaned)) {
-    return { error: 'Minimum investment must be a valid amount with up to 2 decimal places.' };
-  }
-  const [whole = '0', fraction = ''] = cleaned.split('.');
-  const value = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
-  if (value > 9_223_372_036_854_775_807n) {
-    return { error: 'Minimum investment exceeds the supported amount range.' };
-  }
-  return { value: String(value) };
-}
 
 function toMajor(minor: string): string {
   if (!/^\d+$/.test(minor)) return '';
@@ -153,10 +146,14 @@ export function ListProductDialog({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const parsedMinimum = toMinor(minimum);
+    const parsedMinimum = majorAmountToMinor(minimum);
     if (parsedMinimum.error || parsedMinimum.value === undefined) {
       setStep(0);
-      setError(parsedMinimum.error ?? 'Enter a valid minimum investment.');
+      setError(
+        parsedMinimum.error
+          ? `Minimum investment ${parsedMinimum.error}.`
+          : 'Enter a valid minimum investment.',
+      );
       return;
     }
     if (Boolean(metric.trim()) !== Boolean(metricLabel.trim())) {
@@ -512,6 +509,331 @@ export function ListProductDialog({
               </Button>
             )}
           </div>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+/**
+ * Bulk listing from a CSV file or rows pasted out of a spreadsheet.
+ *
+ * The browser reads text only, enforces the same row and field vocabulary as
+ * the form, and sends normalized JSON through an injected save function. The
+ * server validates the full batch again and owns the atomic transaction.
+ */
+export function BulkProductDialog({
+  onClose,
+  onSaved,
+  onSave,
+}: {
+  onClose: () => void;
+  onSaved: (products: ConsoleProduct[]) => void;
+  onSave: (products: ProductInput[]) => Promise<{ products: ConsoleProduct[] }>;
+}) {
+  const dialogRef = React.useRef<HTMLDialogElement>(null);
+  const openerRef = React.useRef<HTMLElement | null>(null);
+  const titleId = React.useId();
+  const [source, setSource] = React.useState('');
+  const [sourceName, setSourceName] = React.useState<string | null>(null);
+  const [sourceError, setSourceError] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+  const savingRef = React.useRef(saving);
+  savingRef.current = saving;
+  const result = React.useMemo(() => parseProductImport(source), [source]);
+  const showAnalysis = source.trim().length > 0;
+
+  React.useEffect(() => {
+    openerRef.current = document.activeElement as HTMLElement | null;
+    const el = dialogRef.current;
+    if (!el) return;
+    if (!el.open) el.showModal();
+    const onBackdrop = (event: MouseEvent) => {
+      if (event.target === el && !savingRef.current) el.close();
+    };
+    el.addEventListener('click', onBackdrop);
+    return () => el.removeEventListener('click', onBackdrop);
+  }, []);
+
+  const close = React.useCallback(() => {
+    if (!savingRef.current) dialogRef.current?.close();
+  }, []);
+  useSheetDismiss(dialogRef, close);
+
+  function downloadTemplate() {
+    const url = URL.createObjectURL(new Blob([PRODUCT_CSV_TEMPLATE], { type: 'text/csv' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'ccn-product-import-template.csv';
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function readFile(file: File | undefined) {
+    setSourceError(null);
+    setSaveError(null);
+    if (!file) return;
+    if (!/\.(csv|tsv|txt)$/i.test(file.name)) {
+      setSourceError('Choose a CSV, TSV or plain-text spreadsheet export.');
+      return;
+    }
+    if (file.size > 256_000) {
+      setSourceError('The import must be 256 KB or smaller.');
+      return;
+    }
+    try {
+      const text = await file.text();
+      setSource(text);
+      setSourceName(file.name);
+    } catch {
+      setSourceError('Could not read that file. Export it as CSV and try again.');
+    }
+  }
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setSaveError(null);
+    if (result.errors.length > 0 || result.products.length === 0) return;
+    setSaving(true);
+    onSave(result.products)
+      .then(({ products }) => {
+        onSaved(products);
+        dialogRef.current?.close();
+      })
+      .catch((error: unknown) => {
+        setSaveError(error instanceof Error ? error.message : 'Could not import these products.');
+      })
+      .finally(() => setSaving(false));
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="app-modal product-listing-modal"
+      aria-labelledby={titleId}
+      onClose={() => {
+        openerRef.current?.focus();
+        onClose();
+      }}
+      onCancel={(event) => {
+        if (saving) event.preventDefault();
+      }}
+    >
+      <button
+        type="button"
+        data-sheet-handle
+        onClick={close}
+        aria-label="Close"
+        className="app-sheet__handle app-modal__handle"
+        disabled={saving}
+      />
+
+      <div className="flex flex-none items-start justify-between gap-4 border-0 border-b border-solid border-border px-5 py-4 sm:px-6">
+        <div className="min-w-0">
+          <h2 id={titleId} className="m-0 font-display text-xl font-bold">
+            Add products in bulk
+          </h2>
+          <p className="mb-0 mt-1 text-sm leading-relaxed text-dim">
+            Upload CSV, paste spreadsheet rows, or start from the CCN template.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="min-h-12 min-w-12 flex-none"
+          onClick={close}
+          aria-label="Close"
+          disabled={saving}
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
+
+      <form
+        onSubmit={submit}
+        className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain"
+      >
+        <div className="space-y-6 px-5 py-5 sm:px-6">
+          <section aria-labelledby={`${titleId}-source`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 id={`${titleId}-source`} className="m-0 font-display text-lg font-bold">
+                  Choose your source
+                </h3>
+                <p className="mb-0 mt-1 max-w-[620px] text-sm leading-relaxed text-dim">
+                  Required columns are name, type and risk. Imports are capped at{' '}
+                  {PRODUCT_IMPORT_MAX_ROWS} rows and arrive paused for review.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-12 w-full sm:w-auto"
+                onClick={downloadTemplate}
+              >
+                <Download className="h-4 w-4" aria-hidden />
+                Download template
+              </Button>
+            </div>
+
+            <label className="mt-5 block text-[13.5px]">
+              <span className={LABEL}>Upload CSV or TSV</span>
+              <span className="relative mt-2 flex min-h-24 cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-teal2/50 bg-mint/40 px-4 py-4 transition-colors hover:bg-mint focus-within:ring-2 focus-within:ring-teal2 focus-within:ring-offset-2">
+                <span className="grid h-12 w-12 flex-none place-items-center rounded-xl bg-card text-teal2">
+                  <Upload className="h-5 w-5" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <b className="block text-sm text-foreground">
+                    {sourceName ?? 'Choose a spreadsheet export'}
+                  </b>
+                  <span className="mt-1 block text-sm leading-snug text-dim">
+                    CSV, TSV or TXT · 256 KB maximum · raw file stays in this browser
+                  </span>
+                </span>
+                <input
+                  type="file"
+                  accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={(event) => {
+                    void readFile(event.currentTarget.files?.[0]);
+                    event.currentTarget.value = '';
+                  }}
+                  disabled={saving}
+                />
+              </span>
+            </label>
+
+            <div className="my-4 flex items-center gap-3" aria-hidden>
+              <span className="h-px flex-1 bg-border" />
+              <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-faint">
+                or paste rows
+              </span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
+            <label className="block text-[13.5px]">
+              <span className={LABEL}>CSV or spreadsheet rows</span>
+              <textarea
+                value={source}
+                onChange={(event) => {
+                  setSource(event.target.value);
+                  setSourceName(null);
+                  setSourceError(null);
+                  setSaveError(null);
+                }}
+                className={`${FIELD} min-h-40 resize-y font-mono text-[13px] leading-relaxed`}
+                placeholder="name,type,currency,minimum_investment,risk&#10;Caribbean Income Fund,fund,USD,5000,medium"
+                spellCheck={false}
+                disabled={saving}
+              />
+            </label>
+          </section>
+
+          {sourceError ? (
+            <div
+              className="flex items-start gap-2 rounded-xl border border-solid border-terra/35 bg-terra/10 p-3 text-sm text-[#a44e20] dark:text-terra"
+              role="alert"
+            >
+              <CircleAlert className="mt-0.5 h-4 w-4 flex-none" aria-hidden />
+              {sourceError}
+            </div>
+          ) : null}
+
+          {showAnalysis ? (
+            <section aria-labelledby={`${titleId}-preview`} aria-live="polite">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 id={`${titleId}-preview`} className="m-0 font-display text-lg font-bold">
+                  Review before import
+                </h3>
+                <span className="font-mono text-[13px] font-bold text-dim">
+                  {result.products.length} valid · {result.errors.length} errors
+                </span>
+              </div>
+
+              {result.errors.length > 0 ? (
+                <div
+                  className="mt-3 rounded-xl border border-solid border-terra/35 bg-terra/10 p-4"
+                  role="alert"
+                >
+                  <div className="flex items-center gap-2 text-sm font-bold text-[#a44e20] dark:text-terra">
+                    <CircleAlert className="h-4 w-4" aria-hidden />
+                    Fix every row before importing
+                  </div>
+                  <ul className="mb-0 mt-2 space-y-1 pl-5 text-sm leading-relaxed text-dim">
+                    {result.errors.slice(0, 12).map((message) => (
+                      <li key={message}>{message}</li>
+                    ))}
+                  </ul>
+                  {result.errors.length > 12 ? (
+                    <p className="mb-0 mt-2 text-sm text-dim">
+                      Plus {result.errors.length - 12} more errors.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {result.products.length > 0 ? (
+                <div className="mt-3 overflow-hidden rounded-2xl border border-solid border-border">
+                  {result.products.slice(0, 5).map((product, index) => (
+                    <div
+                      key={`${product.name}-${product.abbr ?? ''}-${index}`}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-1 border-x-0 border-t-0 border-b border-solid border-border px-4 py-3 last:border-b-0"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 flex-none text-teal2" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-bold">{product.name}</div>
+                        <div className="text-[12.5px] capitalize text-faint">
+                          {product.type.replace('_', ' ')} · {product.currency} · {product.risk}{' '}
+                          risk
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {result.products.length > 5 ? (
+                    <div className="px-4 py-3 text-center text-[13px] font-bold text-dim">
+                      + {result.products.length - 5} more products in this import
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {saveError ? (
+            <div
+              className="flex items-start gap-2 rounded-xl border border-solid border-terra/35 bg-terra/10 p-3 text-sm text-[#a44e20] dark:text-terra"
+              role="alert"
+            >
+              <CircleAlert className="mt-0.5 h-4 w-4 flex-none" aria-hidden />
+              {saveError}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="sticky bottom-0 mt-auto flex flex-col-reverse gap-3 border-0 border-t border-solid border-border bg-card px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <Button
+            type="button"
+            variant="ghost"
+            className="min-h-12 w-full sm:w-auto"
+            onClick={close}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            className="min-h-12 w-full sm:w-auto"
+            disabled={saving || result.errors.length > 0 || result.products.length === 0}
+          >
+            <Upload className="h-4 w-4" aria-hidden />
+            {saving
+              ? 'Importing…'
+              : result.products.length > 0
+                ? `Import ${result.products.length} ${result.products.length === 1 ? 'product' : 'products'}`
+                : 'Import products'}
+          </Button>
         </div>
       </form>
     </dialog>

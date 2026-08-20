@@ -676,6 +676,76 @@ suite('partner console data surface', () => {
     expect(forgedRow?.partnerId).toBe(sagId);
   });
 
+  test('bulk listing is tenant-scoped, atomic at validation, and paused for review', async () => {
+    const names = [`${tag} Bulk Income`, `${tag} Bulk Property`];
+    const res = await app().request('/api/console/products/bulk', {
+      method: 'POST',
+      headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        products: [
+          { name: names[0], type: 'fund', risk: 'medium', currency: 'USD' },
+          { name: names[1], type: 'real_estate', risk: 'high', currency: 'JMD' },
+        ],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as {
+      products: { id: string; name: string; status: string }[];
+    };
+    expect(created.products).toHaveLength(2);
+    expect(created.products.every((product) => product.status === 'paused')).toBe(true);
+    createdInstrumentIds.push(...created.products.map((product) => product.id));
+
+    const theirs = await json<{ products: { id: string }[] }>(
+      '/api/console/products',
+      'ncbOperator',
+    );
+    expect(
+      created.products.some((product) => theirs.products.some((p) => p.id === product.id)),
+    ).toBe(false);
+
+    // A client cannot use the endpoint, and a forged partner field is rejected
+    // rather than stripped into a valid write.
+    const customer = await app().request('/api/console/products/bulk', {
+      method: 'POST',
+      headers: { cookie: cookies.investor ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({ products: [{ name: 'No', type: 'fund', risk: 'low' }] }),
+    });
+    expect(customer.status).toBe(403);
+    const forged = await app().request('/api/console/products/bulk', {
+      method: 'POST',
+      headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        products: [
+          {
+            name: `${tag} Forged Bulk`,
+            type: 'fund',
+            risk: 'low',
+            partnerId: '00000000-0000-0000-0000-000000000000',
+          },
+        ],
+      }),
+    });
+    expect(forged.status).toBe(400);
+
+    const invalidBatch = await app().request('/api/console/products/bulk', {
+      method: 'POST',
+      headers: { cookie: cookies.sagOperator ?? '', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        products: [
+          { name: `${tag} Must Not Land`, type: 'fund', risk: 'low' },
+          { name: `${tag} Invalid`, type: 'not-a-type', risk: 'low' },
+        ],
+      }),
+    });
+    expect(invalidBatch.status).toBe(400);
+    const mine = await json<{ products: { name: string }[] }>(
+      '/api/console/products',
+      'sagOperator',
+    );
+    expect(mine.products.some((product) => product.name === `${tag} Must Not Land`)).toBe(false);
+  });
+
   /** Amending is the same function, and must not touch anyone else's row. */
   test('an operator amends their own listing and nobody else’s', async () => {
     const res = await list({

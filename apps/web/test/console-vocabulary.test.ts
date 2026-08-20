@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'bun:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { auditActionLabel, auditEntityLabel, consoleTab } from '../app/_components/console/lib';
+import {
+  PRODUCT_CSV_TEMPLATE,
+  auditActionLabel,
+  auditEntityLabel,
+  consoleTab,
+  parseProductImport,
+} from '../app/_components/console/lib';
 
 /**
  * The console speaks English, not Postgres.
@@ -139,6 +145,47 @@ describe('console browser routes', () => {
   });
 });
 
+describe('product spreadsheet import', () => {
+  it('parses the template into the single-product API contract', () => {
+    const result = parseProductImport(PRODUCT_CSV_TEMPLATE);
+    expect(result.errors).toEqual([]);
+    expect(result.products).toHaveLength(1);
+    expect(result.products[0]).toMatchObject({
+      name: 'Sample Caribbean Income Fund',
+      type: 'fund',
+      currency: 'USD',
+      minInvestmentMinor: '500000',
+      risk: 'medium',
+      description: 'Replace this sample row with your product description',
+    });
+  });
+
+  it('accepts tab-separated spreadsheet rows and useful header aliases', () => {
+    const result = parseProductImport(
+      'product name\tasset type\tcurrency\tminimum\trisk rating\nRegional Note\treal estate\tJMD\t1,250.50\thigh',
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.products[0]).toMatchObject({
+      name: 'Regional Note',
+      type: 'real_estate',
+      currency: 'JMD',
+      minInvestmentMinor: '125050',
+      risk: 'high',
+    });
+  });
+
+  it('rejects unknown columns, incomplete headline data and oversized batches', () => {
+    expect(parseProductImport('name,type,risk,secret\nFund,fund,low,value').errors).toContain(
+      'Unknown column “secret”.',
+    );
+    expect(parseProductImport('name,type,risk,metric\nFund,fund,low,7%').errors[0]).toContain(
+      'metric and metric_label',
+    );
+    const rows = Array.from({ length: 101 }, (_, index) => `Fund ${index},fund,low`).join('\n');
+    expect(parseProductImport(`name,type,risk\n${rows}`).errors[0]).toContain('at most 100');
+  });
+});
+
 describe('isolated partner demo', () => {
   const source = readFileSync(join(REPO, 'apps/web/app/demo/institutions/page.tsx'), 'utf8');
 
@@ -147,6 +194,7 @@ describe('isolated partner demo', () => {
     expect(source).toContain('<OrdersTab');
     expect(source).toContain('<ProductsTab');
     expect(source).toContain('<ListProductDialog');
+    expect(source).toContain('<BulkProductDialog');
     expect(source).toMatch(/import type \{[^}]+\} from '@\/lib\/console-api';/s);
     expect(source).not.toMatch(/import \{[^}]+\} from '@\/lib\/console-api';/s);
     expect(source).not.toContain('fetch(');

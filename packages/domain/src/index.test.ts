@@ -10,6 +10,7 @@ import {
   type OrderStatus,
   type RiskBand,
   amountMinorSchema,
+  bulkListInstrumentSchema,
   canApply,
   canApplyGatewayEvent,
   canApplyIntroductionEvent,
@@ -220,6 +221,33 @@ group('request schemas', () => {
       listInstrumentSchema.safeParse({ ...valid, metric: undefined, metricLabel: undefined })
         .success,
     ).toBe(true);
+  });
+
+  test('bulk product listing validates every row and bounds the transaction', () => {
+    const valid = {
+      name: 'Caribbean Income Fund',
+      type: 'fund' as const,
+      risk: 'medium' as const,
+      metric: '7.5%',
+      metricLabel: 'Target return',
+    };
+    const parsed = bulkListInstrumentSchema.parse({ products: [valid] });
+    expect(parsed.products[0]?.currency).toBe('USD');
+    expect(parsed.products[0]?.minInvestmentMinor).toBe(0n);
+    expect(
+      bulkListInstrumentSchema.safeParse({
+        products: [{ ...valid, id: '11111111-1111-1111-1111-111111111111' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      bulkListInstrumentSchema.safeParse({
+        products: [{ ...valid, metricLabel: undefined }],
+      }).success,
+    ).toBe(false);
+    expect(
+      bulkListInstrumentSchema.safeParse({ products: Array.from({ length: 101 }, () => valid) })
+        .success,
+    ).toBe(false);
   });
 
   test('settlement units stay within database precision without floating-point checks', () => {

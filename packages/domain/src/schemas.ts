@@ -274,31 +274,56 @@ export type FundingNoticeInput = z.infer<typeof fundingNoticeSchema>;
  * re-typed; the regulator is a compliance claim about the executing firm, and a
  * console that could set it freely could claim any regulator it liked.
  */
-export const listInstrumentSchema = z
-  .object({
-    /** Present to amend a listing, absent to create one. */
-    id: uuidSchema.optional(),
-    name: z.string().trim().min(2).max(140),
-    type: z.enum(['bond', 'fund', 'equity', 'real_estate', 'private']),
-    /** The short badge on the card. Derived from the name when not given. */
-    abbr: z.string().trim().min(1).max(12).optional(),
-    currency: currencySchema.default('USD'),
-    /** Zero is allowed and means "no minimum", so this is not the positive variant. */
-    minInvestmentMinor: amountMinorSchema.default(0),
-    term: z.string().trim().max(60).optional(),
-    /** The headline number, e.g. "8.25%" — free text because a fund's is not a bond's. */
-    metric: z.string().trim().max(60).optional(),
-    /** What that number is, e.g. "Coupon", "Target return". */
-    metricLabel: z.string().trim().max(60).optional(),
-    risk: z.enum(['low', 'medium', 'high']),
-    description: z.string().trim().max(2000).optional(),
-    region: z.string().trim().max(100).optional(),
-  })
-  .refine((input) => Boolean(input.metric) === Boolean(input.metricLabel), {
+const instrumentInputSchema = z.object({
+  /** Present to amend a listing, absent to create one. */
+  id: uuidSchema.optional(),
+  name: z.string().trim().min(2).max(140),
+  type: z.enum(['bond', 'fund', 'equity', 'real_estate', 'private']),
+  /** The short badge on the card. Derived from the name when not given. */
+  abbr: z.string().trim().min(1).max(12).optional(),
+  currency: currencySchema.default('USD'),
+  /** Zero is allowed and means "no minimum", so this is not the positive variant. */
+  minInvestmentMinor: amountMinorSchema.default(0),
+  term: z.string().trim().max(60).optional(),
+  /** The headline number, e.g. "8.25%" — free text because a fund's is not a bond's. */
+  metric: z.string().trim().max(60).optional(),
+  /** What that number is, e.g. "Coupon", "Target return". */
+  metricLabel: z.string().trim().max(60).optional(),
+  risk: z.enum(['low', 'medium', 'high']),
+  description: z.string().trim().max(2000).optional(),
+  region: z.string().trim().max(100).optional(),
+});
+
+const completeInstrumentHeadline = (input: {
+  metric?: string | undefined;
+  metricLabel?: string | undefined;
+}) => Boolean(input.metric) === Boolean(input.metricLabel);
+
+export const listInstrumentSchema = instrumentInputSchema.refine(completeInstrumentHeadline, {
+  message: 'headline figure and label must be supplied together',
+  path: ['metricLabel'],
+});
+export type ListInstrumentInput = z.infer<typeof listInstrumentSchema>;
+
+/**
+ * POST /api/console/products/bulk — new listings only.
+ *
+ * The limit bounds one transaction and one audit burst. `id` is deliberately
+ * removed: bulk import adds products; amendments remain an explicit one-product
+ * review so a spreadsheet cannot overwrite an existing catalogue by mistake.
+ */
+const bulkInstrumentInputSchema = instrumentInputSchema
+  .omit({ id: true })
+  .strict()
+  .refine(completeInstrumentHeadline, {
     message: 'headline figure and label must be supplied together',
     path: ['metricLabel'],
   });
-export type ListInstrumentInput = z.infer<typeof listInstrumentSchema>;
+
+export const bulkListInstrumentSchema = z
+  .object({ products: z.array(bulkInstrumentInputSchema).min(1).max(100) })
+  .strict();
+export type BulkListInstrumentInput = z.infer<typeof bulkListInstrumentSchema>;
 
 /**
  * Gateway — evidence/matching/introduction schemas. See
