@@ -3,11 +3,9 @@
 import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Button } from '@/app/_components/ui/button';
 import { TabsList, TabsTrigger } from '@/app/_components/ui/tabs';
-import { useSheetDismiss } from '@/app/_lib/sheet';
 import type { MePartner } from '@/lib/me-api';
 import { LogOut } from 'lucide-react';
-import * as React from 'react';
-import { TABS, agreementDot, agreementHeadline, regulatorLabel } from './lib';
+import { TABS, type TabKey, agreementDot, agreementHeadline, regulatorLabel } from './lib';
 
 /**
  * The navy rail: who you are, where you can go, what your agreement says, and
@@ -18,17 +16,9 @@ import { TABS, agreementDot, agreementHeadline, regulatorLabel } from './lib';
  * the network — NCB, Proven, JMMB and Barita staff all saw a competitor's name
  * over their own order flow.
  *
- * On a phone this is a bottom sheet, the same one the investor side uses. It was
- * a block that reshaped in place: identity, then five sections wrapped onto two
- * rows, then the agreement panel — roughly 500px of an 844px screen before the
- * first word of the console. Wrapping was chosen over a sideways scroller
- * because Radix's roving-focus tablist scrolls its active tab into view and
- * fought the gesture; a drawer avoids the choice entirely by taking the
- * navigation off the screen until it is asked for.
- *
- * Authored as a <dialog> with the desktop presentation put back by CSS, which
- * is how `.agent-panels` already does it — one element, two presentations, so
- * the rail and the drawer cannot drift apart.
+ * This is the desktop rail. Phones use the fixed five-item tab bar below, so a
+ * second navigation drawer would duplicate every destination and consume the
+ * top bar's most valuable control position.
  */
 export function ConsoleSidebar({
   partner,
@@ -37,7 +27,8 @@ export function ConsoleSidebar({
   pendingReconciliation,
   signingOut,
   onSignOut,
-  dialogRef,
+  exitLabel = 'Sign out',
+  busyExitLabel = 'Signing out…',
 }: {
   partner: MePartner | null;
   operator: { name: string; email: string } | null;
@@ -45,11 +36,10 @@ export function ConsoleSidebar({
   pendingReconciliation: number;
   signingOut: boolean;
   onSignOut: () => void;
-  /** Lets the phone bar open it; unused on a desktop, where it renders inline. */
-  dialogRef?: React.RefObject<HTMLDialogElement | null>;
+  /** Lets isolated previews reuse the rail without implying an authenticated session. */
+  exitLabel?: string;
+  busyExitLabel?: string;
 }) {
-  /** useSheetDismiss needs a ref even on the desktop, where there is no sheet. */
-  const fallbackRef = React.useRef<HTMLDialogElement>(null);
   const agreement = agreementHeadline(partner?.agreementStatus);
   const regulator = regulatorLabel(partner?.regulator);
   const operatorInitials = operator?.name
@@ -59,24 +49,11 @@ export function ConsoleSidebar({
     .map((part) => part[0]?.toUpperCase())
     .join('');
 
-  const close = React.useCallback(() => dialogRef?.current?.close(), [dialogRef]);
-  useSheetDismiss(dialogRef ?? fallbackRef, close);
-
   return (
-    <dialog
-      ref={dialogRef}
+    <aside
       aria-label="Partner console navigation"
       className="console-sidebar sticky top-0 flex h-screen w-[260px] flex-none flex-col bg-navy px-4 pb-[18px] pt-6 text-[#d3e0da]"
     >
-      {/* Phone-only: the grab handle for the sheet, and a real button with it,
-          because a gesture must never be the only way out. */}
-      <button
-        type="button"
-        data-sheet-handle
-        onClick={close}
-        aria-label="Close navigation"
-        className="app-sheet__handle console-sidebar__handle"
-      />
       <div
         className="console-sidebar__identity flex items-center gap-3 px-2 pb-5"
         data-tour="institution-identity"
@@ -108,7 +85,6 @@ export function ConsoleSidebar({
             <TabsTrigger
               key={key}
               value={key}
-              onClick={close}
               className="justify-start gap-3 rounded-xl px-3.5 py-3 text-[15px] font-medium text-[#d3e0da] data-[state=active]:bg-navy-active data-[state=active]:font-bold data-[state=active]:text-white"
             >
               <Icon className="h-5 w-5" aria-hidden />
@@ -172,8 +148,36 @@ export function ConsoleSidebar({
         data-tour="institution-signout"
       >
         <LogOut className="h-4 w-4" aria-hidden />
-        {signingOut ? 'Signing out…' : 'Sign out'}
+        {signingOut ? busyExitLabel : exitLabel}
       </Button>
-    </dialog>
+    </aside>
+  );
+}
+
+/** One phone navigation implementation shared by the live and isolated demo consoles. */
+export function ConsoleMobileTabs({ badges = {} }: { badges?: Partial<Record<TabKey, number>> }) {
+  return (
+    <TabsList
+      aria-label="Partner console sections"
+      className="console-mobile-tabs"
+      data-tour="institution-mobile-sections"
+    >
+      {TABS.map(({ key, label, Icon }) => {
+        const badge = badges[key] ?? 0;
+        return (
+          <TabsTrigger key={key} value={key} className="console-mobile-tabs__item">
+            <span className="relative">
+              <Icon className="h-5 w-5" aria-hidden />
+              {badge > 0 ? (
+                <span className="console-mobile-tabs__badge" aria-label={`${badge} pending`}>
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              ) : null}
+            </span>
+            <span className="max-w-full truncate">{label}</span>
+          </TabsTrigger>
+        );
+      })}
+    </TabsList>
   );
 }

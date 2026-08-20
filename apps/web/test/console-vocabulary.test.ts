@@ -138,3 +138,24 @@ describe('console browser routes', () => {
     expect(consoleTab('not-a-console-section')).toBe('overview');
   });
 });
+
+describe('isolated partner demo', () => {
+  const source = readFileSync(join(REPO, 'apps/web/app/demo/institutions/page.tsx'), 'utf8');
+
+  it('shares the live console surfaces without importing a live client', () => {
+    expect(source).toContain('<OverviewTab');
+    expect(source).toContain('<OrdersTab');
+    expect(source).toContain('<ProductsTab');
+    expect(source).toContain('<ListProductDialog');
+    expect(source).toMatch(/import type \{[^}]+\} from '@\/lib\/console-api';/s);
+    expect(source).not.toMatch(/import \{[^}]+\} from '@\/lib\/console-api';/s);
+    expect(source).not.toContain('fetch(');
+    expect(source).not.toContain('authClient');
+  });
+
+  it('uses bottom navigation and keeps the redundant hamburger out', () => {
+    expect(source).toContain('<ConsoleMobileTabs');
+    expect(source).not.toContain('Menu');
+    expect(source).not.toContain('showModal()');
+  });
+});

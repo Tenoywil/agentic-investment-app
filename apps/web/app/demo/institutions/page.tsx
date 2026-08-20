@@ -1,618 +1,553 @@
 'use client';
 
-import { ThemeToggle } from '@/app/_components/ThemeToggle';
-import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
+import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
+import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
+import type { TabKey } from '@/app/_components/console/lib';
+import { ListProductDialog } from '@/app/_components/console/list-product';
+import { OrdersTab } from '@/app/_components/console/orders-tab';
+import { OverviewTab } from '@/app/_components/console/overview-tab';
+import { ProductsTab } from '@/app/_components/console/products-tab';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
-import { Switch } from '@/app/_components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/_components/ui/tabs';
-import { useSheetDismiss } from '@/app/_lib/sheet';
-import {
-  ArrowLeft,
-  ArrowRightLeft,
-  Boxes,
-  LayoutGrid,
-  Menu,
-  ShieldCheck,
-  Users,
-} from 'lucide-react';
+import { Tabs, TabsContent } from '@/app/_components/ui/tabs';
+import type {
+  ConsoleKpi,
+  ConsoleOrder,
+  ConsoleProduct,
+  PartnerEquityPoint,
+  ProductInput,
+  SettlementInput,
+} from '@/lib/console-api';
+import type { MePartner } from '@/lib/me-api';
+import { ArrowLeft, CheckCircle2, FileSearch, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
-/* The partner console: a dark-navy shell (Warm-themed shadcn) matching
-   demo/assets/institutions.png. Radix Tabs drive the sidebar sections — the APG
-   tab keyboard model (arrow keys, roving focus, aria-selected) comes for free. */
+/**
+ * Isolated partner-console rehearsal.
+ *
+ * This route shares presentational components with the authenticated console,
+ * but every value and mutation below stays in React memory. It deliberately
+ * imports the console contract as types only: there is no API client, session,
+ * auth cookie or live data source available to this page.
+ */
 
-type TabKey = 'overview' | 'orders' | 'products' | 'clients' | 'compliance';
-
-const TABS: { key: TabKey; label: string; Icon: typeof LayoutGrid }[] = [
-  { key: 'overview', label: 'Overview', Icon: LayoutGrid },
-  { key: 'orders', label: 'Order flow', Icon: ArrowRightLeft },
-  { key: 'products', label: 'Products', Icon: Boxes },
-  { key: 'clients', label: 'Clients & KYC', Icon: Users },
-  { key: 'compliance', label: 'Compliance', Icon: ShieldCheck },
-];
-type Order = {
-  id: string;
-  product: string;
-  client: string;
-  when: string;
-  amount: number;
-  status: 'new' | 'accepted' | 'settled';
+const PARTNER: MePartner = {
+  id: 'demo-partner',
+  code: 'DEMO-JM',
+  name: 'Caribbean Capital Demo',
+  kind: 'Broker-dealer',
+  regulator: 'FSC_JAMAICA',
+  agreementStatus: 'sandbox',
+  residency: 'Jamaica',
+  fundingInstructions: 'Sample wire instructions are configured for this rehearsal desk.',
+  withdrawalFeeFlatMinor: '0',
+  withdrawalFeeBps: 0,
+  gctBps: 0,
 };
-const SEED_ORDERS: Order[] = [
+
+const OPERATOR = { name: 'Demo Operator', email: 'operator@example.invalid' };
+
+const INITIAL_ORDERS: ConsoleOrder[] = [
   {
-    id: 'o1',
-    product: 'Sagicor Real Estate X Fund',
-    client: 'Client ••4821',
-    when: '2m ago',
-    amount: 5000,
-    status: 'new',
+    id: 'demo-order-1',
+    userId: 'demo-client-1',
+    partnerId: PARTNER.id,
+    instrumentId: 'demo-product-1',
+    instrumentName: 'Caribbean USD Income Fund',
+    instrumentAbbr: 'CUIF',
+    approvalId: 'demo-approval-1',
+    status: 'created',
+    amountMinor: '500000',
+    currency: 'USD',
+    idempotencyKey: 'demo-order-1',
+    clientRef: 'Client ••4821',
+    settlementEta: null,
+    unitPriceMinor: null,
+    units: null,
+    feeMinor: null,
+    externalRef: null,
+    rejectedReason: null,
+    createdBy: 'user',
+    createdAt: '2026-08-20T11:40:00.000Z',
+    updatedAt: '2026-08-20T11:40:00.000Z',
+    acceptedAt: null,
+    settledAt: null,
   },
   {
-    id: 'o2',
-    product: 'GOJ USD Global Bond 2032',
-    client: 'Client ••7134',
-    when: '11m ago',
-    amount: 2000,
-    status: 'new',
-  },
-  {
-    id: 'o3',
-    product: 'Sagicor Sigma Global Fund',
-    client: 'Client ••2290',
-    when: '1h ago',
-    amount: 3500,
+    id: 'demo-order-2',
+    userId: 'demo-client-2',
+    partnerId: PARTNER.id,
+    instrumentId: 'demo-product-2',
+    instrumentName: 'Regional Infrastructure Note 2032',
+    instrumentAbbr: 'RIN32',
+    approvalId: 'demo-approval-2',
     status: 'accepted',
+    amountMinor: '1250000',
+    currency: 'USD',
+    idempotencyKey: 'demo-order-2',
+    clientRef: 'Client ••7134',
+    settlementEta: '2026-08-22T17:00:00.000Z',
+    unitPriceMinor: null,
+    units: null,
+    feeMinor: null,
+    externalRef: null,
+    rejectedReason: null,
+    createdBy: 'user',
+    createdAt: '2026-08-20T09:15:00.000Z',
+    updatedAt: '2026-08-20T09:30:00.000Z',
+    acceptedAt: '2026-08-20T09:30:00.000Z',
+    settledAt: null,
   },
   {
-    id: 'o4',
-    product: 'Proven USD Income Fund',
-    client: 'Client ••5567',
-    when: '3h ago',
-    amount: 10000,
+    id: 'demo-order-3',
+    userId: 'demo-client-3',
+    partnerId: PARTNER.id,
+    instrumentId: 'demo-product-3',
+    instrumentName: 'Jamaica Government Global Bond 2036',
+    instrumentAbbr: 'JGB36',
+    approvalId: 'demo-approval-3',
     status: 'settled',
+    amountMinor: '850000',
+    currency: 'USD',
+    idempotencyKey: 'demo-order-3',
+    clientRef: 'Client ••2290',
+    settlementEta: '2026-08-20T16:00:00.000Z',
+    unitPriceMinor: '10125',
+    units: '83.9506',
+    feeMinor: '2500',
+    externalRef: 'DEMO-SETTLE-1042',
+    rejectedReason: null,
+    createdBy: 'user',
+    createdAt: '2026-08-19T16:00:00.000Z',
+    updatedAt: '2026-08-20T10:00:00.000Z',
+    acceptedAt: '2026-08-19T16:15:00.000Z',
+    settledAt: '2026-08-20T10:00:00.000Z',
   },
 ];
 
-type Product = { name: string; type: string; clients: number; aum: string; trend: string };
-
-const PRODUCTS: Product[] = [
-  { name: 'GOJ USD Global Bond 2032', type: 'Bond', clients: 412, aum: 'US$14.2M', trend: '+22%' },
+const INITIAL_PRODUCTS: ConsoleProduct[] = [
   {
-    name: 'Sagicor Real Estate X Fund',
-    type: 'Real Estate',
-    clients: 286,
-    aum: 'US$11.8M',
-    trend: '+31%',
-  },
-  { name: 'Proven USD Income Fund', type: 'Fund', clients: 508, aum: 'US$9.4M', trend: '+12%' },
-  {
-    name: 'NCB Money Market Fund',
-    type: 'Money Market',
-    clients: 640,
-    aum: 'US$7.1M',
-    trend: '+8%',
-  },
-  {
-    name: 'Sygnus Private Credit III',
-    type: 'Private',
-    clients: 74,
-    aum: 'US$5.7M',
-    trend: '+44%',
-  },
-];
-
-/** What "List a product" adds — one per press, so the button demonstrates the
- *  real console's listing flow instead of doing nothing. */
-const LISTABLE: Product[] = [
-  { name: 'Sagicor Sigma Global Fund', type: 'Fund', clients: 0, aum: 'US$0', trend: 'New' },
-  { name: 'Sagicor USD Bond Fund II', type: 'Bond', clients: 0, aum: 'US$0', trend: 'New' },
-];
-
-const KYC_STAGES = [
-  { label: 'Invited', count: '4,120', pct: 100, color: '#6b6459' },
-  { label: 'KYC started', count: '3,180', pct: 77, color: '#7fb5ad' },
-  { label: 'Verified', count: '2,760', pct: 67, color: '#17786e' },
-  { label: 'Funded', count: '1,284', pct: 31, color: '#124e48' },
-];
-
-const AUDIT = [
-  {
-    action: 'Suitability check passed for order CCN-8F42-QX',
-    by: 'AI Agent · 2 min ago',
-    dot: '#0a8f5b',
-  },
-  { action: 'KYC Tier-2 approved · client #10482', by: 'Compliance · 14 min ago', dot: '#0a8f5b' },
-  {
-    action: 'Flagged source-of-funds review · client #10517',
-    by: 'AI Agent · 38 min ago',
-    dot: '#c56a3e',
+    id: 'demo-product-1',
+    name: 'Caribbean USD Income Fund',
+    type: 'fund',
+    abbr: 'CUIF',
+    currency: 'USD',
+    minInvestmentMinor: '100000',
+    term: 'Open-ended',
+    metric: '6.1%',
+    metricLabel: 'sample trailing yield',
+    risk: 'medium',
+    description: 'Sample diversified regional fixed-income product.',
+    region: 'Caribbean',
+    status: 'live',
+    blocked: false,
+    createdAt: '2026-08-01T12:00:00.000Z',
+    updatedAt: '2026-08-18T12:00:00.000Z',
   },
   {
-    action: 'Settlement confirmed T+2 · US$5,000 · Sagicor',
-    by: 'System · 1 hr ago',
-    dot: '#17786e',
+    id: 'demo-product-2',
+    name: 'Regional Infrastructure Note 2032',
+    type: 'bond',
+    abbr: 'RIN32',
+    currency: 'USD',
+    minInvestmentMinor: '500000',
+    term: 'Matures 2032',
+    metric: '7.0%',
+    metricLabel: 'sample coupon',
+    risk: 'medium',
+    description: 'Sample note for demonstrating product presentation and settlement.',
+    region: 'Caribbean',
+    status: 'live',
+    blocked: false,
+    createdAt: '2026-08-02T12:00:00.000Z',
+    updatedAt: '2026-08-18T12:00:00.000Z',
   },
-  { action: 'PEP screening completed · 12 clients', by: 'Compliance · 2 hr ago', dot: '#0a8f5b' },
+  {
+    id: 'demo-product-3',
+    name: 'Jamaica Government Global Bond 2036',
+    type: 'bond',
+    abbr: 'JGB36',
+    currency: 'USD',
+    minInvestmentMinor: '250000',
+    term: 'Matures 2036',
+    metric: 'Illustrative',
+    metricLabel: 'demo terms only',
+    risk: 'low',
+    description: 'A sample listing; not an offer or live security record.',
+    region: 'Jamaica',
+    status: 'paused',
+    blocked: false,
+    createdAt: '2026-08-03T12:00:00.000Z',
+    updatedAt: '2026-08-18T12:00:00.000Z',
+  },
 ];
 
-const WHY = [
-  'Qualified, KYC-cleared demand into products you already run',
-  'Diaspora reach without building cross-border onboarding',
-  'Your name and regulator on every deal card, no channel conflict',
-  'You keep execution, custody and settlement under your license',
+const KPIS: ConsoleKpi[] = [
+  {
+    id: 'demo-aum',
+    label: 'Referred holdings (sample)',
+    value: 'US$48.2M',
+    sub: 'Demo fixture',
+    sortOrder: 1,
+  },
+  {
+    id: 'demo-clients',
+    label: 'Funded clients (sample)',
+    value: '1,284',
+    sub: 'Demo fixture',
+    sortOrder: 2,
+  },
+  {
+    id: 'demo-settled',
+    label: 'Orders settled (sample)',
+    value: '486',
+    sub: 'Demo fixture',
+    sortOrder: 3,
+  },
 ];
 
-const KPIS = [
-  { label: 'Referred AUM', value: 'US$48.2M', sub: '+18% QoQ', valClass: 'text-teal2' },
-  { label: 'Funded clients (MTD)', value: '1,284', sub: '+9%', valClass: 'text-foreground' },
+const EQUITY: PartnerEquityPoint[] = [
+  { takenOn: '2026-08-14', heldMinor: '4210000000', clients: 1120 },
+  { takenOn: '2026-08-16', heldMinor: '4450000000', clients: 1178 },
+  { takenOn: '2026-08-18', heldMinor: '4670000000', clients: 1232 },
+  { takenOn: '2026-08-20', heldMinor: '4820000000', clients: 1284 },
 ];
 
-const fmt = (n: number) => `US$${n.toLocaleString('en-US')}`;
-const uppr = 'text-[11px] font-bold uppercase tracking-wider text-faint';
+const REVIEW_ITEMS = [
+  {
+    ref: 'Client ••517',
+    issue: 'PEP disclosure requires human review',
+    evidence: 'Declaration and source-of-funds files attached',
+  },
+  {
+    ref: 'Client ••904',
+    issue: 'Source-of-funds variance flagged',
+    evidence: 'Income range differs from intended funding amount',
+  },
+];
 
-function OrderAction({ order, advance }: { order: Order; advance: (id: string) => void }) {
-  if (order.status === 'settled')
-    return <span className="text-sm font-bold text-success">Settled ✓</span>;
-  if (order.status === 'new')
-    return (
-      <Button size="sm" onClick={() => advance(order.id)}>
-        Accept
-      </Button>
-    );
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="border-terra text-terra hover:bg-transparent hover:text-terra"
-      onClick={() => advance(order.id)}
-    >
-      Settle
-    </Button>
-  );
-}
-
-export default function InstitutionsPage() {
+export default function DemoInstitutionsPage() {
   const [tab, setTab] = useState<TabKey>('overview');
-  const [orders, setOrders] = useState<Order[]>(SEED_ORDERS);
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
-  const [live, setLive] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries([...PRODUCTS, ...LISTABLE].map((p) => [p.name, true])),
-  );
-  const listProduct = () =>
-    setProducts((ps) => {
-      const next = LISTABLE.find((l) => !ps.some((p) => p.name === l.name));
-      return next ? [...ps, next] : ps;
-    });
-  /* The rail is a <dialog> for the same reason the live console's is: below
-     900px the CSS turns .console-sidebar into a bottom sheet that only renders
-     [open], and a plain <nav> can never be open — which left the demo console
-     with no navigation at all on a phone, the exact audience "See a demo"
-     lands here. */
-  const navRef = useRef<HTMLDialogElement>(null);
-  const closeNav = useCallback(() => navRef.current?.close(), []);
-  useSheetDismiss(navRef, closeNav);
+  const [orders, setOrders] = useState(INITIAL_ORDERS);
+  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const [status, setStatus] = useState('');
+  const [query, setQuery] = useState('');
+  const [listingOpen, setListingOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ConsoleProduct>();
+  const [reviewed, setReviewed] = useState<string[]>([]);
 
-  const pending = orders.filter((o) => o.status === 'new').length;
-  const settled = orders.filter((o) => o.status === 'settled').length;
-  const advance = (id: string) =>
-    setOrders((os) =>
-      os.map((o) =>
-        o.id === id ? { ...o, status: o.status === 'new' ? 'accepted' : 'settled' } : o,
+  const visibleOrders = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return orders.filter(
+      (order) =>
+        (!status || order.status === status) &&
+        (!needle ||
+          order.instrumentName?.toLowerCase().includes(needle) ||
+          order.clientRef?.toLowerCase().includes(needle)),
+    );
+  }, [orders, query, status]);
+
+  async function acceptOrder(id: string, settlementEta?: string) {
+    const now = new Date().toISOString();
+    setOrders((current) =>
+      current.map((order) =>
+        order.id === id
+          ? {
+              ...order,
+              status: 'accepted',
+              settlementEta: settlementEta ?? null,
+              acceptedAt: now,
+              updatedAt: now,
+            }
+          : order,
       ),
     );
+    return true;
+  }
+
+  async function settleOrder(id: string, detail?: SettlementInput) {
+    const now = new Date().toISOString();
+    setOrders((current) =>
+      current.map((order) =>
+        order.id === id
+          ? { ...order, ...detail, status: 'settled', settledAt: now, updatedAt: now }
+          : order,
+      ),
+    );
+    return true;
+  }
+
+  async function rejectOrder(id: string, reason?: string) {
+    setOrders((current) =>
+      current.map((order) =>
+        order.id === id
+          ? {
+              ...order,
+              status: 'rejected',
+              rejectedReason: reason ?? null,
+              updatedAt: new Date().toISOString(),
+            }
+          : order,
+      ),
+    );
+    return true;
+  }
+
+  async function saveDemoProduct(input: ProductInput): Promise<{ product: ConsoleProduct }> {
+    const existing = input.id ? products.find((product) => product.id === input.id) : undefined;
+    const now = new Date().toISOString();
+    return {
+      product: {
+        id: existing?.id ?? `demo-product-${products.length + 1}`,
+        name: input.name,
+        type: input.type,
+        abbr: input.abbr ?? '',
+        currency: input.currency ?? 'USD',
+        minInvestmentMinor: input.minInvestmentMinor ?? '0',
+        term: input.term ?? null,
+        metric: input.metric ?? null,
+        metricLabel: input.metricLabel ?? null,
+        risk: input.risk,
+        description: input.description ?? null,
+        region: input.region ?? null,
+        status: existing?.status ?? 'paused',
+        blocked: existing?.blocked ?? false,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      },
+    };
+  }
+
+  const openListing = (product?: ConsoleProduct) => {
+    setEditingProduct(product);
+    setListingOpen(true);
+  };
+
+  const pendingOrders = orders.filter((order) => order.status === 'created').length;
+  const pendingReviews = REVIEW_ITEMS.filter((item) => !reviewed.includes(item.ref)).length;
 
   return (
     <Tabs
       value={tab}
-      onValueChange={(v) => setTab(v as TabKey)}
+      onValueChange={(value) => setTab(value as TabKey)}
       orientation="vertical"
       className="app-shell bg-background font-sans text-foreground"
     >
-      {/* The phone bar — same shape as the live console's. */}
-      <header className="console-topbar">
-        <button
-          type="button"
-          onClick={() => navRef.current?.showModal()}
-          aria-haspopup="dialog"
-          aria-label="Open navigation"
-          className="grid h-11 w-11 flex-none place-items-center rounded-[12px] text-[#d3e0da] transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <Menu className="h-6 w-6" aria-hidden />
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-[15px] font-bold leading-tight text-white">
-            Sagicor Group
-          </div>
-          <div className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
-            Partner console
-          </div>
-        </div>
-      </header>
+      <ConsoleMobileHeader
+        partnerName={PARTNER.name}
+        context="Interactive sample data"
+        action={
+          <Button
+            asChild
+            variant="ghost"
+            className="min-h-12 flex-none gap-2 px-3 text-[#d3e0da] hover:bg-white/10 hover:text-white"
+          >
+            <Link href="/demo/home">
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              Exit demo
+            </Link>
+          </Button>
+        }
+      />
 
-      {/* Dark navy sidebar; a bottom sheet on a phone. */}
-      <dialog
-        ref={navRef}
-        aria-label="Partner console navigation"
-        className="console-sidebar sticky top-0 flex h-screen w-[260px] flex-none flex-col bg-navy px-4 pb-[18px] pt-6 text-[#d3e0da]"
+      <ConsoleSidebar
+        partner={PARTNER}
+        operator={OPERATOR}
+        pendingOrders={pendingOrders}
+        pendingReconciliation={pendingReviews}
+        signingOut={false}
+        onSignOut={() => window.location.assign('/demo/home')}
+        exitLabel="Exit partner demo"
+      />
+
+      <main
+        className="min-w-0 flex-1 px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-8 lg:pb-[60px] lg:pt-[26px]"
+        data-tour="demo-institution-shell"
       >
-        <button
-          type="button"
-          data-sheet-handle
-          onClick={closeNav}
-          aria-label="Close navigation"
-          className="app-sheet__handle console-sidebar__handle"
-        />
-        <div className="console-sidebar__identity flex items-center gap-3 px-2 pb-5">
-          <Avatar className="h-[42px] w-[42px] rounded-xl">
-            <AvatarFallback className="rounded-xl font-display text-[19px]">S</AvatarFallback>
-          </Avatar>
-          <div>
-            <div className="font-display text-base font-bold">Sagicor Group</div>
-            <div className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/60">
-              Partner console
-            </div>
-          </div>
-        </div>
+        <ConsoleHeader tab={tab} />
 
-        <TabsList
-          aria-label="Partner console sections"
-          className="console-sidebar__tabs flex flex-col items-stretch gap-[3px]"
-        >
-          {TABS.map(({ key, label, Icon }) => (
-            <TabsTrigger
-              key={key}
-              value={key}
-              onClick={closeNav}
-              className="justify-start gap-3 rounded-xl px-3.5 py-3 text-[15px] font-medium text-[#d3e0da] data-[state=active]:bg-navy-active data-[state=active]:font-bold data-[state=active]:text-white"
-            >
-              <Icon className="h-5 w-5" aria-hidden />
-              <span className="flex-1 text-left">{label}</span>
-              {key === 'orders' && pending > 0 ? (
-                <span className="min-w-[22px] rounded-full bg-peach px-1.5 py-px text-center text-xs font-bold text-[#3a2415]">
-                  {pending}
-                </span>
-              ) : null}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <div className="console-sidebar__grow flex-1" />
-
-        <div className="console-sidebar__agreement mb-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5">
-          <div className="mb-1 flex items-center gap-2 text-[13px] font-bold">
-            <span className="h-[7px] w-[7px] rounded-full bg-[#5fd3a6]" />
-            Agreement active · FSC Jamaica
-          </div>
-          <div className="text-[12.5px] leading-snug text-[#d3e0da]/60">
-            CCN routes orders. You execute, custody and settle.
-          </div>
-        </div>
-
-        <Button
-          asChild
-          variant="outline"
-          className="justify-center gap-2.5 border-white/10 bg-transparent text-[#d3e0da] hover:bg-white/5 hover:text-white"
-        >
-          <Link href="/demo/home">
-            <ArrowLeft className="h-4 w-4" /> Switch to investor view
-          </Link>
-        </Button>
-      </dialog>
-
-      <main className="min-w-0 flex-1 px-8 pb-[60px] pt-[26px]" data-tour="demo-institution-shell">
-        {/* Header. The h1 names the tab — the sidebar and phone bar already
-            name the firm, same reasoning as the live console's header. The
-            sample-data chip stays: it is the one honest label on this page. */}
-        <div className="mb-[22px] flex flex-wrap items-start justify-between gap-4">
-          <h1 className="m-0 font-display text-3xl font-bold tracking-tight">
-            {TABS.find((t) => t.key === tab)?.label ?? 'Overview'}
-          </h1>
-          <div className="flex items-center gap-2.5">
-            <ThemeToggle />
-            <div className="flex items-center gap-2.5 rounded-full border border-border bg-card py-1.5 pl-4 pr-1.5">
-              <span className="text-[13.5px] text-dim">Preview with sample data</span>
-              <Badge className="rounded-full px-3 py-1.5 text-[13px]">Partner view</Badge>
-            </div>
-          </div>
-        </div>
-
-        {/* Overview */}
         <TabsContent value="overview" className="mt-0">
-          <div className="g4">
-            {KPIS.map((k) => (
-              <Card key={k.label} className="p-5">
-                <div className="mb-2 text-[13.5px] text-dim">{k.label}</div>
-                <div className={`font-display text-[28px] font-bold tracking-tight ${k.valClass}`}>
-                  {k.value}
-                </div>
-                <div className="mt-1 text-[13px] text-faint">{k.sub}</div>
-              </Card>
-            ))}
-            <Card className="p-5">
-              <div className="mb-2 text-[13.5px] text-dim">Orders pending</div>
-              <div
-                className={`font-display text-[28px] font-bold tracking-tight ${pending ? 'text-terra' : 'text-foreground'}`}
-              >
-                {pending}
-              </div>
-              <div className="mt-1 text-[13px] text-faint">awaiting your accept</div>
-            </Card>
-            <Card className="p-5">
-              <div className="mb-2 text-[13.5px] text-dim">Settled this session</div>
-              <div
-                className={`font-display text-[28px] font-bold tracking-tight ${settled ? 'text-success' : 'text-foreground'}`}
-              >
-                {settled}
-              </div>
-              <div className="mt-1 text-[13px] text-faint">confirmed to clients</div>
-            </Card>
-          </div>
-
-          <div className="g-agent mt-[18px]">
-            <Card className="p-[22px]">
-              <div className="mb-1.5 flex items-center justify-between">
-                <b className="font-display text-lg">Incoming order flow</b>
-                {/* It reads as a link, so it is one: into the Order flow tab. */}
-                <button
-                  type="button"
-                  onClick={() => setTab('orders')}
-                  className="border-0 bg-transparent p-0 text-sm font-bold text-teal2 hover:underline"
-                >
-                  Open queue →
-                </button>
-              </div>
-              <p className="mb-4 text-sm leading-normal text-dim">
-                Orders arrive here when a CCN client approves a deal in your products. You execute,
-                custody and settle each one.
-              </p>
-              <div
-                className={`flex justify-between border-b border-solid border-x-0 border-t-0 border-border pb-2.5 ${uppr}`}
-              >
-                <span>Product · Client</span>
-                <span className="flex gap-10">
-                  <span>Amount</span>
-                  <span>Action</span>
-                </span>
-              </div>
-              {orders.slice(0, 3).map((o) => (
-                <div
-                  key={o.id}
-                  className="flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border py-3.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[14.5px] font-bold">{o.product}</div>
-                    <div className="text-[12.5px] text-faint">
-                      {o.client} · {o.when}
-                    </div>
-                  </div>
-                  <span className="min-w-[78px] text-right font-mono text-sm font-bold">
-                    {fmt(o.amount)}
-                  </span>
-                  <div className="flex min-w-[92px] justify-end">
-                    <OrderAction order={o} advance={advance} />
-                  </div>
-                </div>
-              ))}
-            </Card>
-
-            <div className="flex flex-col gap-[18px]">
-              <Card className="border-none bg-primary p-[22px] text-[#eafaf5]">
-                <div className={`mb-3.5 font-mono ${uppr} text-[#eafaf5]/70`}>
-                  Why this flow matters
-                </div>
-                {WHY.map((w) => (
-                  <div key={w} className="mb-3 flex gap-2.5 text-[14.5px] leading-normal">
-                    <span aria-hidden className="mt-2 h-2 w-2 flex-none rounded-full bg-peach" />
-                    <span className="text-white">{w}</span>
-                  </div>
-                ))}
-              </Card>
-              <Card className="p-[22px]">
-                <b className="font-display text-[17px]">The line CCN never crosses</b>
-                <p className="mt-2 text-sm leading-relaxed text-dim">
-                  CCN holds no client money, executes nothing and never becomes custodian. The
-                  regulated duties stay with you; CCN routes signed instructions and keeps the audit
-                  trail.
-                </p>
-              </Card>
-            </div>
-          </div>
+          <OverviewTab
+            partner={PARTNER}
+            kpis={KPIS}
+            kpisError={null}
+            equity={EQUITY}
+            equityError={null}
+            orders={orders}
+            ordersError={null}
+            loading={false}
+            orderBusyId={null}
+            orderActionError={null}
+            pendingReviews={pendingReviews}
+            pendingReconciliation={0}
+            pendingWithdrawals={0}
+            hasProducts={products.length > 0}
+            hasActiveClient
+            onGoTab={setTab}
+            onListProduct={() => openListing()}
+            onAccept={acceptOrder}
+            onSettle={settleOrder}
+            onReject={rejectOrder}
+          />
         </TabsContent>
 
-        {/* Order flow */}
         <TabsContent value="orders" className="mt-0">
-          <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2.5 px-6 pb-3.5 pt-5">
-              <div>
-                <b className="font-display text-lg">Order flow</b>
-                <div className="mt-0.5 text-[13px] text-faint">
-                  {orders.filter((o) => o.status === 'new').length} to accept ·{' '}
-                  {orders.filter((o) => o.status === 'accepted').length} to settle ·{' '}
-                  {orders.filter((o) => o.status === 'settled').length} settled
-                </div>
-              </div>
-              <div className="max-w-[360px] text-right text-[12.5px] leading-snug text-faint">
-                Accept moves an order to your desk for execution. Settle confirms it back to the
-                client's unified portfolio.
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[520px]">
-                <div
-                  className={`grid grid-cols-[2.2fr_1.1fr_1fr_1.1fr] border-b border-solid border-x-0 border-t-0 border-border px-6 pb-2 ${uppr}`}
-                >
-                  <span>Product</span>
-                  <span>Client</span>
-                  <span className="text-right">Amount</span>
-                  <span className="text-right">Status</span>
-                </div>
-                {orders.map((o) => (
-                  <div
-                    key={o.id}
-                    className="grid grid-cols-[2.2fr_1.1fr_1fr_1.1fr] items-center border-b border-solid border-x-0 border-t-0 border-border px-6 py-3.5"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-bold">{o.product}</div>
-                      <div className="text-xs text-faint">{o.when}</div>
-                    </div>
-                    <div className="text-[13.5px] text-[#45596d]">{o.client}</div>
-                    <div className="text-right font-mono text-sm font-bold">{fmt(o.amount)}</div>
-                    <div className="flex justify-end">
-                      <OrderAction order={o} advance={advance} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
+          <OrdersTab
+            orders={visibleOrders}
+            ordersError={null}
+            loading={false}
+            total={visibleOrders.length}
+            offset={0}
+            pageSize={20}
+            status={status}
+            query={query}
+            onStatus={setStatus}
+            onQuery={setQuery}
+            onPage={() => undefined}
+            orderBusyId={null}
+            orderActionError={null}
+            onAccept={acceptOrder}
+            onSettle={settleOrder}
+            onReject={rejectOrder}
+          />
         </TabsContent>
 
-        {/* Products */}
+        {listingOpen ? (
+          <ListProductDialog
+            product={editingProduct}
+            onSave={saveDemoProduct}
+            onClose={() => {
+              setListingOpen(false);
+              setEditingProduct(undefined);
+            }}
+            onSaved={(product) =>
+              setProducts((current) =>
+                current.some((item) => item.id === product.id)
+                  ? current.map((item) => (item.id === product.id ? product : item))
+                  : [product, ...current],
+              )
+            }
+          />
+        ) : null}
+
         <TabsContent value="products" className="mt-0">
-          <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-3.5 pt-5">
-              <div>
-                <b className="font-display text-lg">Your products on CCN</b>
-                <div className="mt-0.5 text-[13px] text-faint">
-                  Listed products the agent can match to suitable clients.
-                </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={listProduct}
-                disabled={products.length >= PRODUCTS.length + LISTABLE.length}
-              >
-                List a product
-              </Button>
-            </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[560px]">
-                <div
-                  className={`grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] border-b border-solid border-x-0 border-t-0 border-border px-6 pb-2 ${uppr}`}
-                >
-                  <span>Product</span>
-                  <span className="text-right">Clients</span>
-                  <span className="text-right">AUM via CCN</span>
-                  <span className="text-right">Inflow</span>
-                  <span className="text-right">Status</span>
-                </div>
-                {products.map((p) => (
-                  <div
-                    key={p.name}
-                    className="grid grid-cols-[2.2fr_1fr_1fr_0.9fr_1fr] items-center border-b border-solid border-x-0 border-t-0 border-border px-6 py-3.5"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-bold">{p.name}</div>
-                      <div className="text-xs text-faint">{p.type}</div>
-                    </div>
-                    <div className="text-right text-sm text-[#45596d]">{p.clients}</div>
-                    <div className="text-right font-mono text-[13.5px] font-bold">{p.aum}</div>
-                    <div className="text-right text-[13.5px] font-bold text-[#0a7a4c]">
-                      {p.trend}
-                    </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <span className="text-[13px] font-bold text-dim">
-                        {live[p.name] ? 'Live' : 'Paused'}
-                      </span>
-                      <Switch
-                        checked={live[p.name]}
-                        onCheckedChange={(v) => setLive((s) => ({ ...s, [p.name]: v }))}
-                        aria-label={`${p.name} listing ${live[p.name] ? 'live' : 'paused'}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
+          <ProductsTab
+            products={products}
+            productsError={null}
+            loading={false}
+            productBusyId={null}
+            productActionError={null}
+            onList={() => openListing()}
+            onEdit={openListing}
+            onToggleLive={(id) =>
+              setProducts((current) =>
+                current.map((product) =>
+                  product.id === id
+                    ? { ...product, status: product.status === 'live' ? 'paused' : 'live' }
+                    : product,
+                ),
+              )
+            }
+          />
         </TabsContent>
 
-        {/* Clients & KYC */}
         <TabsContent value="clients" className="mt-0">
           <div className="g-held">
-            <Card className="p-6">
-              <b className="font-display text-lg">Onboarding pipeline</b>
-              <div className="mb-[18px] mt-1 text-[13px] text-faint">
-                Agent-referred clients, last 90 days
+            <Card className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <b className="font-display text-lg">Client review queue</b>
+                  <p className="mb-0 mt-1 text-[13px] text-faint">
+                    Sample consented KYC and AML evidence awaiting a human decision.
+                  </p>
+                </div>
+                <Badge>{pendingReviews} pending</Badge>
               </div>
-              <div className="flex flex-col gap-[15px]">
-                {KYC_STAGES.map((k) => (
-                  <div key={k.label}>
-                    <div className="mb-1.5 flex justify-between">
-                      <span className="text-[14.5px] font-medium text-[#45596d]">{k.label}</span>
-                      <span className="font-mono text-[14.5px] font-bold">{k.count}</span>
+              <div className="mt-4 space-y-3">
+                {REVIEW_ITEMS.map((item) => {
+                  const done = reviewed.includes(item.ref);
+                  return (
+                    <div
+                      key={item.ref}
+                      className="rounded-2xl border border-solid border-border p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-mono text-xs font-bold text-faint">{item.ref}</div>
+                          <div className="mt-1 text-sm font-bold">{item.issue}</div>
+                          <div className="mt-1 text-[13px] leading-snug text-dim">
+                            {item.evidence}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={done ? 'outline' : 'default'}
+                          disabled={done}
+                          onClick={() => setReviewed((current) => [...current, item.ref])}
+                        >
+                          {done ? (
+                            <CheckCircle2 className="h-4 w-4" aria-hidden />
+                          ) : (
+                            <UserCheck className="h-4 w-4" aria-hidden />
+                          )}
+                          {done ? 'Reviewed' : 'Record review'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="h-[9px] overflow-hidden rounded-md bg-[#ece6da]">
-                      <div
-                        className="h-full rounded-md"
-                        style={{ width: `${k.pct}%`, background: k.color }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
-            <Card className="border-border bg-[#f4f0e7] p-6">
-              <b className="font-display text-[17px]">KYC stays yours</b>
-              <p className="mb-3.5 mt-2.5 text-sm leading-normal text-dim">
-                You already verified these clients. CCN links that status with their consent rather
-                than re-collecting it, so a referral becomes a funded account instead of an
-                abandoned form. You remain the regulated owner of KYC and AML.
+
+            <Card className="h-fit border-border bg-[#f4f0e7] p-5 sm:p-6">
+              <FileSearch className="h-5 w-5 text-teal2" aria-hidden />
+              <b className="mt-3 block font-display text-[17px]">Evidence before automation</b>
+              <p className="mb-0 mt-2 text-sm leading-relaxed text-dim">
+                The agent organises declarations, consent, identity status and source-of-funds
+                evidence. It can flag a policy condition; the licensed firm remains responsible for
+                screening, escalation and the final AML decision.
               </p>
-              {[
-                { l: 'Verification reused (with consent)', v: '2,760', c: 'text-foreground' },
-                { l: 'Re-verification required', v: '0', c: 'text-success' },
-                { l: 'Onboarding time saved', v: '~6 days / client', c: 'text-foreground' },
-              ].map((r) => (
-                <div key={r.l} className="flex justify-between py-[5px] text-[13.5px]">
-                  <span className="text-dim">{r.l}</span>
-                  <span className={`font-bold ${r.c}`}>{r.v}</span>
-                </div>
-              ))}
             </Card>
           </div>
         </TabsContent>
 
-        {/* Compliance */}
         <TabsContent value="compliance" className="mt-0">
           <div className="g-agent g-agent--flip">
-            <Card className="h-fit border-none bg-primary p-6 text-[#eafaf5]">
-              <div className="mb-4 flex items-center gap-2.5">
-                <ShieldCheck className="h-[18px] w-[18px] text-[#8fe3c0]" />
-                <b className="font-display text-base">Agreement &amp; residency</b>
+            <Card className="h-fit border-none bg-primary p-5 text-[#eafaf5] sm:p-6">
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className="h-5 w-5 text-[#8fe3c0]" aria-hidden />
+                <b className="font-display text-base">AML agent coverage</b>
               </div>
-              {[
-                { l: 'Regulator', v: 'FSC Jamaica', c: 'text-white' },
-                { l: 'Partner agreement', v: 'Active', c: 'text-[#8fe3c0]' },
-                { l: 'Data residency', v: 'In-region', c: 'text-white' },
-                { l: 'CCN role', v: 'Orchestration only', c: 'text-white' },
-                { l: 'Last audit', v: 'Jun 12, 2026', c: 'text-white' },
-              ].map((r) => (
-                <div key={r.l} className="flex justify-between py-1.5 text-sm">
-                  <span className="opacity-[0.78]">{r.l}</span>
-                  <span className={`font-bold ${r.c}`}>{r.v}</span>
-                </div>
-              ))}
+              <div className="mt-4 space-y-3 text-sm leading-relaxed">
+                <p className="m-0">
+                  Structures PEP declarations and source-of-funds evidence for review.
+                </p>
+                <p className="m-0">
+                  Flags missing, inconsistent or policy-sensitive information without inventing a
+                  screening result.
+                </p>
+                <p className="m-0">
+                  Keeps operator decisions attributable in the audit record and ready for export.
+                </p>
+              </div>
             </Card>
-            <Card className="p-6">
-              <b className="font-display text-[17px]">Live audit trail</b>
-              <div className="mt-3">
-                {AUDIT.map((a) => (
+            <Card className="p-5 sm:p-6">
+              <b className="font-display text-[17px]">Sample decision trail</b>
+              <div className="mt-3 space-y-1">
+                {[
+                  ['Client acceptance recorded', 'Demo Operator · client ••10482'],
+                  ['Source-of-funds review requested', 'AML agent · client ••10517'],
+                  ['Order settlement recorded', 'Demo Operator · DEMO-SETTLE-1042'],
+                ].map(([action, actor]) => (
                   <div
-                    key={a.action}
-                    className="flex gap-2.5 border-b border-solid border-x-0 border-t-0 border-border py-2.5"
+                    key={action}
+                    className="border-x-0 border-t-0 border-b border-solid border-border py-3"
                   >
-                    <span
-                      className="mt-[5px] h-[9px] w-[9px] flex-none rounded-full"
-                      style={{ background: a.dot }}
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm text-[#33475b]">{a.action}</div>
-                      <div className="mt-0.5 text-[12.5px] text-faint">{a.by}</div>
-                    </div>
+                    <div className="text-sm font-bold">{action}</div>
+                    <div className="mt-0.5 text-[12.5px] text-faint">{actor}</div>
                   </div>
                 ))}
               </div>
@@ -620,6 +555,8 @@ export default function InstitutionsPage() {
           </div>
         </TabsContent>
       </main>
+
+      <ConsoleMobileTabs badges={{ orders: pendingOrders, clients: pendingReviews }} />
     </Tabs>
   );
 }

@@ -2,7 +2,7 @@
 
 import { Button } from '@/app/_components/ui/button';
 import { useSheetDismiss } from '@/app/_lib/sheet';
-import { type ConsoleProduct, type ProductInput, saveProduct } from '@/lib/console-api';
+import type { ConsoleProduct, ProductInput } from '@/lib/console-api';
 import { ArrowLeft, ArrowRight, CircleAlert, X } from 'lucide-react';
 import * as React from 'react';
 
@@ -96,12 +96,15 @@ export function ListProductDialog({
   product,
   onClose,
   onSaved,
+  onSave,
 }: {
   /** The listing being amended, or undefined to create a new one. */
   product?: ConsoleProduct;
   onClose: () => void;
   /** Hands the saved listing back so the catalogue shows it without a refetch. */
   onSaved: (product: ConsoleProduct) => void;
+  /** Injected persistence keeps this form reusable without granting previews API access. */
+  onSave: (input: ProductInput) => Promise<{ product: ConsoleProduct }>;
 }) {
   const dialogRef = React.useRef<HTMLDialogElement>(null);
   const openerRef = React.useRef<HTMLElement | null>(null);
@@ -184,7 +187,7 @@ export function ListProductDialog({
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(region.trim() ? { region: region.trim() } : {}),
     };
-    saveProduct(input)
+    onSave(input)
       .then(({ product: saved }) => {
         onSaved(saved);
         dialogRef.current?.close();

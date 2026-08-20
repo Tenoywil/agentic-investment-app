@@ -1,6 +1,7 @@
 'use client';
 
 import { ThemeToggle } from '@/app/_components/ThemeToggle';
+import type { ReactNode } from 'react';
 import { TABS, type TabKey } from './lib';
 
 /**
@@ -19,5 +20,30 @@ export function ConsoleHeader({ tab }: { tab: TabKey }) {
       <h1 className="m-0 font-display text-3xl font-bold tracking-tight">{title}</h1>
       <ThemeToggle />
     </div>
+  );
+}
+
+/** Shared phone identity bar. Navigation lives at the bottom; the right slot is for exit. */
+export function ConsoleMobileHeader({
+  partnerName,
+  context,
+  action,
+}: {
+  partnerName: string;
+  context: string;
+  action: ReactNode;
+}) {
+  return (
+    <header className="console-topbar">
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-display text-[15px] font-bold leading-tight text-white">
+          {partnerName}
+        </div>
+        <div className="truncate font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
+          {context}
+        </div>
+      </div>
+      {action}
+    </header>
   );
 }
