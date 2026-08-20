@@ -3,14 +3,15 @@
 import { ClientDetailDialog } from '@/app/_components/console/client-detail';
 import { ClientsTab } from '@/app/_components/console/clients-tab';
 import { ComplianceTab } from '@/app/_components/console/compliance-tab';
-import { ConsoleHeader } from '@/app/_components/console/console-header';
-import { ConsoleSidebar } from '@/app/_components/console/console-sidebar';
-import { TABS, type TabKey, consoleTab, errorMessage } from '@/app/_components/console/lib';
+import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
+import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
+import { type TabKey, consoleTab, errorMessage } from '@/app/_components/console/lib';
 import { ListProductDialog } from '@/app/_components/console/list-product';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/_components/ui/tabs';
+import { Button } from '@/app/_components/ui/button';
+import { Tabs, TabsContent } from '@/app/_components/ui/tabs';
 import { useMe, useSession } from '@/app/_lib/session';
 import { useRealtime } from '@/app/_lib/use-realtime';
 import { authClient } from '@/lib/auth-client';
@@ -42,13 +43,14 @@ import {
   rejectReconciliation,
   requestClientKyc,
   reviewClient,
+  saveProduct,
   settleOrder,
   toggleProductLive,
   updatePartner,
 } from '@/lib/console-api';
-import { Menu } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * The partner console: a dark-navy shell (Warm-themed shadcn) with Radix Tabs
@@ -369,9 +371,6 @@ export default function InstitutionsPage() {
   const [openClientId, setOpenClientId] = useState<string | null>(null);
   const openClient = clients.find((c) => c.account_id === openClientId) ?? null;
 
-  /** The phone navigation sheet; on a desktop this element is the rail. */
-  const navRef = useRef<HTMLDialogElement>(null);
-
   async function handleToggleProductLive(id: string) {
     const previous = products.find((p) => p.id === id)?.status;
     if (!previous) return;
@@ -526,31 +525,24 @@ export default function InstitutionsPage() {
       orientation="vertical"
       className="app-shell bg-background font-sans text-foreground"
     >
-      {/* The phone bar. Same shape as the investor side: a compact header whose
-          only job is to open the navigation, so the console itself starts at
-          the top of the screen instead of 500px down it. */}
-      <header className="console-topbar">
-        <button
-          type="button"
-          onClick={() => navRef.current?.showModal()}
-          aria-haspopup="dialog"
-          aria-label="Open navigation"
-          className="grid h-11 w-11 flex-none place-items-center rounded-[12px] text-[#d3e0da] transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <Menu className="h-6 w-6" aria-hidden />
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-[15px] font-bold leading-tight text-white">
-            {partner?.name ?? 'Partner console'}
-          </div>
-          <div className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-[#d3e0da]/70">
-            {me?.user.name ? `Signed in · ${me.user.name}` : 'Partner console'}
-          </div>
-        </div>
-      </header>
+      <ConsoleMobileHeader
+        partnerName={partner?.name ?? 'Partner console'}
+        context={me?.user.name ? `Signed in · ${me.user.name}` : 'Partner console'}
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            className="min-h-12 flex-none gap-2 px-3 text-[#d3e0da] hover:bg-white/10 hover:text-white"
+            onClick={handleSignOut}
+            disabled={signingOut}
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </Button>
+        }
+      />
 
       <ConsoleSidebar
-        dialogRef={navRef}
         partner={partner}
         operator={me?.user ?? null}
         pendingOrders={ordersError ? 0 : orders.filter((o) => o.status === 'created').length}
@@ -635,6 +627,7 @@ export default function InstitutionsPage() {
         {listingOpen ? (
           <ListProductDialog
             product={editingProduct}
+            onSave={saveProduct}
             onClose={() => {
               setListingOpen(false);
               setEditingProduct(undefined);
@@ -718,35 +711,13 @@ export default function InstitutionsPage() {
         </TabsContent>
       </main>
 
-      <TabsList
-        aria-label="Partner console sections"
-        className="console-mobile-tabs"
-        data-tour="institution-mobile-sections"
-      >
-        {TABS.map(({ key, label, Icon }) => {
-          const badge =
-            key === 'orders'
-              ? orders.filter((order) => order.status === 'created').length
-              : key === 'clients'
-                ? clients.filter((client) => client.status === 'pending').length
-                : key === 'compliance'
-                  ? reconciliation.length
-                  : 0;
-          return (
-            <TabsTrigger key={key} value={key} className="console-mobile-tabs__item">
-              <span className="relative">
-                <Icon className="h-5 w-5" aria-hidden />
-                {badge > 0 ? (
-                  <span className="console-mobile-tabs__badge" aria-label={`${badge} pending`}>
-                    {badge > 9 ? '9+' : badge}
-                  </span>
-                ) : null}
-              </span>
-              <span className="max-w-full truncate">{label}</span>
-            </TabsTrigger>
-          );
-        })}
-      </TabsList>
+      <ConsoleMobileTabs
+        badges={{
+          orders: orders.filter((order) => order.status === 'created').length,
+          clients: clients.filter((client) => client.status === 'pending').length,
+          compliance: reconciliation.length,
+        }}
+      />
     </Tabs>
   );
 }

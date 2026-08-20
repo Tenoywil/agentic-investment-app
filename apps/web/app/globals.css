@@ -919,21 +919,16 @@ body:has(dialog.agent-panels[open]) {
 }
 
 /* ---------------------------------------------------------------------------
-   The partner console's navigation, as a phone sheet.
+   The partner console's desktop rail and phone bottom navigation.
 
    It used to reshape in place: identity, then five sections wrapped onto two
    rows, then the agreement panel — roughly 500px of an 844px screen before the
-   console's first word. Wrapping had been chosen over a sideways scroller
-   because Radix's roving-focus tablist scrolls its active tab into view and
-   fought the gesture. A drawer avoids that choice entirely by taking the
-   navigation off the screen until it is asked for, and it makes the partner
-   side behave like the investor side, which is the point.
+   console's first word. The five fixed bottom destinations replace that block
+   at phone widths and stay reachable without covering the work surface.
 
-   Authored as a <dialog>, with the desktop rail put back here — the same
-   one-element-two-presentations approach `.agent-panels` uses, so the rail and
-   the drawer cannot drift apart. `display` is restored only under a selector
-   that also matches the closed state on the desktop, because the user-agent
-   sheet hides a closed dialog and the rail is never `open`.
+   The desktop rail is an aside. Phones already have the five-section bottom
+   control, so showing the same navigation in a hamburger drawer would create
+   two competing ways to reach every destination.
    --------------------------------------------------------------------------- */
 .console-topbar {
   display: none;
@@ -941,24 +936,8 @@ body:has(dialog.agent-panels[open]) {
 .console-sidebar {
   display: flex;
   position: sticky;
-  /* top:0, the rest auto. It used to be a flat `inset: auto`, written to undo
-     the UA's `inset-inline: 0` on a <dialog> — but that also clobbered the
-     `top-0` this element carries, and a sticky box with `top: auto` never
-     sticks. The rail scrolled away with the page, leaving its own background
-     ending mid-screen and the sign-out button riding up out of view. */
-  inset: 0 auto auto auto;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  border: 0;
-  overflow: visible;
+  top: 0;
   color: #d3e0da;
-}
-.console-sidebar::backdrop {
-  background: transparent;
-}
-.console-sidebar__handle {
-  display: none;
 }
 .console-mobile-tabs {
   display: none;
@@ -980,37 +959,21 @@ body:has(dialog.agent-panels[open]) {
     background: hsl(var(--navy, 158 32% 12%));
     background: var(--navy-bg, #0f2a22);
   }
-  /* The rail becomes the sheet: hidden until opened, then rising from the
-     bottom exactly like the investor drawer. */
+  /* The demo disclosure owns the first 24px; keep the shared console bar
+     visible directly beneath it instead of letting two sticky headers overlap. */
+  .demo-status + .app-shell .console-topbar {
+    top: 24px;
+  }
+  /* Navigation is the bottom tab bar at this width. */
   .console-sidebar {
-    display: none;
-    position: fixed;
-    inset: auto 0 0 0;
-    width: 100%;
-    height: auto !important;
-    max-height: 88dvh;
-    padding: 0 16px max(20px, env(safe-area-inset-bottom)) !important;
-    border-radius: 20px 20px 0 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-  .console-sidebar[open] {
-    display: flex;
-    animation: sheet-rise 260ms cubic-bezier(0.32, 0.72, 0, 1);
-  }
-  .console-sidebar::backdrop {
-    background: rgba(0, 0, 0, 0.55);
-    animation: sheet-fade 260ms ease;
-  }
-  .console-sidebar__handle {
-    display: grid;
+    display: none !important;
   }
   .console-mobile-tabs {
     position: fixed;
     z-index: 29;
     inset: auto 0 0;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(5, 1fr);
     width: 100%;
     height: auto;
     padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
@@ -1057,25 +1020,8 @@ body:has(dialog.agent-panels[open]) {
     line-height: 14px;
     text-align: center;
   }
-  body:has(dialog.app-modal[open]) .console-mobile-tabs,
-  body:has(dialog.console-sidebar[open]) .console-mobile-tabs {
+  body:has(dialog.app-modal[open]) .console-mobile-tabs {
     display: none;
-  }
-  /* Inside the sheet the sections are a plain vertical list again — the two-row
-     wrap only existed because the rail had to fit across the top. */
-  .console-sidebar .console-sidebar__tabs {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 3px !important;
-  }
-  .console-sidebar .console-sidebar__grow {
-    display: none !important;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .console-sidebar[open],
-  .console-sidebar::backdrop {
-    animation: none;
   }
 }
 
