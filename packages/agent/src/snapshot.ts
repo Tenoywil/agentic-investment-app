@@ -110,6 +110,8 @@ export interface AgentComplianceSnapshot {
   complianceConfirmed: boolean;
   riskCompleted: boolean;
   fundsConfirmed: boolean;
+  /** Self-disclosed PEP status. External screening is not represented here. */
+  isPep: boolean;
 }
 
 export interface AgentSnapshot {

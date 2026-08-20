@@ -3,7 +3,7 @@
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
-import type { ConsoleOrder } from '@/lib/console-api';
+import type { ConsoleOrder, SettlementInput } from '@/lib/console-api';
 import { ArrowRightLeft } from 'lucide-react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import { ORDER_AGING_DAYS, ROW_DIVIDER, daysSince, fmtMinor, timeAgo, uppr } from './lib';
@@ -54,9 +54,9 @@ export function OrdersTab({
   onPage: (offset: number) => void;
   orderBusyId: string | null;
   orderActionError: string | null;
-  onAccept: (id: string) => void;
-  onSettle: (id: string) => void;
-  onReject: (id: string, reason?: string) => void;
+  onAccept: (id: string, settlementEta?: string) => Promise<boolean>;
+  onSettle: (id: string, detail?: SettlementInput) => Promise<boolean>;
+  onReject: (id: string, reason?: string) => Promise<boolean>;
 }) {
   /**
    * Counted over this page only, and labelled as such below. They used to be
@@ -99,7 +99,7 @@ export function OrdersTab({
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2.5 px-6 pb-3.5 pt-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-4 pt-5 sm:px-6">
         <div>
           <b className="font-display text-lg">Order flow</b>
           {ordersError || loading ? null : (
@@ -109,7 +109,7 @@ export function OrdersTab({
             </div>
           )}
         </div>
-        <div className="max-w-[360px] text-right text-[12.5px] leading-snug text-faint">
+        <div className="max-w-[360px] text-left text-[13px] leading-snug text-faint sm:text-right">
           Accept moves an order to your desk for execution. Settle confirms it back to the client's
           unified portfolio.
         </div>
@@ -117,22 +117,22 @@ export function OrdersTab({
 
       {/* The controls sit above the errors so a failed page can still be
           re-filtered rather than leaving the operator stuck on it. */}
-      <div className="flex flex-wrap items-center gap-2 px-6 pb-3.5">
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
         <label className="min-w-[180px] flex-1 text-[13px]">
           <span className="sr-only">Search orders by product or client reference</span>
           <input
             value={query}
             onChange={(e) => onQuery(e.target.value)}
             placeholder="Search product or client"
-            className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+            className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
           />
         </label>
-        <label className="text-[13px]">
+        <label className="min-w-[150px] flex-1 text-[13px] sm:min-w-0 sm:flex-none">
           <span className="sr-only">Filter by status</span>
           <select
             value={status}
             onChange={(e) => onStatus(e.target.value)}
-            className="rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+            className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
           >
             <option value="">All statuses</option>
             {STATUSES.map((sName) => (
@@ -146,6 +146,7 @@ export function OrdersTab({
           type="button"
           size="sm"
           variant="outline"
+          className="h-11 sm:h-9"
           onClick={exportCsv}
           disabled={orders.length === 0}
         >
@@ -169,15 +170,10 @@ export function OrdersTab({
       ) : null}
 
       {!loading && !ordersError && orders.length > 0 ? (
-        <div className="relative overflow-x-auto">
-          {/* `relative`, so this scroller is the containing block for the
-              absolutely positioned `sr-only` labels inside the row buttons.
-              Without it those spans resolve against the page, escape this
-              element's clipping, and stretch the document's scroll area past
-              the viewport — a phone scrolled 140px sideways onto nothing. */}
-          <div className="min-w-[560px]">
+        <div className="relative overflow-x-hidden">
+          <div>
             <div
-              className={`grid grid-cols-[1.6fr_.8fr_.7fr_2.2fr] px-6 pb-2 ${ROW_DIVIDER} ${uppr}`}
+              className={`hidden grid-cols-[1.6fr_.8fr_.7fr_2.2fr] px-6 pb-2 md:grid ${ROW_DIVIDER} ${uppr}`}
             >
               <span>Order</span>
               <span>Client</span>
@@ -187,13 +183,18 @@ export function OrdersTab({
             {orders.map((o) => (
               <div
                 key={o.id}
-                className={`grid grid-cols-[1.6fr_.8fr_.7fr_2.2fr] items-center gap-4 px-6 py-3.5 ${ROW_DIVIDER}`}
+                className={`grid grid-cols-1 items-center gap-3 px-4 py-4 md:grid-cols-[1.6fr_.8fr_.7fr_2.2fr] md:gap-4 md:px-6 md:py-3.5 ${ROW_DIVIDER}`}
               >
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-bold">{o.instrumentName ?? 'Order'}</div>
-                  <div className="text-xs text-faint">
+                  <div className="text-[15px] font-bold md:truncate md:text-sm">
+                    {o.instrumentName ?? 'Order'}
+                  </div>
+                  <div className="mt-0.5 text-[13px] text-faint md:text-xs">
                     {o.instrumentAbbr ? `${o.instrumentAbbr} · ` : ''}
                     {timeAgo(o.createdAt)}
+                  </div>
+                  <div className="mt-1 text-[13px] text-dim md:hidden">
+                    Client reference · <span className="font-mono">{o.clientRef}</span>
                   </div>
                   {/* Aging: a client authorised this and has been told the firm
                       is reviewing it. Past two days that sentence is wearing
@@ -225,11 +226,14 @@ export function OrdersTab({
                     </div>
                   ) : null}
                 </div>
-                <div className="truncate text-[13.5px] text-dim">{o.clientRef}</div>
-                <div className="text-right font-mono text-sm font-bold">
-                  {fmtMinor(o.amountMinor, o.currency)}
+                <div className="hidden truncate text-[13.5px] text-dim md:block">{o.clientRef}</div>
+                <div className="flex items-center justify-between gap-3 md:block md:text-right">
+                  <span className={`${uppr} md:hidden`}>Order amount</span>
+                  <span className="font-mono text-[15px] font-bold md:text-sm">
+                    {fmtMinor(o.amountMinor, o.currency)}
+                  </span>
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-end border-0 border-t border-solid border-border pt-3 md:border-t-0 md:pt-0">
                   <OrderAction
                     order={o}
                     busyId={orderBusyId}

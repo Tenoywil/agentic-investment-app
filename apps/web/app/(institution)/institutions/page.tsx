@@ -5,12 +5,12 @@ import { ClientsTab } from '@/app/_components/console/clients-tab';
 import { ComplianceTab } from '@/app/_components/console/compliance-tab';
 import { ConsoleHeader } from '@/app/_components/console/console-header';
 import { ConsoleSidebar } from '@/app/_components/console/console-sidebar';
-import { type TabKey, consoleTab, errorMessage } from '@/app/_components/console/lib';
+import { TABS, type TabKey, consoleTab, errorMessage } from '@/app/_components/console/lib';
 import { ListProductDialog } from '@/app/_components/console/list-product';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
-import { Tabs, TabsContent } from '@/app/_components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/_components/ui/tabs';
 import { useMe, useSession } from '@/app/_lib/session';
 import { useRealtime } from '@/app/_lib/use-realtime';
 import { authClient } from '@/lib/auth-client';
@@ -292,7 +292,7 @@ export default function InstitutionsPage() {
     fn: (id: string, arg?: A) => Promise<{ order: ConsoleOrder }>,
     fallback: string,
   ) {
-    return async (id: string, arg?: A) => {
+    return async (id: string, arg?: A): Promise<boolean> => {
       setOrderBusyId(id);
       setOrderActionError(null);
       try {
@@ -303,8 +303,10 @@ export default function InstitutionsPage() {
         void getAudit(50)
           .then((r) => setAudit(r.entries))
           .catch(() => {});
+        return true;
       } catch (err) {
         setOrderActionError(errorMessage(err, fallback));
+        return false;
       } finally {
         setOrderBusyId(null);
       }
@@ -557,7 +559,7 @@ export default function InstitutionsPage() {
         onSignOut={handleSignOut}
       />
 
-      <main className="min-w-0 flex-1 px-8 pb-[60px] pt-[26px]">
+      <main className="min-w-0 flex-1 px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-8 lg:pb-[60px] lg:pt-[26px]">
         <ConsoleHeader tab={tab} />
 
         <TabsContent value="overview" className="mt-0">
@@ -580,6 +582,10 @@ export default function InstitutionsPage() {
             hasProducts={products.length > 0}
             hasActiveClient={clients.some((c) => c.status === 'active')}
             onGoTab={navigateToTab}
+            onListProduct={() => {
+              setEditingProduct(undefined);
+              setListingOpen(true);
+            }}
             onAccept={handleAccept}
             onSettle={handleSettle}
             onReject={handleReject}
@@ -711,6 +717,36 @@ export default function InstitutionsPage() {
           />
         </TabsContent>
       </main>
+
+      <TabsList
+        aria-label="Partner console sections"
+        className="console-mobile-tabs"
+        data-tour="institution-mobile-sections"
+      >
+        {TABS.map(({ key, label, Icon }) => {
+          const badge =
+            key === 'orders'
+              ? orders.filter((order) => order.status === 'created').length
+              : key === 'clients'
+                ? clients.filter((client) => client.status === 'pending').length
+                : key === 'compliance'
+                  ? reconciliation.length
+                  : 0;
+          return (
+            <TabsTrigger key={key} value={key} className="console-mobile-tabs__item">
+              <span className="relative">
+                <Icon className="h-5 w-5" aria-hidden />
+                {badge > 0 ? (
+                  <span className="console-mobile-tabs__badge" aria-label={`${badge} pending`}>
+                    {badge > 9 ? '9+' : badge}
+                  </span>
+                ) : null}
+              </span>
+              <span className="max-w-full truncate">{label}</span>
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
     </Tabs>
   );
 }

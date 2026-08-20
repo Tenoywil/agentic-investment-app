@@ -15,10 +15,13 @@ export const currencySchema = z.enum(['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 
  */
 export const amountMinorSchema = z
   .union([
-    z.number().int().nonnegative(),
+    z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     z.string().regex(/^\d+$/, 'must be a non-negative integer'),
   ])
-  .transform((v) => BigInt(v));
+  .transform((v) => BigInt(v))
+  .refine((value) => value <= 9_223_372_036_854_775_807n, {
+    message: 'amount exceeds the supported signed 64-bit range',
+  });
 
 export const positiveAmountMinorSchema = amountMinorSchema.refine((v) => v > 0n, {
   message: 'amount must be greater than zero',
@@ -118,8 +121,8 @@ export const settleOrderSchema = z.object({
   /** Decimal units, as a string — fractional and not a money amount. */
   units: z
     .string()
-    .regex(/^\d+(\.\d{1,6})?$/, 'units must be a positive decimal')
-    .refine((v) => Number(v) > 0, 'units must be greater than zero')
+    .regex(/^\d{1,14}(\.\d{1,6})?$/, 'units must fit the supported 20,6 decimal precision')
+    .refine((value) => /[1-9]/.test(value), 'units must be greater than zero')
     .optional(),
   feeMinor: amountMinorSchema.optional(),
   /** The firm's own reference, for reconciling against their books. */
@@ -271,25 +274,30 @@ export type FundingNoticeInput = z.infer<typeof fundingNoticeSchema>;
  * re-typed; the regulator is a compliance claim about the executing firm, and a
  * console that could set it freely could claim any regulator it liked.
  */
-export const listInstrumentSchema = z.object({
-  /** Present to amend a listing, absent to create one. */
-  id: uuidSchema.optional(),
-  name: z.string().min(2).max(140),
-  type: z.enum(['bond', 'fund', 'equity', 'real_estate', 'private']),
-  /** The short badge on the card. Derived from the name when not given. */
-  abbr: z.string().min(1).max(12).optional(),
-  currency: currencySchema.default('USD'),
-  /** Zero is allowed and means "no minimum", so this is not the positive variant. */
-  minInvestmentMinor: amountMinorSchema.default(0),
-  term: z.string().max(60).optional(),
-  /** The headline number, e.g. "8.25%" — free text because a fund's is not a bond's. */
-  metric: z.string().max(60).optional(),
-  /** What that number is, e.g. "Coupon", "Target return". */
-  metricLabel: z.string().max(60).optional(),
-  risk: z.enum(['low', 'medium', 'high']).optional(),
-  description: z.string().max(2000).optional(),
-  region: z.string().max(100).optional(),
-});
+export const listInstrumentSchema = z
+  .object({
+    /** Present to amend a listing, absent to create one. */
+    id: uuidSchema.optional(),
+    name: z.string().trim().min(2).max(140),
+    type: z.enum(['bond', 'fund', 'equity', 'real_estate', 'private']),
+    /** The short badge on the card. Derived from the name when not given. */
+    abbr: z.string().trim().min(1).max(12).optional(),
+    currency: currencySchema.default('USD'),
+    /** Zero is allowed and means "no minimum", so this is not the positive variant. */
+    minInvestmentMinor: amountMinorSchema.default(0),
+    term: z.string().trim().max(60).optional(),
+    /** The headline number, e.g. "8.25%" — free text because a fund's is not a bond's. */
+    metric: z.string().trim().max(60).optional(),
+    /** What that number is, e.g. "Coupon", "Target return". */
+    metricLabel: z.string().trim().max(60).optional(),
+    risk: z.enum(['low', 'medium', 'high']),
+    description: z.string().trim().max(2000).optional(),
+    region: z.string().trim().max(100).optional(),
+  })
+  .refine((input) => Boolean(input.metric) === Boolean(input.metricLabel), {
+    message: 'headline figure and label must be supplied together',
+    path: ['metricLabel'],
+  });
 export type ListInstrumentInput = z.infer<typeof listInstrumentSchema>;
 
 /**

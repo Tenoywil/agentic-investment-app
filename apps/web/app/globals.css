@@ -364,6 +364,12 @@ input:-webkit-autofill:active {
   background: rgba(0, 0, 0, 0.5);
   animation: sheet-fade 200ms ease;
 }
+.order-action-modal {
+  width: min(680px, calc(100vw - 48px));
+}
+.product-listing-modal {
+  width: min(760px, calc(100vw - 48px));
+}
 @keyframes modal-in {
   from {
     opacity: 0;
@@ -384,6 +390,24 @@ input:-webkit-autofill:active {
     border: 0;
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -12px 40px rgba(20, 14, 8, 0.28);
+  }
+  .order-action-modal {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-left: env(safe-area-inset-left);
+  }
+  .product-listing-modal {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-left: env(safe-area-inset-left);
   }
   .app-modal[open] {
     animation: sheet-rise 260ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -936,6 +960,9 @@ body:has(dialog.agent-panels[open]) {
 .console-sidebar__handle {
   display: none;
 }
+.console-mobile-tabs {
+  display: none;
+}
 
 @media (max-width: 900px) {
   .console-topbar {
@@ -977,6 +1004,62 @@ body:has(dialog.agent-panels[open]) {
   }
   .console-sidebar__handle {
     display: grid;
+  }
+  .console-mobile-tabs {
+    position: fixed;
+    z-index: 29;
+    inset: auto 0 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+    height: auto;
+    padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+    border: 0;
+    border-top: 1px solid hsl(var(--border));
+    border-radius: 0;
+    background: hsl(var(--card) / 0.96);
+    box-shadow: 0 -8px 24px rgba(20, 14, 8, 0.1);
+    backdrop-filter: blur(14px);
+  }
+  .console-mobile-tabs__item {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 52px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 12px;
+    padding: 4px 2px;
+    color: hsl(var(--faint));
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .console-mobile-tabs__item[data-state="active"] {
+    background: hsl(var(--mint));
+    color: hsl(var(--teal2));
+  }
+  .console-mobile-tabs__badge {
+    position: absolute;
+    top: -7px;
+    right: -12px;
+    min-width: 18px;
+    height: 18px;
+    border: 2px solid hsl(var(--card));
+    border-radius: 999px;
+    background: hsl(var(--terra));
+    color: white;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9px;
+    line-height: 14px;
+    text-align: center;
+  }
+  body:has(dialog.app-modal[open]) .console-mobile-tabs,
+  body:has(dialog.console-sidebar[open]) .console-mobile-tabs {
+    display: none;
   }
   /* Inside the sheet the sections are a plain vertical list again — the two-row
      wrap only existed because the rail had to fit across the top. */

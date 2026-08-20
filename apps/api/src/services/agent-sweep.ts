@@ -423,6 +423,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
           complianceConfirmed: kyc?.complianceConfirmed ?? false,
           riskCompleted: kyc?.riskCompleted ?? false,
           fundsConfirmed: kyc?.fundsConfirmed ?? false,
+          isPep: kyc?.isPep ?? false,
           activeExecutingFirm: Boolean(row?.partnerId && activePartnerIds.has(row.partnerId)),
           executingFirmName: row?.partnerName ?? null,
         });
