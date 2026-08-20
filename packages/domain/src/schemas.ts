@@ -16,7 +16,10 @@ export const currencySchema = z.enum(['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 
 export const amountMinorSchema = z
   .union([
     z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-    z.string().regex(/^\d+$/, 'must be a non-negative integer'),
+    z
+      .string()
+      .regex(/^\d+$/, 'must be a non-negative integer')
+      .max(19, 'amount exceeds the supported signed 64-bit range'),
   ])
   .transform((v) => BigInt(v))
   .refine((value) => value <= 9_223_372_036_854_775_807n, {

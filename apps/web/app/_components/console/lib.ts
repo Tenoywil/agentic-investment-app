@@ -206,7 +206,11 @@ export function majorAmountToMinor(major: string): { value?: string; error?: str
     return { error: 'must be a non-negative amount with up to 2 decimal places' };
   }
   const [whole = '0', fraction = ''] = cleaned.split('.');
-  const value = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+  const normalizedWhole = whole.replace(/^0+/, '') || '0';
+  if (normalizedWhole.length > 19) {
+    return { error: 'exceeds the supported amount range' };
+  }
+  const value = BigInt(normalizedWhole) * 100n + BigInt(fraction.padEnd(2, '0'));
   if (value > 9_223_372_036_854_775_807n) {
     return { error: 'exceeds the supported amount range' };
   }

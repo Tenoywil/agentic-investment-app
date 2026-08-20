@@ -183,6 +183,9 @@ describe('product spreadsheet import', () => {
     );
     const rows = Array.from({ length: 101 }, (_, index) => `Fund ${index},fund,low`).join('\n');
     expect(parseProductImport(`name,type,risk\n${rows}`).errors[0]).toContain('at most 100');
+    expect(
+      parseProductImport(`name,type,risk,minimum\nFund,fund,low,${'9'.repeat(100_000)}`).errors[0],
+    ).toContain('exceeds the supported amount range');
   });
 });
 

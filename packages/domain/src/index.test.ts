@@ -169,6 +169,7 @@ group('request schemas', () => {
     expect(amountMinorSchema.safeParse(Number.MAX_SAFE_INTEGER + 1).success).toBe(false);
     expect(amountMinorSchema.safeParse('9223372036854775807').success).toBe(true);
     expect(amountMinorSchema.safeParse('9223372036854775808').success).toBe(false);
+    expect(amountMinorSchema.safeParse('9'.repeat(100_000)).success).toBe(false);
   });
 
   test('rejectSchema allows an optional reason', () => {
