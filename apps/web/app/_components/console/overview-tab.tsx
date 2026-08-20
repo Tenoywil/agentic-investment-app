@@ -1,11 +1,26 @@
 'use client';
 
 import { EquityChart } from '@/app/_components/EquityChart';
+import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
-import type { ConsoleKpi, ConsoleOrder, PartnerEquityPoint } from '@/lib/console-api';
+import type {
+  ConsoleKpi,
+  ConsoleOrder,
+  PartnerEquityPoint,
+  SettlementInput,
+} from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
-import { ArrowRight, ArrowRightLeft, Check, CheckCheck, LayoutGrid } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowRightLeft,
+  Boxes,
+  Check,
+  CheckCheck,
+  LayoutGrid,
+  ShieldCheck,
+  UsersRound,
+} from 'lucide-react';
 import {
   ORDER_AGING_DAYS,
   ROW_DIVIDER,
@@ -38,6 +53,7 @@ export function OverviewTab({
   hasProducts,
   hasActiveClient,
   onGoTab,
+  onListProduct,
   onAccept,
   onSettle,
   onReject,
@@ -65,11 +81,14 @@ export function OverviewTab({
   hasActiveClient: boolean;
   /** Jump to another tab — the overview points at work, the tabs hold it. */
   onGoTab: (tab: 'orders' | 'clients' | 'compliance' | 'products') => void;
-  onAccept: (id: string) => void;
-  onSettle: (id: string) => void;
-  onReject: (id: string, reason?: string) => void;
+  /** Open the listing flow directly from the overview's primary action. */
+  onListProduct: () => void;
+  onAccept: (id: string, settlementEta?: string) => Promise<boolean>;
+  onSettle: (id: string, detail?: SettlementInput) => Promise<boolean>;
+  onReject: (id: string, reason?: string) => Promise<boolean>;
 }) {
   const pending = orders.filter((o) => o.status === 'created').length;
+  const readyToSettle = orders.filter((o) => o.status === 'accepted').length;
   const hasOrders = !ordersError && orders.length > 0;
   const hasMetrics = kpis.length > 0 || hasOrders;
 
@@ -117,6 +136,93 @@ export function OverviewTab({
     <>
       {kpisError ? <ErrorNote message={kpisError} className="mb-3" /> : null}
       {ordersError ? <ErrorNote message={ordersError} className="mb-3" /> : null}
+
+      {/* A partner should understand the operating value before reading a KPI.
+          These are routes into live capabilities, not marketing-only tiles. */}
+      <Card
+        className="mb-4 overflow-hidden border-teal2/25 bg-[linear-gradient(135deg,hsl(var(--mint))_0%,hsl(var(--card))_62%)]"
+        data-tour="institution-value"
+      >
+        <div className="px-5 pb-5 pt-6 sm:px-7 sm:pb-6">
+          <div className={`${uppr} text-teal2`}>Partner operating desk</div>
+          <h2 className="mb-0 mt-2 max-w-[720px] font-display text-[clamp(24px,4vw,36px)] font-bold leading-[1.12] tracking-tight">
+            One controlled path from product distribution to settlement.
+          </h2>
+          <p className="mb-0 mt-3 max-w-[690px] text-[15px] leading-relaxed text-dim">
+            List products once, reach suitability-screened demand, review consented client KYC, and
+            return a complete execution record without stitching together inboxes and spreadsheets.
+          </p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Button type="button" className="min-h-12 w-full sm:w-auto" onClick={onListProduct}>
+              <Boxes className="h-4 w-4" aria-hidden />
+              List or enrich a product
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-12 w-full sm:w-auto"
+              onClick={() => onGoTab('orders')}
+            >
+              <ArrowRightLeft className="h-4 w-4" aria-hidden />
+              {pending + readyToSettle > 0
+                ? `Work ${pending + readyToSettle} open ${pending + readyToSettle === 1 ? 'order' : 'orders'}`
+                : 'Open order flow'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid border-0 border-t border-solid border-border sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => onGoTab('products')}
+            className="group flex min-h-[132px] items-start gap-3 border-0 border-b border-solid border-border bg-transparent px-5 py-5 text-left text-foreground transition-colors hover:bg-card/70 sm:border-b-0 sm:border-r sm:px-6"
+          >
+            <Boxes className="mt-0.5 h-5 w-5 flex-none text-teal2" aria-hidden />
+            <span>
+              <b className="block text-[15px]">Qualified distribution</b>
+              <span className="mt-1 block text-[13.5px] leading-normal text-dim">
+                Live listings enter matching only after client suitability and limits checks.
+              </span>
+              <span className="mt-2 inline-flex items-center gap-1 text-[13px] font-bold text-teal2">
+                Manage listings <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onGoTab('clients')}
+            className="group flex min-h-[132px] items-start gap-3 border-0 border-b border-solid border-border bg-transparent px-5 py-5 text-left text-foreground transition-colors hover:bg-card/70 sm:border-b-0 sm:border-r sm:px-6"
+          >
+            <UsersRound className="mt-0.5 h-5 w-5 flex-none text-teal2" aria-hidden />
+            <span>
+              <b className="block text-[15px]">Consent-led onboarding</b>
+              <span className="mt-1 block text-[13.5px] leading-normal text-dim">
+                Review the KYC package a client chose to share without collecting another copy.
+              </span>
+              <span className="mt-2 inline-flex items-center gap-1 text-[13px] font-bold text-teal2">
+                Review clients <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onGoTab('compliance')}
+            className="group flex min-h-[132px] items-start gap-3 border-0 bg-transparent px-5 py-5 text-left text-foreground transition-colors hover:bg-card/70 sm:px-6"
+          >
+            <ShieldCheck className="mt-0.5 h-5 w-5 flex-none text-teal2" aria-hidden />
+            <span>
+              <b className="block text-[15px]">KYC &amp; AML evidence</b>
+              <span className="mt-1 block text-[13.5px] leading-normal text-dim">
+                PEP and source-of-funds declarations, decisions and settlement records stay
+                attributable and exportable.
+              </span>
+              <span className="mt-2 inline-flex items-center gap-1 text-[13px] font-bold text-teal2">
+                Open compliance <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </span>
+            </span>
+          </button>
+        </div>
+      </Card>
 
       {/* Shown while setting up, gone once live: the path from "signed in" to
           "orders flowing", with each step's payoff stated — the console should

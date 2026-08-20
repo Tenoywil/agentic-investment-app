@@ -257,6 +257,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
       complianceConfirmed: kyc?.complianceConfirmed ?? false,
       riskCompleted: kyc?.riskCompleted ?? false,
       fundsConfirmed: kyc?.fundsConfirmed ?? false,
+      isPep: kyc?.isPep ?? false,
     },
     portfolio: {
       currency: 'USD',

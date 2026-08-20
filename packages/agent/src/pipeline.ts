@@ -108,6 +108,8 @@ export interface TransactionComplianceFacts {
   complianceConfirmed: boolean;
   riskCompleted: boolean;
   fundsConfirmed: boolean;
+  /** The person's disclosure, not the result of an external sanctions screen. */
+  isPep: boolean;
   activeExecutingFirm: boolean;
   executingFirmName: string | null;
 }
@@ -128,6 +130,15 @@ export function assessTransactionCompliance(facts: TransactionComplianceFacts): 
     checks.push(`Active account with ${facts.executingFirmName ?? 'executing firm'}`);
   } else {
     reasons.push('There is no active account with the executing firm.');
+  }
+  if (facts.isPep) {
+    if (facts.activeExecutingFirm) {
+      checks.push('PEP disclosed; the active executing firm owns enhanced due diligence');
+    } else {
+      reasons.push('The PEP disclosure requires executing-firm review before activation.');
+    }
+  } else if (facts.complianceConfirmed) {
+    checks.push('PEP declaration recorded; no PEP disclosed');
   }
   return {
     decision: reasons.length === 0 ? 'clear' : 'blocked',
@@ -372,12 +383,12 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
 
   trace.push({
     stage: 'compliance',
-    agent: 'Compliance agent',
+    agent: 'KYC & AML agent',
     summary: chosen
-      ? `Verified investor readiness and the executing-firm relationship. ${chosen.candidate.name} cleared.`
+      ? `Verified recorded KYC and AML readiness plus the executing-firm relationship. ${chosen.candidate.name} cleared.`
       : complianceVerdicts.length === 0
-        ? 'Nothing reached compliance review.'
-        : 'No candidate cleared the compliance checks required before coordination.',
+        ? 'Nothing reached KYC and AML review.'
+        : 'No candidate cleared the KYC and AML checks required before coordination.',
     detail: complianceVerdicts,
   });
 

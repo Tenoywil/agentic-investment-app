@@ -9,6 +9,7 @@ import {
   type OrderEvent,
   type OrderStatus,
   type RiskBand,
+  amountMinorSchema,
   canApply,
   canApplyGatewayEvent,
   canApplyIntroductionEvent,
@@ -21,6 +22,7 @@ import {
   isTerminalStatus,
   legalEvents,
   legalGatewayEvents,
+  listInstrumentSchema,
   nextGatewayStatus,
   nextIntroductionStatus,
   nextStatus,
@@ -28,6 +30,7 @@ import {
   proposeOrderSchema,
   rejectSchema,
   scoreToBand,
+  settleOrderSchema,
 } from './index';
 
 group('partner webhook boundary', () => {
@@ -160,6 +163,13 @@ group('request schemas', () => {
     ).toThrow();
   });
 
+  test('minor-unit amounts cannot overflow database bigint columns', () => {
+    expect(amountMinorSchema.safeParse(Number.MAX_SAFE_INTEGER).success).toBe(true);
+    expect(amountMinorSchema.safeParse(Number.MAX_SAFE_INTEGER + 1).success).toBe(false);
+    expect(amountMinorSchema.safeParse('9223372036854775807').success).toBe(true);
+    expect(amountMinorSchema.safeParse('9223372036854775808').success).toBe(false);
+  });
+
   test('rejectSchema allows an optional reason', () => {
     expect(rejectSchema.parse({}).reason).toBeUndefined();
     expect(rejectSchema.parse({ reason: 'FX spread too wide' }).reason).toBe('FX spread too wide');
@@ -191,6 +201,32 @@ group('request schemas', () => {
         receipt: { name: 'receipt.pdf', mime: 'application/pdf', data: 'a'.repeat(2_800_001) },
       }),
     ).toThrow();
+  });
+
+  test('a marketplace listing requires suitability risk and paired headline data', () => {
+    const valid = {
+      name: 'Caribbean Income Fund',
+      type: 'fund' as const,
+      risk: 'medium' as const,
+      metric: '7.5%',
+      metricLabel: 'Target return',
+    };
+    expect(listInstrumentSchema.safeParse(valid).success).toBe(true);
+    expect(listInstrumentSchema.safeParse({ ...valid, risk: undefined }).success).toBe(false);
+    expect(listInstrumentSchema.safeParse({ ...valid, metricLabel: undefined }).success).toBe(
+      false,
+    );
+    expect(
+      listInstrumentSchema.safeParse({ ...valid, metric: undefined, metricLabel: undefined })
+        .success,
+    ).toBe(true);
+  });
+
+  test('settlement units stay within database precision without floating-point checks', () => {
+    expect(settleOrderSchema.safeParse({ units: '99999999999999.123456' }).success).toBe(true);
+    expect(settleOrderSchema.safeParse({ units: '0.000001' }).success).toBe(true);
+    expect(settleOrderSchema.safeParse({ units: '0.000000' }).success).toBe(false);
+    expect(settleOrderSchema.safeParse({ units: '100000000000000' }).success).toBe(false);
   });
 });
 

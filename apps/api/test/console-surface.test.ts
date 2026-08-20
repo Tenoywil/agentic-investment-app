@@ -663,6 +663,7 @@ suite('partner console data surface', () => {
     const forgedRes = await list({
       name: `${tag} Forged`,
       type: 'bond',
+      risk: 'medium',
       partnerId: '00000000-0000-0000-0000-000000000000',
     });
     expect(forgedRes.status).toBe(201);
@@ -677,7 +678,12 @@ suite('partner console data surface', () => {
 
   /** Amending is the same function, and must not touch anyone else's row. */
   test('an operator amends their own listing and nobody else’s', async () => {
-    const res = await list({ name: `${tag} Amendable`, type: 'bond', minInvestmentMinor: '100' });
+    const res = await list({
+      name: `${tag} Amendable`,
+      type: 'bond',
+      minInvestmentMinor: '100',
+      risk: 'medium',
+    });
     const { product } = (await res.json()) as { product: { id: string } };
     createdInstrumentIds.push(product.id);
 
@@ -687,6 +693,8 @@ suite('partner console data surface', () => {
       type: 'bond',
       minInvestmentMinor: '900',
       metric: '6%',
+      metricLabel: 'Coupon',
+      risk: 'medium',
     });
     expect(amended.status).toBe(200);
     const after = (await amended.json()) as {
@@ -704,7 +712,10 @@ suite('partner console data surface', () => {
     expect(row?.slug).toContain('amendable');
 
     // Another firm's operator cannot amend it, and cannot tell it exists.
-    const foreign = await list({ id: product.id, name: 'Hijacked', type: 'bond' }, 'ncbOperator');
+    const foreign = await list(
+      { id: product.id, name: 'Hijacked', type: 'bond', risk: 'medium' },
+      'ncbOperator',
+    );
     expect(foreign.status).toBe(404);
     const [unchanged] = await db
       .select({ name: instruments.name })
@@ -969,7 +980,7 @@ suite('partner console data surface', () => {
   test('a firm can list two products with the same name', async () => {
     const ids: string[] = [];
     for (let i = 0; i < 3; i++) {
-      const res = await list({ name: `${tag} Same Name Fund`, type: 'fund' });
+      const res = await list({ name: `${tag} Same Name Fund`, type: 'fund', risk: 'medium' });
       expect(res.status).toBe(201);
       const { product } = (await res.json()) as { product: { id: string } };
       ids.push(product.id);
@@ -992,7 +1003,7 @@ suite('partner console data surface', () => {
 
   test('a name of nothing but punctuation still produces a usable slug', async () => {
     // `regexp_replace` + trim would leave an empty string, and slug is NOT NULL.
-    const res = await list({ name: '###', type: 'fund' });
+    const res = await list({ name: '###', type: 'fund', risk: 'medium' });
     // Refused by the schema's min(2)? No — '###' is three characters, so this
     // reaches the function and must not violate NOT NULL.
     expect(res.status).toBe(201);

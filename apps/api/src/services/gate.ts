@@ -64,6 +64,7 @@ export async function assessExecutionCompliance(
       complianceConfirmed: kycStatus.complianceConfirmed,
       riskCompleted: kycStatus.riskCompleted,
       fundsConfirmed: kycStatus.fundsConfirmed,
+      isPep: kycStatus.isPep,
     })
     .from(kycStatus)
     .where(eq(kycStatus.userId, userId));
@@ -83,6 +84,7 @@ export async function assessExecutionCompliance(
     complianceConfirmed: kyc?.complianceConfirmed ?? false,
     riskCompleted: kyc?.riskCompleted ?? false,
     fundsConfirmed: kyc?.fundsConfirmed ?? false,
+    isPep: kyc?.isPep ?? false,
     activeExecutingFirm: Boolean(activeAccount),
     executingFirmName: null,
   });

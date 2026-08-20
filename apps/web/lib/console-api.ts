@@ -200,7 +200,7 @@ export interface ProductInput {
   term?: string;
   metric?: string;
   metricLabel?: string;
-  risk?: 'low' | 'medium' | 'high';
+  risk: 'low' | 'medium' | 'high';
   description?: string;
   region?: string;
 }

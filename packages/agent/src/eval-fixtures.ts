@@ -176,6 +176,7 @@ export function sampleSnapshot(): AgentSnapshot {
       complianceConfirmed: true,
       riskCompleted: true,
       fundsConfirmed: true,
+      isPep: false,
     },
     goals: [
       {

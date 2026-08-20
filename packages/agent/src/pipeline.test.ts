@@ -3,6 +3,7 @@ import {
   type ComplianceVerdict,
   type PipelineCandidate,
   type PipelineInput,
+  assessTransactionCompliance,
   runProposalPipeline as executeProposalPipeline,
 } from './pipeline';
 
@@ -165,6 +166,71 @@ describe('proposal pipeline', () => {
     const detail = outcome.trace.find((trace) => trace.stage === 'compliance')?.detail.join('\n');
     expect(detail).toContain('Compliance readiness could not be verified');
     expect(detail).not.toContain('database detail');
+  });
+});
+
+describe('KYC and AML readiness', () => {
+  test('records a standard PEP declaration without inventing an external screen', () => {
+    const verdict = assessTransactionCompliance({
+      identityVerified: true,
+      complianceConfirmed: true,
+      riskCompleted: true,
+      fundsConfirmed: true,
+      isPep: false,
+      activeExecutingFirm: true,
+      executingFirmName: 'NCB',
+    });
+
+    expect(verdict.decision).toBe('clear');
+    expect(verdict.checks).toContain('PEP declaration recorded; no PEP disclosed');
+    expect(verdict.checks.join(' ')).not.toMatch(/sanctions|adverse.media/i);
+  });
+
+  test('fails closed when a PEP disclosure has not reached executing-firm review', () => {
+    const verdict = assessTransactionCompliance({
+      identityVerified: true,
+      complianceConfirmed: true,
+      riskCompleted: true,
+      fundsConfirmed: true,
+      isPep: true,
+      activeExecutingFirm: false,
+      executingFirmName: 'NCB',
+    });
+
+    expect(verdict.decision).toBe('blocked');
+    expect(verdict.reasons.join(' ')).toContain('PEP disclosure requires executing-firm review');
+  });
+
+  test('keeps PEP handling attributable to an active licensed firm', () => {
+    const verdict = assessTransactionCompliance({
+      identityVerified: true,
+      complianceConfirmed: true,
+      riskCompleted: true,
+      fundsConfirmed: true,
+      isPep: true,
+      activeExecutingFirm: true,
+      executingFirmName: 'NCB',
+    });
+
+    expect(verdict.decision).toBe('clear');
+    expect(verdict.checks).toContain(
+      'PEP disclosed; the active executing firm owns enhanced due diligence',
+    );
+  });
+
+  test('does not call a missing PEP declaration recorded', () => {
+    const verdict = assessTransactionCompliance({
+      identityVerified: false,
+      complianceConfirmed: false,
+      riskCompleted: false,
+      fundsConfirmed: false,
+      isPep: false,
+      activeExecutingFirm: false,
+      executingFirmName: null,
+    });
+
+    expect(verdict.decision).toBe('blocked');
+    expect(verdict.checks).not.toContain('PEP declaration recorded; no PEP disclosed');
   });
 });
 
