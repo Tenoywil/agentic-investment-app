@@ -14,7 +14,9 @@ import {
   withdrawalRequests,
 } from '@ccn/db';
 import {
+  type ListInstrumentInput,
   acceptOrderSchema,
+  bulkListInstrumentSchema,
   confirmFundsSchema,
   decideWithdrawalSchema,
   listInstrumentSchema,
@@ -26,6 +28,7 @@ import {
 import { formatMoney, money } from '@ccn/money';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { AppDeps, AppEnv, TenantContext } from '../context';
 import { withTenant } from '../context';
 import type { InstrumentRow } from '../db-fns';
@@ -54,6 +57,7 @@ import type { PartnerWebhookAdminRuntime } from '../services/partner-webhooks';
 import { maskRef } from './util';
 
 const RECEIPT_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const BULK_PRODUCT_REQUEST_MAX_BYTES = 512_000;
 
 function fundingReceipt(raw: unknown): {
   name: string;
@@ -1450,6 +1454,34 @@ export function consoleRoutes(
   }
 
   /**
+   * One tenant-scoped write used by both single and bulk listing routes. Keeping
+   * the mapping here prevents the spreadsheet path from drifting into a looser
+   * set of fields or a different ownership rule.
+   */
+  function upsertConsoleProduct(tx: Transaction, input: ListInstrumentInput) {
+    return partnerUpsertInstrument(tx, {
+      id: input.id ?? null,
+      name: input.name,
+      type: input.type,
+      // A short badge for the card. Punctuation and spaces are stripped before
+      // slicing so a generated abbreviation never wraps inside the tile.
+      abbr: (
+        input.abbr ||
+        input.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6) ||
+        'NEW'
+      ).toUpperCase(),
+      currency: input.currency,
+      minInvestmentMinor: input.minInvestmentMinor,
+      term: input.term ?? null,
+      metric: input.metric ?? null,
+      metricLabel: input.metricLabel ?? null,
+      risk: input.risk ?? null,
+      description: input.description ?? null,
+      region: input.region ?? null,
+    });
+  }
+
+  /**
    * The firm's own listings, from the table the marketplace reads.
    *
    * This used to read `product_listings`, which the marketplace has no
@@ -1513,33 +1545,7 @@ export function consoleRoutes(
     const input = parsed.data;
 
     try {
-      const row = await withTenant(deps, tenant, (tx) =>
-        partnerUpsertInstrument(tx, {
-          id: input.id ?? null,
-          name: input.name,
-          type: input.type,
-          // A short badge for the card. Derived when not given rather than
-          // demanded: it is display, and an empty tile reads as a bug.
-          //
-          // Punctuation and spaces are stripped before slicing. `slice(0, 6)`
-          // on the raw name gave "BARE M" for "Bare Minimum Fund" — a badge
-          // with a space in it, which wraps inside a 40px tile and reads as a
-          // rendering fault rather than an abbreviation.
-          abbr: (
-            input.abbr ||
-            input.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6) ||
-            'NEW'
-          ).toUpperCase(),
-          currency: input.currency,
-          minInvestmentMinor: BigInt(input.minInvestmentMinor),
-          term: input.term ?? null,
-          metric: input.metric ?? null,
-          metricLabel: input.metricLabel ?? null,
-          risk: input.risk ?? null,
-          description: input.description ?? null,
-          region: input.region ?? null,
-        }),
-      );
+      const row = await withTenant(deps, tenant, (tx) => upsertConsoleProduct(tx, input));
       return c.json({ product: toConsoleProduct(row) }, input.id ? 200 : 201);
     } catch (err) {
       if (raisedBy(err, 'is not listed by this partner')) {
@@ -1548,6 +1554,55 @@ export function consoleRoutes(
       throw err;
     }
   });
+
+  /**
+   * Add up to 100 products atomically. New bulk rows are paused after creation:
+   * a spreadsheet is efficient input, not sufficient approval to publish a
+   * regulated product to investors. Any failed row rolls the whole transaction
+   * back, so the operator never has to discover which half of a file landed.
+   */
+  app.post(
+    '/products/bulk',
+    bodyLimit({
+      maxSize: BULK_PRODUCT_REQUEST_MAX_BYTES,
+      onError: (c) => c.json({ error: 'bulk product request is too large' }, 413),
+    }),
+    async (c) => {
+      const tenant = c.get('tenant');
+      if (!tenant) return c.json({ error: 'authentication required' }, 401);
+      const scope = partnerScope(tenant);
+      if ('error' in scope) return c.json(scope, 403);
+
+      const rawBody = await c.req.text();
+      if (new TextEncoder().encode(rawBody).byteLength > BULK_PRODUCT_REQUEST_MAX_BYTES) {
+        return c.json({ error: 'bulk product request is too large' }, 413);
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(rawBody);
+      } catch {
+        return c.json({ error: 'invalid request' }, 400);
+      }
+      const parsed = bulkListInstrumentSchema.safeParse(body);
+      if (!parsed.success) {
+        return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+      }
+
+      const products = await withTenant(deps, tenant, async (tx) => {
+        const created = [];
+        for (const input of parsed.data.products) {
+          const row = await upsertConsoleProduct(tx, input);
+          const status =
+            row.listing_status === 'live'
+              ? await partnerToggleInstrument(tx, row.id)
+              : row.listing_status;
+          created.push({ ...toConsoleProduct(row), status });
+        }
+        return created;
+      });
+      return c.json({ products }, 201);
+    },
+  );
 
   /** Take a listing off the marketplace, or put it back. */
   app.post('/products/:id/live', async (c) => {

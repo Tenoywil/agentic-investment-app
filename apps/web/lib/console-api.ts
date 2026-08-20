@@ -676,6 +676,28 @@ export async function saveProduct(input: ProductInput): Promise<{ product: Conso
   return body;
 }
 
+/**
+ * Add a reviewed batch. The API validates and writes the full set in one
+ * partner-scoped transaction; it returns every new listing paused for review.
+ */
+export async function saveProductsBulk(
+  products: ProductInput[],
+): Promise<{ products: ConsoleProduct[] }> {
+  const res = await fetch(`${API_URL}/api/console/products/bulk`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ products }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.error === 'string' ? body.error : `request failed (${res.status})`,
+    );
+  }
+  return body;
+}
+
 export function toggleProductLive(id: string): Promise<{ status: ConsoleProductStatus }> {
   return consoleFetch(`/products/${id}/live`, { method: 'POST' });
 }

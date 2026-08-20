@@ -3,7 +3,7 @@
 import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
 import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
 import type { TabKey } from '@/app/_components/console/lib';
-import { ListProductDialog } from '@/app/_components/console/list-product';
+import { BulkProductDialog, ListProductDialog } from '@/app/_components/console/list-product';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
@@ -235,6 +235,7 @@ export default function DemoInstitutionsPage() {
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
   const [listingOpen, setListingOpen] = useState(false);
+  const [bulkListingOpen, setBulkListingOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ConsoleProduct>();
   const [reviewed, setReviewed] = useState<string[]>([]);
 
@@ -317,6 +318,32 @@ export default function DemoInstitutionsPage() {
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       },
+    };
+  }
+
+  async function saveDemoProductsBulk(
+    inputs: ProductInput[],
+  ): Promise<{ products: ConsoleProduct[] }> {
+    const now = new Date().toISOString();
+    return {
+      products: inputs.map((input, index) => ({
+        id: `demo-bulk-product-${products.length + index + 1}`,
+        name: input.name,
+        type: input.type,
+        abbr: input.abbr ?? '',
+        currency: input.currency ?? 'USD',
+        minInvestmentMinor: input.minInvestmentMinor ?? '0',
+        term: input.term ?? null,
+        metric: input.metric ?? null,
+        metricLabel: input.metricLabel ?? null,
+        risk: input.risk,
+        description: input.description ?? null,
+        region: input.region ?? null,
+        status: 'paused',
+        blocked: false,
+        createdAt: now,
+        updatedAt: now,
+      })),
     };
   }
 
@@ -432,6 +459,14 @@ export default function DemoInstitutionsPage() {
           />
         ) : null}
 
+        {bulkListingOpen ? (
+          <BulkProductDialog
+            onSave={saveDemoProductsBulk}
+            onClose={() => setBulkListingOpen(false)}
+            onSaved={(imported) => setProducts((current) => [...imported, ...current])}
+          />
+        ) : null}
+
         <TabsContent value="products" className="mt-0">
           <ProductsTab
             products={products}
@@ -441,6 +476,7 @@ export default function DemoInstitutionsPage() {
             productActionError={null}
             onList={() => openListing()}
             onEdit={openListing}
+            onBulk={() => setBulkListingOpen(true)}
             onToggleLive={(id) =>
               setProducts((current) =>
                 current.map((product) =>

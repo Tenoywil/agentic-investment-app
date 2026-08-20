@@ -6,7 +6,7 @@ import { ComplianceTab } from '@/app/_components/console/compliance-tab';
 import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
 import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
 import { type TabKey, consoleTab, errorMessage } from '@/app/_components/console/lib';
-import { ListProductDialog } from '@/app/_components/console/list-product';
+import { BulkProductDialog, ListProductDialog } from '@/app/_components/console/list-product';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
@@ -44,6 +44,7 @@ import {
   requestClientKyc,
   reviewClient,
   saveProduct,
+  saveProductsBulk,
   settleOrder,
   toggleProductLive,
   updatePartner,
@@ -365,6 +366,7 @@ export default function InstitutionsPage() {
    * cold API.
    */
   const [listingOpen, setListingOpen] = useState(false);
+  const [bulkListingOpen, setBulkListingOpen] = useState(false);
   /** The listing being amended. Undefined while `listingOpen` means "create". */
   const [editingProduct, setEditingProduct] = useState<ConsoleProduct | undefined>(undefined);
   /** The client whose drill-down is open. */
@@ -648,6 +650,19 @@ export default function InstitutionsPage() {
           />
         ) : null}
 
+        {bulkListingOpen ? (
+          <BulkProductDialog
+            onSave={saveProductsBulk}
+            onClose={() => setBulkListingOpen(false)}
+            onSaved={(imported) => {
+              setProducts((current) => [...imported, ...current]);
+              void getAudit(50)
+                .then((response) => setAudit(response.entries))
+                .catch(() => {});
+            }}
+          />
+        ) : null}
+
         <TabsContent value="products" className="mt-0">
           <ProductsTab
             onList={() => {
@@ -658,6 +673,7 @@ export default function InstitutionsPage() {
               setEditingProduct(product);
               setListingOpen(true);
             }}
+            onBulk={() => setBulkListingOpen(true)}
             products={products}
             productsError={productsError}
             loading={loading}

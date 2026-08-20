@@ -1,4 +1,9 @@
-import type { ConsoleActorType, ConsoleAgreementStatus, ConsoleCurrency } from '@/lib/console-api';
+import type {
+  ConsoleActorType,
+  ConsoleAgreementStatus,
+  ConsoleCurrency,
+  ProductInput,
+} from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
 import {
   ArrowRightLeft,
@@ -133,6 +138,238 @@ export function daysSince(iso: string): number {
  * phones.
  */
 export const ORDER_AGING_DAYS = 2;
+
+/* ---- product import ----------------------------------------------------- */
+
+const PRODUCT_IMPORT_MAX_BYTES = 256_000;
+export const PRODUCT_IMPORT_MAX_ROWS = 100;
+
+export const PRODUCT_CSV_TEMPLATE = `name,type,abbr,currency,minimum_investment,term,metric,metric_label,risk,description,region
+Sample Caribbean Income Fund,fund,SCIF,USD,5000,Open-ended,6.5%,Illustrative yield,medium,"Replace this sample row with your product description",Caribbean
+`;
+
+export interface ProductImportResult {
+  products: ProductInput[];
+  errors: string[];
+}
+
+interface DelimitedRow {
+  cells: string[];
+  line: number;
+}
+
+const PRODUCT_IMPORT_HEADERS = new Set([
+  'name',
+  'type',
+  'abbr',
+  'currency',
+  'minimum_investment',
+  'term',
+  'metric',
+  'metric_label',
+  'risk',
+  'description',
+  'region',
+]);
+
+const PRODUCT_HEADER_ALIASES: Record<string, string> = {
+  product: 'name',
+  product_name: 'name',
+  product_type: 'type',
+  asset_type: 'type',
+  abbreviation: 'abbr',
+  symbol: 'abbr',
+  minimum: 'minimum_investment',
+  min_investment: 'minimum_investment',
+  headline: 'metric',
+  headline_figure: 'metric',
+  headline_label: 'metric_label',
+  risk_rating: 'risk',
+  summary: 'description',
+  market: 'region',
+};
+
+function canonicalHeader(value: string): string {
+  const normalized = value
+    .replace(/^\ufeff/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  return PRODUCT_HEADER_ALIASES[normalized] ?? normalized;
+}
+
+/** Major units typed by an operator → exact minor units sent to the API. */
+export function majorAmountToMinor(major: string): { value?: string; error?: string } {
+  const cleaned = major.replace(/[,\s]/g, '');
+  if (cleaned === '') return { value: '0' };
+  if (!/^\d+(?:\.\d{1,2})?$/.test(cleaned)) {
+    return { error: 'must be a non-negative amount with up to 2 decimal places' };
+  }
+  const [whole = '0', fraction = ''] = cleaned.split('.');
+  const normalizedWhole = whole.replace(/^0+/, '') || '0';
+  if (normalizedWhole.length > 19) {
+    return { error: 'exceeds the supported amount range' };
+  }
+  const value = BigInt(normalizedWhole) * 100n + BigInt(fraction.padEnd(2, '0'));
+  if (value > 9_223_372_036_854_775_807n) {
+    return { error: 'exceeds the supported amount range' };
+  }
+  return { value: String(value) };
+}
+
+/** RFC-4180-style rows, plus tab-separated text copied from a spreadsheet. */
+function delimitedRows(text: string): { rows: DelimitedRow[]; error?: string } {
+  const firstBreak = text.search(/[\r\n]/);
+  const firstLine = text.slice(0, firstBreak === -1 ? text.length : firstBreak);
+  const delimiter = firstLine.includes('\t') && !firstLine.includes(',') ? '\t' : ',';
+  const rows: DelimitedRow[] = [];
+  let cells: string[] = [];
+  let field = '';
+  let quoted = false;
+  let line = 1;
+  let rowLine = 1;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '\0') return { rows: [], error: 'The file contains an unsupported null byte.' };
+    if (quoted) {
+      if (char === '"') {
+        if (text[index + 1] === '"') {
+          field += '"';
+          index += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += char;
+        if (char === '\n') line += 1;
+      }
+      continue;
+    }
+    if (char === '"' && field.length === 0) {
+      quoted = true;
+    } else if (char === delimiter) {
+      cells.push(field);
+      field = '';
+    } else if (char === '\r' || char === '\n') {
+      if (char === '\r' && text[index + 1] === '\n') index += 1;
+      cells.push(field);
+      if (cells.some((cell) => cell.trim() !== '')) rows.push({ cells, line: rowLine });
+      cells = [];
+      field = '';
+      line += 1;
+      rowLine = line;
+    } else {
+      field += char;
+    }
+  }
+  if (quoted) return { rows: [], error: `Line ${rowLine}: quoted value is not closed.` };
+  cells.push(field);
+  if (cells.some((cell) => cell.trim() !== '')) rows.push({ cells, line: rowLine });
+  return { rows };
+}
+
+/**
+ * Normalize a CSV/TSV import into the same contract the single-product form
+ * sends. The server validates it again; this pass exists for a useful preview
+ * and line-specific feedback, never as the security boundary.
+ */
+export function parseProductImport(text: string): ProductImportResult {
+  if (new TextEncoder().encode(text).byteLength > PRODUCT_IMPORT_MAX_BYTES) {
+    return { products: [], errors: ['The import must be 256 KB or smaller.'] };
+  }
+  const parsed = delimitedRows(text);
+  if (parsed.error) return { products: [], errors: [parsed.error] };
+  const [headerRow, ...dataRows] = parsed.rows;
+  if (!headerRow) return { products: [], errors: ['Add a header row and at least one product.'] };
+
+  const headers = headerRow.cells.map(canonicalHeader);
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  for (const header of headers) {
+    if (!PRODUCT_IMPORT_HEADERS.has(header)) errors.push(`Unknown column “${header}”.`);
+    if (seen.has(header)) errors.push(`Column “${header}” appears more than once.`);
+    seen.add(header);
+  }
+  for (const required of ['name', 'type', 'risk']) {
+    if (!seen.has(required)) errors.push(`Missing required column “${required}”.`);
+  }
+  if (errors.length > 0) return { products: [], errors };
+  if (dataRows.length > PRODUCT_IMPORT_MAX_ROWS) {
+    return {
+      products: [],
+      errors: [`Import at most ${PRODUCT_IMPORT_MAX_ROWS} products at a time.`],
+    };
+  }
+
+  const products: ProductInput[] = [];
+  for (const row of dataRows) {
+    if (row.cells.length > headers.length) {
+      errors.push(`Line ${row.line}: has more values than the header row.`);
+      continue;
+    }
+    const values = new Map(
+      headers.map((header, index) => [header, row.cells[index]?.trim() ?? '']),
+    );
+    const value = (key: string) => values.get(key) ?? '';
+    const name = value('name');
+    const type = value('type')
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+    const risk = value('risk').toLowerCase();
+    const currency = (value('currency') || 'USD').toUpperCase();
+    const minimum = majorAmountToMinor(value('minimum_investment'));
+    const metric = value('metric');
+    const metricLabel = value('metric_label');
+    const lineErrors: string[] = [];
+
+    if (name.length < 2 || name.length > 140) lineErrors.push('name must be 2–140 characters');
+    if (!['bond', 'fund', 'equity', 'real_estate', 'private'].includes(type)) {
+      lineErrors.push('type must be bond, fund, equity, real_estate or private');
+    }
+    if (!['low', 'medium', 'high'].includes(risk)) {
+      lineErrors.push('risk must be low, medium or high');
+    }
+    if (!['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'].includes(currency)) {
+      lineErrors.push('currency is not supported');
+    }
+    if (minimum.error) lineErrors.push(`minimum investment ${minimum.error}`);
+    if (Boolean(metric) !== Boolean(metricLabel)) {
+      lineErrors.push('metric and metric_label must be supplied together');
+    }
+    const lengths: [string, string, number][] = [
+      ['abbr', value('abbr'), 12],
+      ['term', value('term'), 60],
+      ['metric', metric, 60],
+      ['metric_label', metricLabel, 60],
+      ['description', value('description'), 2000],
+      ['region', value('region'), 100],
+    ];
+    for (const [label, content, max] of lengths) {
+      if (content.length > max) lineErrors.push(`${label} must be ${max} characters or fewer`);
+    }
+    if (lineErrors.length > 0) {
+      errors.push(`Line ${row.line}: ${lineErrors.join('; ')}.`);
+      continue;
+    }
+
+    products.push({
+      name,
+      type,
+      risk: risk as ProductInput['risk'],
+      currency,
+      minInvestmentMinor: minimum.value ?? '0',
+      ...(value('abbr') ? { abbr: value('abbr') } : {}),
+      ...(value('term') ? { term: value('term') } : {}),
+      ...(metric ? { metric } : {}),
+      ...(metricLabel ? { metricLabel } : {}),
+      ...(value('description') ? { description: value('description') } : {}),
+      ...(value('region') ? { region: value('region') } : {}),
+    });
+  }
+  if (dataRows.length === 0) errors.push('Add at least one product row below the headers.');
+  return { products, errors };
+}
 
 /**
  * An accepted client is due periodic re-review after this many days — the

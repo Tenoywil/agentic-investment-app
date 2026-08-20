@@ -5,7 +5,7 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { Switch } from '@/app/_components/ui/switch';
 import type { ConsoleCurrency, ConsoleProduct } from '@/lib/console-api';
-import { Boxes, Pencil, Plus } from 'lucide-react';
+import { Boxes, FileSpreadsheet, Pencil, Plus } from 'lucide-react';
 import { ROW_DIVIDER, fmtMinor, uppr } from './lib';
 import { RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
@@ -40,6 +40,7 @@ export function ProductsTab({
   productActionError,
   onToggleLive,
   onList,
+  onBulk,
   onEdit,
 }: {
   products: ConsoleProduct[];
@@ -49,6 +50,7 @@ export function ProductsTab({
   productActionError: string | null;
   onToggleLive: (id: string) => void;
   onList: () => void;
+  onBulk: () => void;
   onEdit: (product: ConsoleProduct) => void;
 }) {
   return (
@@ -64,10 +66,16 @@ export function ProductsTab({
         {/* No sandbox badge here any more. It existed to caveat the invented
             client/AUM/inflow figures; what is left — the product's name, type
             and whether it is live — is real configuration the operator owns. */}
-        <Button type="button" className="max-[520px]:w-full" onClick={onList}>
-          <Plus className="mr-1.5 h-4 w-4" aria-hidden />
-          List a product
-        </Button>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <Button type="button" variant="outline" className="min-h-12" onClick={onBulk}>
+            <FileSpreadsheet className="h-4 w-4" aria-hidden />
+            Bulk import
+          </Button>
+          <Button type="button" className="min-h-12" onClick={onList}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Add one
+          </Button>
+        </div>
       </div>
 
       {productsError ? <ErrorNote message={productsError} className="px-4 pb-4 sm:px-6" /> : null}
@@ -84,10 +92,16 @@ export function ProductsTab({
             title="No products listed yet"
             body="List your funds and notes here and the agent can match them to suitable clients. You can pause any of them later without delisting it."
             action={
-              <Button type="button" size="sm" onClick={onList}>
-                <Plus className="mr-1.5 h-4 w-4" aria-hidden />
-                List a product
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button type="button" size="sm" onClick={onList}>
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Add one
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={onBulk}>
+                  <FileSpreadsheet className="h-4 w-4" aria-hidden />
+                  Bulk import
+                </Button>
+              </div>
             }
           />
         </div>
