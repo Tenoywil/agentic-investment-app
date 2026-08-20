@@ -290,4 +290,18 @@ describe('app shell controls', () => {
     expect(admin).not.toContain('Approve for investor');
     expect(admin).not.toContain('Settle order');
   });
+
+  test('agent sheets keep content scrolling and hand off nested editors', () => {
+    const agent = code(join(WEB, 'app/(customer)/agent/page.tsx'));
+    const sheet = code(join(WEB, 'app/_lib/sheet.ts'));
+    const css = code(join(WEB, 'app/globals.css'));
+
+    expect(sheet).toContain('if (node === el) break');
+    expect(agent).toContain('suspendParentModal={suspendPanelsForEditor}');
+    expect(agent).toContain('restoreParentModal={restorePanelsAfterEditor}');
+    expect(agent).toContain('onCloseAutoFocus');
+    expect(css).toContain('body:has(dialog.agent-panels[open])');
+    expect(agent).toContain('touch-scroll-strip');
+    expect(css).toContain('.touch-scroll-strip::-webkit-scrollbar');
+  });
 });

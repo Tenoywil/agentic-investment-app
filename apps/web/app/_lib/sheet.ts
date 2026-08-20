@@ -45,8 +45,12 @@ export function useSheetDismiss(
     /** The scrollable region inside the sheet, if the touch began in one. */
     function scrollerAt(target: EventTarget | null): Element | null {
       let node = target instanceof Element ? target : null;
-      while (node && node !== el) {
+      while (node) {
         if (node.scrollHeight > node.clientHeight + 1) return node;
+        // Some sheets, including the agent approvals panel, scroll on the
+        // <dialog> itself. Excluding the root made every downward content
+        // gesture look like a dismiss even when the sheet was mid-scroll.
+        if (node === el) break;
         node = node.parentElement;
       }
       return null;

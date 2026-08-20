@@ -170,6 +170,16 @@ body {
   background-clip: padding-box;
 }
 
+/* Compact horizontal action strips pan naturally on touch devices without
+   presenting the desktop scrollbar as another draggable control. */
+.touch-scroll-strip {
+  scrollbar-width: none;
+  overscroll-behavior-inline: contain;
+}
+.touch-scroll-strip::-webkit-scrollbar {
+  display: none;
+}
+
 /* ============================================================
  * Accessibility + responsive layer (WCAG 2.2 AA)
  * ============================================================ */
@@ -411,7 +421,8 @@ input:-webkit-autofill:active {
   }
 }
 body:has(dialog.app-modal[open]),
-body:has(dialog.app-sheet[open]) {
+body:has(dialog.app-sheet[open]),
+body:has(dialog.agent-panels[open]) {
   overflow: hidden;
 }
 /* Grid items get min-width: auto by default, so a child that cannot shrink —
