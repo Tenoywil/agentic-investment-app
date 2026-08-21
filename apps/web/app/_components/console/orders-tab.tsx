@@ -7,7 +7,7 @@ import type { ConsoleOrder, SettlementInput } from '@/lib/console-api';
 import { ArrowRightLeft } from 'lucide-react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import { ORDER_AGING_DAYS, ROW_DIVIDER, daysSince, fmtMinor, timeAgo, uppr } from './lib';
-import { RowsSkeleton } from './loading';
+import { ConsolePager, RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { OrderAction } from './order-action';
 
@@ -248,30 +248,15 @@ export function OrdersTab({
         </div>
       ) : null}
 
-      {!loading && !ordersError && total > orders.length ? (
-        <div className="flex items-center justify-between gap-3 px-6 pb-5 pt-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={offset === 0}
-            onClick={() => onPage(Math.max(0, offset - pageSize))}
-          >
-            Previous
-          </Button>
-          <span className="text-[12.5px] text-faint">
-            {from}–{to} of {total}
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={to >= total}
-            onClick={() => onPage(offset + pageSize)}
-          >
-            Next
-          </Button>
-        </div>
+      {!loading && !ordersError ? (
+        <ConsolePager
+          label="Order flow"
+          total={total}
+          offset={offset}
+          pageSize={pageSize}
+          visible={orders.length}
+          onPage={onPage}
+        />
       ) : null}
     </Card>
   );

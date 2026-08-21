@@ -7,7 +7,7 @@ import { Switch } from '@/app/_components/ui/switch';
 import type { ConsoleCurrency, ConsoleProduct } from '@/lib/console-api';
 import { Boxes, FileSpreadsheet, Pencil, Plus } from 'lucide-react';
 import { ROW_DIVIDER, fmtMinor, uppr } from './lib';
-import { RowsSkeleton } from './loading';
+import { ConsolePager, RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
 /**
@@ -36,31 +36,51 @@ export function ProductsTab({
   products,
   productsError,
   loading,
+  total,
+  offset,
+  pageSize,
+  status,
+  query,
   productBusyId,
   productActionError,
   onToggleLive,
   onList,
   onBulk,
   onEdit,
+  onStatus,
+  onQuery,
+  onPage,
 }: {
   products: ConsoleProduct[];
   productsError: string | null;
   loading: boolean;
+  total: number;
+  offset: number;
+  pageSize: number;
+  status: string;
+  query: string;
   productBusyId: string | null;
   productActionError: string | null;
   onToggleLive: (id: string) => void;
   onList: () => void;
   onBulk: () => void;
   onEdit: (product: ConsoleProduct) => void;
+  onStatus: (status: string) => void;
+  onQuery: (query: string) => void;
+  onPage: (offset: number) => void;
 }) {
+  const from = total === 0 ? 0 : offset + 1;
+  const to = Math.min(offset + products.length, total);
+
   return (
     <Card className="overflow-hidden" data-tour="institution-products">
       <div className="flex flex-wrap items-start justify-between gap-4 px-4 pb-4 pt-5 sm:px-6">
         <div>
           <b className="font-display text-lg">Your products on CCN</b>
           <div className="mt-0.5 text-[13px] text-faint">
-            Listed products the agent can match to suitable clients. Pausing one takes it out of
-            matching immediately.
+            {productsError || loading
+              ? 'Listed products the agent can match to suitable clients.'
+              : `Showing ${from}–${to} of ${total}. Pausing one takes it out of matching immediately.`}
           </div>
         </div>
         {/* No sandbox badge here any more. It existed to caveat the invented
@@ -78,6 +98,30 @@ export function ProductsTab({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
+        <label className="min-w-[180px] flex-1 text-[13px]">
+          <span className="sr-only">Search products by name, abbreviation, or type</span>
+          <input
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+            placeholder="Search products"
+            className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+          />
+        </label>
+        <label className="min-w-[150px] flex-1 text-[13px] sm:min-w-0 sm:flex-none">
+          <span className="sr-only">Filter products by listing status</span>
+          <select
+            value={status}
+            onChange={(event) => onStatus(event.target.value)}
+            className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+          >
+            <option value="">All statuses</option>
+            <option value="live">Live</option>
+            <option value="paused">Paused</option>
+          </select>
+        </label>
+      </div>
+
       {productsError ? <ErrorNote message={productsError} className="px-4 pb-4 sm:px-6" /> : null}
       {productActionError ? (
         <ErrorNote message={productActionError} className="px-4 pb-4 sm:px-6" />
@@ -89,8 +133,12 @@ export function ProductsTab({
         <div className="px-6 pb-6">
           <EmptyState
             icon={Boxes}
-            title="No products listed yet"
-            body="List your funds and notes here and the agent can match them to suitable clients. You can pause any of them later without delisting it."
+            title={status || query ? 'No products match' : 'No products listed yet'}
+            body={
+              status || query
+                ? 'Change or clear the search and status filters to see a different part of your catalogue.'
+                : 'List your funds and notes here and the agent can match them to suitable clients. You can pause any of them later without delisting it.'
+            }
             action={
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button type="button" size="sm" onClick={onList}>
@@ -178,6 +226,17 @@ export function ProductsTab({
             })}
           </div>
         </div>
+      ) : null}
+
+      {!loading && !productsError ? (
+        <ConsolePager
+          label="Products"
+          total={total}
+          offset={offset}
+          pageSize={pageSize}
+          visible={products.length}
+          onPage={onPage}
+        />
       ) : null}
     </Card>
   );

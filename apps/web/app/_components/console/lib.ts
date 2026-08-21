@@ -126,6 +126,27 @@ export function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
+/** A console resource refresh. The optional flag keeps quiet mutation resyncs
+ * from replacing an already-useful page with a loading skeleton. */
+export type ConsoleResourceLoader = (showLoading?: boolean) => Promise<void>;
+
+/**
+ * Run resource loaders from a ref at invocation time.
+ *
+ * A mutation can outlive the render that started it. Calling a loader captured
+ * by that render can therefore re-fetch an old filter/page after the operator
+ * has moved on, and its later sequence number would make the stale result win.
+ * Looking through `current` only after the mutation resolves makes the refresh
+ * use the latest render's query state.
+ */
+export async function refreshCurrentLoaders<Key extends string>(
+  loaders: { readonly current: Record<Key, ConsoleResourceLoader> },
+  keys: readonly Key[],
+  showLoading = false,
+): Promise<void> {
+  await Promise.all(keys.map((key) => loaders.current[key](showLoading)));
+}
+
 /** Whole days since an ISO timestamp. */
 export function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -555,27 +576,6 @@ export const AUDIT_ACTOR_LABEL: Record<ConsoleActorType, string> = {
 export function auditActorLine(a: { actorType: ConsoleActorType; actorName?: string | null }) {
   return a.actorName ?? AUDIT_ACTOR_LABEL[a.actorType];
 }
-
-/**
- * The audit actions that are somebody's DECISION — a person answerable for a
- * client's money or standing did something. What the "Decisions only" view
- * filters to: acceptance, KYC standing, money in, money out, executions.
- */
-export const DECISION_ACTIONS = new Set([
-  'client.accepted',
-  'client.declined',
-  'client.revoked',
-  'client.reinstated',
-  'funds.settled',
-  'withdrawal.paid',
-  'withdrawal.declined',
-  'reconciliation.matched',
-  'reconciliation.rejected',
-  'order.accepted',
-  'order.settled',
-  'order.rejected',
-  'partner.profile_updated',
-]);
 
 /** `detail` is untyped JSONB. The only field worth surfacing is a rejection
  *  reason, and only when it really is a string. */

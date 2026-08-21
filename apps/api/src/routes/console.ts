@@ -14,6 +14,7 @@ import {
   withdrawalRequests,
 } from '@ccn/db';
 import {
+  AUDIT_DECISION_ACTIONS,
   type ListInstrumentInput,
   acceptOrderSchema,
   bulkListInstrumentSchema,
@@ -26,7 +27,7 @@ import {
   settleOrderSchema,
 } from '@ccn/domain';
 import { formatMoney, money } from '@ccn/money';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { AppDeps, AppEnv, TenantContext } from '../context';
@@ -37,6 +38,7 @@ import {
   auditAppend,
   partnerClientHoldings,
   partnerClients,
+  partnerClientsPage,
   partnerConfirmFunds,
   partnerDecideWithdrawal,
   partnerRequestKyc,
@@ -141,6 +143,7 @@ class BadRequest extends Error {
 
 /** The order states a caller may filter on — the enum, not a free string. */
 const ORDER_STATUSES = ['created', 'accepted', 'settled', 'rejected', 'expired'] as const;
+const CLIENT_STATUSES = ['pending', 'active', 'declined'] as const;
 
 /**
  * `limit` and `offset` from the query string, clamped.
@@ -398,10 +401,14 @@ export function consoleRoutes(
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const requested = Number.parseInt(c.req.query('limit') ?? '', 10);
-    const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 200) : 50;
-    const entries = await withTenant(deps, tenant, (tx) =>
-      tx
+    const { limit, offset } = readPage(c);
+    const decisionsOnly = c.req.query('decisions') === 'true';
+    const where = and(
+      eq(auditLog.partnerId, scope.partnerId),
+      decisionsOnly ? inArray(auditLog.action, AUDIT_DECISION_ACTIONS) : undefined,
+    );
+    const { entries, total } = await withTenant(deps, tenant, async (tx) => ({
+      entries: await tx
         .select({
           id: auditLog.id,
           seq: auditLog.seq,
@@ -419,11 +426,13 @@ export function consoleRoutes(
         })
         .from(auditLog)
         .leftJoin(userTable, eq(userTable.id, auditLog.actorId))
-        .where(eq(auditLog.partnerId, scope.partnerId))
+        .where(where)
         .orderBy(desc(auditLog.seq))
-        .limit(limit),
-    );
-    return c.json({ entries });
+        .limit(limit)
+        .offset(offset),
+      total: await tx.select({ n: sql<string>`count(*)` }).from(auditLog).where(where),
+    }));
+    return c.json({ entries, total: Number(total[0]?.n ?? 0) });
   });
 
   /**
@@ -653,7 +662,7 @@ export function consoleRoutes(
         .from(ordersTable)
         .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
         .where(where)
-        .orderBy(desc(ordersTable.createdAt))
+        .orderBy(desc(ordersTable.createdAt), desc(ordersTable.id))
         .limit(limit)
         .offset(offset),
       total: await tx
@@ -846,21 +855,22 @@ export function consoleRoutes(
      * user-supplied string.
      */
     const { limit, offset } = readPage(c);
-    const status = c.req.query('status');
+    const requestedStatus = c.req.query('status');
+    const status =
+      requestedStatus && (CLIENT_STATUSES as readonly string[]).includes(requestedStatus)
+        ? (requestedStatus as (typeof CLIENT_STATUSES)[number])
+        : undefined;
     const q = (c.req.query('q') ?? '').trim();
+    const page = await withTenant(deps, tenant, (tx) =>
+      partnerClientsPage(tx, {
+        limit,
+        offset,
+        ...(status ? { status } : {}),
+        ...(q ? { q } : {}),
+      }),
+    );
 
-    const all = await withTenant(deps, tenant, (tx) => partnerClients(tx));
-    const filtered = all.filter((row) => {
-      if (status && row.status !== status) return false;
-      if (!q) return true;
-      const needle = q.toLowerCase();
-      return (
-        (row.client_name ?? '').toLowerCase().includes(needle) ||
-        (row.client_email ?? '').toLowerCase().includes(needle)
-      );
-    });
-
-    return c.json({ clients: filtered.slice(offset, offset + limit), total: filtered.length });
+    return c.json(page);
   });
 
   /**
@@ -1149,36 +1159,45 @@ export function consoleRoutes(
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
 
-    const rows = await withTenant(deps, tenant, async (tx) => {
-      const clients = await partnerClients(tx);
-      const nameByUser = new Map(clients.map((r) => [r.user_id, r.client_name]));
+    const { limit, offset } = readPage(c);
+    const { rows, total } = await withTenant(deps, tenant, async (tx) => {
       const list = await tx
-        .select()
+        .select({ request: withdrawalRequests, clientName: userTable.name })
         .from(withdrawalRequests)
+        .leftJoin(userTable, eq(userTable.id, withdrawalRequests.userId))
         .where(eq(withdrawalRequests.partnerId, scope.partnerId))
         .orderBy(
           sql`case ${withdrawalRequests.status} when 'pending' then 0 else 1 end`,
           desc(withdrawalRequests.createdAt),
+          desc(withdrawalRequests.id),
         )
-        .limit(50);
-      return list.map((w) => ({
-        id: w.id,
-        clientName: nameByUser.get(w.userId) ?? 'A client',
-        accountId: w.connectedAccountId,
-        amountMinor: w.amountMinor.toString(),
-        feeMinor: w.feeMinor.toString(),
-        gctMinor: w.gctMinor.toString(),
-        // What the firm actually pays out: the client's amount less charges.
-        netMinor: (w.amountMinor - w.feeMinor - w.gctMinor).toString(),
-        currency: w.currency,
-        status: w.status,
-        reason: w.reason,
-        reference: w.reference,
-        createdAt: w.createdAt,
-        decidedAt: w.decidedAt,
-      }));
+        .limit(limit)
+        .offset(offset);
+      const count = await tx
+        .select({ n: sql<string>`count(*)` })
+        .from(withdrawalRequests)
+        .where(eq(withdrawalRequests.partnerId, scope.partnerId));
+      return {
+        rows: list.map(({ request: w, clientName }) => ({
+          id: w.id,
+          clientName: clientName ?? 'A client',
+          accountId: w.connectedAccountId,
+          amountMinor: w.amountMinor.toString(),
+          feeMinor: w.feeMinor.toString(),
+          gctMinor: w.gctMinor.toString(),
+          // What the firm actually pays out: the client's amount less charges.
+          netMinor: (w.amountMinor - w.feeMinor - w.gctMinor).toString(),
+          currency: w.currency,
+          status: w.status,
+          reason: w.reason,
+          reference: w.reference,
+          createdAt: w.createdAt,
+          decidedAt: w.decidedAt,
+        })),
+        total: Number(count[0]?.n ?? 0),
+      };
     });
-    return c.json({ withdrawals: rows });
+    return c.json({ withdrawals: rows, total });
   });
 
   app.post('/withdrawals/:id/decide', async (c) => {
@@ -1310,23 +1329,27 @@ export function consoleRoutes(
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
+    const { limit, offset } = readPage(c);
+    const where = and(
+      eq(reconciliationItems.partnerId, scope.partnerId),
+      eq(reconciliationItems.status, 'pending'),
+    );
+    const { rows, total } = await withTenant(deps, tenant, async (tx) => ({
+      rows: await tx
         .select()
         .from(reconciliationItems)
-        .where(
-          and(
-            eq(reconciliationItems.partnerId, scope.partnerId),
-            eq(reconciliationItems.status, 'pending'),
-          ),
-        )
-        .orderBy(desc(reconciliationItems.createdAt)),
-    );
+        .where(where)
+        .orderBy(desc(reconciliationItems.createdAt), desc(reconciliationItems.id))
+        .limit(limit)
+        .offset(offset),
+      total: await tx.select({ n: sql<string>`count(*)` }).from(reconciliationItems).where(where),
+    }));
     return c.json({
       items: rows.map((row) => ({
         ...row,
         raw: row.source === 'investor_notice' ? publicFundingEvidence(row.raw) : row.raw,
       })),
+      total: Number(total[0]?.n ?? 0),
     });
   });
 
@@ -1494,8 +1517,18 @@ export function consoleRoutes(
     if (!tenant) return c.json({ error: 'authentication required' }, 401);
     const scope = partnerScope(tenant);
     if ('error' in scope) return c.json(scope, 403);
-    const rows = await withTenant(deps, tenant, (tx) =>
-      tx
+    const { limit, offset } = readPage(c);
+    const status = c.req.query('status');
+    const q = (c.req.query('q') ?? '').trim();
+    const where = and(
+      eq(instruments.partnerId, scope.partnerId),
+      status === 'live' || status === 'paused' ? eq(instruments.listingStatus, status) : undefined,
+      q
+        ? sql`(${instruments.name} ilike ${`%${q}%`} or ${instruments.abbr} ilike ${`%${q}%`} or ${instruments.type} ilike ${`%${q}%`})`
+        : undefined,
+    );
+    const { rows, total } = await withTenant(deps, tenant, async (tx) => ({
+      rows: await tx
         .select({
           id: instruments.id,
           name: instruments.name,
@@ -1515,10 +1548,13 @@ export function consoleRoutes(
           updatedAt: instruments.updatedAt,
         })
         .from(instruments)
-        .where(eq(instruments.partnerId, scope.partnerId))
-        .orderBy(desc(instruments.createdAt)),
-    );
-    return c.json({ products: rows });
+        .where(where)
+        .orderBy(desc(instruments.createdAt), desc(instruments.id))
+        .limit(limit)
+        .offset(offset),
+      total: await tx.select({ n: sql<string>`count(*)` }).from(instruments).where(where),
+    }));
+    return c.json({ products: rows, total: Number(total[0]?.n ?? 0) });
   });
 
   /**
@@ -1653,7 +1689,19 @@ export function consoleRoutes(
           (select coalesce(sum(pc.holdings_value_minor), 0) from partner_clients() pc
              where pc.status = 'active')                                       as aum_minor,
           (select count(*) from orders
-             where partner_id = ${scope.partnerId} and status = 'settled')     as settled_orders
+             where partner_id = ${scope.partnerId} and status = 'settled')     as settled_orders,
+          (select count(*) from orders
+             where partner_id = ${scope.partnerId} and status = 'created')     as created_orders,
+          (select count(*) from orders
+             where partner_id = ${scope.partnerId} and status = 'accepted')    as accepted_orders,
+          (select count(*) from orders
+             where partner_id = ${scope.partnerId})                            as total_orders,
+          (select count(*) from instruments
+             where partner_id = ${scope.partnerId})                            as products,
+          (select count(*) from reconciliation_items
+             where partner_id = ${scope.partnerId} and status = 'pending')     as pending_reconciliation,
+          (select count(*) from withdrawal_requests
+             where partner_id = ${scope.partnerId} and status = 'pending')     as pending_withdrawals
       `)) as unknown as [Record<string, string>],
     );
 
@@ -1681,7 +1729,19 @@ export function consoleRoutes(
         sortOrder: 2,
       },
     ];
-    return c.json({ kpis });
+    return c.json({
+      kpis,
+      summary: {
+        activeClients: Number(row?.active_clients ?? 0),
+        pendingClients: Number(row?.pending_clients ?? 0),
+        createdOrders: Number(row?.created_orders ?? 0),
+        acceptedOrders: Number(row?.accepted_orders ?? 0),
+        totalOrders: Number(row?.total_orders ?? 0),
+        products: Number(row?.products ?? 0),
+        pendingReconciliation: Number(row?.pending_reconciliation ?? 0),
+        pendingWithdrawals: Number(row?.pending_withdrawals ?? 0),
+      },
+    });
   });
 
   /**

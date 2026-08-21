@@ -219,6 +219,19 @@ export interface ConsoleKpi {
   sortOrder: number;
 }
 
+/** Complete partner workload counts. These remain independent of whichever
+ * filtered page the operator currently has open. */
+export interface ConsoleSummary {
+  activeClients: number;
+  pendingClients: number;
+  createdOrders: number;
+  acceptedOrders: number;
+  totalOrders: number;
+  products: number;
+  pendingReconciliation: number;
+  pendingWithdrawals: number;
+}
+
 /**
  * One client of this firm, and the KYC package CCN passes across with their
  * consent. Columns are snake_case because this row comes straight from a
@@ -336,8 +349,13 @@ export function putPartnerLogo(
 }
 
 /** Real audit rows for this partner, newest first. Server clamps limit to 200. */
-export function getAudit(limit = 50): Promise<{ entries: ConsoleAuditEntry[] }> {
-  return consoleFetch(`/audit?limit=${limit}`);
+export function getAudit(
+  query: (ConsoleQuery & { decisions?: boolean }) | number = {},
+): Promise<{ entries: ConsoleAuditEntry[]; total: number }> {
+  const normalized = typeof query === 'number' ? { limit: query } : query;
+  const params = new URLSearchParams(queryString(normalized).replace(/^\?/, ''));
+  if (typeof query !== 'number' && query.decisions) params.set('decisions', 'true');
+  return consoleFetch(`/audit?${params.toString()}`);
 }
 
 /** The partner's optional audit-event export and its last 20 deliveries. */
@@ -583,9 +601,11 @@ export interface ConsoleWithdrawal {
   decidedAt: string | null;
 }
 
-/** The withdrawal queue, pending first. Server caps at 50 rows. */
-export function getWithdrawals(): Promise<{ withdrawals: ConsoleWithdrawal[] }> {
-  return consoleFetch('/withdrawals');
+/** The withdrawal queue, pending first and returned a page at a time. */
+export function getWithdrawals(
+  query: ConsoleQuery = {},
+): Promise<{ withdrawals: ConsoleWithdrawal[]; total: number }> {
+  return consoleFetch(`/withdrawals${queryString(query)}`);
 }
 
 /**
@@ -620,8 +640,10 @@ export function pullReconciliation(): Promise<{ clients: number; queued: number 
   return consoleFetch('/reconciliation/pull', { method: 'POST' });
 }
 
-export function getReconciliation(): Promise<{ items: ConsoleReconciliationItem[] }> {
-  return consoleFetch('/reconciliation');
+export function getReconciliation(
+  query: ConsoleQuery = {},
+): Promise<{ items: ConsoleReconciliationItem[]; total: number }> {
+  return consoleFetch(`/reconciliation${queryString(query)}`);
 }
 
 /** Partner-scoped attachment endpoint. The API always serves it as a download. */
@@ -642,8 +664,10 @@ export function rejectReconciliation(id: string, reason?: string): Promise<{ ok:
 
 // ---- Reference data (overview / products / clients / compliance tabs) ----
 
-export function getProducts(): Promise<{ products: ConsoleProduct[] }> {
-  return consoleFetch('/products');
+export function getProducts(
+  query: ConsoleQuery = {},
+): Promise<{ products: ConsoleProduct[]; total: number }> {
+  return consoleFetch(`/products${queryString(query)}`);
 }
 
 /**
@@ -702,7 +726,7 @@ export function toggleProductLive(id: string): Promise<{ status: ConsoleProductS
   return consoleFetch(`/products/${id}/live`, { method: 'POST' });
 }
 
-export function getKpis(): Promise<{ kpis: ConsoleKpi[] }> {
+export function getKpis(): Promise<{ kpis: ConsoleKpi[]; summary: ConsoleSummary }> {
   return consoleFetch('/kpis');
 }
 
