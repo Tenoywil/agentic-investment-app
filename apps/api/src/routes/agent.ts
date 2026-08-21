@@ -207,7 +207,7 @@ export function agentRoutes(deps: AppDeps): Hono<AppEnv> {
           tx.insert(agentMessages).values({
             userId: tenant.user.id,
             role: 'agent',
-            content: stripReasoning(full) + turnMemory(displays, proposals),
+            content: stripCards(stripReasoning(full)) + turnMemory(displays, proposals),
           }),
         );
       }

@@ -55,6 +55,11 @@ export function turnMemory(displays: AgentDisplay[], proposals: unknown[]): stri
 }
 
 const CARD_BLOCK = /<card\b[^>]*>[\s\S]*?<\/card\s*>/gi;
+const CARD_UNTERMINATED = /<card\b[^>]*>[\s\S]*$/i;
+const CARD_ORPHAN_CLOSE = /^[\s\S]*?<\/card\s*>/i;
+const CARD_STREAM_OPEN = /<card\b/i;
+const CARD_STREAM_CLOSE = /<\/card\s*>/i;
+const CARD_STREAM_CLOSE_TAIL = /(?:<|<\/|<\/c|<\/ca|<\/car|<\/card\s*)$/i;
 
 const CONTEXT_ANCHOR =
   /\b(?:actually|avoid|budget|cash floor|currency|do not|don't|goal|horizon|income|instead|liquid|liquidity|limit|must|need|never|only|prefer|preference|retire|retirement|risk|sector|timeline|timeframe|want)\b|\b\d+\s*(?:years?|months?)\b|\b(?:US|J|Bds)\$\s?[\d,]+/i;
@@ -119,10 +124,66 @@ export function conversationContext(
 
 /** Remove `<card>` appendix blocks before text reaches a human surface. */
 export function stripCards(text: string): string {
-  return text
-    .replace(CARD_BLOCK, ' ')
+  let out = text.replace(CARD_BLOCK, ' ');
+  // Once balanced blocks are gone, a remaining close means the text began in
+  // a machine record; an opener without a close means the response ended in
+  // one. Fail closed in both cases instead of showing partial JSON to a user.
+  if (/<\/card\s*>/i.test(out)) out = out.replace(CARD_ORPHAN_CLOSE, ' ');
+  out = out.replace(CARD_UNTERMINATED, ' ');
+  return out
     .replace(/[ \t]+/g, ' ')
     .replace(/[ \t]*\n[ \t]*/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/^\s+|\s+$/g, '');
+}
+
+/**
+ * Remove model-emitted `<card>` records while preserving a live text stream.
+ *
+ * Card records belong only in model-facing conversation memory. Prompt rules
+ * are not a security boundary, so a model can still echo one, and chunking can
+ * split either tag at any character. Keep the shortest possible suffix while
+ * looking for an opener, then suppress everything through its closing tag. An
+ * unterminated record is discarded at EOF rather than exposed as partial JSON.
+ */
+export async function* stripCardStream(source: AsyncIterable<string>): AsyncIterable<string> {
+  let buffer = '';
+  let insideCard = false;
+  const openerTailLength = '<card'.length - 1;
+
+  for await (const chunk of source) {
+    if (chunk.length === 0) continue;
+    buffer += chunk;
+
+    while (buffer.length > 0) {
+      if (insideCard) {
+        const close = CARD_STREAM_CLOSE.exec(buffer);
+        if (!close) {
+          // Discard card data as it arrives. Retain only a suffix that could be
+          // the beginning of a closing tag, keeping malformed output bounded.
+          buffer = CARD_STREAM_CLOSE_TAIL.exec(buffer)?.[0] ?? '';
+          break;
+        }
+        buffer = buffer.slice(close.index + close[0].length);
+        insideCard = false;
+        continue;
+      }
+
+      const open = CARD_STREAM_OPEN.exec(buffer);
+      if (open) {
+        const visible = buffer.slice(0, open.index);
+        if (visible.length > 0) yield visible;
+        buffer = buffer.slice(open.index + open[0].length);
+        insideCard = true;
+        continue;
+      }
+
+      const emitLength = buffer.length - openerTailLength;
+      if (emitLength <= 0) break;
+      yield buffer.slice(0, emitLength);
+      buffer = buffer.slice(emitLength);
+    }
+  }
+
+  if (!insideCard && buffer.length > 0) yield buffer;
 }

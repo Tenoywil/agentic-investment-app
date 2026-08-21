@@ -1,6 +1,7 @@
 import { type LanguageModel, type ModelMessage, stepCountIs, streamText } from 'ai';
 import { ResponseCache } from './cache';
 import type { AgentContext } from './context';
+import { stripCardStream } from './memory';
 import { SYSTEM_PROMPT } from './prompt';
 import { type GatewayConfig, createGatewayModel } from './provider';
 import { assertReadOnly, buildTools } from './tools';
@@ -177,7 +178,9 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     scope: args.cacheScope ?? null,
   });
   if (cache?.has(key)) {
-    return { textStream: once(cache.get(key) ?? ''), cached: true };
+    // Cache entries are treated as untrusted too. This also prevents a reply
+    // cached by an older process from replaying an internal card record.
+    return { textStream: stripCardStream(once(cache.get(key) ?? '')), cached: true };
   }
 
   const messages: ModelMessage[] = [
@@ -215,6 +218,10 @@ export function runAgent(args: RunAgentArgs): RunAgentResult {
     },
   });
 
-  const textStream = cache ? teeIntoCache(result.textStream, cache, key) : result.textStream;
+  // Tool displays travel on their own typed channel. If the model echoes the
+  // model-facing `<card>` memory record in prose, remove it before the stream
+  // reaches the API, response cache, persistence layer, browser or narration.
+  const safeTextStream = stripCardStream(result.textStream);
+  const textStream = cache ? teeIntoCache(safeTextStream, cache, key) : safeTextStream;
   return { textStream, cached: false };
 }
