@@ -93,8 +93,8 @@ const CUSTOMER_ROUTES: Record<string, TourStep[]> = {
   '/planning': [
     {
       target: 'customer-planning',
-      title: 'Turn goals into a plan',
-      body: 'Review projections, contribution paths and goal progress using your current portfolio data.',
+      title: 'Connect products to real goals',
+      body: 'Review planning products, add a named target such as purchasing a property, and track funding progress from recorded amounts.',
     },
   ],
   '/gateway/mandate': [
@@ -149,9 +149,14 @@ const INSTITUTION: TourStep[] = [
     body: 'Move between overview, order flow, products, clients and compliance.',
   },
   {
+    target: 'institution-value',
+    title: 'The value to your firm',
+    body: 'See how CCN supports referral intake, product distribution, settlement records and auditable decisions without taking custody or replacing your licensed desk.',
+  },
+  {
     target: 'institution-checklist',
     title: 'Complete the desk setup',
-    body: 'Funding instructions, products, clients and orders form a practical readiness checklist.',
+    body: 'Complete funding instructions, publish product evidence, name the compliance contact and clear client and order work before launch.',
   },
   {
     target: 'institution-needs-you',
@@ -171,12 +176,12 @@ const INSTITUTION: TourStep[] = [
   {
     target: 'institution-clients',
     title: 'Clients and KYC',
-    body: 'Accept, decline or request more information using the verified record available to your desk.',
+    body: 'Review consented identity, PEP and source-of-funds records, request more evidence when needed, and record your firm’s final KYC and AML decision.',
   },
   {
     target: 'institution-products',
     title: 'Your listed products',
-    body: 'Publish complete product data and pause a listing when it should leave the marketplace.',
+    body: 'List one product or import many, attach prospectus and legal documents, disclose risk and fees, and pause a listing when it should leave the marketplace.',
   },
   {
     target: 'institution-orders',
@@ -187,6 +192,11 @@ const INSTITUTION: TourStep[] = [
     target: 'institution-withdrawals',
     title: 'Withdrawal decisions',
     body: 'Record payment or decline with a reason the client can see.',
+  },
+  {
+    target: 'institution-webhook-export',
+    title: 'Connect compliance evidence',
+    body: 'Export the partner-scoped audit record or send signed events to your own compliance system without exposing another firm’s data.',
   },
   {
     target: 'institution-decisions',
@@ -210,6 +220,31 @@ const DEMO_INSTITUTION: TourStep[] = [
     target: 'demo-institution-shell',
     title: 'Fixture-only partner console',
     body: 'Explore seeded products, clients, orders and compliance records. Actions stay inside this browser preview.',
+  },
+  {
+    target: 'institution-checklist',
+    title: 'See the partner launch path',
+    body: 'The sample checklist shows how a firm moves from funding setup and product evidence to client and order readiness.',
+  },
+  {
+    target: 'institution-needs-you',
+    title: 'Work is prioritised',
+    body: 'Orders, client reviews, reconciliation items and withdrawals that need a human decision are brought together here.',
+  },
+  {
+    target: 'institution-tab-products',
+    title: 'Products: list one or import many',
+    body: 'After the tour, open Products to try the single-product form or bulk CSV flow, attach required evidence, and pause a sample listing without touching live data.',
+  },
+  {
+    target: 'institution-tab-clients',
+    title: 'Clients: evidence before a decision',
+    body: 'Open Clients to see how the agent structures consented KYC and AML evidence and flags gaps. A licensed operator still reviews the evidence and records the outcome.',
+  },
+  {
+    target: 'institution-tab-compliance',
+    title: 'Compliance: AML coverage and audit trail',
+    body: 'Open Compliance to inspect identity status, PEP disclosures, source-of-funds evidence and missing checks, plus who recorded each decision. The agent never invents screening results.',
   },
 ];
 

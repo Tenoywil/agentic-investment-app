@@ -269,7 +269,7 @@ export default function HomePage() {
           footer, where it is on every screen and always in view. */}
       <PageHead eyebrow={todayLabel()} title={greeting(userName)} />
 
-      {/* A firm asked this person to finish verification, and their KYC is
+      {/* A firm asked this person to finish KYC intake, and that intake is
           genuinely incomplete: one banner naming the firm, one door to the
           flow that clears it. Gone the moment onboarding completes. */}
       {me && !me.onboarding.complete && (me.kycRequests?.length ?? 0) > 0 && (
@@ -282,11 +282,11 @@ export default function HomePage() {
                 .filter((p, i, all) => all.indexOf(p) === i)
                 .join(' and ')}
             </b>{' '}
-            asked you to finish verifying your identity. It takes a few minutes, and it is what lets
-            the firm act on your instructions.
+            asked you to finish your identity and compliance intake. It takes a few minutes and
+            gives their compliance desk the recorded details to review.
           </p>
           <Button size="sm" asChild className="flex-none">
-            <Link href="/onboarding">Finish verification</Link>
+            <Link href="/onboarding">Finish KYC intake</Link>
           </Button>
         </div>
       )}
@@ -558,16 +558,16 @@ export default function HomePage() {
 
           <Card className="p-[22px]" data-tour="customer-activity">
             <div className="mb-4 flex items-center gap-2.5">
-              <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
-              <Badge variant="secondary">within your limits</Badge>
+              <span className={cn(UPPR, 'text-foreground')}>Agent activity</span>
+              <Badge variant="secondary">you confirm every move</Badge>
             </div>
             {agentError && !agentLoading && <ErrorLine message={agentError} />}
             {!agentLoading && !agentError && recentAgentActivity.length === 0 && (
               <EmptyState
                 className="mb-[15px]"
                 icon={Sparkles}
-                title="Your agent hasn't acted yet"
-                body="Everything it does inside your limits is recorded here, newest first."
+                title="Your agent hasn't prepared anything yet"
+                body="Research and proposals are recorded here, newest first. You confirm every move before routing."
               />
             )}
             {recentAgentActivity.map((m, i) => (

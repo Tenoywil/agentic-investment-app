@@ -825,10 +825,10 @@ export function consoleRoutes(
    * queue — nothing that named a person, and no way to admit or refuse one. An
    * investor could link an account at a firm and the firm was never told.
    *
-   * The KYC package is the client's own: CCN records the verified outcome, the
-   * partner remains the regulated owner. It becomes visible to this firm because
-   * the client linked an account here, and the database enforces that join
-   * rather than this handler.
+   * The KYC intake package is the client's own recorded details and declarations;
+   * it is not a CCN verification result. The partner remains the regulated owner
+   * of verification and the final KYC/AML decision. The package becomes visible
+   * because the client linked an account here, and the database enforces that join.
    *
    * `holdings_value_minor` is a bigint and crosses the wire as a string, like
    * every other bigint column.
@@ -1034,7 +1034,7 @@ export function consoleRoutes(
         return c.json(
           {
             error:
-              'This person has not finished onboarding, so CCN has no verified KYC to pass you yet.',
+              'This person has not finished onboarding, so CCN has no complete KYC intake package to pass you yet.',
           },
           409,
         );

@@ -491,7 +491,7 @@ export default function DemoInstitutionsPage() {
 
         <TabsContent value="clients" className="mt-0">
           <div className="g-held">
-            <Card className="p-5 sm:p-6">
+            <Card className="p-5 sm:p-6" data-tour="demo-institution-clients">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <b className="font-display text-lg">Client review queue</b>
@@ -552,7 +552,10 @@ export default function DemoInstitutionsPage() {
 
         <TabsContent value="compliance" className="mt-0">
           <div className="g-agent g-agent--flip">
-            <Card className="h-fit border-none bg-primary p-5 text-[#eafaf5] sm:p-6">
+            <Card
+              className="h-fit border-none bg-primary p-5 text-[#eafaf5] sm:p-6"
+              data-tour="demo-institution-aml"
+            >
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="h-5 w-5 text-[#8fe3c0]" aria-hidden />
                 <b className="font-display text-base">AML agent coverage</b>
@@ -570,7 +573,7 @@ export default function DemoInstitutionsPage() {
                 </p>
               </div>
             </Card>
-            <Card className="p-5 sm:p-6">
+            <Card className="p-5 sm:p-6" data-tour="demo-institution-decisions">
               <b className="font-display text-[17px]">Sample decision trail</b>
               <div className="mt-3 space-y-1">
                 {[

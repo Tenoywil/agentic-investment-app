@@ -154,7 +154,7 @@ const OPPS: Opp[] = [
     risk: 'High',
     desc: 'A private credit note providing senior secured financing to mid-market Caribbean firms. Higher return for reduced liquidity: capital is locked for the term.',
     agentNote:
-      'Unlocked by your source-of-funds verification. Illiquid, and only suitable for capital you won’t need for 3 years.',
+      'Unlocked by your source-of-funds declaration. Illiquid, and only suitable for capital you won’t need for 3 years.',
   },
   {
     id: 'jmmb',
@@ -451,11 +451,11 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {[
-                    'Identity verified (KYC · Tier 2)',
+                    'Identity intake recorded · partner verification required before execution',
                     opp.risk === 'High'
                       ? 'Suitability: within your stated high-risk allocation limit'
                       : 'Suitability: matches your balanced-income profile',
-                    'Source of funds confirmed',
+                    'Source-of-funds declaration recorded',
                   ].map((line) => (
                     <div
                       key={line}

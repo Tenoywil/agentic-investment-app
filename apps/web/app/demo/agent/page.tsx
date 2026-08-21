@@ -58,18 +58,18 @@ const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
 
 const REPLIES: Record<string, string> = {
   summary:
-    "Here's your week: your GOJ 2026 coupon of US$412 settles Friday. I'd reinvest it into the Real Estate X Fund, which is projected to lift blended yield to about 6.9%. Your US$2,150 cash is idle; a money-market sweep is projected to add about US$110 a year. Both are queued for your approval.",
+    "Here's your week: your GOJ 2026 coupon of US$412 settles Friday. I'd reinvest it into the Real Estate X Fund, which is projected to lift blended yield to about 6.9%. Your US$2,150 cash is idle; a money-market sweep is projected to add about US$110 a year. Compared with like-for-like US, Canadian or UK options, the potential value is added Caribbean exposure; compare net fees, tax and reporting, currency, liquidity and investor protections before deciding. Both are queued for your approval.",
   rebalance:
-    "You're overweight fixed income at 46% and light on equities at 14%. Shifting about US$3,000 from cash into the GraceKennedy offering moves you toward your balanced-income target while keeping risk in band. I can prepare it, and Barita would execute it.",
+    "You're overweight fixed income at 46% and light on equities at 14%. Shifting about US$3,000 from cash into the GraceKennedy offering moves you toward your balanced-income target while keeping risk in band. Its potential diaspora value versus a like-for-like US, Canadian or UK equity is Jamaica exposure, but that is not automatically better: compare net fees, tax and reporting, currency, liquidity and investor protections. I can prepare it, and Barita would execute it.",
   income:
-    'For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?',
-  idle: 'You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Rates move; the fund’s rate is variable. I can queue it now.',
+    'For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Compared with a like-for-like US, Canadian or UK bond, its potential diaspora value is direct Jamaica exposure and a USD coupon. It is not automatically better: compare after-tax return, duration, credit risk, liquidity, settlement and investor protections. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?',
+  idle: 'You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Its potential diaspora value versus a like-for-like US, Canadian or UK cash fund is Caribbean account exposure in USD; compare net fees, tax and reporting, liquidity, settlement and investor protections before deciding. Rates move; the fund’s rate is variable. I can queue it now.',
   whynot:
     'The Beachfront Villas Development Note fails your suitability screen on four counts: it is a high-risk speculative note against your balanced-income profile, the US$25,000 minimum is about 80% of your portfolio versus your 15% single-position cap, five illiquid years conflict with your university-fund timeline, and it pays no income until exit. I keep it visible so you can see what I screen out, but I will not prepare or route it.',
   safety:
-    "Here's the honest split: I research, screen and prepare. The licensed, FSC-regulated partners execute, custody and settle. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every action is written to an audit log you can read.",
-  fees: "CCN charges a flat platform fee; the partners' own product fees are shown on each deal card before you approve, and there are no hidden spreads from me. I always show the partner's fee line next to any projection.",
-  kyc: 'Your identity checks live with the licensed partners, not with me. NCB already verified you to Tier 2, and with your consent CCN reuses that status across partners, so there’s no new paperwork. Each partner remains the regulated entity responsible for KYC and AML on its own accounts.',
+    "Here's the honest split: I research, screen and prepare. The licensed executing firm executes, custodies and settles. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every decision is written to an audit log you can read.",
+  fees: 'Applicable CCN and partner product fees are shown before you approve. The executing firm reports the actual settlement price, units and fee; I do not estimate a missing settlement figure.',
+  kyc: 'With your consent, CCN collects and passes your declarations and documents to the licensed firm you choose. That firm reviews the evidence, may request more, and remains responsible for the final KYC and AML decision for its own account. A status from one firm is not presented as clearing another.',
 };
 
 /** Sample-only numbers for the public preview. The live surface receives this
@@ -236,7 +236,8 @@ const APPROVALS: {
       },
       {
         agent: 'Compliance agent',
-        summary: 'Verified KYC readiness and the active Sagicor account relationship.',
+        summary:
+          'Checked recorded onboarding readiness and the active Sagicor relationship; Sagicor retains the final KYC and AML decision.',
       },
       {
         agent: 'Coordinator',
@@ -270,7 +271,8 @@ const APPROVALS: {
       },
       {
         agent: 'Compliance agent',
-        summary: 'Verified KYC readiness and the active NCB account relationship.',
+        summary:
+          'Checked recorded onboarding readiness and the active NCB relationship; NCB retains the final KYC and AML decision.',
       },
       {
         agent: 'Coordinator',
@@ -310,8 +312,8 @@ const RULES: {
 }[] = [
   {
     key: 'autoInvest',
-    label: 'Auto-invest idle cash',
-    note: 'The most it may commit without asking',
+    label: 'Within-limit proposal cap',
+    note: 'Auto-act classification up to this amount; you still confirm',
     value: (limits) => `≤ ${formatDemoUsd(limits.autoInvestCap)}`,
   },
   {
@@ -356,8 +358,8 @@ const DEMO_LIMIT_FIELDS: {
 }[] = [
   {
     key: 'autoInvestCap',
-    label: 'Auto-invest cap (USD)',
-    note: 'Most it may commit alone.',
+    label: 'Within-limit proposal cap (USD)',
+    note: 'Within-limit classification; confirmation still required.',
     inputMode: 'decimal',
   },
   {
@@ -515,7 +517,7 @@ export default function AgentPage() {
 
   function saveLimits() {
     const moneyFields: { key: keyof DemoLimits; label: string }[] = [
-      { key: 'autoInvestCap', label: 'Auto-invest cap' },
+      { key: 'autoInvestCap', label: 'Within-limit proposal cap' },
       { key: 'cashFloor', label: 'Cash floor' },
       { key: 'approvalThreshold', label: 'Approval threshold' },
       { key: 'dailyCap', label: 'Daily cap' },
@@ -799,7 +801,7 @@ export default function AgentPage() {
             <div className="mb-3.5 flex items-center justify-between gap-2.5">
               <div>
                 <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
-                <span className="ml-2 text-[12.5px] text-faint">what it may do alone</span>
+                <span className="ml-2 text-[12.5px] text-faint">how proposals are classified</span>
               </div>
               <Button
                 type="button"

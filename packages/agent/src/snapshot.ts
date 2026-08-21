@@ -115,6 +115,9 @@ export interface AgentComplianceSnapshot {
 }
 
 export interface AgentSnapshot {
+  /** Self-declared residence. Comparison copy consumes it only through an
+   * approved market taxonomy and never repeats the raw profile value. */
+  residencyCountry: string | null;
   portfolio: SnapshotPortfolio;
   limits: EngineLimits;
   band: RiskBand;

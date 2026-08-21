@@ -52,7 +52,8 @@ function GoogleG() {
  * list or the names — the deployed database may hold fewer firms or stale
  * spellings (it briefly held exactly one), and a marketing strip that
  * collapses to whatever a half-seeded table returns is worse than the curated
- * truth. Names and brand colors mirror packages/db reference data.
+ * truth. Names come from the approved public network roster; live data only
+ * enriches the presentation.
  */
 const NETWORK_PARTNERS: { code: string; name: string; color: string; tint: string }[] = [
   { code: 'NCB', name: 'NCB Capital Markets', color: '#1a4aa0', tint: '#e7edf8' },
@@ -62,6 +63,8 @@ const NETWORK_PARTNERS: { code: string; name: string; color: string; tint: strin
   { code: 'BAR', name: 'Barita Investments', color: '#6b4a9e', tint: '#f0eaf8' },
   { code: 'REP', name: 'Republic Bank', color: '#1a6aa0', tint: '#e7f0f8' },
   { code: 'SYG', name: 'Sygnus Capital', color: '#8a5a2e', tint: '#f6eee2' },
+  { code: 'BMC', name: 'Blue Mahoe Capital', color: '#275b78', tint: '#e7f0f4' },
+  { code: 'RNV', name: 'Renovare Development', color: '#7a5b34', tint: '#f3eee5' },
 ];
 
 const PILLARS: { Icon: LucideIcon; title: string; body: string }[] = [
@@ -77,8 +80,8 @@ const PILLARS: { Icon: LucideIcon; title: string; body: string }[] = [
   },
   {
     Icon: ShieldCheck,
-    title: 'Regulated partners',
-    body: 'Licensed firms custody and execute everything. CCN never holds your money.',
+    title: 'Licensed execution',
+    body: 'The licensed executing firm accepts, executes, custodies and settles. CCN never holds your money.',
   },
 ];
 
@@ -175,12 +178,12 @@ export default function LandingPage() {
           <div className="landing-rise landing-rise--4 mt-4 flex flex-wrap items-center justify-center gap-3.5 text-[13.5px] text-dim">
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
-              Licensed, regulated partners
+              Regulated execution by licensed firms
             </span>
             <span aria-hidden>·</span>
-            <span>KYC &amp; AML built in</span>
+            <span>Institution-led KYC &amp; AML</span>
             <span aria-hidden>·</span>
-            <span>Data held in-region</span>
+            <span>You approve every move</span>
           </div>
         </div>
       </div>
@@ -194,7 +197,7 @@ export default function LandingPage() {
       <div className="border-x-0 border-y border-solid border-border bg-card">
         <div className={`py-6 ${MARKETING_CONTAINER}`}>
           <div className="mb-4 text-center text-[12px] font-semibold uppercase tracking-[1.6px] text-faint">
-            Institutions on the network
+            Network institutions and issuers
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2.5">
             {NETWORK_PARTNERS.map((p) => {
@@ -260,8 +263,7 @@ export default function LandingPage() {
             Your money, working across the region.
           </h2>
           <p className="mx-auto mt-2.5 max-w-[440px] text-[15.5px] leading-relaxed text-white/80">
-            Free to start. One flat platform fee when you invest. Every other cost is shown before
-            you approve.
+            Free to start. Applicable platform and product fees are shown before you approve.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Button

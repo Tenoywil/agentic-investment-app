@@ -3,10 +3,11 @@
  * every proposed money movement passes before it can become an order.
  *
  * Pure: input in, decision out, no I/O and no side effects. The API calls this
- * before the `create_order` choke point; only an `auto_act` decision (fully in
- * limits) or a human-approved card may reach that function. The model proposes;
- * this module — not the model — decides, so a compromised or hallucinating agent
- * still cannot move money outside the rules.
+ * before the `create_order` choke point. A non-blocked classification may reach
+ * that function only after human confirmation; `auto_act` means within-limit,
+ * not autonomous execution. The model proposes; this module — not the model —
+ * decides, so a compromised or hallucinating agent still cannot move money
+ * outside the rules.
  *
  * Encodes 03-agent-workflow.mmd and the prototype's rulesData + 15% cap +
  * FX-spread guard. Checks run in a fixed order; the first decisive one wins.
@@ -83,7 +84,9 @@ export type LimitsDecisionCode =
 
 /**
  * The verdict:
- * - `auto_act`     — fully in limits; the agent may execute without asking.
+ * - `auto_act`     — a within-limit classification. It is never execution
+ *                    authority; every caller still requires human confirmation
+ *                    before a licensed firm can receive the move.
  * - `requires_approval` — creates a "Needs your approval" card; a human tap
  *                    (or the exec-modal authorize) then reaches `create_order`.
  * - `blocked`      — cannot proceed at all; `reasons` explains why.
@@ -116,7 +119,7 @@ const approve = (code: LimitsDecisionCode, reason: string): LimitsDecision => ({
  *   6. daily cap                 → blocked
  *   7. FX-spread over guardrail  → requires approval (held for review)
  *   8. above approval threshold  → requires approval
- *   9. within auto-invest cap    → auto-act; otherwise requires approval
+ *   9. within proposal cap       → auto-act classification; otherwise approval
  *
  * A disabled toggle skips its check.
  */
@@ -189,12 +192,13 @@ export function evaluate(input: EngineInput): LimitsDecision {
     );
   }
 
-  // 9. Within the auto-invest cap → the agent may act alone; else it asks.
+  // 9. Within the proposal cap → classify as auto-act. Human confirmation is
+  // still required by every route before a licensed firm receives the move.
   if (limits.autoInvestEnabled && amountMinor <= limits.autoInvestCapMinor) {
     return { decision: 'auto_act', code: 'in_limit' };
   }
   return approve(
     'above_auto_invest',
-    `Above your ${fmt(limits.autoInvestCapMinor)} auto-invest limit`,
+    `Above your ${fmt(limits.autoInvestCapMinor)} within-limit proposal cap`,
   );
 }

@@ -191,7 +191,7 @@ export function ClientsTab({
             <EmptyState
               icon={Users}
               title="No referrals yet"
-              body="Invited, KYC started, verified and funded counts appear here once CCN starts referring clients into your onboarding."
+              body="Invited, KYC started, reviewed and funded counts appear here once CCN starts referring clients into your onboarding."
             />
           ) : null}
 

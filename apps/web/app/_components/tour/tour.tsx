@@ -7,7 +7,7 @@ import { type TourSurface, stepsFor } from './steps';
 import 'driver.js/dist/driver.css';
 
 /**
- * The guided tour, one per surface.
+ * The guided tour, auto-started once per page.
  *
  * Mounted once from the root layout and driven by the pathname rather than by
  * session state, so it adds no request and holds no identity — it only decides
@@ -28,7 +28,7 @@ import 'driver.js/dist/driver.css';
  *   the navigation that is always visible. Waiting for the screen to stop
  *   declaring itself busy and for the target count to stop growing is what makes
  *   the auto-started tour the whole tour.
- * - It runs once per surface per browser, and the account menu replays it on
+ * - It runs once per page per browser, and the account menu replays it on
  *   demand, because it will be run more than once in front of an audience.
  *
  * It renders no launcher of its own. It used to: a pill fixed to the bottom-right
@@ -143,6 +143,10 @@ export function Tour() {
   const pathname = usePathname();
   const surface = surfaceForPath(pathname ?? '');
   const instance = React.useRef<Driver | null>(null);
+  // localStorage records completed/closed tours across visits. This in-memory
+  // guard also prevents a second auto-start on the same mounted page before
+  // driver.js has fired onDestroyed and persisted that record.
+  const autoStarted = React.useRef(new Set<string>());
 
   const start = React.useCallback(() => {
     if (!surface) return;
@@ -215,7 +219,11 @@ export function Tour() {
 
       if (settled) {
         window.clearInterval(id);
-        if (!seen(surface, pathname ?? '')) start();
+        const key = DISMISS_KEY(surface, pathname ?? '');
+        if (!seen(surface, pathname ?? '') && !autoStarted.current.has(key)) {
+          autoStarted.current.add(key);
+          start();
+        }
         return;
       }
       if (tries > 40) {

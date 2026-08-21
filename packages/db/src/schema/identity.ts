@@ -74,9 +74,9 @@ export const riskProfiles = pgTable('risk_profiles', {
 });
 
 /**
- * Consent-based KYC status — CCN is NOT the KYC owner; this records the verified
- * outcome and declarations. Actual documents live in private Storage, referenced
- * by kyc_documents.
+ * Consent-based KYC intake status — CCN is NOT the KYC owner; this records
+ * completed intake steps and declarations for licensed-firm review. Actual
+ * documents are held in kyc_documents under tenant-scoped access.
  */
 export const kycStatus = pgTable('kyc_status', {
   userId: uuid('user_id')

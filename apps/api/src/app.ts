@@ -184,7 +184,7 @@ export function createApp(
         .where(eq(userProfiles.userId, tenant.user.id));
       const [limit] = await tx.select().from(limits).where(eq(limits.userId, tenant.user.id));
       const [kyc] = await tx.select().from(kycStatus).where(eq(kycStatus.userId, tenant.user.id));
-      // Firms that asked this person to finish verification (0032). The web
+      // Firms that asked this person to finish KYC intake (0032). The web
       // shows the ask only while onboarding is actually incomplete, so a
       // stale request after completion costs nothing.
       const kycRequests = await tx

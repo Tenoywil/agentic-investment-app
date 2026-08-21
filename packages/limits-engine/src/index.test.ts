@@ -1,4 +1,5 @@
 import { expect, describe as group, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import {
   type EngineInput,
   type EngineInstrument,
@@ -7,8 +8,8 @@ import {
   evaluate,
 } from './index';
 
-/** Prototype defaults (from the `limits` table): US$500 auto / US$1,000 floor
- *  & approval / 30 bps / 15% single-position / daily cap off. */
+/** Prototype defaults (from the `limits` table): US$500 within-limit proposal
+ *  cap / US$1,000 floor & approval / 30 bps / 15% single-position / daily cap off. */
 const LIMITS: EngineLimits = {
   autoInvestCapMinor: 50_000n, // US$500
   autoInvestEnabled: true,
@@ -62,14 +63,14 @@ function makeInput(over: {
   };
 }
 
-group('auto_act — fully in limits', () => {
-  test('a US$400 idle-cash sweep of a low-risk fund auto-acts', () => {
+group('auto_act classification — fully in limits', () => {
+  test('classifies a US$400 idle-cash proposal as auto_act', () => {
     const d = evaluate(makeInput({ amountMinor: 40_000n }));
     expect(d.decision).toBe('auto_act');
     expect(d.code).toBe('in_limit');
   });
 
-  test('exactly at the auto-invest cap still auto-acts', () => {
+  test('exactly at the proposal cap still classifies as auto_act', () => {
     expect(evaluate(makeInput({ amountMinor: 50_000n })).decision).toBe('auto_act');
   });
 });
@@ -79,6 +80,10 @@ group('requires_approval', () => {
     const d = evaluate(makeInput({ amountMinor: 60_000n }));
     expect(d.decision).toBe('requires_approval');
     expect(d.code).toBe('above_auto_invest');
+    if (d.decision === 'requires_approval') {
+      expect(d.reason).toContain('within-limit proposal cap');
+      expect(d.reason).not.toContain('auto-invest limit');
+    }
   });
 
   test('one minor unit over the auto-invest cap escalates', () => {
@@ -95,6 +100,15 @@ group('requires_approval', () => {
     const d = evaluate(makeInput({ amountMinor: 40_000n, limits: { autoInvestEnabled: false } }));
     expect(d.decision).toBe('requires_approval');
     expect(d.code).toBe('above_auto_invest');
+  });
+});
+
+group('execution authority boundary', () => {
+  test('the engine contract never describes auto_act as autonomous execution', () => {
+    const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/may execute without asking|may act alone/i);
+    expect(source).toContain('not autonomous execution');
+    expect(source).toContain('Human confirmation is');
   });
 });
 

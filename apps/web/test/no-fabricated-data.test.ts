@@ -38,6 +38,7 @@ const ROOTS = [
   'app/(customer)',
   'app/(institution)',
   'app/(admin)',
+  'app/(marketing)',
   'app/_components',
   'app/page.tsx',
   'app/sign-in',
@@ -61,6 +62,14 @@ const DENYLIST: Array<{ pattern: RegExp; why: string }> = [
   { pattern: /47\s+(instruments|holdings)/, why: 'the invented holdings count' },
   { pattern: /8\s+licensed partners/, why: 'the invented partner count' },
   { pattern: /FSC-regulated/, why: 'a regulator asserted as static text — use partner.regulator' },
+  {
+    pattern: /Data held in-region/,
+    why: 'an unsupported storage-location claim for data that may move cross-border',
+  },
+  {
+    pattern: /One flat platform fee|CCN charges a flat platform fee/,
+    why: 'a fee-model claim that must come from the current commercial and legal structure',
+  },
 ];
 
 /**
@@ -125,4 +134,17 @@ describe('authenticated surfaces carry no fabricated data', () => {
       expect(hits).toEqual([]);
     });
   }
+});
+
+describe('requested public and planning examples stay present', () => {
+  it('the landing roster includes the two approved additions', () => {
+    const landing = readFileSync(join(WEB, 'app/page.tsx'), 'utf8');
+    expect(landing).toContain("name: 'Blue Mahoe Capital'");
+    expect(landing).toContain("name: 'Renovare Development'");
+  });
+
+  it('a property purchase is the goal-name example', () => {
+    const planning = readFileSync(join(WEB, 'app/(customer)/planning/page.tsx'), 'utf8');
+    expect(planning).toContain('placeholder="e.g. Purchase a property"');
+  });
 });

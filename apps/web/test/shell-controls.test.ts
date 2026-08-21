@@ -215,6 +215,43 @@ describe('app shell controls', () => {
     expect(code(join(SHELL, 'ui/skeleton.tsx'))).toContain('aria-busy="true"');
   });
 
+  test('the tour auto-starts at most once for each pathname', () => {
+    const tour = code(join(SHELL, 'tour/tour.tsx'));
+    expect(tour).toContain('DISMISS_KEY(surface, pathname');
+    expect(tour).toContain('autoStarted.current.has(key)');
+    expect(tour).toContain('autoStarted.current.add(key)');
+    expect(tour).toContain("localStorage.setItem(DISMISS_KEY(surface, pathname), 'done')");
+  });
+
+  test('the partner demo tour keeps every step reachable from the overview tab', () => {
+    const steps = code(join(SHELL, 'tour/steps.ts'));
+    const demoSteps = steps.slice(
+      steps.indexOf('const DEMO_INSTITUTION'),
+      steps.indexOf('function routeKey'),
+    );
+    const sidebar = code(join(SHELL, 'console/console-sidebar.tsx'));
+    for (const target of ['products', 'clients', 'compliance']) {
+      const tourTarget = `institution-tab-${target}`;
+      expect(demoSteps).toContain(`target: '${tourTarget}'`);
+      // Both the desktop rail and mobile bottom controls use the same target,
+      // and visibleTarget resolves the presentation that occupies space.
+      expect(sidebar).toContain('data-tour={`institution-tab-${key}`}');
+    }
+    for (const hiddenPanelTarget of [
+      'institution-products',
+      'demo-institution-clients',
+      'demo-institution-aml',
+      'demo-institution-decisions',
+    ]) {
+      // Radix removes inactive tab panels from layout. A first-run overview
+      // tour must never depend on one of those hidden targets.
+      expect(demoSteps).not.toContain(`target: '${hiddenPanelTarget}'`);
+    }
+    for (const context of ['bulk CSV', 'consented KYC and AML', 'PEP disclosures']) {
+      expect(demoSteps).toContain(context);
+    }
+  });
+
   /**
    * The fixture-only preview has no session, so it cannot show an account menu
    * — and calling /api/me from it would break the rule that the demo track
@@ -238,6 +275,31 @@ describe('app shell controls', () => {
     expect(agent).toContain('How the agents reached this');
     expect(agent).toContain('no transaction placed');
     expect(agent).toContain('no money moved');
+  });
+
+  test('identity intake and demo compliance copy reserve verification for licensed firms', () => {
+    const onboardingData = code(join(WEB, 'app/(customer)/onboarding/data.ts'));
+    const onboardingPage = code(join(WEB, 'app/(customer)/onboarding/page.tsx'));
+    const demoAgent = code(join(WEB, 'app/demo/agent/page.tsx'));
+    const opportunities = code(join(WEB, 'app/(customer)/opportunities/page.tsx'));
+    const demoOpportunities = code(join(WEB, 'app/demo/opportunities/page.tsx'));
+
+    expect(onboardingData).toContain('Complete identity intake');
+    expect(onboardingData).toContain('Identity intake recorded.');
+    expect(onboardingData).not.toContain("'Get verified'");
+    expect(onboardingData).not.toContain('Verification complete.');
+    expect(onboardingPage).toContain(
+      'Identity intake recorded · ready to share with a partner you choose',
+    );
+    expect(onboardingPage).not.toContain('Identity documents verified · KYC Tier 2 unlocked');
+    expect(demoAgent).not.toContain('Verified KYC readiness');
+    expect(demoAgent.match(/retains the final KYC and AML decision/g)).toHaveLength(2);
+    for (const surface of [opportunities, demoOpportunities]) {
+      expect(surface).toContain(
+        'Identity intake recorded · partner verification required before execution',
+      );
+      expect(surface).not.toMatch(/KYC(?: ·)? Tier/);
+    }
   });
 
   test('the demo agent uses the real inline chart renderer for visual requests', () => {

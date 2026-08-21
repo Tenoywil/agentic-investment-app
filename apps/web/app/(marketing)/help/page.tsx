@@ -31,7 +31,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'What are the limits, and who sets them?',
-    a: 'You do, on the agent screen: an auto-invest cap, a cash floor it never breaches, a require-approval threshold, and a single-position cap. The server enforces them, so they are not advisory, and the same engine screens the marketplace, the chat, and every order you place yourself.',
+    a: 'You do, on the agent screen: a within-limit proposal cap, a cash floor it never breaches, a require-approval threshold, and a single-position cap. The server enforces them, so they are not advisory, and the same engine screens the marketplace, the chat, and every order you place yourself. A within-limit result still waits for your confirmation before routing.',
   },
   {
     q: 'What record do I get when something is executed?',
@@ -39,7 +39,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'What does CCN cost?',
-    a: 'One flat platform fee. Each partner’s own product fees, withdrawal fees and any local tax are shown before you approve, to the cent. CCN adds no hidden spreads.',
+    a: 'Applicable CCN fees, each partner’s product and withdrawal fees, and any local tax are shown before you approve. The executing firm reports the actual settlement fee; CCN does not estimate a missing figure.',
   },
   {
     q: 'Which currencies are supported?',

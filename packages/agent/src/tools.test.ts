@@ -103,4 +103,12 @@ group('explain', () => {
   test('safety explanation states CCN never holds money or executes', () => {
     expect(ctx.explain({ topic: 'safety' }).explanation).toMatch(/never holds|never executes/i);
   });
+
+  test('limits explanation defines auto-act without granting execution authority', () => {
+    const explanation = ctx.explain({ topic: 'limits' }).explanation;
+    expect(explanation).toContain('Auto-act is a Limits Engine result');
+    expect(explanation).toContain('not permission for the agent to execute');
+    expect(explanation).toContain('you still confirm every move');
+    expect(explanation).not.toContain('may do alone');
+  });
 });

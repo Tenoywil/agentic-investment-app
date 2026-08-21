@@ -9,6 +9,7 @@ import {
   kycStatus,
   orders,
   partners,
+  userProfiles,
 } from '@ccn/db';
 import type { RiskRating } from '@ccn/domain';
 import type { Currency } from '@ccn/money';
@@ -23,10 +24,15 @@ import { loadBand, loadLimits } from './gate';
  * the caller's RLS scope; reference tables (instruments/partners) are world-read.
  */
 export async function loadAgentSnapshot(tx: Transaction, userId: string): Promise<AgentSnapshot> {
-  const [limits, band, kycRows] = await Promise.all([
+  const [limits, band, kycRows, profileRows] = await Promise.all([
     loadLimits(tx, userId),
     loadBand(tx, userId),
     tx.select().from(kycStatus).where(eq(kycStatus.userId, userId)).limit(1),
+    tx
+      .select({ residencyCountry: userProfiles.residencyCountry })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1),
   ]);
   const kyc = kycRows[0];
 
@@ -251,6 +257,7 @@ export async function loadAgentSnapshot(tx: Transaction, userId: string): Promis
   };
 
   return {
+    residencyCountry: profileRows[0]?.residencyCountry ?? null,
     activity,
     compliance: {
       identityVerified: kyc?.identityVerified ?? false,

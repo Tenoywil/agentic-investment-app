@@ -685,8 +685,9 @@ export default function PortfolioPage() {
         <Card className="mb-4 p-[22px]">
           <b className="font-display text-lg">Requested</b>
           <div className="mb-3 text-[13px] text-faint">
-            An institution decides whether to take you on as a client. CCN passes them the
-            verification you have already done; nothing is read from them until they accept.
+            An institution decides whether to take you on as a client. With your consent, CCN passes
+            the intake details and declarations you recorded; nothing is read from them until they
+            accept.
           </div>
           <ul className="m-0 list-none p-0">
             {pendingOrDeclined.map((c) => (
@@ -790,7 +791,7 @@ export default function PortfolioPage() {
           onConnected={(summary) => {
             setConnected(
               summary.status === 'pending'
-                ? `Asked ${summary.partner} to take you on. They review the verification CCN passes them, and your positions appear here once they accept.`
+                ? `Asked ${summary.partner} to take you on. They review the intake package CCN passes with your consent, and your positions appear here once they accept.`
                 : `${summary.refreshed ? 'Refreshed' : 'Connected'} ${summary.partner}: ${summary.holdings} position${summary.holdings === 1 ? '' : 's'}.`,
             );
             void load();

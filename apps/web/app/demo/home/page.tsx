@@ -14,15 +14,15 @@ const PIPE = [
   { n: '1', t: 'Research', b: 'Scans 47 instruments across 8 partners', flag: false },
   { n: '2', t: 'Suitability', b: 'Matches your balanced-income risk band', flag: false },
   { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds checks', flag: false },
-  { n: '4', t: 'Your approval', b: 'You confirm every move above your limits', flag: true },
+  { n: '4', t: 'Your confirmation', b: 'You confirm every move before routing', flag: true },
   { n: '5', t: 'Execute', b: 'Routed to the licensed partner, then monitored', flag: false },
 ];
 
 const ACTED = [
   {
     dot: '#0a8f5b',
-    t: 'Swept US$400 of idle cash into the NCB Money Market Fund',
-    s: 'Inside your US$500 auto-invest limit · 2 days ago',
+    t: 'Prepared a US$400 move into the NCB Money Market Fund',
+    s: 'Inside your US$500 within-limit cap · confirmation still required',
   },
   {
     dot: '#0a8f5b',
@@ -328,7 +328,7 @@ export default function HomePage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-sm font-bold">{h.amt}</div>
-                <div className="text-[11.5px] text-success-ink">· FSC-regulated</div>
+                <div className="text-[11.5px] text-success-ink">· Licensed partner</div>
               </div>
             </div>
           ))}
@@ -359,8 +359,8 @@ export default function HomePage() {
       <div className="g2 mt-[18px]">
         <Card className="p-[22px]" data-tour="customer-activity">
           <div className="mb-4 flex items-center gap-2.5">
-            <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
-            <Badge variant="secondary">within your limits</Badge>
+            <span className={cn(UPPR, 'text-foreground')}>Agent activity</span>
+            <Badge variant="secondary">you confirm every move</Badge>
           </div>
           {ACTED.map((a) => (
             <div key={a.t} className="mb-[15px] flex gap-2.5">

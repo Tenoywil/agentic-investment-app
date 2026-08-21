@@ -5,6 +5,7 @@ import {
   type SizingChoice,
   assessPortfolioFit,
   assessTransactionCompliance,
+  buildDiasporaComparison,
   runProposalPipeline,
 } from '@ccn/agent';
 import { withRls } from '@ccn/db';
@@ -40,10 +41,9 @@ import { loadBand, loadInstrument, loadLimits, runGate } from './gate';
  *
  * The sweep closes that gap without widening what the agent may do:
  *
- *  - It NEVER moves money. Even a candidate the Limits Engine would auto-act
- *    on is raised as an approval card — auto-act exists for moves the person
- *    initiated, and a background process spending someone's cash unasked is
- *    the surprise this product is built to never spring.
+ *  - It NEVER moves money. Even a candidate the Limits Engine classifies as
+ *    auto-act is raised as an approval card — auto-act means within-limit, not
+ *    execution authority, and every move still requires human confirmation.
  *  - Every candidate passes the SAME gate as the chat and the order path:
  *    the person's own limits, risk band, cash floor and position caps decide
  *    what is proposable, not a heuristic of this file's own.
@@ -241,7 +241,10 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
     }
 
     const [profileRow] = await tx
-      .select({ displayCurrency: userProfiles.displayCurrency })
+      .select({
+        displayCurrency: userProfiles.displayCurrency,
+        residencyCountry: userProfiles.residencyCountry,
+      })
       .from(userProfiles)
       .where(eq(userProfiles.userId, userId));
     const displayCurrency: string = profileRow?.displayCurrency ?? 'USD';
@@ -450,6 +453,15 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
     const { candidate, amountMinor, verdict, fit } = outcome.chosen;
     const name = candidate.name;
     const amount = fmtMinor(amountMinor, candidate.currency);
+    const chosenRow = universeById.get(candidate.instrumentId);
+    const diasporaComparison = buildDiasporaComparison(
+      {
+        type: chosenRow?.type ?? null,
+        region: chosenRow?.region ?? null,
+        currency: candidate.currency,
+      },
+      profileRow?.residencyCountry ?? null,
+    );
     const [instrumentRow] = await tx
       .select({ partnerId: instruments.partnerId })
       .from(instruments)
@@ -457,7 +469,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
 
     const sizedAboveMinimum = amountMinor > candidate.minInvestmentMinor;
     const body = [
-      `Found by your agent's pipeline — research scanned the marketplace, portfolio fit weighed it against your holdings and goals, suitability screened it against your limits, compliance verified readiness and the executing-firm relationship, and coordination sized it: ${name}`,
+      `Found by your agent's pipeline — research scanned the marketplace, portfolio fit weighed it against your holdings and goals, suitability screened it against your limits, compliance checked recorded onboarding readiness and the executing-firm relationship, and coordination sized it: ${name}`,
       candidate.partnerName ? ` at ${candidate.partnerName}` : '',
       candidate.risk ? `, ${RISK_WORD[candidate.risk] ?? candidate.risk} risk` : '',
       sizedAboveMinimum
@@ -471,6 +483,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
       // The honest half travels with the pitch: the top concern is on the
       // card itself, not buried in the trace.
       fit?.concerns[0] ? ` Worth knowing: ${fit.concerns[0]}` : '',
+      ` ${diasporaComparison}`,
       ' Nothing happens unless you approve.',
     ].join('');
 
@@ -508,7 +521,7 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
     await tx.insert(agentMessages).values({
       userId,
       role: 'agent',
-      content: `While you were away my research agent scanned the marketplace, the portfolio-fit check weighed the shortlist against your holdings and goals, the suitability check screened it against your limits, and the compliance agent verified readiness and the executing-firm relationship. ${name}${candidate.partnerName ? ` at ${candidate.partnerName}` : ''} came through. I've put it in your approvals — ${amount}, with the full stage-by-stage reasoning on the card. It stays there until you decide.`,
+      content: `While you were away my research agent scanned the marketplace, the portfolio-fit check weighed the shortlist against your holdings and goals, the suitability check screened it against your limits, and the compliance agent checked recorded onboarding readiness and the executing-firm relationship. ${name}${candidate.partnerName ? ` at ${candidate.partnerName}` : ''} came through. I've put it in your approvals — ${amount}, with the full stage-by-stage reasoning and a like-for-like diaspora comparison on the card. It stays there until you decide.`,
     });
 
     await auditAppend(tx, {

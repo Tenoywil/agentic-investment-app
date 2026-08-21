@@ -85,6 +85,7 @@ export function ConsoleSidebar({
             <TabsTrigger
               key={key}
               value={key}
+              data-tour={`institution-tab-${key}`}
               className="justify-start gap-3 rounded-xl px-3.5 py-3 text-[15px] font-medium text-[#d3e0da] data-[state=active]:bg-navy-active data-[state=active]:font-bold data-[state=active]:text-white"
             >
               <Icon className="h-5 w-5" aria-hidden />
@@ -165,7 +166,12 @@ export function ConsoleMobileTabs({ badges = {} }: { badges?: Partial<Record<Tab
       {TABS.map(({ key, label, Icon }) => {
         const badge = badges[key] ?? 0;
         return (
-          <TabsTrigger key={key} value={key} className="console-mobile-tabs__item">
+          <TabsTrigger
+            key={key}
+            value={key}
+            data-tour={`institution-tab-${key}`}
+            className="console-mobile-tabs__item"
+          >
             <span className="relative">
               <Icon className="h-5 w-5" aria-hidden />
               {badge > 0 ? (

@@ -258,18 +258,18 @@ export function ConnectAccountDialog({
             {hasAccount === 'new' && partner ? (
               <p className="mt-3 rounded-xl bg-mint px-4 py-3 text-[13.5px] leading-relaxed text-dim">
                 {partner.name} opens your account first — request the introduction and their desk
-                takes it from there. Nothing to bring: they receive the verification you have
-                already completed here.
+                takes it from there. They receive the intake details and declarations you recorded
+                here, and may request their own verification evidence.
               </p>
             ) : null}
 
             {/* Said plainly: what is shared, who decides, and who holds the
                 money. None of it is CCN. */}
             <p className="mt-4 text-[12.5px] leading-relaxed text-faint">
-              They receive the identity and compliance checks you have already completed, so you are
-              not asked for them twice, and their compliance desk decides. Once they accept, CCN
-              reads what you hold so your whole position is in one place — it never moves your
-              money. Your institution executes, custodies and settles everything.
+              They receive the identity details and declarations you recorded, and their compliance
+              desk decides what evidence or checks it still needs. Once they accept, CCN reads what
+              you hold so your whole position is in one place — it never moves your money. Your
+              institution executes, custodies and settles everything.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">

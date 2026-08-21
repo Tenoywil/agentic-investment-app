@@ -25,7 +25,8 @@ import { loadLimits } from '../services/gate';
  * "bigint -> string over the wire" convention the rest of the API uses.
  *
  * Changing a limit is safety-relevant — it widens or narrows what the agent may
- * do without asking — so every write appends an immutable audit row carrying
+ * classifies as within-limit — human confirmation is still required before
+ * routing — so every write appends an immutable audit row carrying
  * the before and after policy.
  */
 

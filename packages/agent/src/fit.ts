@@ -77,6 +77,130 @@ export interface FitResult {
   concerns: string[];
 }
 
+const INSTRUMENT_TYPE_LABELS: Readonly<Record<string, string>> = {
+  bond: 'bond',
+  equity: 'equity',
+  fund: 'fund',
+  money_market: 'money-market investment',
+  private: 'private-market investment',
+  private_credit: 'private-credit investment',
+  real_estate: 'real-estate investment',
+};
+
+const REGION_LABELS: Readonly<Record<string, string>> = {
+  'antigua and barbuda': 'Antigua and Barbuda',
+  aruba: 'Aruba',
+  bahamas: 'Bahamas',
+  barbados: 'Barbados',
+  belize: 'Belize',
+  bermuda: 'Bermuda',
+  'british virgin islands': 'British Virgin Islands',
+  caribbean: 'Caribbean',
+  'cayman islands': 'Cayman Islands',
+  cuba: 'Cuba',
+  curacao: 'Curaçao',
+  dominica: 'Dominica',
+  'dominican republic': 'Dominican Republic',
+  'eastern caribbean': 'Eastern Caribbean',
+  grenada: 'Grenada',
+  guyana: 'Guyana',
+  haiti: 'Haiti',
+  jamaica: 'Jamaica',
+  montserrat: 'Montserrat',
+  'puerto rico': 'Puerto Rico',
+  regional: 'Caribbean',
+  'saint kitts and nevis': 'Saint Kitts and Nevis',
+  'saint lucia': 'Saint Lucia',
+  'saint vincent and the grenadines': 'Saint Vincent and the Grenadines',
+  'st kitts and nevis': 'Saint Kitts and Nevis',
+  'st lucia': 'Saint Lucia',
+  'st vincent and the grenadines': 'Saint Vincent and the Grenadines',
+  suriname: 'Suriname',
+  'trinidad and tobago': 'Trinidad and Tobago',
+  'turks and caicos islands': 'Turks and Caicos Islands',
+  'us virgin islands': 'US Virgin Islands',
+};
+
+const RESIDENCE_MARKETS: Readonly<Record<string, string>> = {
+  canada: 'Canadian',
+  england: 'UK',
+  'great britain': 'UK',
+  'northern ireland': 'UK',
+  scotland: 'UK',
+  uk: 'UK',
+  'united kingdom': 'UK',
+  'united states': 'US',
+  'united states of america': 'US',
+  us: 'US',
+  usa: 'US',
+  wales: 'UK',
+};
+
+const CURRENCY_LABELS = new Set(['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD']);
+
+function normalizedTaxonomyValue(value: string | null): string | null {
+  if (!value) return null;
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[.'’]/g, '')
+    .replace(/\s+/g, ' ');
+  return normalized || null;
+}
+
+/**
+ * Product regions often append a category after a middle dot (for example,
+ * "Jamaica · Sovereign"). Only the taxonomy value before that delimiter is
+ * considered. Unknown operator-authored text is never repeated into a model
+ * prompt or investor recommendation.
+ */
+function approvedRegionLabel(value: string | null): string | null {
+  const head = value?.split(/[·|,/]/, 1)[0] ?? null;
+  const normalized = normalizedTaxonomyValue(head);
+  return normalized ? (REGION_LABELS[normalized] ?? null) : null;
+}
+
+function approvedTypeLabel(value: string | null): string {
+  const normalized = normalizedTaxonomyValue(value)?.replace(/[ -]+/g, '_') ?? '';
+  return INSTRUMENT_TYPE_LABELS[normalized] ?? 'investment';
+}
+
+function approvedResidenceMarket(value: string | null): string | null {
+  const normalized = normalizedTaxonomyValue(value);
+  return normalized ? (RESIDENCE_MARKETS[normalized] ?? null) : null;
+}
+
+function approvedCurrencyLabel(value: string): string {
+  const normalized = value.trim().toUpperCase();
+  return CURRENCY_LABELS.has(normalized) ? normalized : 'product-currency';
+}
+
+/**
+ * The comparison a diaspora investor needs beside a regional proposal.
+ *
+ * This is intentionally qualitative. The snapshot has the product's own type,
+ * region and currency, but it does not contain current US, Canadian or UK
+ * market prices or the person's tax treatment. Naming the decision dimensions
+ * is useful; inventing a foreign benchmark or tax advantage is not.
+ */
+export function buildDiasporaComparison(
+  candidate: Pick<FitCandidate, 'type' | 'region' | 'currency'>,
+  residencyCountry: string | null,
+): string {
+  const type = approvedTypeLabel(candidate.type);
+  const region = approvedRegionLabel(candidate.region);
+  const residenceMarket = approvedResidenceMarket(residencyCountry);
+  const basis = residenceMarket
+    ? `relative to a like-for-like ${residenceMarket} ${type}`
+    : `this is a general comparison with like-for-like US, Canadian and UK ${type} options because no US, Canadian or UK residence market is recorded`;
+  const exposure = region
+    ? `The potential value is ${region} exposure.`
+    : "The product's geographic exposure still needs verification.";
+  return `Diaspora comparison: ${basis}. ${exposure} It is not automatically better: compare net fees, tax and reporting for the investor's residence, ${approvedCurrencyLabel(candidate.currency)} currency risk, liquidity and settlement, diversification, and investor protections before deciding.`;
+}
+
 /** Above this share of the portfolio at one firm, more of it is a concern. */
 const PARTNER_CONCENTRATION_MAX = 0.4;
 /** Above this share of invested money in one instrument type, likewise. */

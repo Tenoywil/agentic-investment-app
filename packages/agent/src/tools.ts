@@ -63,7 +63,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
       execute: async () => ctx.getActivity(),
     }),
     get_limits: tool({
-      description: "Get the user's guardrail limits (what the agent may do alone).",
+      description:
+        "Get the user's guardrail limits. They classify user-initiated proposals as auto-act, approval required or blocked; auto-act still requires human confirmation before a licensed firm executes.",
       inputSchema: z.object({}),
       execute: async () => ctx.getLimits(),
     }),
@@ -117,7 +118,7 @@ export function buildTools(ctx: AgentContext): ToolSet {
     }),
     run_pipeline: tool({
       description:
-        'Run the full five-specialist pipeline — research ranks the live marketplace, portfolio fit weighs holdings and goals, suitability applies the deterministic Limits Engine, compliance verifies KYC and the executing-firm relationship, and coordination sizes the best cleared fit and routes it for approval. Returns the visible stage-by-stage trace plus the chosen candidate (or none). Use this when the user asks what they should invest in, or asks you to look for something for them. Narrate the stages faithfully from the trace; never invent a stage outcome.',
+        'Run the full five-specialist pipeline — research ranks the live marketplace, portfolio fit weighs holdings and goals, suitability applies the deterministic Limits Engine, compliance checks recorded onboarding readiness and the executing-firm relationship, and coordination sizes the best cleared fit and routes it for approval. The licensed firm retains the final KYC and AML decision. Returns the visible stage-by-stage trace plus the chosen candidate (or none) and a qualitative diaspora comparison against like-for-like US, Canadian or UK alternatives. Use this when the user asks what they should invest in, or asks you to look for something for them. Narrate the stages and comparison faithfully; never invent a stage outcome, benchmark, tax advantage or liquidity claim.',
       inputSchema: z.object({}),
       execute: async () => ctx.scoutMarketplace(),
     }),

@@ -79,6 +79,8 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         });
       await tx
         .insert(kycStatus)
+        // Legacy column name: true means identity intake is recorded. It is
+        // not a document-verification result; the licensed partner owns that.
         .values({ userId: tenant.user.id, identityVerified: true, tier: 'tier1' })
         .onConflictDoUpdate({
           target: kycStatus.userId,

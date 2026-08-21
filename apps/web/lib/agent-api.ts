@@ -255,6 +255,8 @@ export interface PipelineDisplayData {
     partner: string | null;
     amount: string;
     decision: string;
+    /** Deterministic server-authored comparison; never model-authored copy. */
+    diasporaComparison: string;
   } | null;
 }
 

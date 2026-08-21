@@ -25,11 +25,28 @@ describe('the agent system prompt', () => {
     expect(SYSTEM_PROMPT).toContain('Limits Engine');
   });
 
+  it('defines auto-act as classification rather than execution authority', () => {
+    expect(SYSTEM_PROMPT).toContain('Auto-act is only a within-limit classification');
+    expect(SYSTEM_PROMPT).toContain('the human still confirms');
+  });
+
   it('does not overclaim AML checks the product has not recorded', () => {
     expect(SYSTEM_PROMPT).toContain('KYC AND AML');
-    expect(SYSTEM_PROMPT).toContain('Never turn a missing result into a clearance');
+    expect(SYSTEM_PROMPT).toContain(
+      'Never turn a declaration, a missing result or a platform readiness check into regulatory clearance',
+    );
     expect(SYSTEM_PROMPT).toContain('sanctions, adverse-media or beneficial-owner screening');
     expect(SYSTEM_PROMPT).toContain('fail closed when it cannot be verified');
+    expect(SYSTEM_PROMPT).toContain('source-of-funds declarations');
+    expect(SYSTEM_PROMPT).toContain('suspicious-activity escalation');
+  });
+
+  it('requires honest diaspora comparisons for regional recommendations', () => {
+    expect(SYSTEM_PROMPT).toContain('DIASPORA COMPARISON');
+    expect(SYSTEM_PROMPT).toContain('US, Canadian or UK alternative');
+    expect(SYSTEM_PROMPT).toContain('Never assume a Caribbean asset is better');
+    expect(SYSTEM_PROMPT).toContain('do not invent a benchmark yield, tax advantage');
+    expect(SYSTEM_PROMPT).toContain('diasporaComparison');
   });
 
   it('keeps the untrusted-data rule', () => {

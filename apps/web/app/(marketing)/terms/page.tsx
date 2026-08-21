@@ -45,10 +45,10 @@ export default function TermsPage() {
 
       <InfoSection title="Fees and taxes">
         <p>
-          CCN charges one flat platform fee. Institutions set their own product and withdrawal fees,
-          and local taxes (such as consumption tax on a withdrawal fee) may apply. Every charge that
-          applies to an action you take is shown before you confirm it, and frozen at the moment you
-          ask. A rate change later never reprices a request already made.
+          Applicable CCN fees, institution product and withdrawal fees, and local taxes (such as
+          consumption tax on a withdrawal fee) may apply. Every charge that applies to an action you
+          take is shown before you confirm it and frozen at the moment you ask. A rate change later
+          never reprices a request already made.
         </p>
       </InfoSection>
 
