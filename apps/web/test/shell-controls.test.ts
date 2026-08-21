@@ -223,20 +223,33 @@ describe('app shell controls', () => {
     expect(tour).toContain("localStorage.setItem(DISMISS_KEY(surface, pathname), 'done')");
   });
 
-  test('the partner demo tour explains products, AML evidence and decisions', () => {
+  test('the partner demo tour keeps every step reachable from the overview tab', () => {
     const steps = code(join(SHELL, 'tour/steps.ts'));
-    const demo = code(join(WEB, 'app/demo/institutions/page.tsx'));
-    const products = code(join(SHELL, 'console/products-tab.tsx'));
-    for (const target of [
+    const demoSteps = steps.slice(
+      steps.indexOf('const DEMO_INSTITUTION'),
+      steps.indexOf('function routeKey'),
+    );
+    const sidebar = code(join(SHELL, 'console/console-sidebar.tsx'));
+    for (const target of ['products', 'clients', 'compliance']) {
+      const tourTarget = `institution-tab-${target}`;
+      expect(demoSteps).toContain(`target: '${tourTarget}'`);
+      // Both the desktop rail and mobile bottom controls use the same target,
+      // and visibleTarget resolves the presentation that occupies space.
+      expect(sidebar).toContain('data-tour={`institution-tab-${key}`}');
+    }
+    for (const hiddenPanelTarget of [
+      'institution-products',
       'demo-institution-clients',
       'demo-institution-aml',
       'demo-institution-decisions',
     ]) {
-      expect(steps).toContain(`target: '${target}'`);
-      expect(demo).toContain(`data-tour="${target}"`);
+      // Radix removes inactive tab panels from layout. A first-run overview
+      // tour must never depend on one of those hidden targets.
+      expect(demoSteps).not.toContain(`target: '${hiddenPanelTarget}'`);
     }
-    expect(steps).toContain("target: 'institution-products'");
-    expect(products).toContain('data-tour="institution-products"');
+    for (const context of ['bulk CSV', 'consented KYC and AML', 'PEP disclosures']) {
+      expect(demoSteps).toContain(context);
+    }
   });
 
   /**

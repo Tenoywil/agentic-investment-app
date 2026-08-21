@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AllocationDisplay } from '../app/_components/agent-displays';
+import { AgentDisplayCard, AllocationDisplay } from '../app/_components/agent-displays';
 import { agentFeedPreview } from '../app/_lib/utils';
-import { type AllocationDisplayData, streamAgentMessage } from '../lib/agent-api';
+import {
+  type AllocationDisplayData,
+  type PipelineDisplayData,
+  streamAgentMessage,
+} from '../lib/agent-api';
 
 const realFetch = globalThis.fetch;
 
@@ -12,7 +16,7 @@ afterEach(() => {
 });
 
 /**
- * The home screen's "Acted on your behalf" feed shows the agent's recent
+ * The home screen's "Agent activity" feed shows the agent's recent
  * replies in a two-line clamp. The agent answers comparison questions in GFM
  * markdown, and the feed used to render that syntax raw — a row of pipes and
  * dashes where a person expected a sentence (the screenshot that prompted
@@ -164,5 +168,29 @@ describe('agent allocation visual', () => {
     expect(html).toContain('data-chart="allocation-bars"');
     expect(html).toContain('Bar graph comparing current portfolio allocation');
     expect(html).toContain('Cash: 60% current, 20% target');
+  });
+});
+
+describe('agent pipeline visual', () => {
+  it('renders the deterministic diaspora comparison beside the prepared proposal', () => {
+    const data: PipelineDisplayData = {
+      trace: [],
+      proposal: {
+        instrumentId: 'bond-1',
+        name: 'Regional Bond',
+        partner: 'Licensed Partner',
+        amount: 'US$1,000',
+        decision: 'requires_approval',
+        diasporaComparison:
+          'Diaspora comparison: relative to a like-for-like Canadian bond. Compare fees, tax, currency risk, liquidity and investor protections.',
+      },
+    };
+
+    const html = renderToStaticMarkup(
+      createElement(AgentDisplayCard, { display: { kind: 'pipeline', data } }),
+    );
+    expect(html).toContain('Prepared:');
+    expect(html).toContain('Diaspora comparison:');
+    expect(html).toContain('like-for-like Canadian bond');
   });
 });

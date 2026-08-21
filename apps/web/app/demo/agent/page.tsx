@@ -310,8 +310,8 @@ const RULES: {
 }[] = [
   {
     key: 'autoInvest',
-    label: 'Auto-invest idle cash',
-    note: 'The most it may commit without asking',
+    label: 'Within-limit proposal cap',
+    note: 'Auto-act classification up to this amount; you still confirm',
     value: (limits) => `≤ ${formatDemoUsd(limits.autoInvestCap)}`,
   },
   {
@@ -356,8 +356,8 @@ const DEMO_LIMIT_FIELDS: {
 }[] = [
   {
     key: 'autoInvestCap',
-    label: 'Auto-invest cap (USD)',
-    note: 'Most it may commit alone.',
+    label: 'Within-limit proposal cap (USD)',
+    note: 'Within-limit classification; confirmation still required.',
     inputMode: 'decimal',
   },
   {
@@ -515,7 +515,7 @@ export default function AgentPage() {
 
   function saveLimits() {
     const moneyFields: { key: keyof DemoLimits; label: string }[] = [
-      { key: 'autoInvestCap', label: 'Auto-invest cap' },
+      { key: 'autoInvestCap', label: 'Within-limit proposal cap' },
       { key: 'cashFloor', label: 'Cash floor' },
       { key: 'approvalThreshold', label: 'Approval threshold' },
       { key: 'dailyCap', label: 'Daily cap' },
@@ -799,7 +799,7 @@ export default function AgentPage() {
             <div className="mb-3.5 flex items-center justify-between gap-2.5">
               <div>
                 <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
-                <span className="ml-2 text-[12.5px] text-faint">what it may do alone</span>
+                <span className="ml-2 text-[12.5px] text-faint">how proposals are classified</span>
               </div>
               <Button
                 type="button"

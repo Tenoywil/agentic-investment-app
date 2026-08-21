@@ -415,7 +415,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
       detail: [
         `Route: approval card${
           chosen.verdict.decision === 'auto_act'
-            ? ' (inside your auto-act limit, but a background finding always asks)'
+            ? ' (inside your within-limit cap; human confirmation is still required)'
             : ''
         }`,
         `Executing firm: ${chosen.candidate.partnerName ?? 'your connected firm'}`,

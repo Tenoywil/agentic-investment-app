@@ -242,7 +242,10 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
     }
 
     const [profileRow] = await tx
-      .select({ displayCurrency: userProfiles.displayCurrency })
+      .select({
+        displayCurrency: userProfiles.displayCurrency,
+        residencyCountry: userProfiles.residencyCountry,
+      })
       .from(userProfiles)
       .where(eq(userProfiles.userId, userId));
     const displayCurrency: string = profileRow?.displayCurrency ?? 'USD';
@@ -452,11 +455,14 @@ async function sweepOne(deps: SweepDeps, userId: string, dbRole: string): Promis
     const name = candidate.name;
     const amount = fmtMinor(amountMinor, candidate.currency);
     const chosenRow = universeById.get(candidate.instrumentId);
-    const diasporaComparison = buildDiasporaComparison({
-      type: chosenRow?.type ?? null,
-      region: chosenRow?.region ?? null,
-      currency: candidate.currency,
-    });
+    const diasporaComparison = buildDiasporaComparison(
+      {
+        type: chosenRow?.type ?? null,
+        region: chosenRow?.region ?? null,
+        currency: candidate.currency,
+      },
+      profileRow?.residencyCountry ?? null,
+    );
     const [instrumentRow] = await tx
       .select({ partnerId: instruments.partnerId })
       .from(instruments)

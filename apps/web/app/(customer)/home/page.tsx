@@ -558,16 +558,16 @@ export default function HomePage() {
 
           <Card className="p-[22px]" data-tour="customer-activity">
             <div className="mb-4 flex items-center gap-2.5">
-              <span className={cn(UPPR, 'text-foreground')}>Acted on your behalf</span>
-              <Badge variant="secondary">within your limits</Badge>
+              <span className={cn(UPPR, 'text-foreground')}>Agent activity</span>
+              <Badge variant="secondary">you confirm every move</Badge>
             </div>
             {agentError && !agentLoading && <ErrorLine message={agentError} />}
             {!agentLoading && !agentError && recentAgentActivity.length === 0 && (
               <EmptyState
                 className="mb-[15px]"
                 icon={Sparkles}
-                title="Your agent hasn't acted yet"
-                body="Everything it does inside your limits is recorded here, newest first."
+                title="Your agent hasn't prepared anything yet"
+                body="Research and proposals are recorded here, newest first. You confirm every move before routing."
               />
             )}
             {recentAgentActivity.map((m, i) => (

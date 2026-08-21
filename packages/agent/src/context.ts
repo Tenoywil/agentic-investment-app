@@ -206,7 +206,7 @@ const EXPLANATIONS: Record<ExplainTopic, string> = {
   how_it_works:
     'The agent discovers regional opportunities, screens them against your suitability profile and limits, and prepares them for your approval. It cannot execute or approve an order; the licensed firm acts only after you decide.',
   limits:
-    'Your limits govern what the agent may do alone: an auto-invest cap, a cash floor it never breaches, an FX-spread guardrail, a require-approval threshold, and a single-position cap. Anything outside them is escalated to you, never executed silently.',
+    'Your limits classify a user-initiated proposal as auto-act, approval required, or blocked. Auto-act is a Limits Engine result for a move inside your cap, not permission for the agent to execute: you still confirm every move before a licensed firm can act. The cash floor, approval threshold and position cap remain server-enforced.',
 };
 
 function toView(
@@ -731,6 +731,7 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
                   region: null,
                   currency: outcome.chosen.candidate.currency,
                 },
+                snapshot.residencyCountry,
               ),
             }
           : null,

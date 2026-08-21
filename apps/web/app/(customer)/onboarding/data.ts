@@ -19,7 +19,7 @@ export const ONB_TITLES = [
 ];
 
 export const ONB_SUBS = [
-  'A one-time setup so your agent can act on your behalf.',
+  'A one-time setup so your agent can prepare work for your approval.',
   'Declarations required across Caribbean jurisdictions.',
   'Three questions from the Sagicor Life fact-find set your risk profile.',
   'Required by regulators before you invest.',

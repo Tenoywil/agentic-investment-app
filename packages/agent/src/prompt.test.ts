@@ -25,6 +25,11 @@ describe('the agent system prompt', () => {
     expect(SYSTEM_PROMPT).toContain('Limits Engine');
   });
 
+  it('defines auto-act as classification rather than execution authority', () => {
+    expect(SYSTEM_PROMPT).toContain('Auto-act is only a within-limit classification');
+    expect(SYSTEM_PROMPT).toContain('the human still confirms');
+  });
+
   it('does not overclaim AML checks the product has not recorded', () => {
     expect(SYSTEM_PROMPT).toContain('KYC AND AML');
     expect(SYSTEM_PROMPT).toContain(

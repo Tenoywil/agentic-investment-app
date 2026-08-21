@@ -42,6 +42,7 @@ const inst = (
 
 export function sampleSnapshot(): AgentSnapshot {
   return {
+    residencyCountry: 'Canada',
     portfolio: {
       currency: 'USD',
       netWorthMinor: 2_860_000n, // US$28,600 (cash + sigma + a bond)

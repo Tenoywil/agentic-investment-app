@@ -63,7 +63,8 @@ export function buildTools(ctx: AgentContext): ToolSet {
       execute: async () => ctx.getActivity(),
     }),
     get_limits: tool({
-      description: "Get the user's guardrail limits (what the agent may do alone).",
+      description:
+        "Get the user's guardrail limits. They classify user-initiated proposals as auto-act, approval required or blocked; auto-act still requires human confirmation before a licensed firm executes.",
       inputSchema: z.object({}),
       execute: async () => ctx.getLimits(),
     }),

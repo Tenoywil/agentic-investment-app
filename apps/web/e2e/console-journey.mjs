@@ -33,8 +33,9 @@ import { chromium } from 'playwright-core';
 
 const OPERATOR = process.env.OPERATOR_COOKIE;
 const INVESTOR = process.env.INVESTOR_COOKIE;
+const DEMO_ONLY = process.env.E2E_DEMO_ONLY === '1';
 const WEB = process.env.E2E_WEB_ORIGIN ?? 'http://localhost:3000';
-if (!OPERATOR || !INVESTOR) {
+if ((!OPERATOR || !INVESTOR) && !DEMO_ONLY) {
   console.error(
     'Set OPERATOR_COOKIE and INVESTOR_COOKIE — see `bun run mint-session` in apps/api.',
   );
@@ -61,6 +62,45 @@ const check = (ok, label) => {
 };
 
 const browser = await chromium.launch({ executablePath: chromiumPath() });
+
+// ---- the isolated demo tour stays on overview and can still reach every step ----
+// Its product, client and compliance panels are mutually exclusive Radix tab
+// panels. The tour therefore points to their always-visible navigation controls
+// and explains what each destination contains; it must not silently drop steps
+// just because the demo opens on Overview.
+const demoContext = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+const demo = await demoContext.newPage();
+await demo.goto(`${WEB}/demo/institutions`, { waitUntil: 'networkidle' });
+await demo.locator('.driver-popover').waitFor({ timeout: 10_000 });
+const demoTourTitles = [];
+for (let step = 0; step < 10 && (await demo.locator('.driver-popover').count()); step++) {
+  demoTourTitles.push(await demo.locator('.driver-popover-title').innerText());
+  await demo.locator('.driver-popover-next-btn').click();
+  await demo.waitForTimeout(150);
+}
+check(
+  demoTourTitles.some((title) => /products/i.test(title)),
+  'the overview tour reaches product operations',
+);
+check(
+  demoTourTitles.some((title) => /clients/i.test(title)),
+  'the overview tour reaches consented KYC and AML evidence',
+);
+check(
+  demoTourTitles.some((title) => /compliance/i.test(title)),
+  'the overview tour reaches AML coverage and the decision trail',
+);
+check(
+  (await demo.getByRole('tab', { selected: true }).innerText()) === 'Overview',
+  'the tour does not leave the demo on a different tab',
+);
+await demoContext.close();
+
+if (DEMO_ONLY) {
+  await browser.close();
+  console.log(failures.length === 0 ? '\nALL CHECKS PASSED' : `\n${failures.length} FAILED`);
+  process.exit(failures.length === 0 ? 0 : 1);
+}
 
 async function signedIn(cookie) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });

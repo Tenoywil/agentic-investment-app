@@ -232,24 +232,19 @@ const DEMO_INSTITUTION: TourStep[] = [
     body: 'Orders, client reviews, reconciliation items and withdrawals that need a human decision are brought together here.',
   },
   {
-    target: 'institution-products',
-    title: 'Try product operations safely',
-    body: 'Open the single-product form or bulk CSV flow, review required evidence, and pause a sample listing without touching live data.',
+    target: 'institution-tab-products',
+    title: 'Products: list one or import many',
+    body: 'After the tour, open Products to try the single-product form or bulk CSV flow, attach required evidence, and pause a sample listing without touching live data.',
   },
   {
-    target: 'demo-institution-clients',
-    title: 'AML evidence before a decision',
-    body: 'The agent structures declarations and flags gaps. A licensed firm operator still reviews the evidence and records the final outcome.',
+    target: 'institution-tab-clients',
+    title: 'Clients: evidence before a decision',
+    body: 'Open Clients to see how the agent structures consented KYC and AML evidence and flags gaps. A licensed operator still reviews the evidence and records the outcome.',
   },
   {
-    target: 'demo-institution-aml',
-    title: 'What the AML agent covers',
-    body: 'It surfaces identity status, PEP disclosures, source-of-funds evidence and missing checks without inventing sanctions or adverse-media results.',
-  },
-  {
-    target: 'demo-institution-decisions',
-    title: 'An attributable decision trail',
-    body: 'See who recorded each client, AML and settlement decision so compliance review starts with evidence, not reconstruction.',
+    target: 'institution-tab-compliance',
+    title: 'Compliance: AML coverage and audit trail',
+    body: 'Open Compliance to inspect identity status, PEP disclosures, source-of-funds evidence and missing checks, plus who recorded each decision. The agent never invents screening results.',
   },
 ];
 

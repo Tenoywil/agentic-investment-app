@@ -645,12 +645,17 @@ function PipelineDisplay({ data }: { data: PipelineDisplayData }) {
       <span className={cn(UPPR, 'mb-2.5 block text-foreground')}>How this run went</span>
       <TraceDisplay trace={data.trace} />
       {data.proposal ? (
-        <p className="m-0 mt-2.5 rounded-lg bg-mint/60 px-3 py-2 text-[12.5px] leading-snug text-foreground dark:bg-white/[0.05]">
-          Prepared: <b>{data.proposal.name}</b> ·{' '}
-          <b className="font-mono">{data.proposal.amount}</b>
-          {data.proposal.partner && <> · via {data.proposal.partner}</>}
-          {data.proposal.decision === 'requires_approval' && '. Waiting on your approval.'}
-        </p>
+        <div className="mt-2.5 rounded-lg bg-mint/60 px-3 py-2 text-[12.5px] leading-snug text-foreground dark:bg-white/[0.05]">
+          <p className="m-0">
+            Prepared: <b>{data.proposal.name}</b> ·{' '}
+            <b className="font-mono">{data.proposal.amount}</b>
+            {data.proposal.partner && <> · via {data.proposal.partner}</>}
+            {data.proposal.decision === 'requires_approval' && '. Waiting on your approval.'}
+          </p>
+          <p className="mb-0 mt-2 border-x-0 border-b-0 border-t border-solid border-border/70 pt-2 text-dim">
+            {data.proposal.diasporaComparison}
+          </p>
+        </div>
       ) : (
         <p className="m-0 mt-2.5 text-[12.5px] text-faint">
           No candidate cleared the bar this run, so nothing was prepared.

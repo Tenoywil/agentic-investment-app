@@ -355,8 +355,8 @@ const RULES: {
 }[] = [
   {
     flag: 'autoInvestEnabled',
-    label: 'Auto-invest idle cash',
-    note: 'The most it may commit without asking',
+    label: 'Within-limit proposal cap',
+    note: 'Auto-act classification up to this amount; you still confirm',
     value: (l) => `≤ ${formatLimitMinor(l.autoInvestCapMinor)}`,
   },
   {
@@ -558,7 +558,7 @@ function LimitsEditor({
         : null;
       setSaving(true);
       const response = await updateLimits({
-        autoInvestCapMinor: majorToMinor(draft.autoInvestCap, 'Auto-invest cap'),
+        autoInvestCapMinor: majorToMinor(draft.autoInvestCap, 'Within-limit proposal cap'),
         cashFloorMinor: majorToMinor(draft.cashFloor, 'Cash floor'),
         requireApprovalAboveMinor: majorToMinor(draft.approvalThreshold, 'Approval threshold'),
         singlePositionMaxPct,
@@ -613,7 +613,7 @@ function LimitsEditor({
         >
           <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
             <div className="grid gap-2">
-              <Label htmlFor="auto-invest-cap">Auto-invest cap (USD)</Label>
+              <Label htmlFor="auto-invest-cap">Within-limit proposal cap (USD)</Label>
               <Input
                 id="auto-invest-cap"
                 inputMode="decimal"
@@ -621,7 +621,9 @@ function LimitsEditor({
                 onChange={(event) => field('autoInvestCap', event.target.value)}
                 disabled={saving}
               />
-              <p className="m-0 text-xs text-faint">Most it may commit without asking.</p>
+              <p className="m-0 text-xs text-faint">
+                Classifies a proposal as within-limit; you still confirm before routing.
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="approval-threshold">Always ask above (USD)</Label>
@@ -766,7 +768,7 @@ function LimitsCard({
       <div className="mb-1 flex items-center justify-between gap-2.5">
         <div>
           <span className={cn(UPPR, 'text-foreground')}>Your limits &amp; rules</span>
-          <span className="ml-2 text-[12.5px] text-faint">what it may do alone</span>
+          <span className="ml-2 text-[12.5px] text-faint">how proposals are classified</span>
         </div>
         {state === 'ready' && data && (
           <Button

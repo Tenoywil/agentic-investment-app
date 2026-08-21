@@ -11,7 +11,8 @@ import { maskRef } from './util';
 
 /**
  * "Needs your approval" cards — the human-in-the-loop escalation. POST opens a
- * card (the agent's path when a proposal exceeds the auto-invest limit). Approve
+ * card (the agent's path for every prepared move, including a proposal the
+ * Limits Engine classifies as within-limit). Approve
  * re-runs the gate and, unless it is now blocked, creates the order with the
  * approval attached — one of only two paths to `create_order`. Reject records
  * the decision in the immutable audit log.

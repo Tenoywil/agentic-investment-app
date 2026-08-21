@@ -261,12 +261,19 @@ describe('portfolio fit', () => {
   });
 
   test('builds an honest like-for-like diaspora comparison without invented market data', () => {
-    const comparison = buildDiasporaComparison(base().candidate);
-    expect(comparison).toContain('US, Canadian or UK bond');
+    const comparison = buildDiasporaComparison(base().candidate, 'Canada');
+    expect(comparison).toContain('like-for-like Canadian bond');
     expect(comparison).toContain('Jamaica exposure');
     expect(comparison).toContain('USD currency risk');
     expect(comparison).toContain('not automatically better');
     expect(comparison).toMatch(/fees.*tax.*liquidity.*investor protections/i);
     expect(comparison).not.toMatch(/\d+(?:\.\d+)?%/);
+  });
+
+  test('uses a general comparison and does not fabricate geography when profile data is absent', () => {
+    const comparison = buildDiasporaComparison({ ...base().candidate, region: null }, null);
+    expect(comparison).toContain('general comparison with like-for-like US, Canadian and UK');
+    expect(comparison).toContain('geographic exposure still needs verification');
+    expect(comparison).not.toContain('Caribbean exposure');
   });
 });
