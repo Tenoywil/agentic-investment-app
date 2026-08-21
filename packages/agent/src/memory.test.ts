@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { cardNote, conversationContext, stripCards, turnMemory } from './memory';
+import { cardNote, conversationContext, stripCardStream, stripCards, turnMemory } from './memory';
 
 /**
  * Conversation memory: cards the user saw are appended to the stored turn as
@@ -40,6 +40,39 @@ describe('turn memory', () => {
 
   it('a card-only turn strips to nothing', () => {
     expect(stripCards(turnMemory([{ kind: 'pipeline', data: { stages: 3 } }], []))).toBe('');
+  });
+
+  it('fails closed for partial card records', () => {
+    expect(stripCards('Visible answer.\n<card kind="allocation">{"total":"US$10,000"}')).toBe(
+      'Visible answer.',
+    );
+    expect(stripCards('{"total":"US$10,000"}</card>Visible answer.')).toBe('Visible answer.');
+  });
+
+  it('removes card records split across live stream chunks', async () => {
+    async function* chunks(): AsyncIterable<string> {
+      yield 'Visible answer.\n<ca';
+      yield 'rd kind="allocation">{"total":"US$10,000"}';
+      yield '</car';
+      yield 'd   >Next step.';
+    }
+
+    let visible = '';
+    for await (const chunk of stripCardStream(chunks())) visible += chunk;
+
+    expect(visible).toBe('Visible answer.\nNext step.');
+  });
+
+  it('does not release an unterminated live card record', async () => {
+    async function* chunks(): AsyncIterable<string> {
+      yield 'Visible answer.<card kind="allocation">';
+      yield '{"total":"US$10,000"}';
+    }
+
+    let visible = '';
+    for await (const chunk of stripCardStream(chunks())) visible += chunk;
+
+    expect(visible).toBe('Visible answer.');
   });
 
   it('keeps recent turns plus older goals and structured cards', () => {

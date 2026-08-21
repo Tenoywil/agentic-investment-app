@@ -136,6 +136,42 @@ group('the orchestration loop is network-independent under test', () => {
     expect(result.cached).toBe(false);
   });
 
+  test('never exposes model-echoed card memory in the reply stream', async () => {
+    type DoStream = MockLanguageModelV4['doStream'];
+    const model = new MockLanguageModelV4({
+      doStream: async () =>
+        ({
+          stream: simulateReadableStream({
+            chunks: [
+              { type: 'text-start', id: 'text-1' },
+              { type: 'text-delta', id: 'text-1', delta: 'Your cash is above target.\n<ca' },
+              {
+                type: 'text-delta',
+                id: 'text-1',
+                delta: 'rd kind="allocation">{"total":"US$14,410"}</car',
+              },
+              { type: 'text-delta', id: 'text-1', delta: 'd>Consider adding bonds next.' },
+              { type: 'text-end', id: 'text-1' },
+              {
+                type: 'finish',
+                finishReason: 'stop',
+                usage: { inputTokens: 8, outputTokens: 12, totalTokens: 20 },
+              },
+            ],
+          }),
+          warnings: [],
+        }) as unknown as Awaited<ReturnType<DoStream>>,
+    });
+
+    const result = runAgent({ model, ctx, history: [], message: 'How am I invested?' });
+    let reply = '';
+    for await (const chunk of result.textStream) reply += chunk;
+
+    expect(reply).toBe('Your cash is above target.\nConsider adding bonds next.');
+    expect(reply).not.toContain('<card');
+    expect(reply).not.toContain('US$14,410');
+  });
+
   test('fails fast when neither the production gateway nor a model is supplied', () => {
     expect(() => runAgent({ ctx, history: [], message: 'hello' })).toThrow(/gateway|model/i);
   });
