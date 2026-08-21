@@ -38,6 +38,7 @@ import {
   auditAppend,
   partnerClientHoldings,
   partnerClients,
+  partnerClientsPage,
   partnerConfirmFunds,
   partnerDecideWithdrawal,
   partnerRequestKyc,
@@ -142,6 +143,7 @@ class BadRequest extends Error {
 
 /** The order states a caller may filter on — the enum, not a free string. */
 const ORDER_STATUSES = ['created', 'accepted', 'settled', 'rejected', 'expired'] as const;
+const CLIENT_STATUSES = ['pending', 'active', 'declined'] as const;
 
 /**
  * `limit` and `offset` from the query string, clamped.
@@ -660,7 +662,7 @@ export function consoleRoutes(
         .from(ordersTable)
         .leftJoin(instruments, eq(instruments.id, ordersTable.instrumentId))
         .where(where)
-        .orderBy(desc(ordersTable.createdAt))
+        .orderBy(desc(ordersTable.createdAt), desc(ordersTable.id))
         .limit(limit)
         .offset(offset),
       total: await tx
@@ -853,21 +855,17 @@ export function consoleRoutes(
      * user-supplied string.
      */
     const { limit, offset } = readPage(c);
-    const status = c.req.query('status');
+    const requestedStatus = c.req.query('status');
+    const status =
+      requestedStatus && (CLIENT_STATUSES as readonly string[]).includes(requestedStatus)
+        ? (requestedStatus as (typeof CLIENT_STATUSES)[number])
+        : undefined;
     const q = (c.req.query('q') ?? '').trim();
+    const page = await withTenant(deps, tenant, (tx) =>
+      partnerClientsPage(tx, { status, q: q || undefined, limit, offset }),
+    );
 
-    const all = await withTenant(deps, tenant, (tx) => partnerClients(tx));
-    const filtered = all.filter((row) => {
-      if (status && row.status !== status) return false;
-      if (!q) return true;
-      const needle = q.toLowerCase();
-      return (
-        (row.client_name ?? '').toLowerCase().includes(needle) ||
-        (row.client_email ?? '').toLowerCase().includes(needle)
-      );
-    });
-
-    return c.json({ clients: filtered.slice(offset, offset + limit), total: filtered.length });
+    return c.json(page);
   });
 
   /**
@@ -1166,6 +1164,7 @@ export function consoleRoutes(
         .orderBy(
           sql`case ${withdrawalRequests.status} when 'pending' then 0 else 1 end`,
           desc(withdrawalRequests.createdAt),
+          desc(withdrawalRequests.id),
         )
         .limit(limit)
         .offset(offset);
@@ -1335,7 +1334,7 @@ export function consoleRoutes(
         .select()
         .from(reconciliationItems)
         .where(where)
-        .orderBy(desc(reconciliationItems.createdAt))
+        .orderBy(desc(reconciliationItems.createdAt), desc(reconciliationItems.id))
         .limit(limit)
         .offset(offset),
       total: await tx.select({ n: sql<string>`count(*)` }).from(reconciliationItems).where(where),
@@ -1545,7 +1544,7 @@ export function consoleRoutes(
         })
         .from(instruments)
         .where(where)
-        .orderBy(desc(instruments.createdAt))
+        .orderBy(desc(instruments.createdAt), desc(instruments.id))
         .limit(limit)
         .offset(offset),
       total: await tx.select({ n: sql<string>`count(*)` }).from(instruments).where(where),

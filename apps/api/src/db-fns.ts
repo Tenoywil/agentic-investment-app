@@ -328,6 +328,64 @@ export async function partnerClients(tx: Transaction): Promise<PartnerClientRow[
   return (await tx.execute(sql`select * from partner_clients()`)) as unknown as PartnerClientRow[];
 }
 
+/**
+ * A bounded, searchable page of the same security-definer client surface.
+ *
+ * The function remains the only path to client KYC data, but filtering, stable
+ * ordering and pagination now happen in Postgres. Only the requested rows cross
+ * the application boundary; `total_count` is a window value so the normal path
+ * invokes `partner_clients()` once rather than loading the full book in memory.
+ */
+export async function partnerClientsPage(
+  tx: Transaction,
+  input: {
+    status?: PartnerClientRow['status'];
+    q?: string;
+    limit: number;
+    offset: number;
+  },
+): Promise<{ clients: PartnerClientRow[]; total: number }> {
+  const status = input.status ?? null;
+  const search = input.q?.trim() ? `%${input.q.trim()}%` : null;
+  type PageRow = PartnerClientRow & { total_count: string };
+
+  const rows = (await tx.execute(sql`
+      select pc.*, count(*) over() as total_count
+        from partner_clients() pc
+       where (${status}::text is null or pc.status::text = ${status})
+         and (
+           ${search}::text is null
+           or pc.client_name ilike ${search}
+           or pc.client_email ilike ${search}
+         )
+       order by pc.requested_at desc, pc.account_id desc
+       limit ${input.limit}
+       offset ${input.offset}
+    `)) as unknown as PageRow[];
+  let total = Number(rows[0]?.total_count ?? 0);
+  // A deletion can leave the UI pointing one page beyond the new end. The
+  // empty page has no window row to carry its total, so recover it only on that
+  // exceptional path; normal page loads stay a single query.
+  if (rows.length === 0 && input.offset > 0) {
+    const counts = (await tx.execute(sql`
+      select count(*) as total_count
+        from partner_clients() pc
+       where (${status}::text is null or pc.status::text = ${status})
+         and (
+           ${search}::text is null
+           or pc.client_name ilike ${search}
+           or pc.client_email ilike ${search}
+         )
+    `)) as unknown as { total_count: string }[];
+    total = Number(counts[0]?.total_count ?? 0);
+  }
+
+  return {
+    clients: rows.map(({ total_count: _totalCount, ...client }) => client),
+    total,
+  };
+}
+
 /** One holding a client has through the caller's firm. */
 export interface PartnerClientHoldingRow {
   id: string;

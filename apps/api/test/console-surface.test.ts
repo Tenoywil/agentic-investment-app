@@ -170,6 +170,7 @@ suite('partner console data surface', () => {
     await makeOperator('sagOperator', sagId);
     await makeOperator('ncbOperator', ncbId);
     await makeOperator('investor');
+    await makeOperator('investor2');
 
     const [inst] = await db
       .insert(instruments)
@@ -241,6 +242,12 @@ suite('partner console data surface', () => {
       })
       .returning({ id: connectedAccounts.id });
     clientAccountId = account?.id ?? '';
+    await db.insert(connectedAccounts).values({
+      userId: ids.investor2 ?? '',
+      partnerId: sagId,
+      label: `${tag} second account`,
+      status: 'pending',
+    });
     await db.insert(holdings).values({
       userId: ids.investor ?? '',
       connectedAccountId: clientAccountId,
@@ -543,6 +550,31 @@ suite('partner console data surface', () => {
 
     const live = await json<Body>('/api/console/products?status=live&limit=50', 'sagOperator');
     expect(live.products.every((product) => product.status === 'live')).toBe(true);
+  });
+
+  test('/console/clients searches, filters and pages with a stable total', async () => {
+    type Body = {
+      clients: { account_id: string; client_name: string; status: string }[];
+      total: number;
+    };
+    const first = await json<Body>('/api/console/clients?limit=1&offset=0', 'sagOperator');
+    const second = await json<Body>('/api/console/clients?limit=1&offset=1', 'sagOperator');
+    expect(first.clients).toHaveLength(1);
+    expect(second.clients).toHaveLength(1);
+    expect(first.clients[0]?.account_id).not.toBe(second.clients[0]?.account_id);
+    expect(first.total).toBeGreaterThanOrEqual(2);
+    expect(second.total).toBe(first.total);
+
+    const pending = await json<Body>('/api/console/clients?status=pending&limit=50', 'sagOperator');
+    expect(pending.clients.length).toBeGreaterThan(0);
+    expect(pending.clients.every((client) => client.status === 'pending')).toBe(true);
+
+    const search = await json<Body>('/api/console/clients?q=investor2', 'sagOperator');
+    expect(search.total).toBe(1);
+    expect(search.clients[0]?.client_name).toBe('investor2');
+
+    const other = await json<Body>('/api/console/clients?limit=200', 'ncbOperator');
+    expect(other.clients.some((client) => client.client_name === 'investor2')).toBe(false);
   });
 
   test('/console/products/:id/live toggles, and only for the owning partner', async () => {
