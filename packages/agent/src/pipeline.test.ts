@@ -113,7 +113,7 @@ describe('proposal pipeline', () => {
       compliance: () => ({
         decision: 'clear',
         reasons: [],
-        checks: ['Identity verified', 'Active account with NCB'],
+        checks: ['Identity intake record complete', 'Active account with NCB'],
       }),
     });
     expect(outcome.chosen?.candidate.instrumentId).toBe('a');
@@ -125,7 +125,7 @@ describe('proposal pipeline', () => {
     ]);
     expect(
       outcome.trace.find((trace) => trace.stage === 'compliance')?.detail.join('\n'),
-    ).toContain('Identity verified');
+    ).toContain('Identity intake record complete');
   });
 
   test('a compliance refusal tries the next suitable candidate and records both handoffs', async () => {
@@ -139,7 +139,7 @@ describe('proposal pipeline', () => {
           ? {
               decision: 'blocked',
               reasons: ['There is no active account with the executing firm.'],
-              checks: ['Identity verified'],
+              checks: ['Identity intake record complete'],
             }
           : { decision: 'clear', reasons: [], checks: ['All checks clear'] },
     });
@@ -182,6 +182,8 @@ describe('KYC and AML readiness', () => {
     });
 
     expect(verdict.decision).toBe('clear');
+    expect(verdict.checks).toContain('Source-of-funds declaration recorded');
+    expect(verdict.checks.join(' ')).not.toContain('Source of funds confirmed');
     expect(verdict.checks).toContain('PEP declaration recorded; no PEP disclosed');
     expect(verdict.checks.join(' ')).not.toMatch(/sanctions|adverse.media/i);
   });
@@ -230,6 +232,7 @@ describe('KYC and AML readiness', () => {
     });
 
     expect(verdict.decision).toBe('blocked');
+    expect(verdict.reasons).toContain('Source-of-funds declaration is incomplete.');
     expect(verdict.checks).not.toContain('PEP declaration recorded; no PEP disclosed');
   });
 });

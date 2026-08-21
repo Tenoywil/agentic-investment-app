@@ -274,8 +274,8 @@ function ComplianceChecks({ onboarding, band }: { onboarding: MeOnboarding; band
     {
       ok: onboarding.identityVerified,
       label: onboarding.identityVerified
-        ? `Identity verified${tierLabel ? ` · KYC ${tierLabel}` : ''}`
-        : 'Identity not verified yet',
+        ? `Identity intake recorded${tierLabel ? ` · KYC ${tierLabel}` : ''}`
+        : 'Identity intake not completed',
     },
     {
       ok: onboarding.complianceConfirmed,
@@ -292,7 +292,7 @@ function ComplianceChecks({ onboarding, band }: { onboarding: MeOnboarding; band
     {
       ok: onboarding.fundsConfirmed,
       label: onboarding.fundsConfirmed
-        ? 'Source of funds confirmed'
+        ? 'Source-of-funds declaration recorded'
         : 'Source of funds not declared',
     },
   ];

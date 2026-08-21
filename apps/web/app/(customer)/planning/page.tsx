@@ -177,7 +177,7 @@ function NewGoalDialog({
               id="goal-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. University fund"
+              placeholder="e.g. Purchase a property"
             />
           </div>
           <div className="flex flex-col gap-1.5">

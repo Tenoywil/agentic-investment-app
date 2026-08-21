@@ -215,6 +215,30 @@ describe('app shell controls', () => {
     expect(code(join(SHELL, 'ui/skeleton.tsx'))).toContain('aria-busy="true"');
   });
 
+  test('the tour auto-starts at most once for each pathname', () => {
+    const tour = code(join(SHELL, 'tour/tour.tsx'));
+    expect(tour).toContain('DISMISS_KEY(surface, pathname');
+    expect(tour).toContain('autoStarted.current.has(key)');
+    expect(tour).toContain('autoStarted.current.add(key)');
+    expect(tour).toContain("localStorage.setItem(DISMISS_KEY(surface, pathname), 'done')");
+  });
+
+  test('the partner demo tour explains products, AML evidence and decisions', () => {
+    const steps = code(join(SHELL, 'tour/steps.ts'));
+    const demo = code(join(WEB, 'app/demo/institutions/page.tsx'));
+    const products = code(join(SHELL, 'console/products-tab.tsx'));
+    for (const target of [
+      'demo-institution-clients',
+      'demo-institution-aml',
+      'demo-institution-decisions',
+    ]) {
+      expect(steps).toContain(`target: '${target}'`);
+      expect(demo).toContain(`data-tour="${target}"`);
+    }
+    expect(steps).toContain("target: 'institution-products'");
+    expect(products).toContain('data-tour="institution-products"');
+  });
+
   /**
    * The fixture-only preview has no session, so it cannot show an account menu
    * — and calling /api/me from it would break the rule that the demo track

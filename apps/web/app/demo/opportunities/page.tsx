@@ -451,11 +451,11 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {[
-                    'Identity verified (KYC · Tier 2)',
+                    'Identity intake recorded (KYC · Tier 2)',
                     opp.risk === 'High'
                       ? 'Suitability: within your stated high-risk allocation limit'
                       : 'Suitability: matches your balanced-income profile',
-                    'Source of funds confirmed',
+                    'Source-of-funds declaration recorded',
                   ].map((line) => (
                     <div
                       key={line}

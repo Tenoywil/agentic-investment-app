@@ -97,6 +97,8 @@ describe('chat dedupe discipline', () => {
     const scout = await buildContext(snap).scoutMarketplace();
     expect(scout.proposal?.instrumentId).not.toBe('mmf');
     expect(scout.proposal?.instrumentId).not.toBe('sig');
+    expect(scout.proposal?.diasporaComparison).toMatch(/US, Canadian or UK/);
+    expect(scout.proposal?.diasporaComparison).toContain('not automatically better');
     const research = scout.trace.find((t) => t.stage === 'research');
     expect(research?.summary).toContain('resting after a recent proposal');
   });

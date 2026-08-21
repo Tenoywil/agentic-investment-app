@@ -240,7 +240,7 @@ export default function OnboardingPage() {
             <div className="mb-[22px] text-center">
               <p className="mb-3.5 inline-flex items-center gap-2 rounded-[20px] bg-mint px-[15px] py-[7px] text-sm font-bold text-primary dark:text-teal2">
                 <ShieldCheck className="h-3.5 w-3.5 flex-none" aria-hidden />
-                Regulated onboarding · your agent handles the screening
+                Partner-reviewed onboarding · your agent structures the evidence
               </p>
               <h1 className="font-display text-[30px] font-bold leading-tight tracking-[-0.3px]">
                 {ONB_TITLES[step]}

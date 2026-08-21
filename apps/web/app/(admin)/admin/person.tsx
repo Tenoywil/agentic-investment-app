@@ -348,10 +348,16 @@ export function PersonPanel({
                 {(
                   [
                     ['Tier', String(detail.kyc?.tier ?? '—')],
-                    ['Identity verified', detail.kyc?.identityVerified ? 'yes' : 'no'],
-                    ['Compliance confirmed', detail.kyc?.complianceConfirmed ? 'yes' : 'no'],
+                    ['Identity intake complete', detail.kyc?.identityVerified ? 'yes' : 'no'],
+                    [
+                      'Compliance declarations recorded',
+                      detail.kyc?.complianceConfirmed ? 'yes' : 'no',
+                    ],
                     ['Risk completed', detail.kyc?.riskCompleted ? 'yes' : 'no'],
-                    ['Funds confirmed', detail.kyc?.fundsConfirmed ? 'yes' : 'no'],
+                    [
+                      'Source-of-funds declaration recorded',
+                      detail.kyc?.fundsConfirmed ? 'yes' : 'no',
+                    ],
                   ] as [string, string][]
                 ).map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-4">

@@ -177,6 +177,9 @@ suite('agent background sweep', () => {
     expect(card?.amountMinor).toBe(25_000n);
     expect(card?.title).toContain('Sweep Money Market');
     expect(card?.body).toContain('Nothing happens unless you approve');
+    expect(card?.body).toContain('Diaspora comparison');
+    expect(card?.body).toContain('US, Canadian or UK');
+    expect(card?.body).toContain('not automatically better');
     expect((card?.snapshot as { source?: string })?.source).toBe('background_sweep');
 
     // "How this was decided": the pipeline's stage records ride on the
@@ -185,7 +188,13 @@ suite('agent background sweep', () => {
     const trace = (
       card?.snapshot as { trace?: { stage: string; agent: string; summary: string }[] }
     )?.trace;
-    expect(trace?.map((t) => t.stage)).toEqual(['research', 'fit', 'suitability', 'coordination']);
+    expect(trace?.map((t) => t.stage)).toEqual([
+      'research',
+      'fit',
+      'suitability',
+      'compliance',
+      'coordination',
+    ]);
     expect(trace?.find((t) => t.stage === 'suitability')?.summary).toContain('band');
     expect(trace?.find((t) => t.stage === 'fit')?.summary).toContain('your holdings');
 

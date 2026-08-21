@@ -39,7 +39,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'What does CCN cost?',
-    a: 'One flat platform fee. Each partner’s own product fees, withdrawal fees and any local tax are shown before you approve, to the cent. CCN adds no hidden spreads.',
+    a: 'Applicable CCN fees, each partner’s product and withdrawal fees, and any local tax are shown before you approve. The executing firm reports the actual settlement fee; CCN does not estimate a missing figure.',
   },
   {
     q: 'Which currencies are supported?',

@@ -155,7 +155,7 @@ export default function PortfolioPage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-[15px] font-bold">{inst.total}</div>
-                <div className="text-[11.5px] text-success-ink">· FSC-regulated</div>
+                <div className="text-[11.5px] text-success-ink">· Licensed partner</div>
               </div>
             </div>
             {inst.holdings.map((h) => (
@@ -206,9 +206,9 @@ export default function PortfolioPage() {
       <div className="mt-[18px] flex items-start gap-3.5 rounded-2xl border border-border bg-mint px-[22px] py-[18px]">
         <ShieldCheck className="mt-0.5 h-[22px] w-[22px] flex-none text-teal2" aria-hidden />
         <p className="m-0 text-[14.5px] leading-relaxed text-dim">
-          <b className="text-foreground">Held at licensed, FSC-regulated partners.</b> Every
-          instrument is custodied and executed by a regulated institution. Your agent coordinates
-          and monitors; you approve every move.
+          <b className="text-foreground">Held at licensed executing firms.</b> Every instrument is
+          custodied and executed by the institution shown on the product. Your agent coordinates and
+          monitors; you approve every move.
         </p>
       </div>
 

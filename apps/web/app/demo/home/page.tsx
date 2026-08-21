@@ -328,7 +328,7 @@ export default function HomePage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-sm font-bold">{h.amt}</div>
-                <div className="text-[11.5px] text-success-ink">· FSC-regulated</div>
+                <div className="text-[11.5px] text-success-ink">· Licensed partner</div>
               </div>
             </div>
           ))}

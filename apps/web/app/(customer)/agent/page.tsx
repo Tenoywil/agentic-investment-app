@@ -305,8 +305,8 @@ function TrustNote({
           </p>
         )}
         <p className="m-0">
-          Screened against your own risk band and limits, not a sales list. Firms don't pay for
-          placement; CCN charges one flat platform fee.
+          Screened against your own risk band and limits. Fees cannot change the deterministic
+          suitability result or move a blocked product around your guardrails.
         </p>
         {scores && scores.length > 0 && (
           <div className="mt-0.5 flex flex-wrap gap-1.5">

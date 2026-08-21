@@ -36,7 +36,7 @@ const SURFACES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: Target,
     title: 'Capital agent',
-    body: 'Chat or talk to an agent that researches, screens for suitability, and prepares moves for your approval. It also works while you are away, and anything it finds waits as an approval card, never as an action already taken.',
+    body: 'Chat or talk to an agent that researches, compares, screens against your profile and limits, and prepares moves for your approval. Anything it finds while you are away waits as an approval card, never as an action already taken.',
   },
   {
     Icon: ShieldCheck,
@@ -54,27 +54,38 @@ const PIPE = [
   },
   {
     n: '2',
+    t: 'Portfolio fit',
+    b: 'A fit agent weighs the shortlist against your holdings, goals, currency exposure and concentration.',
+    flag: false,
+  },
+  {
+    n: '3',
     t: 'Suitability',
     b: 'A screening step checks each candidate against your risk band, cash floor and caps.',
     flag: false,
   },
-  { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds checks.', flag: false },
   {
     n: '4',
-    t: 'Your approval',
-    b: 'You confirm every move above your limits. Nothing runs without it.',
-    flag: true,
+    t: 'Compliance readiness',
+    b: 'The agent checks recorded identity status, declarations, source-of-funds declarations and evidence, and the executing-firm relationship. The licensed firm keeps the final KYC and AML decision.',
+    flag: false,
   },
   {
     n: '5',
-    t: 'Execute',
-    b: 'Routed to the licensed partner that executes, custodies and settles.',
+    t: 'Your approval',
+    b: 'You inspect the evidence, comparison, amount, fees and limits result. Nothing runs without your decision.',
+    flag: true,
+  },
+  {
+    n: '6',
+    t: 'Licensed firm executes',
+    b: 'Your approved instruction is routed to the licensed firm, which accepts or declines it, then executes, custodies and settles.',
     flag: false,
   },
 ];
 
 /**
- * Why a recommendation from CCN is one you can act on. Four grounds, each of
+ * Why a proposal from CCN is one you can evaluate. The grounds are
  * them structural rather than promotional — who holds the money, what screens
  * the candidates, how research is graded, and what gets written down.
  */
@@ -99,6 +110,11 @@ const TRUST: { Icon: LucideIcon; title: string; body: string }[] = [
     title: 'Every step is written down',
     body: 'Each recommendation writes an audit trail and shows its stage-by-stage reasoning, so you can read how it was decided, not just what was decided.',
   },
+  {
+    Icon: LineChart,
+    title: 'Compared with where you live',
+    body: 'A regional proposal is not assumed to be better. The agent compares it with a like-for-like US, Canadian or UK option across diversification, currency, liquidity and settlement, fees, tax and reporting, and investor protections, and names what still needs verification.',
+  },
 ];
 
 export default function HowItWorksPage() {
@@ -107,9 +123,9 @@ export default function HowItWorksPage() {
     <MarketingPage
       eyebrow="How it works"
       title="Your agent does the work. You keep control."
-      lead="If you are building a life between the region and the diaspora, your money lives in fragments: a bond at NCB, a fund at Sagicor, cash at JMMB, a pension you have half-forgotten. CCN brings all of it into one place and gives you an agent that researches, screens and prepares, and never acts above your limits without you."
+      lead="If you are building a life between the region and the diaspora, your money lives in fragments: a bond at NCB, a fund at Sagicor, cash at JMMB, a pension you have half-forgotten. CCN brings all of it into one place and gives you an agent that researches, compares, screens and prepares. It never executes or approves a move for you."
     >
-      <InfoSection title="The five steps behind every move">
+      <InfoSection title="The six steps behind every move">
         <div className="grid grid-cols-1 gap-3">
           {PIPE.map((s) => (
             <div
@@ -159,7 +175,7 @@ export default function HowItWorksPage() {
         </div>
       </InfoSection>
 
-      <InfoSection title="Why CCN can recommend">
+      <InfoSection title="How CCN prepares a proposal">
         <div className="grid grid-cols-1 gap-3">
           {TRUST.map((t) => (
             <div
@@ -183,17 +199,18 @@ export default function HowItWorksPage() {
       <InfoSection title="The line CCN never crosses">
         <p>
           CCN holds no client money, executes nothing and never becomes custodian. Every instrument
-          is custodied, executed and settled by a licensed institution, with KYC, suitability and
-          source-of-funds handled by the firm that already knows you. CCN routes signed instructions
-          and keeps the audit trail: an append-only record that nobody, including CCN, can edit.
+          is custodied, executed and settled by a licensed institution. With your consent, CCN
+          collects and passes declarations and documents to that firm; the firm reviews them, may
+          request more, and owns the final KYC, AML and suitability decisions. CCN routes signed
+          instructions and keeps the append-only audit trail.
         </p>
       </InfoSection>
 
       <InfoSection title="What it costs">
         <p>
-          One flat platform fee. Each partner&rsquo;s own product fees, and any withdrawal fee or
-          local tax the firm applies, are shown before you approve, to the cent. There are no hidden
-          spreads from CCN.
+          Applicable CCN and partner product fees, plus any withdrawal fee or local tax the firm
+          applies, are shown before you approve. The executing firm reports the actual settlement
+          price, units and fee; CCN does not invent a missing settlement figure.
         </p>
       </InfoSection>
 

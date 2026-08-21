@@ -118,14 +118,14 @@ export interface TransactionComplianceFacts {
 export function assessTransactionCompliance(facts: TransactionComplianceFacts): ComplianceVerdict {
   const reasons: string[] = [];
   const checks: string[] = [];
-  if (facts.identityVerified) checks.push('Identity verified');
-  else reasons.push('Identity verification is incomplete.');
+  if (facts.identityVerified) checks.push('Identity intake record complete');
+  else reasons.push('Identity intake details are incomplete.');
   if (facts.complianceConfirmed) checks.push('Compliance declarations confirmed');
   else reasons.push('Compliance declarations are incomplete.');
   if (facts.riskCompleted) checks.push('Risk assessment complete');
   else reasons.push('Risk assessment is incomplete.');
-  if (facts.fundsConfirmed) checks.push('Source of funds confirmed');
-  else reasons.push('Source-of-funds verification is incomplete.');
+  if (facts.fundsConfirmed) checks.push('Source-of-funds declaration recorded');
+  else reasons.push('Source-of-funds declaration is incomplete.');
   if (facts.activeExecutingFirm) {
     checks.push(`Active account with ${facts.executingFirmName ?? 'executing firm'}`);
   } else {
@@ -385,7 +385,7 @@ export async function runProposalPipeline(input: PipelineInput): Promise<Pipelin
     stage: 'compliance',
     agent: 'KYC & AML agent',
     summary: chosen
-      ? `Verified recorded KYC and AML readiness plus the executing-firm relationship. ${chosen.candidate.name} cleared.`
+      ? `Checked recorded onboarding readiness and the executing-firm relationship. ${chosen.candidate.name} cleared for coordination; the licensed firm retains the final KYC and AML decision.`
       : complianceVerdicts.length === 0
         ? 'Nothing reached KYC and AML review.'
         : 'No candidate cleared the KYC and AML checks required before coordination.',

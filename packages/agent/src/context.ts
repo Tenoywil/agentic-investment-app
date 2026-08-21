@@ -9,7 +9,7 @@ import {
 } from '@ccn/domain';
 import { type LimitsDecision, evaluate } from '@ccn/limits-engine';
 import { type Currency, convert, formatMoney, money } from '@ccn/money';
-import { type FitResult, assessPortfolioFit } from './fit';
+import { type FitResult, assessPortfolioFit, buildDiasporaComparison } from './fit';
 import { type StageTrace, assessTransactionCompliance, runProposalPipeline } from './pipeline';
 import type { AgentSnapshot, SnapshotInstrument } from './snapshot';
 
@@ -191,6 +191,8 @@ export interface ScoutView {
     partner: string | null;
     amount: string;
     decision: string;
+    /** A qualitative, like-for-like residence-market comparison. */
+    diasporaComparison: string;
   } | null;
 }
 
@@ -198,11 +200,11 @@ export type ExplainTopic = 'safety' | 'fees' | 'kyc' | 'how_it_works' | 'limits'
 
 const EXPLANATIONS: Record<ExplainTopic, string> = {
   safety:
-    'CCN research, screens and prepares; the licensed, FSC-regulated partners execute, custody and settle. CCN never holds your money and never executes a trade itself. Everything happens inside limits you set, and every action is written to an immutable audit log.',
-  fees: 'CCN charges a flat platform fee. Each partner’s own product fees are shown on the deal card before you approve. There are no hidden spreads from CCN.',
-  kyc: 'Your identity checks live with the licensed partners, not with CCN. With your consent CCN reuses a partner’s verified KYC status across the network, so there is no duplicate paperwork; each partner remains the regulated entity for its own accounts.',
+    'CCN researches, screens and prepares; the licensed executing firm executes, custodies and settles. CCN never holds your money and never executes a trade itself. Everything stays inside limits you set, and each decision is written to the audit trail.',
+  fees: 'CCN and partner product fees are shown before you approve. The licensed executing firm reports the actual settlement price, units and fee; CCN does not estimate a missing settlement figure.',
+  kyc: 'With your consent, CCN collects and passes your declarations and documents to the licensed firm you choose. That firm reviews the evidence, may request more, and remains responsible for the final KYC and AML decision for its own account.',
   how_it_works:
-    'The agent discovers regional opportunities, screens them against your suitability profile and limits, and prepares them for your approval. It can act alone only inside your auto-invest limit; anything larger becomes an approval card you decide on.',
+    'The agent discovers regional opportunities, screens them against your suitability profile and limits, and prepares them for your approval. It cannot execute or approve an order; the licensed firm acts only after you decide.',
   limits:
     'Your limits govern what the agent may do alone: an auto-invest cap, a cash floor it never breaches, an FX-spread guardrail, a require-approval threshold, and a single-position cap. Anything outside them is escalated to you, never executed silently.',
 };
@@ -723,6 +725,13 @@ export function buildContext(snapshot: AgentSnapshot): AgentContext {
                 money(outcome.chosen.amountMinor, outcome.chosen.candidate.currency as Currency),
               ),
               decision: outcome.chosen.verdict.decision,
+              diasporaComparison: buildDiasporaComparison(
+                byId.get(outcome.chosen.candidate.instrumentId) ?? {
+                  type: null,
+                  region: null,
+                  currency: outcome.chosen.candidate.currency,
+                },
+              ),
             }
           : null,
       };

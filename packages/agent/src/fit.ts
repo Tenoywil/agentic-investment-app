@@ -77,6 +77,22 @@ export interface FitResult {
   concerns: string[];
 }
 
+/**
+ * The comparison a diaspora investor needs beside a regional proposal.
+ *
+ * This is intentionally qualitative. The snapshot has the product's own type,
+ * region and currency, but it does not contain current US, Canadian or UK
+ * market prices or the person's tax treatment. Naming the decision dimensions
+ * is useful; inventing a foreign benchmark or tax advantage is not.
+ */
+export function buildDiasporaComparison(
+  candidate: Pick<FitCandidate, 'type' | 'region' | 'currency'>,
+): string {
+  const type = candidate.type?.trim().toLowerCase() || 'investment';
+  const region = candidate.region?.trim() || 'Caribbean';
+  return `Diaspora comparison: relative to a like-for-like US, Canadian or UK ${type}, the potential value is ${region} exposure. It is not automatically better: compare net fees, tax and reporting for your residence, ${candidate.currency} currency risk, liquidity and settlement, diversification, and investor protections before deciding.`;
+}
+
 /** Above this share of the portfolio at one firm, more of it is a concern. */
 const PARTNER_CONCENTRATION_MAX = 0.4;
 /** Above this share of invested money in one instrument type, likewise. */
