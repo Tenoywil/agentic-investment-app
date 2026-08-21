@@ -26,12 +26,13 @@ import { ErrorNote } from './notice';
  * the institution side of a two-sided network had no way to see, admit or
  * refuse the people arriving on it.
  *
- * What an operator reviews here is the KYC package CCN carries across with the
- * client's consent — CCN records the verified outcome, the firm remains the
- * regulated owner. Nothing is read from the firm until the decision is made.
+ * What an operator reviews here is the KYC intake package CCN carries across
+ * with the client's consent — recorded details and declarations, not a CCN
+ * verification result. The firm remains the regulated owner of verification
+ * and the final KYC/AML decision. Nothing is read until that decision is made.
  *
  * The four checks are shown as they are, including when they fail. A missing
- * source-of-funds declaration or an unverified identity is exactly what an
+ * source-of-funds declaration or incomplete identity intake is exactly what an
  * operator is here to notice, so it is drawn in words and a shape as well as a
  * colour — never a green tick standing in for an unread field.
  */
@@ -224,8 +225,8 @@ export function ClientReview({
 
         {awaiting && noPackage ? (
           <p className="mt-2 text-[12.5px] leading-relaxed text-[#a44e20] dark:text-terra">
-            This person has not finished onboarding, so CCN has no verified KYC to pass you yet.
-            There is nothing here to accept.
+            This person has not finished onboarding, so CCN has no complete KYC intake package to
+            pass you yet. There is nothing here to accept.
           </p>
         ) : null}
 

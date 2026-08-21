@@ -54,7 +54,7 @@ const DONE = ONB_LABELS.length; // the "all set" step
  * a screen reader and dead weight for everyone else.
  */
 const STEP_INTROS: (string | null)[] = [
-  'Verification is performed by the licensed partners, who already carry the regulatory duty. CCN links your verified status and shares your details only with the partner executing each trade, with your consent.',
+  'Verification is performed by licensed partners, who carry the regulatory duty. With your consent, CCN shares these intake details only with the partner reviewing you or executing your trade.',
   'Cross-border rules require a few declarations. Your agent screens these automatically against every opportunity.',
   null,
   'Regulators require your occupation and the origin of the capital you invest.',
@@ -90,10 +90,10 @@ export default function OnboardingPage() {
   // Source of truth for the Done step — set from /status on resume, or from
   // submitRisk()'s response when the step is completed live in this session.
   const [serverBand, setServerBand] = useState<string | null>(null);
-  // Whether identity is ALREADY verified server-side. The prototype showed the
-  // "documents verified" badge unconditionally; live it has to reflect real
-  // state rather than assert a verification that hasn't happened yet.
-  const [identityVerified, setIdentityVerified] = useState(false);
+  // The legacy API field is named identityVerified, but today it records only
+  // that the person completed identity intake. The licensed partner owns actual
+  // document verification and the final KYC decision.
+  const [identityIntakeRecorded, setIdentityIntakeRecorded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +111,7 @@ export default function OnboardingPage() {
         if (status?.sources && status.sources.length > 0) {
           setSources(Object.fromEntries(status.sources.map((id) => [id, true])));
         }
-        if (status?.identityVerified) setIdentityVerified(true);
+        if (status?.identityVerified) setIdentityIntakeRecorded(true);
         if (savedBand) setServerBand(formatRiskBand(savedBand));
         setStep(resumeStep(status));
       } catch (err) {
@@ -153,7 +153,7 @@ export default function OnboardingPage() {
     (step === LAST && !hasSource)
   );
 
-  const continueLabel = ['Start verification', 'Continue', 'Continue', 'Confirm & finish'][step];
+  const continueLabel = ['Start identity intake', 'Continue', 'Continue', 'Confirm & finish'][step];
 
   async function handleContinue() {
     setError(null);
@@ -263,7 +263,7 @@ export default function OnboardingPage() {
                   onCountryChange={setCountry}
                   occupation={occupation}
                   onOccupationChange={setOccupation}
-                  verified={identityVerified}
+                  recorded={identityIntakeRecorded}
                 />
               ) : null}
               {step === 1 ? (
@@ -327,7 +327,7 @@ export default function OnboardingPage() {
 }
 
 /** `showSkip` is false on the final step — "Skip for now" is meaningless once
- *  verification is already complete. */
+ *  the intake is already complete. */
 function BrandHeader({ showSkip }: { showSkip: boolean }) {
   return (
     <div className="mb-6 flex items-center justify-between gap-4">
@@ -386,7 +386,7 @@ function IdentityStep({
   onCountryChange,
   occupation,
   onOccupationChange,
-  verified,
+  recorded,
 }: {
   fullName: string;
   onFullNameChange: (v: string) => void;
@@ -394,7 +394,7 @@ function IdentityStep({
   onCountryChange: (v: string) => void;
   occupation: string;
   onOccupationChange: (v: string) => void;
-  verified: boolean;
+  recorded: boolean;
 }) {
   return (
     <div>
@@ -449,7 +449,9 @@ function IdentityStep({
           />
         </div>
       </div>
-      {verified ? <Callout>Identity documents verified · KYC Tier 2 unlocked</Callout> : null}
+      {recorded ? (
+        <Callout>Identity intake recorded · ready to share with a partner you choose</Callout>
+      ) : null}
     </div>
   );
 }
@@ -651,14 +653,13 @@ function RiskStep({
  * What actually happened, and what happens next.
  *
  * This card used to announce "You're verified · Tier 2" and tick "Identity
- * verified (KYC · Tier 2)". Nothing had been verified: `POST /identity` sets
- * `identity_verified = true` from a typed name, a country and an occupation.
- * There is no document upload, no IDV provider and no liveness check anywhere in
- * this product — by design, because CCN does not own KYC. The regulated firm
- * does, and links its verified status across with the client's consent.
+ * verified (KYC · Tier 2)". Nothing had been verified: the legacy
+ * `identity_verified` field becomes true after a typed name, country and
+ * occupation. Optional documents can support the licensed firm's later review,
+ * but CCN has no IDV or liveness provider and does not own the KYC decision.
  *
  * So the screen said the one thing the whole architecture is careful not to
- * claim. What the person has really done is complete a self-declaration, and
+ * claim. What the person has really done is complete an intake record, and
  * what they are really waiting on is a firm accepting them — which is the next
  * thing they will hit, and worth telling them now rather than at the point it
  * blocks them.

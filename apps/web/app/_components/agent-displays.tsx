@@ -649,8 +649,8 @@ function PipelineDisplay({ data }: { data: PipelineDisplayData }) {
           <p className="m-0">
             Prepared: <b>{data.proposal.name}</b> ·{' '}
             <b className="font-mono">{data.proposal.amount}</b>
-            {data.proposal.partner && <> · via {data.proposal.partner}</>}
-            {data.proposal.decision === 'requires_approval' && '. Waiting on your approval.'}
+            {data.proposal.partner && <> · via {data.proposal.partner}</>}. Waiting for your
+            confirmation before routing.
           </p>
           <p className="mb-0 mt-2 border-x-0 border-b-0 border-t border-solid border-border/70 pt-2 text-dim">
             {data.proposal.diasporaComparison}

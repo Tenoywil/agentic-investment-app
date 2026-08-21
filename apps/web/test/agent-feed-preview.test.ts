@@ -180,7 +180,7 @@ describe('agent pipeline visual', () => {
         name: 'Regional Bond',
         partner: 'Licensed Partner',
         amount: 'US$1,000',
-        decision: 'requires_approval',
+        decision: 'auto_act',
         diasporaComparison:
           'Diaspora comparison: relative to a like-for-like Canadian bond. Compare fees, tax, currency risk, liquidity and investor protections.',
       },
@@ -190,6 +190,7 @@ describe('agent pipeline visual', () => {
       createElement(AgentDisplayCard, { display: { kind: 'pipeline', data } }),
     );
     expect(html).toContain('Prepared:');
+    expect(html).toContain('Waiting for your confirmation before routing.');
     expect(html).toContain('Diaspora comparison:');
     expect(html).toContain('like-for-like Canadian bond');
   });

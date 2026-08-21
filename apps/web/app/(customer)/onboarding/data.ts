@@ -11,7 +11,7 @@ export interface RiskQuestion {
 }
 
 export const ONB_TITLES = [
-  'Get verified',
+  'Complete identity intake',
   'Compliance & suitability',
   'Your risk tolerance',
   'Source of funds',
@@ -23,7 +23,7 @@ export const ONB_SUBS = [
   'Declarations required across Caribbean jurisdictions.',
   'Three questions from the Sagicor Life fact-find set your risk profile.',
   'Required by regulators before you invest.',
-  'Verification complete.',
+  'Identity intake recorded.',
 ];
 
 export const ONB_LABELS = ['Identity', 'Compliance', 'Risk', 'Funds'];

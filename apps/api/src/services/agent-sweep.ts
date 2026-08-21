@@ -41,10 +41,9 @@ import { loadBand, loadInstrument, loadLimits, runGate } from './gate';
  *
  * The sweep closes that gap without widening what the agent may do:
  *
- *  - It NEVER moves money. Even a candidate the Limits Engine would auto-act
- *    on is raised as an approval card — auto-act exists for moves the person
- *    initiated, and a background process spending someone's cash unasked is
- *    the surprise this product is built to never spring.
+ *  - It NEVER moves money. Even a candidate the Limits Engine classifies as
+ *    auto-act is raised as an approval card — auto-act means within-limit, not
+ *    execution authority, and every move still requires human confirmation.
  *  - Every candidate passes the SAME gate as the chat and the order path:
  *    the person's own limits, risk band, cash floor and position caps decide
  *    what is proposable, not a heuristic of this file's own.

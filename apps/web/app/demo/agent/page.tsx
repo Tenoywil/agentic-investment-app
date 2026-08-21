@@ -236,7 +236,8 @@ const APPROVALS: {
       },
       {
         agent: 'Compliance agent',
-        summary: 'Verified KYC readiness and the active Sagicor account relationship.',
+        summary:
+          'Checked recorded onboarding readiness and the active Sagicor relationship; Sagicor retains the final KYC and AML decision.',
       },
       {
         agent: 'Coordinator',
@@ -270,7 +271,8 @@ const APPROVALS: {
       },
       {
         agent: 'Compliance agent',
-        summary: 'Verified KYC readiness and the active NCB account relationship.',
+        summary:
+          'Checked recorded onboarding readiness and the active NCB relationship; NCB retains the final KYC and AML decision.',
       },
       {
         agent: 'Coordinator',

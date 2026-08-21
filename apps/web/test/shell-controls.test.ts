@@ -277,6 +277,23 @@ describe('app shell controls', () => {
     expect(agent).toContain('no money moved');
   });
 
+  test('identity intake and demo compliance copy reserve verification for licensed firms', () => {
+    const onboardingData = code(join(WEB, 'app/(customer)/onboarding/data.ts'));
+    const onboardingPage = code(join(WEB, 'app/(customer)/onboarding/page.tsx'));
+    const demoAgent = code(join(WEB, 'app/demo/agent/page.tsx'));
+
+    expect(onboardingData).toContain('Complete identity intake');
+    expect(onboardingData).toContain('Identity intake recorded.');
+    expect(onboardingData).not.toContain("'Get verified'");
+    expect(onboardingData).not.toContain('Verification complete.');
+    expect(onboardingPage).toContain(
+      'Identity intake recorded · ready to share with a partner you choose',
+    );
+    expect(onboardingPage).not.toContain('Identity documents verified · KYC Tier 2 unlocked');
+    expect(demoAgent).not.toContain('Verified KYC readiness');
+    expect(demoAgent.match(/retains the final KYC and AML decision/g)).toHaveLength(2);
+  });
+
   test('the demo agent uses the real inline chart renderer for visual requests', () => {
     const agent = code(join(WEB, 'app/demo/agent/page.tsx'));
     expect(agent).toContain('<AgentDisplayCard display={m.display} />');

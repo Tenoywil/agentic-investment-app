@@ -154,7 +154,7 @@ const OPPS: Opp[] = [
     risk: 'High',
     desc: 'A private credit note providing senior secured financing to mid-market Caribbean firms. Higher return for reduced liquidity: capital is locked for the term.',
     agentNote:
-      'Unlocked by your source-of-funds verification. Illiquid, and only suitable for capital you won’t need for 3 years.',
+      'Unlocked by your source-of-funds declaration. Illiquid, and only suitable for capital you won’t need for 3 years.',
   },
   {
     id: 'jmmb',
