@@ -14,7 +14,7 @@ import {
   fmtMinor,
   timeAgo,
 } from './lib';
-import { RowsSkeleton } from './loading';
+import { ConsolePager, RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
 /**
@@ -46,9 +46,9 @@ const BAND_LABEL: Record<string, string> = {
 };
 
 const TIER_LABEL: Record<string, string> = {
-  none: 'No KYC',
-  tier1: 'Tier 1',
-  tier2: 'Tier 2',
+  none: 'No intake',
+  tier1: 'Identity recorded',
+  tier2: 'Intake complete',
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -98,22 +98,40 @@ export function ClientReview({
   clients,
   clientsError,
   loading,
+  total,
+  pendingTotal,
+  offset,
+  pageSize,
+  status,
+  query,
   busyId,
   actionError,
   onReview,
   onRequestKyc,
   onOpen,
+  onStatus,
+  onQuery,
+  onPage,
 }: {
   clients: ConsoleClient[];
   clientsError: string | null;
   loading: boolean;
+  total: number;
+  pendingTotal: number;
+  offset: number;
+  pageSize: number;
+  status: string;
+  query: string;
   busyId: string | null;
   actionError: string | null;
   onReview: (id: string, accept: boolean, reason?: string) => void;
-  /** Ask this person to finish their KYC (0032) — the desk's third verb. */
+  /** Ask this person to finish their intake (0032) — the desk's third verb. */
   onRequestKyc: (id: string) => void;
   /** Open the drill-down: positions, orders, and the record with this firm. */
   onOpen: (client: ConsoleClient) => void;
+  onStatus: (status: string) => void;
+  onQuery: (query: string) => void;
+  onPage: (offset: number) => void;
 }) {
   const pending = clients.filter((c) => c.status === 'pending');
   const decided = clients.filter((c) => c.status !== 'pending');
@@ -135,10 +153,11 @@ export function ClientReview({
         <Button
           size="sm"
           variant="outline"
+          className="min-h-11 w-full sm:min-h-9 sm:w-auto"
           disabled={busy || askedRecently !== null}
           onClick={() => onRequestKyc(c.account_id)}
         >
-          {askedRecently ? `Asked ${timeAgo(askedRecently)}` : 'Ask to finish KYC'}
+          {askedRecently ? `Asked ${timeAgo(askedRecently)}` : 'Ask to finish intake'}
         </Button>
       ) : null;
     return (
@@ -165,7 +184,7 @@ export function ClientReview({
               </div>
             ) : null}
           </div>
-          <div className="flex items-start gap-2">
+          <div className="flex w-full items-start justify-between gap-2 sm:w-auto sm:justify-start">
             <div className="text-right">
               <div className="font-mono text-[13.5px] font-bold">{TIER_LABEL[c.kyc_tier]}</div>
               {c.risk_band ? (
@@ -180,6 +199,7 @@ export function ClientReview({
               type="button"
               size="sm"
               variant="outline"
+              className="min-h-11 sm:min-h-9"
               onClick={() => onOpen(c)}
               aria-label={`Open ${c.client_name}`}
             >
@@ -233,7 +253,7 @@ export function ClientReview({
         {awaiting ? (
           declining === c.account_id ? (
             <form
-              className="mt-3 flex flex-wrap items-center gap-2"
+              className="mt-3 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap"
               onSubmit={(e) => {
                 e.preventDefault();
                 onReview(c.account_id, false, reason.trim() || undefined);
@@ -241,22 +261,28 @@ export function ClientReview({
                 setReason('');
               }}
             >
-              <label className="min-w-[220px] flex-1 text-[13px]">
+              <label className="col-span-2 min-w-0 flex-1 text-[13px] sm:min-w-[220px]">
                 <span className="sr-only">Why {c.client_name} is being declined</span>
                 <input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Why? The client is told this"
-                  className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                  className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
                 />
               </label>
-              <Button type="submit" size="sm" variant="ghost" className={TERRA_GHOST_BTN}>
+              <Button
+                type="submit"
+                size="sm"
+                variant="ghost"
+                className={`min-h-11 sm:min-h-9 ${TERRA_GHOST_BTN}`}
+              >
                 Decline
               </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
+                className="min-h-11 sm:min-h-9"
                 onClick={() => {
                   setDeclining(null);
                   setReason('');
@@ -266,9 +292,10 @@ export function ClientReview({
               </Button>
             </form>
           ) : (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="mt-3 flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <Button
                 size="sm"
+                className="min-h-11 w-full sm:min-h-9 sm:w-auto"
                 disabled={busy || noPackage}
                 onClick={() => onReview(c.account_id, true)}
               >
@@ -278,7 +305,7 @@ export function ClientReview({
               <Button
                 size="sm"
                 variant="ghost"
-                className={TERRA_GHOST_BTN}
+                className={`min-h-11 w-full sm:min-h-9 sm:w-auto ${TERRA_GHOST_BTN}`}
                 disabled={busy}
                 onClick={() => setDeclining(c.account_id)}
               >
@@ -294,21 +321,46 @@ export function ClientReview({
   }
 
   return (
-    <Card className="mb-[18px] p-6" data-tour="institution-clients">
+    <Card className="mb-[18px] p-4 sm:p-6" data-tour="institution-clients">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <b className="font-display text-lg">Clients from CCN</b>
-        {pending.length > 0 ? (
+        {pendingTotal > 0 ? (
           <span className="text-sm font-bold text-[#a44e20] dark:text-terra">
-            {pending.length} awaiting your decision
+            {pendingTotal} awaiting your decision
           </span>
         ) : null}
       </div>
       <div className="mb-4 flex items-start gap-2 text-[13px] text-faint">
         <ShieldCheck className="mt-0.5 h-4 w-4 flex-none text-teal2" aria-hidden />
         <span>
-          Someone linking an account at your firm shares the KYC CCN holds for them. You decide
-          whether they become your client; nothing is read from you until you do.
+          Someone linking an account shares their recorded intake package with your firm. You own
+          verification and the final KYC/AML decision; nothing is read from you until you accept.
         </span>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <label className="min-w-[180px] flex-1 text-[13px]">
+          <span className="sr-only">Search clients by name or email</span>
+          <input
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+            placeholder="Search name or email"
+            className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+          />
+        </label>
+        <label className="min-w-[150px] flex-1 text-[13px] sm:min-w-0 sm:flex-none">
+          <span className="sr-only">Filter clients by relationship status</span>
+          <select
+            value={status}
+            onChange={(event) => onStatus(event.target.value)}
+            className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+          >
+            <option value="">All clients</option>
+            <option value="pending">Awaiting review</option>
+            <option value="active">Accepted</option>
+            <option value="declined">Declined</option>
+          </select>
+        </label>
       </div>
 
       {clientsError ? <ErrorNote message={clientsError} className="mb-3" /> : null}
@@ -319,13 +371,17 @@ export function ClientReview({
       {!loading && !clientsError && clients.length === 0 ? (
         <EmptyState
           icon={UserRoundCheck}
-          title="Nobody has asked yet"
-          body="When a CCN client links an account at your firm they appear here with the KYC package CCN carries across, for you to accept or decline."
+          title={query || status ? 'No clients match' : 'Nobody has asked yet'}
+          body={
+            query || status
+              ? 'Try a different name, email, or relationship status.'
+              : 'When a CCN client links an account at your firm, their consented intake package appears here for your review.'
+          }
         />
       ) : null}
 
-      {pending.map(row)}
-      {decided.length > 0 ? (
+      {!loading ? pending.map(row) : null}
+      {!loading && decided.length > 0 ? (
         <div className="mt-2">
           {pending.length > 0 ? (
             <div className="mb-1 mt-4 text-[12px] font-bold uppercase tracking-[.6px] text-faint">
@@ -334,6 +390,17 @@ export function ClientReview({
           ) : null}
           {decided.map(row)}
         </div>
+      ) : null}
+      {!loading && !clientsError ? (
+        <ConsolePager
+          label="Clients from CCN"
+          total={total}
+          offset={offset}
+          pageSize={pageSize}
+          visible={clients.length}
+          onPage={onPage}
+          className="-mx-4 -mb-4 mt-2 sm:-mx-6 sm:-mb-6"
+        />
       ) : null}
     </Card>
   );

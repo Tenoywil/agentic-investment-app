@@ -209,4 +209,42 @@ describe('isolated partner demo', () => {
     expect(source).not.toContain('Menu');
     expect(source).not.toContain('showModal()');
   });
+
+  it('rehearses real paging without gaining access to live data', () => {
+    expect(source).toContain('const [orderOffset, setOrderOffset]');
+    expect(source).toContain('const [productOffset, setProductOffset]');
+    expect(source).toContain('<ConsolePager');
+    expect(source).not.toContain('onPage={() => undefined}');
+  });
+});
+
+describe('bounded partner console queues', () => {
+  const live = readFileSync(join(REPO, 'apps/web/app/(institution)/institutions/page.tsx'), 'utf8');
+  const components = [
+    'orders-tab.tsx',
+    'products-tab.tsx',
+    'client-review.tsx',
+    'clients-tab.tsx',
+    'compliance-tab.tsx',
+  ].map((file) => readFileSync(join(REPO, 'apps/web/app/_components/console', file), 'utf8'));
+
+  it('uses one pager across every growing operational list', () => {
+    for (const source of components) expect(source).toContain('<ConsolePager');
+    expect(live).toContain('const CONSOLE_PAGE_SIZE = 10');
+    expect(live).not.toContain('const ORDER_PAGE = 50');
+    expect(live).not.toContain('getAudit(50)');
+  });
+
+  it('keeps workload badges independent of the filtered page', () => {
+    expect(live).toContain('pendingOrders={summary?.createdOrders ?? 0}');
+    expect(live).toContain('pendingClientTotal={summary?.pendingClients ?? 0}');
+    expect(live).toContain('pendingWithdrawalTotal={summary?.pendingWithdrawals ?? 0}');
+    expect(live).toContain('orders={overviewOrders}');
+  });
+
+  it('starts each section at the top instead of preserving another queue’s scroll depth', () => {
+    const demo = readFileSync(join(REPO, 'apps/web/app/demo/institutions/page.tsx'), 'utf8');
+    expect(live).toContain("window.scrollTo({ top: 0, behavior: 'auto' })");
+    expect(demo).toContain("window.scrollTo({ top: 0, behavior: 'auto' })");
+  });
 });

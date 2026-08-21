@@ -23,6 +23,7 @@ import {
   type ConsoleOrder,
   type ConsoleProduct,
   type ConsoleReconciliationItem,
+  type ConsoleSummary,
   type ConsoleWithdrawal,
   type PartnerEquityPoint,
   type SettlementInput,
@@ -51,7 +52,10 @@ import {
 } from '@/lib/console-api';
 import { LogOut } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+const CONSOLE_PAGE_SIZE = 10;
+const OVERVIEW_ORDER_LIMIT = 6;
 
 /**
  * The partner console: a dark-navy shell (Warm-themed shadcn) with Radix Tabs
@@ -98,6 +102,7 @@ export default function InstitutionsPage() {
   const navigateToTab = useCallback(
     (next: TabKey) => {
       setTab(next);
+      window.scrollTo({ top: 0, behavior: 'auto' });
       const params = new URLSearchParams(window.location.search);
       if (next === 'overview') params.delete('section');
       else params.set('section', next);
@@ -108,23 +113,58 @@ export default function InstitutionsPage() {
   );
 
   const [orders, setOrders] = useState<ConsoleOrder[]>([]);
+  const [overviewOrders, setOverviewOrders] = useState<ConsoleOrder[]>([]);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [overviewOrdersError, setOverviewOrdersError] = useState<string | null>(null);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [orderStatus, setOrderStatus] = useState('');
+  const [orderQuery, setOrderQuery] = useState('');
+  const [orderOffset, setOrderOffset] = useState(0);
+  const [orderTotal, setOrderTotal] = useState(0);
+
   const [products, setProducts] = useState<ConsoleProduct[]>([]);
   const [productsError, setProductsError] = useState<string | null>(null);
-  const [kpis, setKpis] = useState<ConsoleKpi[]>([]);
-  const [kpisError, setKpisError] = useState<string | null>(null);
-  const [equity, setEquity] = useState<PartnerEquityPoint[]>([]);
-  const [equityError, setEquityError] = useState<string | null>(null);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productStatus, setProductStatus] = useState('');
+  const [productQuery, setProductQuery] = useState('');
+  const [productOffset, setProductOffset] = useState(0);
+  const [productTotal, setProductTotal] = useState(0);
+
   const [clients, setClients] = useState<ConsoleClient[]>([]);
   const [clientsError, setClientsError] = useState<string | null>(null);
-  const [funnel, setFunnel] = useState<ConsoleFunnelStage[]>([]);
-  const [funnelError, setFunnelError] = useState<string | null>(null);
+  const [clientsLoading, setClientsLoading] = useState(true);
+  const [clientStatus, setClientStatus] = useState('');
+  const [clientQuery, setClientQuery] = useState('');
+  const [clientOffset, setClientOffset] = useState(0);
+  const [clientTotal, setClientTotal] = useState(0);
+
   const [reconciliation, setReconciliation] = useState<ConsoleReconciliationItem[]>([]);
   const [reconciliationError, setReconciliationError] = useState<string | null>(null);
+  const [reconciliationLoading, setReconciliationLoading] = useState(true);
+  const [reconciliationOffset, setReconciliationOffset] = useState(0);
+  const [reconciliationTotal, setReconciliationTotal] = useState(0);
+
   const [withdrawals, setWithdrawals] = useState<ConsoleWithdrawal[]>([]);
   const [withdrawalsError, setWithdrawalsError] = useState<string | null>(null);
+  const [withdrawalsLoading, setWithdrawalsLoading] = useState(true);
+  const [withdrawalOffset, setWithdrawalOffset] = useState(0);
+  const [withdrawalTotal, setWithdrawalTotal] = useState(0);
+
   const [audit, setAudit] = useState<ConsoleAuditEntry[]>([]);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const [auditOffset, setAuditOffset] = useState(0);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [decisionsOnly, setDecisionsOnly] = useState(false);
+
+  const [kpis, setKpis] = useState<ConsoleKpi[]>([]);
+  const [kpisError, setKpisError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<ConsoleSummary | null>(null);
+  const [equity, setEquity] = useState<PartnerEquityPoint[]>([]);
+  const [equityError, setEquityError] = useState<string | null>(null);
+  const [funnel, setFunnel] = useState<ConsoleFunnelStage[]>([]);
+  const [funnelError, setFunnelError] = useState<string | null>(null);
+  const [referenceLoading, setReferenceLoading] = useState(true);
 
   const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
   const [orderActionError, setOrderActionError] = useState<string | null>(null);
@@ -138,137 +178,278 @@ export default function InstitutionsPage() {
   const [clientActionError, setClientActionError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  /** The desk-wide statement pull that fills the reconciliation queue. */
   const [pulling, setPulling] = useState(false);
   const [pullNote, setPullNote] = useState<string | null>(null);
+  // Filters, page clicks and realtime resyncs can overlap. Only the newest
+  // request for a surface may replace its rows.
+  const orderLoadSequence = useRef(0);
+  const productLoadSequence = useRef(0);
+  const clientLoadSequence = useRef(0);
+  const reconciliationLoadSequence = useRef(0);
+  const withdrawalLoadSequence = useRef(0);
+  const auditLoadSequence = useRef(0);
+  const referenceLoadSequence = useRef(0);
+
+  const loadOrders = useCallback(
+    async (showLoading = true) => {
+      const request = ++orderLoadSequence.current;
+      if (showLoading) setOrdersLoading(true);
+      try {
+        const result = await getOrders({
+          status: orderStatus || undefined,
+          q: orderQuery || undefined,
+          limit: CONSOLE_PAGE_SIZE,
+          offset: orderOffset,
+        });
+        if (request !== orderLoadSequence.current) return;
+        setOrderTotal(result.total);
+        setOrdersError(null);
+        if (orderOffset > 0 && result.orders.length === 0 && result.total > 0) {
+          setOrderOffset(Math.floor((result.total - 1) / CONSOLE_PAGE_SIZE) * CONSOLE_PAGE_SIZE);
+        } else {
+          setOrders(result.orders);
+        }
+      } catch (err) {
+        if (request !== orderLoadSequence.current) return;
+        setOrdersError(errorMessage(err, 'Could not load order flow.'));
+      } finally {
+        if (request === orderLoadSequence.current) setOrdersLoading(false);
+      }
+    },
+    [orderOffset, orderQuery, orderStatus],
+  );
+
+  const loadProducts = useCallback(
+    async (showLoading = true) => {
+      const request = ++productLoadSequence.current;
+      if (showLoading) setProductsLoading(true);
+      try {
+        const result = await getProducts({
+          status: productStatus || undefined,
+          q: productQuery || undefined,
+          limit: CONSOLE_PAGE_SIZE,
+          offset: productOffset,
+        });
+        if (request !== productLoadSequence.current) return;
+        setProductTotal(result.total);
+        setProductsError(null);
+        if (productOffset > 0 && result.products.length === 0 && result.total > 0) {
+          setProductOffset(Math.floor((result.total - 1) / CONSOLE_PAGE_SIZE) * CONSOLE_PAGE_SIZE);
+        } else {
+          setProducts(result.products);
+        }
+      } catch (err) {
+        if (request !== productLoadSequence.current) return;
+        setProductsError(errorMessage(err, 'Could not load products.'));
+      } finally {
+        if (request === productLoadSequence.current) setProductsLoading(false);
+      }
+    },
+    [productOffset, productQuery, productStatus],
+  );
+
+  const loadClients = useCallback(
+    async (showLoading = true) => {
+      const request = ++clientLoadSequence.current;
+      if (showLoading) setClientsLoading(true);
+      try {
+        const result = await getClients({
+          status: clientStatus || undefined,
+          q: clientQuery || undefined,
+          limit: CONSOLE_PAGE_SIZE,
+          offset: clientOffset,
+        });
+        if (request !== clientLoadSequence.current) return;
+        setClientTotal(result.total);
+        setClientsError(null);
+        if (clientOffset > 0 && result.clients.length === 0 && result.total > 0) {
+          setClientOffset(Math.floor((result.total - 1) / CONSOLE_PAGE_SIZE) * CONSOLE_PAGE_SIZE);
+        } else {
+          setClients(result.clients);
+        }
+      } catch (err) {
+        if (request !== clientLoadSequence.current) return;
+        setClientsError(errorMessage(err, 'Could not load your clients.'));
+      } finally {
+        if (request === clientLoadSequence.current) setClientsLoading(false);
+      }
+    },
+    [clientOffset, clientQuery, clientStatus],
+  );
+
+  const loadReconciliation = useCallback(
+    async (showLoading = true) => {
+      const request = ++reconciliationLoadSequence.current;
+      if (showLoading) setReconciliationLoading(true);
+      try {
+        const result = await getReconciliation({
+          limit: CONSOLE_PAGE_SIZE,
+          offset: reconciliationOffset,
+        });
+        if (request !== reconciliationLoadSequence.current) return;
+        setReconciliationTotal(result.total);
+        setReconciliationError(null);
+        if (reconciliationOffset > 0 && result.items.length === 0 && result.total > 0) {
+          setReconciliationOffset(
+            Math.floor((result.total - 1) / CONSOLE_PAGE_SIZE) * CONSOLE_PAGE_SIZE,
+          );
+        } else {
+          setReconciliation(result.items);
+        }
+      } catch (err) {
+        if (request !== reconciliationLoadSequence.current) return;
+        setReconciliationError(errorMessage(err, 'Could not load reconciliation items.'));
+      } finally {
+        if (request === reconciliationLoadSequence.current) setReconciliationLoading(false);
+      }
+    },
+    [reconciliationOffset],
+  );
+
+  const loadWithdrawals = useCallback(
+    async (showLoading = true) => {
+      const request = ++withdrawalLoadSequence.current;
+      if (showLoading) setWithdrawalsLoading(true);
+      try {
+        const result = await getWithdrawals({
+          limit: CONSOLE_PAGE_SIZE,
+          offset: withdrawalOffset,
+        });
+        if (request !== withdrawalLoadSequence.current) return;
+        setWithdrawalTotal(result.total);
+        setWithdrawalsError(null);
+        if (withdrawalOffset > 0 && result.withdrawals.length === 0 && result.total > 0) {
+          setWithdrawalOffset(
+            Math.floor((result.total - 1) / CONSOLE_PAGE_SIZE) * CONSOLE_PAGE_SIZE,
+          );
+        } else {
+          setWithdrawals(result.withdrawals);
+        }
+      } catch (err) {
+        if (request !== withdrawalLoadSequence.current) return;
+        setWithdrawalsError(errorMessage(err, 'Could not load withdrawal requests.'));
+      } finally {
+        if (request === withdrawalLoadSequence.current) setWithdrawalsLoading(false);
+      }
+    },
+    [withdrawalOffset],
+  );
+
+  const loadAudit = useCallback(
+    async (showLoading = true) => {
+      const request = ++auditLoadSequence.current;
+      if (showLoading) setAuditLoading(true);
+      try {
+        const result = await getAudit({
+          decisions: decisionsOnly,
+          limit: CONSOLE_PAGE_SIZE,
+          offset: auditOffset,
+        });
+        if (request !== auditLoadSequence.current) return;
+        setAuditTotal(result.total);
+        setAuditError(null);
+        if (auditOffset > 0 && result.entries.length === 0 && result.total > 0) {
+          setAuditOffset(Math.floor((result.total - 1) / CONSOLE_PAGE_SIZE) * CONSOLE_PAGE_SIZE);
+        } else {
+          setAudit(result.entries);
+        }
+      } catch (err) {
+        if (request !== auditLoadSequence.current) return;
+        setAuditError(errorMessage(err, 'Could not load the audit trail.'));
+      } finally {
+        if (request === auditLoadSequence.current) setAuditLoading(false);
+      }
+    },
+    [auditOffset, decisionsOnly],
+  );
+
+  const loadReference = useCallback(async (showLoading = true) => {
+    const request = ++referenceLoadSequence.current;
+    if (showLoading) setReferenceLoading(true);
+    const [kpisResult, funnelResult, equityResult, overviewOrdersResult] = await Promise.allSettled(
+      [
+        getKpis(),
+        getFunnel(),
+        getPartnerEquityHistory(),
+        getOrders({ limit: OVERVIEW_ORDER_LIMIT, offset: 0 }),
+      ],
+    );
+    if (request !== referenceLoadSequence.current) return;
+    if (kpisResult.status === 'fulfilled') {
+      setKpis(kpisResult.value.kpis);
+      setSummary(kpisResult.value.summary);
+      setKpisError(null);
+    } else setKpisError(errorMessage(kpisResult.reason, 'Could not load KPIs.'));
+    if (funnelResult.status === 'fulfilled') {
+      setFunnel(funnelResult.value.stages);
+      setFunnelError(null);
+    } else
+      setFunnelError(errorMessage(funnelResult.reason, 'Could not load the onboarding funnel.'));
+    if (equityResult.status === 'fulfilled') {
+      setEquity(equityResult.value.points);
+      setEquityError(null);
+    } else setEquityError(errorMessage(equityResult.reason, 'Could not load your growth history.'));
+    if (overviewOrdersResult.status === 'fulfilled') {
+      setOverviewOrders(overviewOrdersResult.value.orders);
+      setOverviewOrdersError(null);
+    } else
+      setOverviewOrdersError(
+        errorMessage(overviewOrdersResult.reason, 'Could not load the order preview.'),
+      );
+    if (request === referenceLoadSequence.current) setReferenceLoading(false);
+  }, []);
+
+  useEffect(() => void loadOrders(), [loadOrders]);
+  useEffect(() => void loadProducts(), [loadProducts]);
+  useEffect(() => void loadClients(), [loadClients]);
+  useEffect(() => void loadReconciliation(), [loadReconciliation]);
+  useEffect(() => void loadWithdrawals(), [loadWithdrawals]);
+  useEffect(() => void loadAudit(), [loadAudit]);
+  useEffect(() => void loadReference(), [loadReference]);
+
+  const refreshConsole = useCallback(
+    (showLoading = false) =>
+      Promise.all([
+        loadOrders(showLoading),
+        loadProducts(showLoading),
+        loadClients(showLoading),
+        loadReconciliation(showLoading),
+        loadWithdrawals(showLoading),
+        loadAudit(showLoading),
+        loadReference(showLoading),
+      ]),
+    [
+      loadAudit,
+      loadClients,
+      loadOrders,
+      loadProducts,
+      loadReconciliation,
+      loadReference,
+      loadWithdrawals,
+    ],
+  );
+
+  useRealtime(['order', 'connection', 'reconciliation', 'listing', 'withdrawal'], () =>
+    refreshConsole(false),
+  );
 
   async function handlePullStatements() {
     setPulling(true);
     setPullNote(null);
     try {
-      const { clients, queued } = await pullReconciliation();
+      const { clients: checkedClients, queued } = await pullReconciliation();
       setPullNote(
         queued === 0
-          ? `Checked ${clients} client account${clients === 1 ? '' : 's'}. Nothing new to reconcile.`
-          : `Checked ${clients} client account${clients === 1 ? '' : 's'}. ${queued} line${queued === 1 ? '' : 's'} queued below.`,
+          ? `Checked ${checkedClients} client account${checkedClients === 1 ? '' : 's'}. Nothing new to reconcile.`
+          : `Checked ${checkedClients} client account${checkedClients === 1 ? '' : 's'}. ${queued} line${queued === 1 ? '' : 's'} queued below.`,
       );
-      void load();
+      await Promise.all([loadReconciliation(false), loadAudit(false), loadReference(false)]);
     } catch (err) {
       setPullNote(errorMessage(err, 'Could not pull statements.'));
     } finally {
       setPulling(false);
     }
   }
-
-  /**
-   * Seven reads, and until this flag existed there was no way to tell "still
-   * loading" from "nothing there". Every panel rendered its empty state in the
-   * meantime, so opening the console told an operator they had no orders, no
-   * clients and no referrals — three confident claims about their business,
-   * made before a single response had arrived.
-   */
-  const [loading, setLoading] = useState(true);
-
-  /**
-   * How the order queue is narrowed. Held here rather than in the tab because
-   * `load` is what fetches, and a filter that did not reach the fetch would be
-   * a control that filters only what is already on screen — which on a bounded
-   * list is a different answer from the one it appears to give.
-   */
-  const [orderStatus, setOrderStatus] = useState('');
-  const [orderQuery, setOrderQuery] = useState('');
-  const [orderOffset, setOrderOffset] = useState(0);
-  const [orderTotal, setOrderTotal] = useState(0);
-  const [clientTotal, setClientTotal] = useState(0);
-  const ORDER_PAGE = 50;
-
-  const load = useCallback(async () => {
-    // Each panel reports its own failure. One route being down must not blank
-    // the other four — an operator with a broken funnel query can still work
-    // their order queue.
-    const [ordersR, productsR, kpisR, clientsR, funnelR, reconR, auditR, withdrawalsR, equityR] =
-      await Promise.allSettled([
-        getOrders({
-          status: orderStatus || undefined,
-          q: orderQuery || undefined,
-          limit: ORDER_PAGE,
-          offset: orderOffset,
-        }),
-        getProducts(),
-        getKpis(),
-        getClients(),
-        getFunnel(),
-        getReconciliation(),
-        getAudit(50),
-        getWithdrawals(),
-        getPartnerEquityHistory(),
-      ]);
-
-    if (ordersR.status === 'fulfilled') {
-      setOrders(ordersR.value.orders);
-      setOrderTotal(ordersR.value.total);
-      setOrdersError(null);
-    } else setOrdersError(errorMessage(ordersR.reason, 'Could not load order flow.'));
-
-    if (productsR.status === 'fulfilled') {
-      setProducts(productsR.value.products);
-      setProductsError(null);
-    } else setProductsError(errorMessage(productsR.reason, 'Could not load products.'));
-
-    if (kpisR.status === 'fulfilled') {
-      setKpis(kpisR.value.kpis);
-      setKpisError(null);
-    } else setKpisError(errorMessage(kpisR.reason, 'Could not load KPIs.'));
-
-    if (equityR.status === 'fulfilled') {
-      setEquity(equityR.value.points);
-      setEquityError(null);
-    } else setEquityError(errorMessage(equityR.reason, 'Could not load your growth history.'));
-
-    if (clientsR.status === 'fulfilled') {
-      setClients(clientsR.value.clients);
-      setClientTotal(clientsR.value.total);
-      setClientsError(null);
-    } else setClientsError(errorMessage(clientsR.reason, 'Could not load your clients.'));
-
-    if (funnelR.status === 'fulfilled') {
-      setFunnel(funnelR.value.stages);
-      setFunnelError(null);
-    } else setFunnelError(errorMessage(funnelR.reason, 'Could not load the onboarding funnel.'));
-
-    if (reconR.status === 'fulfilled') {
-      setReconciliation(reconR.value.items);
-      setReconciliationError(null);
-    } else
-      setReconciliationError(errorMessage(reconR.reason, 'Could not load reconciliation items.'));
-
-    if (auditR.status === 'fulfilled') {
-      setAudit(auditR.value.entries);
-      setAuditError(null);
-    } else setAuditError(errorMessage(auditR.reason, 'Could not load the audit trail.'));
-
-    if (withdrawalsR.status === 'fulfilled') {
-      setWithdrawals(withdrawalsR.value.withdrawals);
-      setWithdrawalsError(null);
-    } else
-      setWithdrawalsError(errorMessage(withdrawalsR.reason, 'Could not load withdrawal requests.'));
-
-    setLoading(false);
-  }, [orderStatus, orderQuery, orderOffset]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  /**
-   * The console is a queue someone sits in front of. Everything that fills it is
-   * done by somebody else — an investor authorising an order, a person asking to
-   * become a client, a statement arriving — and none of it reached an open
-   * console until the page was reloaded. The rail's "to accept" badge was only
-   * ever as fresh as the last page load, which is the one number an operator
-   * treats as a to-do list.
-   */
-  useRealtime(['order', 'connection', 'reconciliation', 'listing', 'withdrawal'], load);
 
   /** The only way off this surface. An operator cannot switch to the investor
    *  app — the API refuses customer routes for them — so the control that
@@ -301,11 +482,7 @@ export default function InstitutionsPage() {
       try {
         const { order } = await fn(id, arg);
         setOrders((os) => os.map((o) => (o.id === id ? order : o)));
-        // The transition wrote an audit row; pull the trail back into sync so
-        // the compliance tab is not quietly stale.
-        void getAudit(50)
-          .then((r) => setAudit(r.entries))
-          .catch(() => {});
+        void Promise.all([loadOrders(false), loadAudit(false), loadReference(false)]);
         return true;
       } catch (err) {
         setOrderActionError(errorMessage(err, fallback));
@@ -338,15 +515,21 @@ export default function InstitutionsPage() {
    * firm lists, and showing it as changed before the server has accepted the
    * change would be showing a claim nobody has recorded.
    */
-  async function handleSaveProfile(input: { name: string; kind?: string; residency?: string }) {
+  async function handleSaveProfile(input: {
+    name: string;
+    kind?: string;
+    residency?: string;
+    fundingInstructions?: string;
+    withdrawalFeeFlatMinor?: string;
+    withdrawalFeeBps?: number;
+    gctBps?: number;
+  }) {
     setProfileSaving(true);
     setProfileError(null);
     try {
       await updatePartner(input);
       await refresh();
-      void getAudit(50)
-        .then((r) => setAudit(r.entries))
-        .catch(() => {});
+      void loadAudit(false);
     } catch (err) {
       setProfileError(errorMessage(err, 'Could not save your firm details.'));
     } finally {
@@ -383,9 +566,7 @@ export default function InstitutionsPage() {
     try {
       const { status } = await toggleProductLive(id);
       setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, status } : p)));
-      void getAudit(50)
-        .then((r) => setAudit(r.entries))
-        .catch(() => {});
+      void Promise.all([loadProducts(false), loadAudit(false), loadReference(false)]);
     } catch (err) {
       setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, status: previous } : p)));
       setProductActionError(errorMessage(err, 'Could not change this listing.'));
@@ -417,9 +598,7 @@ export default function InstitutionsPage() {
             : c,
         ),
       );
-      void getAudit(50)
-        .then((r) => setAudit(r.entries))
-        .catch(() => {});
+      void Promise.all([loadClients(false), loadAudit(false), loadReference(false)]);
     } catch (err) {
       setClientActionError(errorMessage(err, 'Could not record that decision.'));
     } finally {
@@ -428,7 +607,7 @@ export default function InstitutionsPage() {
   }
 
   /**
-   * Asking a client to finish KYC. Not optimistic either: the row's "Asked
+   * Asking a client to finish their shared intake. Not optimistic either: the row's "Asked
    * 2h ago" state comes from the server's own timestamp, and a refused ask
    * (already complete, or asked within the last day) reads back its reason.
    */
@@ -440,9 +619,7 @@ export default function InstitutionsPage() {
       setClients((cs) =>
         cs.map((c) => (c.account_id === id ? { ...c, kyc_requested_at: requestedAt } : c)),
       );
-      void getAudit(50)
-        .then((r) => setAudit(r.entries))
-        .catch(() => {});
+      void Promise.all([loadClients(false), loadAudit(false)]);
     } catch (err) {
       setClientActionError(errorMessage(err, 'Could not send that request.'));
     } finally {
@@ -456,9 +633,7 @@ export default function InstitutionsPage() {
     try {
       await matchReconciliation(id);
       setReconciliation((items) => items.filter((i) => i.id !== id));
-      void getAudit(50)
-        .then((r) => setAudit(r.entries))
-        .catch(() => {});
+      void Promise.all([loadReconciliation(false), loadAudit(false), loadReference(false)]);
     } catch (err) {
       setReconActionError(errorMessage(err, 'Could not match this item.'));
     } finally {
@@ -494,9 +669,7 @@ export default function InstitutionsPage() {
             : w,
         ),
       );
-      void getAudit(50)
-        .then((r) => setAudit(r.entries))
-        .catch(() => {});
+      void Promise.all([loadWithdrawals(false), loadAudit(false), loadReference(false)]);
     } catch (err) {
       setWithdrawalActionError(errorMessage(err, 'Could not record that decision.'));
     } finally {
@@ -510,9 +683,7 @@ export default function InstitutionsPage() {
     try {
       await rejectReconciliation(id, reason);
       setReconciliation((items) => items.filter((i) => i.id !== id));
-      void getAudit(50)
-        .then((r) => setAudit(r.entries))
-        .catch(() => {});
+      void Promise.all([loadReconciliation(false), loadAudit(false), loadReference(false)]);
     } catch (err) {
       setReconActionError(errorMessage(err, 'Could not reject this item.'));
     } finally {
@@ -547,8 +718,8 @@ export default function InstitutionsPage() {
       <ConsoleSidebar
         partner={partner}
         operator={me?.user ?? null}
-        pendingOrders={ordersError ? 0 : orders.filter((o) => o.status === 'created').length}
-        pendingReconciliation={reconciliationError ? 0 : reconciliation.length}
+        pendingOrders={summary?.createdOrders ?? 0}
+        pendingReconciliation={summary?.pendingReconciliation ?? 0}
         signingOut={signingOut}
         onSignOut={handleSignOut}
       />
@@ -563,18 +734,19 @@ export default function InstitutionsPage() {
             kpisError={kpisError}
             equity={equity}
             equityError={equityError}
-            orders={orders}
-            ordersError={ordersError}
-            loading={loading}
+            orders={overviewOrders}
+            ordersError={overviewOrdersError}
+            loading={referenceLoading}
             orderBusyId={orderBusyId}
             orderActionError={orderActionError}
-            pendingReviews={clientsError ? 0 : clients.filter((c) => c.status === 'pending').length}
-            pendingReconciliation={reconciliationError ? 0 : reconciliation.length}
-            pendingWithdrawals={
-              withdrawalsError ? 0 : withdrawals.filter((w) => w.status === 'pending').length
-            }
-            hasProducts={products.length > 0}
-            hasActiveClient={clients.some((c) => c.status === 'active')}
+            pendingOrders={summary?.createdOrders ?? 0}
+            readyToSettleOrders={summary?.acceptedOrders ?? 0}
+            hasAnyOrders={(summary?.totalOrders ?? 0) > 0}
+            pendingReviews={summary?.pendingClients ?? 0}
+            pendingReconciliation={summary?.pendingReconciliation ?? 0}
+            pendingWithdrawals={summary?.pendingWithdrawals ?? 0}
+            hasProducts={(summary?.products ?? 0) > 0}
+            hasActiveClient={(summary?.activeClients ?? 0) > 0}
             onGoTab={navigateToTab}
             onListProduct={() => {
               setEditingProduct(undefined);
@@ -590,10 +762,10 @@ export default function InstitutionsPage() {
           <OrdersTab
             orders={orders}
             ordersError={ordersError}
-            loading={loading}
+            loading={ordersLoading}
             total={orderTotal}
             offset={orderOffset}
-            pageSize={ORDER_PAGE}
+            pageSize={CONSOLE_PAGE_SIZE}
             status={orderStatus}
             query={orderQuery}
             onStatus={(v) => {
@@ -635,17 +807,14 @@ export default function InstitutionsPage() {
               setEditingProduct(undefined);
             }}
             onSaved={(product) => {
-              // An amend replaces its row in place; a new listing goes to the
-              // top. Keyed on the id the server returned rather than on
-              // whether the dialog thought it was editing.
               setProducts((ps) =>
                 ps.some((p) => p.id === product.id)
                   ? ps.map((p) => (p.id === product.id ? product : p))
                   : [product, ...ps],
               );
-              void getAudit(50)
-                .then((r) => setAudit(r.entries))
-                .catch(() => {});
+              if (productOffset === 0) void loadProducts(false);
+              else setProductOffset(0);
+              void Promise.all([loadAudit(false), loadReference(false)]);
             }}
           />
         ) : null}
@@ -654,11 +823,10 @@ export default function InstitutionsPage() {
           <BulkProductDialog
             onSave={saveProductsBulk}
             onClose={() => setBulkListingOpen(false)}
-            onSaved={(imported) => {
-              setProducts((current) => [...imported, ...current]);
-              void getAudit(50)
-                .then((response) => setAudit(response.entries))
-                .catch(() => {});
+            onSaved={() => {
+              if (productOffset === 0) void loadProducts(false);
+              else setProductOffset(0);
+              void Promise.all([loadAudit(false), loadReference(false)]);
             }}
           />
         ) : null}
@@ -676,10 +844,24 @@ export default function InstitutionsPage() {
             onBulk={() => setBulkListingOpen(true)}
             products={products}
             productsError={productsError}
-            loading={loading}
+            loading={productsLoading}
+            total={productTotal}
+            offset={productOffset}
+            pageSize={CONSOLE_PAGE_SIZE}
+            status={productStatus}
+            query={productQuery}
             productBusyId={productBusyId}
             productActionError={productActionError}
             onToggleLive={handleToggleProductLive}
+            onStatus={(value) => {
+              setProductStatus(value);
+              setProductOffset(0);
+            }}
+            onQuery={(value) => {
+              setProductQuery(value);
+              setProductOffset(0);
+            }}
+            onPage={setProductOffset}
           />
         </TabsContent>
 
@@ -687,8 +869,13 @@ export default function InstitutionsPage() {
           <ClientsTab
             clients={clients}
             clientsError={clientsError}
-            loading={loading}
-            total={clientTotal}
+            clientsLoading={clientsLoading}
+            clientTotal={clientTotal}
+            pendingClientTotal={summary?.pendingClients ?? 0}
+            clientOffset={clientOffset}
+            clientPageSize={CONSOLE_PAGE_SIZE}
+            clientStatus={clientStatus}
+            clientQuery={clientQuery}
             clientBusyId={clientBusyId}
             clientActionError={clientActionError}
             onReviewClient={handleReviewClient}
@@ -697,19 +884,40 @@ export default function InstitutionsPage() {
             partner={partner}
             funnel={funnel}
             funnelError={funnelError}
+            pipelineLoading={referenceLoading}
             reconciliation={reconciliation}
             reconciliationError={reconciliationError}
+            reconciliationLoading={reconciliationLoading}
+            reconciliationTotal={reconciliationTotal}
+            reconciliationOffset={reconciliationOffset}
+            reconciliationPageSize={CONSOLE_PAGE_SIZE}
             reconBusyId={reconBusyId}
             reconActionError={reconActionError}
             onMatch={handleMatch}
             onRejectItem={handleReconReject}
             onPull={handlePullStatements}
+            onClientStatus={(value) => {
+              setClientStatus(value);
+              setClientOffset(0);
+            }}
+            onClientQuery={(value) => {
+              setClientQuery(value);
+              setClientOffset(0);
+            }}
+            onClientPage={setClientOffset}
+            onReconciliationPage={setReconciliationOffset}
             pulling={pulling}
             pullNote={pullNote}
             withdrawals={withdrawals}
             withdrawalsError={withdrawalsError}
+            withdrawalsLoading={withdrawalsLoading}
+            withdrawalTotal={withdrawalTotal}
+            pendingWithdrawalTotal={summary?.pendingWithdrawals ?? 0}
+            withdrawalOffset={withdrawalOffset}
+            withdrawalPageSize={CONSOLE_PAGE_SIZE}
             withdrawalBusyId={withdrawalBusyId}
             withdrawalActionError={withdrawalActionError}
+            onWithdrawalPage={setWithdrawalOffset}
             onDecideWithdrawal={handleDecideWithdrawal}
           />
         </TabsContent>
@@ -719,7 +927,16 @@ export default function InstitutionsPage() {
             partner={partner}
             audit={audit}
             auditError={auditError}
-            loading={loading}
+            auditLoading={auditLoading}
+            auditTotal={auditTotal}
+            auditOffset={auditOffset}
+            auditPageSize={CONSOLE_PAGE_SIZE}
+            decisionsOnly={decisionsOnly}
+            onDecisionsOnly={(value) => {
+              setDecisionsOnly(value);
+              setAuditOffset(0);
+            }}
+            onAuditPage={setAuditOffset}
             onSaveProfile={handleSaveProfile}
             profileSaving={profileSaving}
             profileError={profileError}
@@ -729,9 +946,9 @@ export default function InstitutionsPage() {
 
       <ConsoleMobileTabs
         badges={{
-          orders: orders.filter((order) => order.status === 'created').length,
-          clients: clients.filter((client) => client.status === 'pending').length,
-          compliance: reconciliation.length,
+          orders: summary?.createdOrders ?? 0,
+          clients: summary?.pendingClients ?? 0,
+          compliance: summary?.pendingReconciliation ?? 0,
         }}
       />
     </Tabs>

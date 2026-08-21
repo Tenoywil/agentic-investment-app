@@ -4,6 +4,7 @@ import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/co
 import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
 import type { TabKey } from '@/app/_components/console/lib';
 import { BulkProductDialog, ListProductDialog } from '@/app/_components/console/list-product';
+import { ConsolePager } from '@/app/_components/console/loading';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
 import { ProductsTab } from '@/app/_components/console/products-tab';
@@ -48,6 +49,7 @@ const PARTNER: MePartner = {
 };
 
 const OPERATOR = { name: 'Demo Operator', email: 'operator@example.invalid' };
+const DEMO_PAGE_SIZE = 2;
 
 const INITIAL_ORDERS: ConsoleOrder[] = [
   {
@@ -226,7 +228,18 @@ const REVIEW_ITEMS = [
     issue: 'Source-of-funds variance flagged',
     evidence: 'Income range differs from intended funding amount',
   },
+  {
+    ref: 'Client ••228',
+    issue: 'Identity evidence needs operator verification',
+    evidence: 'Shared intake is complete; the firm still owns final verification',
+  },
 ];
+
+const SAMPLE_DECISIONS = [
+  ['Client acceptance recorded', 'Demo Operator · client ••10482'],
+  ['Source-of-funds review requested', 'AML agent · client ••10517'],
+  ['Order settlement recorded', 'Demo Operator · DEMO-SETTLE-1042'],
+] as const;
 
 export default function DemoInstitutionsPage() {
   const [tab, setTab] = useState<TabKey>('overview');
@@ -234,12 +247,18 @@ export default function DemoInstitutionsPage() {
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
+  const [orderOffset, setOrderOffset] = useState(0);
+  const [productStatus, setProductStatus] = useState('');
+  const [productQuery, setProductQuery] = useState('');
+  const [productOffset, setProductOffset] = useState(0);
+  const [reviewOffset, setReviewOffset] = useState(0);
+  const [auditOffset, setAuditOffset] = useState(0);
   const [listingOpen, setListingOpen] = useState(false);
   const [bulkListingOpen, setBulkListingOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ConsoleProduct>();
   const [reviewed, setReviewed] = useState<string[]>([]);
 
-  const visibleOrders = useMemo(() => {
+  const filteredOrders = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return orders.filter(
       (order) =>
@@ -249,6 +268,22 @@ export default function DemoInstitutionsPage() {
           order.clientRef?.toLowerCase().includes(needle)),
     );
   }, [orders, query, status]);
+
+  const visibleOrders = filteredOrders.slice(orderOffset, orderOffset + DEMO_PAGE_SIZE);
+  const filteredProducts = useMemo(() => {
+    const needle = productQuery.trim().toLowerCase();
+    return products.filter(
+      (product) =>
+        (!productStatus || product.status === productStatus) &&
+        (!needle ||
+          product.name.toLowerCase().includes(needle) ||
+          product.abbr.toLowerCase().includes(needle) ||
+          product.type?.toLowerCase().includes(needle)),
+    );
+  }, [productQuery, productStatus, products]);
+  const visibleProducts = filteredProducts.slice(productOffset, productOffset + DEMO_PAGE_SIZE);
+  const visibleReviews = REVIEW_ITEMS.slice(reviewOffset, reviewOffset + DEMO_PAGE_SIZE);
+  const visibleDecisions = SAMPLE_DECISIONS.slice(auditOffset, auditOffset + DEMO_PAGE_SIZE);
 
   async function acceptOrder(id: string, settlementEta?: string) {
     const now = new Date().toISOString();
@@ -265,6 +300,7 @@ export default function DemoInstitutionsPage() {
           : order,
       ),
     );
+    setOrderOffset(0);
     return true;
   }
 
@@ -277,6 +313,7 @@ export default function DemoInstitutionsPage() {
           : order,
       ),
     );
+    setOrderOffset(0);
     return true;
   }
 
@@ -293,6 +330,7 @@ export default function DemoInstitutionsPage() {
           : order,
       ),
     );
+    setOrderOffset(0);
     return true;
   }
 
@@ -354,11 +392,15 @@ export default function DemoInstitutionsPage() {
 
   const pendingOrders = orders.filter((order) => order.status === 'created').length;
   const pendingReviews = REVIEW_ITEMS.filter((item) => !reviewed.includes(item.ref)).length;
+  const navigateDemoTab = (next: TabKey) => {
+    setTab(next);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
 
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => setTab(value as TabKey)}
+      onValueChange={(value) => navigateDemoTab(value as TabKey)}
       orientation="vertical"
       className="app-shell bg-background font-sans text-foreground"
     >
@@ -407,12 +449,15 @@ export default function DemoInstitutionsPage() {
             loading={false}
             orderBusyId={null}
             orderActionError={null}
+            pendingOrders={pendingOrders}
+            readyToSettleOrders={orders.filter((order) => order.status === 'accepted').length}
+            hasAnyOrders={orders.length > 0}
             pendingReviews={pendingReviews}
             pendingReconciliation={0}
             pendingWithdrawals={0}
             hasProducts={products.length > 0}
             hasActiveClient
-            onGoTab={setTab}
+            onGoTab={navigateDemoTab}
             onListProduct={() => openListing()}
             onAccept={acceptOrder}
             onSettle={settleOrder}
@@ -425,14 +470,20 @@ export default function DemoInstitutionsPage() {
             orders={visibleOrders}
             ordersError={null}
             loading={false}
-            total={visibleOrders.length}
-            offset={0}
-            pageSize={20}
+            total={filteredOrders.length}
+            offset={orderOffset}
+            pageSize={DEMO_PAGE_SIZE}
             status={status}
             query={query}
-            onStatus={setStatus}
-            onQuery={setQuery}
-            onPage={() => undefined}
+            onStatus={(value) => {
+              setStatus(value);
+              setOrderOffset(0);
+            }}
+            onQuery={(value) => {
+              setQuery(value);
+              setOrderOffset(0);
+            }}
+            onPage={setOrderOffset}
             orderBusyId={null}
             orderActionError={null}
             onAccept={acceptOrder}
@@ -449,13 +500,14 @@ export default function DemoInstitutionsPage() {
               setListingOpen(false);
               setEditingProduct(undefined);
             }}
-            onSaved={(product) =>
+            onSaved={(product) => {
               setProducts((current) =>
                 current.some((item) => item.id === product.id)
                   ? current.map((item) => (item.id === product.id ? product : item))
                   : [product, ...current],
-              )
-            }
+              );
+              setProductOffset(0);
+            }}
           />
         ) : null}
 
@@ -463,29 +515,47 @@ export default function DemoInstitutionsPage() {
           <BulkProductDialog
             onSave={saveDemoProductsBulk}
             onClose={() => setBulkListingOpen(false)}
-            onSaved={(imported) => setProducts((current) => [...imported, ...current])}
+            onSaved={(imported) => {
+              setProducts((current) => [...imported, ...current]);
+              setProductOffset(0);
+            }}
           />
         ) : null}
 
         <TabsContent value="products" className="mt-0">
           <ProductsTab
-            products={products}
+            products={visibleProducts}
             productsError={null}
             loading={false}
+            total={filteredProducts.length}
+            offset={productOffset}
+            pageSize={DEMO_PAGE_SIZE}
+            status={productStatus}
+            query={productQuery}
             productBusyId={null}
             productActionError={null}
             onList={() => openListing()}
             onEdit={openListing}
             onBulk={() => setBulkListingOpen(true)}
-            onToggleLive={(id) =>
+            onStatus={(value) => {
+              setProductStatus(value);
+              setProductOffset(0);
+            }}
+            onQuery={(value) => {
+              setProductQuery(value);
+              setProductOffset(0);
+            }}
+            onPage={setProductOffset}
+            onToggleLive={(id) => {
               setProducts((current) =>
                 current.map((product) =>
                   product.id === id
                     ? { ...product, status: product.status === 'live' ? 'paused' : 'live' }
                     : product,
                 ),
-              )
-            }
+              );
+              setProductOffset(0);
+            }}
           />
         </TabsContent>
 
@@ -502,7 +572,7 @@ export default function DemoInstitutionsPage() {
                 <Badge>{pendingReviews} pending</Badge>
               </div>
               <div className="mt-4 space-y-3">
-                {REVIEW_ITEMS.map((item) => {
+                {visibleReviews.map((item) => {
                   const done = reviewed.includes(item.ref);
                   return (
                     <div
@@ -536,6 +606,15 @@ export default function DemoInstitutionsPage() {
                   );
                 })}
               </div>
+              <ConsolePager
+                label="Demo client review queue"
+                total={REVIEW_ITEMS.length}
+                offset={reviewOffset}
+                pageSize={DEMO_PAGE_SIZE}
+                visible={visibleReviews.length}
+                onPage={setReviewOffset}
+                className="-mx-5 -mb-5 mt-4 sm:-mx-6 sm:-mb-6"
+              />
             </Card>
 
             <Card className="h-fit border-border bg-[#f4f0e7] p-5 sm:p-6">
@@ -576,11 +655,7 @@ export default function DemoInstitutionsPage() {
             <Card className="p-5 sm:p-6" data-tour="demo-institution-decisions">
               <b className="font-display text-[17px]">Sample decision trail</b>
               <div className="mt-3 space-y-1">
-                {[
-                  ['Client acceptance recorded', 'Demo Operator · client ••10482'],
-                  ['Source-of-funds review requested', 'AML agent · client ••10517'],
-                  ['Order settlement recorded', 'Demo Operator · DEMO-SETTLE-1042'],
-                ].map(([action, actor]) => (
+                {visibleDecisions.map(([action, actor]) => (
                   <div
                     key={action}
                     className="border-x-0 border-t-0 border-b border-solid border-border py-3"
@@ -590,6 +665,15 @@ export default function DemoInstitutionsPage() {
                   </div>
                 ))}
               </div>
+              <ConsolePager
+                label="Demo decision trail"
+                total={SAMPLE_DECISIONS.length}
+                offset={auditOffset}
+                pageSize={DEMO_PAGE_SIZE}
+                visible={visibleDecisions.length}
+                onPage={setAuditOffset}
+                className="-mx-5 -mb-5 mt-4 sm:-mx-6 sm:-mb-6"
+              />
             </Card>
           </div>
         </TabsContent>

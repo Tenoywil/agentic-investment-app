@@ -1,6 +1,8 @@
 'use client';
 
+import { Button } from '@/app/_components/ui/button';
 import { Skeleton, SkeletonRegion } from '@/app/_components/ui/skeleton';
+import { cn } from '@/app/_lib/utils';
 
 /**
  * What a console panel shows while it is still loading.
@@ -48,5 +50,70 @@ export function TilesSkeleton({ tiles = 4, label }: { tiles?: number; label: str
         ))}
       </div>
     </SkeletonRegion>
+  );
+}
+
+/**
+ * One pager for every growing console list. It keeps page controls in the same
+ * place and order on phone and desktop, names the current range for assistive
+ * technology, and preserves full-size touch targets on narrow screens.
+ */
+export function ConsolePager({
+  label,
+  total,
+  offset,
+  pageSize,
+  visible,
+  onPage,
+  className,
+}: {
+  label: string;
+  total: number;
+  offset: number;
+  pageSize: number;
+  visible: number;
+  onPage: (offset: number) => void;
+  className?: string;
+}) {
+  if (total <= pageSize) return null;
+  const from = total === 0 ? 0 : offset + 1;
+  const to = Math.min(offset + visible, total);
+  const page = Math.floor(offset / pageSize) + 1;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  return (
+    <nav
+      aria-label={`${label} pagination`}
+      className={cn(
+        'flex flex-col gap-3 border-x-0 border-b-0 border-t border-solid border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6',
+        className,
+      )}
+    >
+      <span className="text-center text-[13px] text-faint sm:text-left" aria-live="polite">
+        {from}–{to} of {total} · Page {page} of {pages}
+      </span>
+      <div className="grid grid-cols-2 gap-2 sm:flex">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-11 min-w-24 sm:h-9"
+          disabled={offset === 0}
+          onClick={() => onPage(Math.max(0, offset - pageSize))}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-11 min-w-24 sm:h-9"
+          disabled={to >= total}
+          onClick={() => onPage(offset + pageSize)}
+        >
+          Next
+        </Button>
+      </div>
+    </nav>
   );
 }

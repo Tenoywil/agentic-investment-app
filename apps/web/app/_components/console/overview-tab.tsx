@@ -47,6 +47,9 @@ export function OverviewTab({
   loading,
   orderBusyId,
   orderActionError,
+  pendingOrders,
+  readyToSettleOrders,
+  hasAnyOrders,
   pendingReviews,
   pendingReconciliation,
   pendingWithdrawals,
@@ -69,6 +72,10 @@ export function OverviewTab({
   loading: boolean;
   orderBusyId: string | null;
   orderActionError: string | null;
+  /** Desk-wide order counts; the preview below is intentionally bounded. */
+  pendingOrders: number;
+  readyToSettleOrders: number;
+  hasAnyOrders: boolean;
   /** Clients awaiting this desk's review. */
   pendingReviews: number;
   /** Statement lines waiting to be matched. */
@@ -87,9 +94,9 @@ export function OverviewTab({
   onSettle: (id: string, detail?: SettlementInput) => Promise<boolean>;
   onReject: (id: string, reason?: string) => Promise<boolean>;
 }) {
-  const pending = orders.filter((o) => o.status === 'created').length;
-  const readyToSettle = orders.filter((o) => o.status === 'accepted').length;
-  const hasOrders = !ordersError && orders.length > 0;
+  const pending = pendingOrders;
+  const readyToSettle = readyToSettleOrders;
+  const hasOrders = !ordersError && hasAnyOrders;
   const hasMetrics = kpis.length > 0 || hasOrders;
 
   /**
@@ -119,11 +126,11 @@ export function OverviewTab({
     {
       done: hasActiveClient,
       title: 'Accept your first client',
-      why: 'Their KYC package, declarations and documents, is on their row, ready to review.',
+      why: 'Their shared intake, declarations and documents are on their row for your firm to verify and decide.',
       go: 'clients',
     },
     {
-      done: orders.length > 0,
+      done: hasAnyOrders,
       title: 'Take your first order',
       why: 'Once clients hold cash with you, approved orders land on this desk to accept and settle.',
       go: 'orders',
@@ -149,8 +156,9 @@ export function OverviewTab({
             One controlled path from product distribution to settlement.
           </h2>
           <p className="mb-0 mt-3 max-w-[690px] text-[15px] leading-relaxed text-dim">
-            List products once, reach suitability-screened demand, review consented client KYC, and
-            return a complete execution record without stitching together inboxes and spreadsheets.
+            List products once, reach suitability-screened demand, review consented client intake,
+            and return a complete execution record without stitching together inboxes and
+            spreadsheets.
           </p>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button type="button" className="min-h-12 w-full sm:w-auto" onClick={onListProduct}>
@@ -197,7 +205,8 @@ export function OverviewTab({
             <span>
               <b className="block text-[15px]">Consent-led onboarding</b>
               <span className="mt-1 block text-[13.5px] leading-normal text-dim">
-                Review the KYC package a client chose to share without collecting another copy.
+                Review the intake a client chose to share, then complete your own verification and
+                KYC/AML decision.
               </span>
               <span className="mt-2 inline-flex items-center gap-1 text-[13px] font-bold text-teal2">
                 Review clients <ArrowRight className="h-3.5 w-3.5" aria-hidden />

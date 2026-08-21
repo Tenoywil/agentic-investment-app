@@ -261,6 +261,12 @@ suite('partner console data surface', () => {
           ${action}::text, 'test'::text, NULL::uuid, '{}'::jsonb)`,
       );
     }
+    // One decision-class event proves the server-side audit filter without
+    // depending on a later mutation test having already run.
+    await db.execute(
+      sql`select audit_append('system'::actor_type, NULL::uuid, NULL::uuid, ${sagId}::uuid,
+        'order.accepted'::text, 'order'::text, NULL::uuid, '{"fixture":true}'::jsonb)`,
+    );
   });
 
   afterAll(async () => {
@@ -473,8 +479,12 @@ suite('partner console data surface', () => {
   });
 
   test('/console/audit returns only this partner’s rows', async () => {
-    type Body = { entries: { action: string; seq: string; actorType: string }[] };
-    const { entries } = await json<Body>('/api/console/audit?limit=50', 'sagOperator');
+    type Body = {
+      entries: { action: string; seq: string; actorType: string }[];
+      total: number;
+    };
+    const { entries, total } = await json<Body>('/api/console/audit?limit=50', 'sagOperator');
+    expect(total).toBeGreaterThanOrEqual(entries.length);
     const actions = entries.map((e) => e.action);
     expect(actions).toContain(`${tag}.sag`);
     expect(actions).not.toContain(`${tag}.ncb`);
@@ -487,15 +497,52 @@ suite('partner console data surface', () => {
     // seq is a bigserial: a numeric string, and strictly descending.
     const seqs = entries.map((e) => BigInt(e.seq));
     expect(seqs).toEqual([...seqs].sort((a, b) => (a > b ? -1 : 1)));
+
+    const first = await json<Body>('/api/console/audit?limit=1&offset=0', 'sagOperator');
+    const second = await json<Body>('/api/console/audit?limit=1&offset=1', 'sagOperator');
+    expect(first.entries).toHaveLength(1);
+    expect(second.entries).toHaveLength(1);
+    expect(first.entries[0]?.seq).not.toBe(second.entries[0]?.seq);
+    expect(first.total).toBe(total);
+
+    const decisions = await json<Body>('/api/console/audit?decisions=true&limit=50', 'sagOperator');
+    expect(decisions.entries.some((entry) => entry.action === 'order.accepted')).toBe(true);
+    expect(decisions.entries.some((entry) => entry.action === `${tag}.sag`)).toBe(false);
+    expect(decisions.total).toBeGreaterThanOrEqual(decisions.entries.length);
   });
 
   test('/console/audit clamps limit', async () => {
-    type Body = { entries: unknown[] };
+    type Body = { entries: unknown[]; total: number };
     const one = await json<Body>('/api/console/audit?limit=1', 'sagOperator');
     expect(one.entries.length).toBeLessThanOrEqual(1);
     // Junk falls back to the default rather than 500ing or returning the lot.
     const junk = await json<Body>('/api/console/audit?limit=banana', 'sagOperator');
     expect(junk.entries.length).toBeLessThanOrEqual(50);
+  });
+
+  test('/console/products searches, filters and pages with a stable total', async () => {
+    type Body = {
+      products: { id: string; name: string; status: string }[];
+      total: number;
+    };
+    const all = await json<Body>('/api/console/products?limit=1&offset=0', 'sagOperator');
+    expect(all.products).toHaveLength(1);
+    expect(all.total).toBeGreaterThanOrEqual(2);
+
+    const second = await json<Body>('/api/console/products?limit=1&offset=1', 'sagOperator');
+    expect(second.products).toHaveLength(1);
+    expect(second.products[0]?.id).not.toBe(all.products[0]?.id);
+    expect(second.total).toBe(all.total);
+
+    const search = await json<Body>(
+      `/api/console/products?q=${encodeURIComponent(tag)}&limit=50`,
+      'sagOperator',
+    );
+    expect(search.products.length).toBeGreaterThan(0);
+    expect(search.products.every((product) => product.name.includes(tag))).toBe(true);
+
+    const live = await json<Body>('/api/console/products?status=live&limit=50', 'sagOperator');
+    expect(live.products.every((product) => product.status === 'live')).toBe(true);
   });
 
   test('/console/products/:id/live toggles, and only for the owning partner', async () => {
@@ -802,16 +849,29 @@ suite('partner console data surface', () => {
    * partner_clients() instead, and this pins that it sees the money.
    */
   test('kpis: held-by-clients counts accepted clients’ holdings for the operator', async () => {
-    const { kpis } = await json<{ kpis: { id: string; value: string }[] }>(
-      '/api/console/kpis',
-      'sagOperator',
-    );
+    const { kpis, summary } = await json<{
+      kpis: { id: string; value: string }[];
+      summary: {
+        activeClients: number;
+        totalOrders: number;
+        products: number;
+        pendingReconciliation: number;
+        pendingWithdrawals: number;
+      };
+    }>('/api/console/kpis', 'sagOperator');
     const aum = kpis.find((k) => k.id === 'aum');
     expect(aum).toBeTruthy();
     // Other suites sharing this database may add SAG clients of their own, so
     // the assertion is a floor from this file's fixture, not an exact figure.
     const numeric = Number((aum?.value ?? '').replace(/[^0-9.]/g, ''));
     expect(numeric).toBeGreaterThanOrEqual(12_500);
+    // Workload badges must describe the desk, not whichever filtered page the
+    // operator happens to be viewing.
+    expect(summary.activeClients).toBeGreaterThanOrEqual(1);
+    expect(summary.totalOrders).toBeGreaterThanOrEqual(2);
+    expect(summary.products).toBeGreaterThanOrEqual(2);
+    expect(summary.pendingReconciliation).toBeGreaterThanOrEqual(0);
+    expect(summary.pendingWithdrawals).toBeGreaterThanOrEqual(0);
   });
 
   /**

@@ -26,7 +26,7 @@ import {
   isSandbox,
   timeAgo,
 } from './lib';
-import { RowsSkeleton } from './loading';
+import { ConsolePager, RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 import { SandboxBadge } from './sandbox-badge';
 
@@ -60,8 +60,13 @@ export function ClientsTab({
   partner,
   clients,
   clientsError,
-  loading,
-  total,
+  clientsLoading,
+  clientTotal,
+  pendingClientTotal,
+  clientOffset,
+  clientPageSize,
+  clientStatus,
+  clientQuery,
   clientBusyId,
   clientActionError,
   onReviewClient,
@@ -69,31 +74,51 @@ export function ClientsTab({
   onOpenClient,
   funnel,
   funnelError,
+  pipelineLoading,
   reconciliation,
   reconciliationError,
+  reconciliationLoading,
+  reconciliationTotal,
+  reconciliationOffset,
+  reconciliationPageSize,
   reconBusyId,
   reconActionError,
   onMatch,
   onRejectItem,
   onPull,
+  onClientStatus,
+  onClientQuery,
+  onClientPage,
+  onReconciliationPage,
   pulling,
   pullNote,
   withdrawals,
   withdrawalsError,
+  withdrawalsLoading,
+  withdrawalTotal,
+  pendingWithdrawalTotal,
+  withdrawalOffset,
+  withdrawalPageSize,
   withdrawalBusyId,
   withdrawalActionError,
+  onWithdrawalPage,
   onDecideWithdrawal,
 }: {
   partner: MePartner | null;
   clients: ConsoleClient[];
   clientsError: string | null;
-  loading: boolean;
+  clientsLoading: boolean;
   /**
    * How many clients match, which is not how many are on screen. The list is
    * bounded now; saying so is the difference between a short list and a wrong
    * one.
    */
-  total: number;
+  clientTotal: number;
+  pendingClientTotal: number;
+  clientOffset: number;
+  clientPageSize: number;
+  clientStatus: string;
+  clientQuery: string;
   clientBusyId: string | null;
   clientActionError: string | null;
   onReviewClient: (id: string, accept: boolean, reason?: string) => void;
@@ -101,20 +126,35 @@ export function ClientsTab({
   onOpenClient: (client: ConsoleClient) => void;
   funnel: ConsoleFunnelStage[];
   funnelError: string | null;
+  pipelineLoading: boolean;
   reconciliation: ConsoleReconciliationItem[];
   reconciliationError: string | null;
+  reconciliationLoading: boolean;
+  reconciliationTotal: number;
+  reconciliationOffset: number;
+  reconciliationPageSize: number;
   reconBusyId: string | null;
   reconActionError: string | null;
   onMatch: (id: string) => void;
   onRejectItem: (id: string, reason?: string) => void;
   /** Pull statements for every active client, filling the queue below. */
   onPull: () => void;
+  onClientStatus: (status: string) => void;
+  onClientQuery: (query: string) => void;
+  onClientPage: (offset: number) => void;
+  onReconciliationPage: (offset: number) => void;
   pulling: boolean;
   pullNote: string | null;
   withdrawals: ConsoleWithdrawal[];
   withdrawalsError: string | null;
+  withdrawalsLoading: boolean;
+  withdrawalTotal: number;
+  pendingWithdrawalTotal: number;
+  withdrawalOffset: number;
+  withdrawalPageSize: number;
   withdrawalBusyId: string | null;
   withdrawalActionError: string | null;
+  onWithdrawalPage: (offset: number) => void;
   onDecideWithdrawal: (
     id: string,
     input: { paid: true; reference?: string } | { paid: false; reason: string },
@@ -141,32 +181,28 @@ export function ClientsTab({
 
   return (
     <>
-      {/* The decision the firm actually makes, above the counts describing it. */}
-      {/*
-        The list is bounded at a page now. Before it was every client the firm
-        had ever been referred, unbounded and re-fetched on every realtime
-        event — but a truncated list that does not say it is truncated is worse
-        than a long one, so it says.
-      */}
-      {!loading && total > clients.length ? (
-        <p className="mb-2 text-[12.5px] text-faint">
-          Showing {clients.length} of {total} clients.
-        </p>
-      ) : null}
-
       <ClientReview
         clients={clients}
         clientsError={clientsError}
-        loading={loading}
+        loading={clientsLoading}
+        total={clientTotal}
+        pendingTotal={pendingClientTotal}
+        offset={clientOffset}
+        pageSize={clientPageSize}
+        status={clientStatus}
+        query={clientQuery}
         busyId={clientBusyId}
         actionError={clientActionError}
         onReview={onReviewClient}
         onRequestKyc={onRequestKyc}
         onOpen={onOpenClient}
+        onStatus={onClientStatus}
+        onQuery={onClientQuery}
+        onPage={onClientPage}
       />
 
       <div className="g-held">
-        <Card className="p-6" data-tour="institution-funnel">
+        <Card className="p-4 sm:p-6" data-tour="institution-funnel">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <b className="font-display text-lg">Onboarding pipeline</b>
@@ -183,15 +219,15 @@ export function ClientsTab({
 
           {funnelError ? <ErrorNote message={funnelError} /> : null}
 
-          {loading && !funnelError ? (
+          {pipelineLoading && !funnelError ? (
             <RowsSkeleton rows={3} label="Loading the onboarding pipeline" />
           ) : null}
 
-          {!loading && !funnelError && funnel.every((k) => k.count === 0) ? (
+          {!pipelineLoading && !funnelError && funnel.every((k) => k.count === 0) ? (
             <EmptyState
               icon={Users}
               title="No referrals yet"
-              body="Invited, KYC started, reviewed and funded counts appear here once CCN starts referring clients into your onboarding."
+              body="Invited, intake completed, reviewed and funded counts appear here once CCN starts referring clients into your onboarding."
             />
           ) : null}
 
@@ -222,20 +258,27 @@ export function ClientsTab({
           a working tab. It now lives with the rest of the standing terms on the
           Compliance tab. */}
 
-      <Card className="mt-[18px] p-6">
+      <Card className="mt-[18px] p-4 sm:p-6">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
           <b className="font-display text-lg">Pending reconciliation</b>
           <div className="flex items-center gap-3">
-            {reconciliation.length > 0 ? (
+            {reconciliationTotal > 0 ? (
               <span className={`text-sm font-bold ${TERRA_TEXT}`}>
-                {reconciliation.length} to review
+                {reconciliationTotal} to review
               </span>
             ) : null}
             {/* The desk fills its own queue. This queue could previously only
                 be filled by each investor pressing "Check for statements" on
                 their own portfolio — but the statements are the firm's records
                 and reconciliation is the firm's job. */}
-            <Button type="button" size="sm" variant="outline" onClick={onPull} disabled={pulling}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-11 sm:min-h-9"
+              onClick={onPull}
+              disabled={pulling}
+            >
               {pulling ? 'Pulling…' : 'Pull statements'}
             </Button>
           </div>
@@ -248,11 +291,11 @@ export function ClientsTab({
         {reconciliationError ? <ErrorNote message={reconciliationError} className="mb-3" /> : null}
         {reconActionError ? <ErrorNote message={reconActionError} className="mb-3" /> : null}
 
-        {loading && !reconciliationError ? (
+        {reconciliationLoading && !reconciliationError ? (
           <RowsSkeleton rows={2} label="Loading reconciliation items" />
         ) : null}
 
-        {!loading && !reconciliationError && reconciliation.length === 0 ? (
+        {!reconciliationLoading && !reconciliationError && reconciliation.length === 0 ? (
           <EmptyState
             icon={ArrowRightLeft}
             title="Nothing to reconcile"
@@ -260,119 +303,137 @@ export function ClientsTab({
           />
         ) : null}
 
-        {reconciliation.map((item) => {
-          const guess = guessParsedHolding(item.parsed);
-          const evidence = item.source === 'investor_notice' ? fundingEvidence(item.raw) : null;
-          const busy = reconBusyId === item.id;
-          return (
-            <div
-              key={item.id}
-              className={`flex items-center gap-3 py-3.5 last:border-b-0 ${ROW_DIVIDER}`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-bold">
-                  {guess ? guess.name : `Statement line · ${item.source}`}
-                </div>
-                <div className="text-[12.5px] text-faint">
-                  {timeAgo(item.createdAt)}
-                  {guess?.returnLabel ? ` · ${guess.returnLabel}` : ''}
-                </div>
-                {evidence?.reference ? (
-                  <div className="mt-1 text-[12.5px] text-dim">
-                    Transaction reference: <b>{evidence.reference}</b>
+        {!reconciliationLoading &&
+          reconciliation.map((item) => {
+            const guess = guessParsedHolding(item.parsed);
+            const evidence = item.source === 'investor_notice' ? fundingEvidence(item.raw) : null;
+            const busy = reconBusyId === item.id;
+            return (
+              <div
+                key={item.id}
+                className={`flex flex-col items-stretch gap-3 py-3.5 last:border-b-0 md:flex-row md:items-center ${ROW_DIVIDER}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14.5px] font-bold">
+                    {guess ? guess.name : `Statement line · ${item.source}`}
                   </div>
+                  <div className="text-[12.5px] text-faint">
+                    {timeAgo(item.createdAt)}
+                    {guess?.returnLabel ? ` · ${guess.returnLabel}` : ''}
+                  </div>
+                  {evidence?.reference ? (
+                    <div className="mt-1 text-[12.5px] text-dim">
+                      Transaction reference: <b>{evidence.reference}</b>
+                    </div>
+                  ) : null}
+                  {evidence?.receipt ? (
+                    <a
+                      href={reconciliationReceiptUrl(item.id)}
+                      className="mt-1 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-teal2 underline-offset-2 hover:underline"
+                    >
+                      <FileText className="h-3.5 w-3.5" aria-hidden />
+                      Download {evidence.receipt.name}
+                      {evidence.receipt.size != null
+                        ? ` (${Math.max(1, Math.round(evidence.receipt.size / 1024))} KB)`
+                        : ''}
+                    </a>
+                  ) : null}
+                </div>
+                {guess ? (
+                  <span className="self-end font-mono text-sm font-bold md:min-w-[78px] md:self-auto md:text-right">
+                    {fmtMinor(guess.valueMinor, guess.currency)}
+                  </span>
                 ) : null}
-                {evidence?.receipt ? (
-                  <a
-                    href={reconciliationReceiptUrl(item.id)}
-                    className="mt-1 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-teal2 underline-offset-2 hover:underline"
-                  >
-                    <FileText className="h-3.5 w-3.5" aria-hidden />
-                    Download {evidence.receipt.name}
-                    {evidence.receipt.size != null
-                      ? ` (${Math.max(1, Math.round(evidence.receipt.size / 1024))} KB)`
-                      : ''}
-                  </a>
-                ) : null}
-              </div>
-              {guess ? (
-                <span className="min-w-[78px] text-right font-mono text-sm font-bold">
-                  {fmtMinor(guess.valueMinor, guess.currency)}
-                </span>
-              ) : null}
-              {reconRejecting === item.id ? (
-                <form
-                  className="flex flex-wrap items-center gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    // Empty sends nothing rather than '', which rejectSchema's
-                    // .min(1) refuses; the server writes its own default then.
-                    onRejectItem(item.id, reconReason.trim() || undefined);
-                    setReconRejecting(null);
-                    setReconReason('');
-                  }}
-                >
-                  <label className="min-w-[180px] flex-1 text-[13px]">
-                    <span className="sr-only">Why this line is being rejected</span>
-                    <input
-                      value={reconReason}
-                      onChange={(e) => setReconReason(e.target.value)}
-                      placeholder="Why? This is audited"
-                      className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
-                    />
-                  </label>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant="ghost"
-                    className={TERRA_GHOST_BTN}
-                    disabled={busy}
-                  >
-                    {busy ? 'Rejecting…' : 'Reject'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
+                {reconRejecting === item.id ? (
+                  <form
+                    className="grid w-full grid-cols-2 items-center gap-2 md:flex md:w-auto md:flex-wrap"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      // Empty sends nothing rather than '', which rejectSchema's
+                      // .min(1) refuses; the server writes its own default then.
+                      onRejectItem(item.id, reconReason.trim() || undefined);
                       setReconRejecting(null);
                       setReconReason('');
                     }}
                   >
-                    Cancel
-                  </Button>
-                </form>
-              ) : (
-                <div className="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={TERRA_GHOST_BTN}
-                    disabled={busy}
-                    onClick={() => setReconRejecting(item.id)}
-                  >
-                    Reject
-                  </Button>
-                  <Button size="sm" disabled={busy} onClick={() => onMatch(item.id)}>
-                    {busy ? 'Matching…' : 'Match'}
-                  </Button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    <label className="col-span-2 min-w-0 flex-1 text-[13px] md:min-w-[180px]">
+                      <span className="sr-only">Why this line is being rejected</span>
+                      <input
+                        value={reconReason}
+                        onChange={(e) => setReconReason(e.target.value)}
+                        placeholder="Why? This is audited"
+                        className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                      />
+                    </label>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="ghost"
+                      className={`min-h-11 md:min-h-9 ${TERRA_GHOST_BTN}`}
+                      disabled={busy}
+                    >
+                      {busy ? 'Rejecting…' : 'Reject'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="min-h-11 md:min-h-9"
+                      onClick={() => {
+                        setReconRejecting(null);
+                        setReconReason('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={`min-h-11 md:min-h-9 ${TERRA_GHOST_BTN}`}
+                      disabled={busy}
+                      onClick={() => setReconRejecting(item.id)}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="min-h-11 md:min-h-9"
+                      disabled={busy}
+                      onClick={() => onMatch(item.id)}
+                    >
+                      {busy ? 'Matching…' : 'Match'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        {!reconciliationLoading && !reconciliationError ? (
+          <ConsolePager
+            label="Pending reconciliation"
+            total={reconciliationTotal}
+            offset={reconciliationOffset}
+            pageSize={reconciliationPageSize}
+            visible={reconciliation.length}
+            onPage={onReconciliationPage}
+            className="-mx-4 -mb-4 mt-2 sm:-mx-6 sm:-mb-6"
+          />
+        ) : null}
       </Card>
 
       {/* Money out. The mirror of the reconciliation queue above: clients ask
           for money back on their portfolio screen, the firm pays off-platform
           and records it here — which is when CCN's record of their cash falls —
           or declines with words the client will actually read. */}
-      <Card className="mt-[18px] p-6" data-tour="institution-withdrawals">
+      <Card className="mt-[18px] p-4 sm:p-6" data-tour="institution-withdrawals">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
           <b className="font-display text-lg">Withdrawal requests</b>
-          {pendingWithdrawals.length > 0 ? (
+          {pendingWithdrawalTotal > 0 ? (
             <span className={`text-sm font-bold ${TERRA_TEXT}`}>
-              {pendingWithdrawals.length} awaiting your decision
+              {pendingWithdrawalTotal} awaiting your decision
             </span>
           ) : null}
         </div>
@@ -386,11 +447,11 @@ export function ClientsTab({
           <ErrorNote message={withdrawalActionError} className="mb-3" />
         ) : null}
 
-        {loading && !withdrawalsError ? (
+        {withdrawalsLoading && !withdrawalsError ? (
           <RowsSkeleton rows={2} label="Loading withdrawal requests" />
         ) : null}
 
-        {!loading && !withdrawalsError && withdrawals.length === 0 ? (
+        {!withdrawalsLoading && !withdrawalsError && withdrawals.length === 0 ? (
           <EmptyState
             icon={Banknote}
             title="No withdrawal requests"
@@ -398,122 +459,125 @@ export function ClientsTab({
           />
         ) : null}
 
-        {pendingWithdrawals.map((w) => {
-          const busy = withdrawalBusyId === w.id;
-          const deciding = wdDeciding?.id === w.id ? wdDeciding : null;
-          return (
-            <div
-              key={w.id}
-              className={`flex flex-wrap items-center gap-3 py-3.5 last:border-b-0 ${ROW_DIVIDER}`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-bold">{w.clientName}</div>
-                <div className="text-[12.5px] text-faint">Requested {timeAgo(w.createdAt)}</div>
-              </div>
-              <div className="text-right">
-                <span className="block font-mono text-sm font-bold">
-                  {fmtMinor(w.amountMinor, w.currency)}
-                </span>
-                {/* The figures frozen when the client asked. "Pay" is the net
-                    the firm actually transfers; fee + GCT stay with the firm. */}
-                {Number(w.feeMinor) + Number(w.gctMinor) > 0 ? (
-                  <span className="block text-[11.5px] text-faint">
-                    fee {fmtMinorExact(w.feeMinor, w.currency)}
-                    {Number(w.gctMinor) > 0
-                      ? ` · GCT ${fmtMinorExact(w.gctMinor, w.currency)}`
-                      : ''}{' '}
-                    · pay {fmtMinorExact(w.netMinor, w.currency)}
+        {!withdrawalsLoading &&
+          pendingWithdrawals.map((w) => {
+            const busy = withdrawalBusyId === w.id;
+            const deciding = wdDeciding?.id === w.id ? wdDeciding : null;
+            return (
+              <div
+                key={w.id}
+                className={`flex flex-col items-stretch gap-3 py-3.5 last:border-b-0 sm:flex-row sm:flex-wrap sm:items-center ${ROW_DIVIDER}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14.5px] font-bold">{w.clientName}</div>
+                  <div className="text-[12.5px] text-faint">Requested {timeAgo(w.createdAt)}</div>
+                </div>
+                <div className="text-left sm:text-right">
+                  <span className="block font-mono text-sm font-bold">
+                    {fmtMinor(w.amountMinor, w.currency)}
                   </span>
-                ) : null}
-              </div>
-              {deciding ? (
-                <form
-                  className="flex flex-wrap items-center gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const text = wdText.trim();
-                    if (deciding.paid) {
-                      onDecideWithdrawal(w.id, { paid: true, reference: text || undefined });
-                    } else {
-                      // `required` on the input enforces this; the guard is for
-                      // whitespace-only entries the attribute lets through.
-                      if (!text) return;
-                      onDecideWithdrawal(w.id, { paid: false, reason: text });
-                    }
-                    setWdDeciding(null);
-                    setWdText('');
-                  }}
-                >
-                  <label className="min-w-[180px] flex-1 text-[13px]">
-                    <span className="sr-only">
-                      {deciding.paid
-                        ? 'Payment reference (optional)'
-                        : 'Why this withdrawal is being declined'}
+                  {/* The figures frozen when the client asked. "Pay" is the net
+                    the firm actually transfers; fee + GCT stay with the firm. */}
+                  {Number(w.feeMinor) + Number(w.gctMinor) > 0 ? (
+                    <span className="block text-[11.5px] text-faint">
+                      fee {fmtMinorExact(w.feeMinor, w.currency)}
+                      {Number(w.gctMinor) > 0
+                        ? ` · GCT ${fmtMinorExact(w.gctMinor, w.currency)}`
+                        : ''}{' '}
+                      · pay {fmtMinorExact(w.netMinor, w.currency)}
                     </span>
-                    <input
-                      value={wdText}
-                      onChange={(e) => setWdText(e.target.value)}
-                      placeholder={
-                        deciding.paid
-                          ? 'Payment reference (optional)'
-                          : 'Why? The client reads this'
+                  ) : null}
+                </div>
+                {deciding ? (
+                  <form
+                    className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-wrap"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const text = wdText.trim();
+                      if (deciding.paid) {
+                        onDecideWithdrawal(w.id, { paid: true, reference: text || undefined });
+                      } else {
+                        // `required` on the input enforces this; the guard is for
+                        // whitespace-only entries the attribute lets through.
+                        if (!text) return;
+                        onDecideWithdrawal(w.id, { paid: false, reason: text });
                       }
-                      required={!deciding.paid}
-                      className="block w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
-                    />
-                  </label>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant={deciding.paid ? 'default' : 'ghost'}
-                    className={deciding.paid ? undefined : TERRA_GHOST_BTN}
-                    disabled={busy}
-                  >
-                    {busy ? 'Recording…' : deciding.paid ? 'Record as paid' : 'Decline'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
                       setWdDeciding(null);
                       setWdText('');
                     }}
                   >
-                    Cancel
-                  </Button>
-                </form>
-              ) : (
-                <div className="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={TERRA_GHOST_BTN}
-                    disabled={busy}
-                    onClick={() => {
-                      setWdDeciding({ id: w.id, paid: false });
-                      setWdText('');
-                    }}
-                  >
-                    Decline
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      setWdDeciding({ id: w.id, paid: true });
-                      setWdText('');
-                    }}
-                  >
-                    Pay
-                  </Button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    <label className="col-span-2 min-w-0 flex-1 text-[13px] sm:min-w-[180px]">
+                      <span className="sr-only">
+                        {deciding.paid
+                          ? 'Payment reference (optional)'
+                          : 'Why this withdrawal is being declined'}
+                      </span>
+                      <input
+                        value={wdText}
+                        onChange={(e) => setWdText(e.target.value)}
+                        placeholder={
+                          deciding.paid
+                            ? 'Payment reference (optional)'
+                            : 'Why? The client reads this'
+                        }
+                        required={!deciding.paid}
+                        className="block min-h-11 w-full rounded-[10px] border border-solid border-border bg-card px-3 py-2 text-[14px] text-foreground"
+                      />
+                    </label>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant={deciding.paid ? 'default' : 'ghost'}
+                      className={`min-h-11 sm:min-h-9 ${deciding.paid ? '' : TERRA_GHOST_BTN}`}
+                      disabled={busy}
+                    >
+                      {busy ? 'Recording…' : deciding.paid ? 'Record as paid' : 'Decline'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="min-h-11 sm:min-h-9"
+                      onClick={() => {
+                        setWdDeciding(null);
+                        setWdText('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={`min-h-11 sm:min-h-9 ${TERRA_GHOST_BTN}`}
+                      disabled={busy}
+                      onClick={() => {
+                        setWdDeciding({ id: w.id, paid: false });
+                        setWdText('');
+                      }}
+                    >
+                      Decline
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="min-h-11 sm:min-h-9"
+                      disabled={busy}
+                      onClick={() => {
+                        setWdDeciding({ id: w.id, paid: true });
+                        setWdText('');
+                      }}
+                    >
+                      Pay
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-        {decidedWithdrawals.length > 0 ? (
+        {!withdrawalsLoading && decidedWithdrawals.length > 0 ? (
           <div className="mt-2">
             <div className="text-[11px] font-bold uppercase tracking-wider text-faint">
               Recently decided
@@ -540,6 +604,17 @@ export function ClientsTab({
               </div>
             ))}
           </div>
+        ) : null}
+        {!withdrawalsLoading && !withdrawalsError ? (
+          <ConsolePager
+            label="Withdrawal requests"
+            total={withdrawalTotal}
+            offset={withdrawalOffset}
+            pageSize={withdrawalPageSize}
+            visible={withdrawals.length}
+            onPage={onWithdrawalPage}
+            className="-mx-4 -mb-4 mt-2 sm:-mx-6 sm:-mb-6"
+          />
         ) : null}
       </Card>
     </>

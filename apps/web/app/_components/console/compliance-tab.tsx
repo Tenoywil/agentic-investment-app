@@ -35,7 +35,6 @@ import * as React from 'react';
 import { datedFilename, downloadCsv, toCsv } from './export-csv';
 import {
   AUDIT_ACTOR_DOT,
-  DECISION_ACTIONS,
   ROW_DIVIDER,
   agreementLabel,
   auditActionLabel,
@@ -45,7 +44,7 @@ import {
   regulatorLabel,
   timeAgo,
 } from './lib';
-import { RowsSkeleton } from './loading';
+import { ConsolePager, RowsSkeleton } from './loading';
 import { ErrorNote } from './notice';
 
 /**
@@ -533,7 +532,13 @@ export function ComplianceTab({
   partner,
   audit,
   auditError,
-  loading,
+  auditLoading,
+  auditTotal,
+  auditOffset,
+  auditPageSize,
+  decisionsOnly,
+  onDecisionsOnly,
+  onAuditPage,
   onSaveProfile,
   profileSaving,
   profileError,
@@ -541,7 +546,13 @@ export function ComplianceTab({
   partner: MePartner | null;
   audit: ConsoleAuditEntry[];
   auditError: string | null;
-  loading: boolean;
+  auditLoading: boolean;
+  auditTotal: number;
+  auditOffset: number;
+  auditPageSize: number;
+  decisionsOnly: boolean;
+  onDecisionsOnly: (decisionsOnly: boolean) => void;
+  onAuditPage: (offset: number) => void;
   onSaveProfile: (input: {
     name: string;
     kind?: string;
@@ -555,9 +566,7 @@ export function ComplianceTab({
   profileError: string | null;
 }) {
   const [editing, setEditing] = React.useState(false);
-  /** "Who accepted what": narrow the trail to signed decisions. */
-  const [decisionsOnly, setDecisionsOnly] = React.useState(false);
-  const shownAudit = decisionsOnly ? audit.filter((a) => DECISION_ACTIONS.has(a.action)) : audit;
+  const shownAudit = audit;
   const [name, setName] = React.useState(partner?.name ?? '');
   const [kind, setKind] = React.useState(partner?.kind ?? '');
   const [residency, setResidency] = React.useState(partner?.residency ?? '');
@@ -717,7 +726,7 @@ export function ComplianceTab({
                 on your service — not to the client's principal. */}
               <fieldset className="m-0 mt-3 border-0 p-0">
                 <legend className={`${PROFILE_LABEL} p-0`}>Withdrawal charges</legend>
-                <div className="mt-1 grid grid-cols-3 gap-2">
+                <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <label className="block text-sm">
                     <span className="text-[11px] text-white/60">Flat fee</span>
                     <input
@@ -840,9 +849,9 @@ export function ComplianceTab({
 
       <div className="grid min-w-0 content-start gap-[18px]">
         <Card className="p-6" data-tour="institution-audit">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <b className="font-display text-[17px]">Audit trail</b>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
               {/* Who accepted what: the same rows, narrowed to the ones where a
                 person answerable for a client's money or standing decided
                 something — acceptances, KYC standing, cash in, withdrawals,
@@ -850,9 +859,10 @@ export function ComplianceTab({
               <Button
                 type="button"
                 size="sm"
+                className="min-h-11 sm:min-h-9"
                 variant={decisionsOnly ? 'default' : 'outline'}
                 aria-pressed={decisionsOnly}
-                onClick={() => setDecisionsOnly((v) => !v)}
+                onClick={() => onDecisionsOnly(!decisionsOnly)}
                 data-tour="institution-decisions"
               >
                 Decisions only
@@ -863,6 +873,7 @@ export function ComplianceTab({
                 type="button"
                 size="sm"
                 variant="outline"
+                className="min-h-11 sm:min-h-9"
                 disabled={shownAudit.length === 0}
                 onClick={() =>
                   downloadCsv(
@@ -879,7 +890,7 @@ export function ComplianceTab({
                   )
                 }
               >
-                Export CSV
+                Export page CSV
               </Button>
             </div>
           </div>
@@ -891,49 +902,58 @@ export function ComplianceTab({
 
           {auditError ? <ErrorNote message={auditError} className="mb-3" /> : null}
 
-          {loading && !auditError ? (
+          {auditLoading && !auditError ? (
             <RowsSkeleton rows={4} label="Loading the audit trail" />
           ) : null}
 
-          {!loading && !auditError && audit.length === 0 ? (
+          {!auditLoading && !auditError && audit.length === 0 ? (
             <EmptyState
               icon={ScrollText}
-              title="No audited activity yet"
-              body="Accepting an order, matching a statement line or pausing a listing writes an entry here that nobody, including CCN, can edit or delete."
+              title={decisionsOnly ? 'No recorded decisions yet' : 'No audited activity yet'}
+              body={
+                decisionsOnly
+                  ? 'Client, funding, reconciliation, withdrawal and order decisions appear here with the person who made them.'
+                  : 'Accepting an order, matching a statement line or pausing a listing writes an entry here that nobody, including CCN, can edit or delete.'
+              }
             />
           ) : null}
 
-          {!loading && !auditError && audit.length > 0 && shownAudit.length === 0 ? (
-            <p className="text-[13px] text-faint">
-              No decisions in the last {audit.length} entries — the activity here is system and
-              client-side events.
-            </p>
-          ) : null}
-
-          {shownAudit.map((a) => {
-            const reason = auditReason(a.detail);
-            const entity = auditEntityLabel(a.entityType);
-            return (
-              <div key={a.id} className={`flex gap-2.5 py-2.5 ${ROW_DIVIDER} last:border-b-0`}>
-                <span
-                  className={`mt-[5px] h-[9px] w-[9px] flex-none rounded-full ${AUDIT_ACTOR_DOT[a.actorType]}`}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm text-foreground">{auditActionLabel(a.action)}</div>
-                  <div className="mt-0.5 text-[12.5px] text-faint">
-                    {/* Signed with the person's name when the log knows one —
+          {!auditLoading &&
+            shownAudit.map((a) => {
+              const reason = auditReason(a.detail);
+              const entity = auditEntityLabel(a.entityType);
+              return (
+                <div key={a.id} className={`flex gap-2.5 py-2.5 ${ROW_DIVIDER} last:border-b-0`}>
+                  <span
+                    className={`mt-[5px] h-[9px] w-[9px] flex-none rounded-full ${AUDIT_ACTOR_DOT[a.actorType]}`}
+                    aria-hidden
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-foreground">{auditActionLabel(a.action)}</div>
+                    <div className="mt-0.5 text-[12.5px] text-faint">
+                      {/* Signed with the person's name when the log knows one —
                       "Marcia Grant", not an anonymous "Operator". */}
-                    <span className="font-semibold text-dim">{auditActorLine(a)}</span>
-                    {entity ? ` · ${entity}` : ''} · {timeAgo(a.createdAt)}
+                      <span className="font-semibold text-dim">{auditActorLine(a)}</span>
+                      {entity ? ` · ${entity}` : ''} · {timeAgo(a.createdAt)}
+                    </div>
+                    {reason ? (
+                      <div className="mt-0.5 text-[12.5px] italic text-dim">{reason}</div>
+                    ) : null}
                   </div>
-                  {reason ? (
-                    <div className="mt-0.5 text-[12.5px] italic text-dim">{reason}</div>
-                  ) : null}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          {!auditLoading && !auditError ? (
+            <ConsolePager
+              label={decisionsOnly ? 'Audit decisions' : 'Audit trail'}
+              total={auditTotal}
+              offset={auditOffset}
+              pageSize={auditPageSize}
+              visible={audit.length}
+              onPage={onAuditPage}
+              className="-mx-6 -mb-6 mt-2"
+            />
+          ) : null}
         </Card>
 
         {/* CCN's standing terms with a firm, in one place. These paragraphs used
@@ -946,7 +966,7 @@ export function ComplianceTab({
             <div>
               <div className="mb-1.5 text-[13.5px] font-bold">What the flow brings you</div>
               <ul className="m-0 list-none p-0 text-sm leading-relaxed text-dim">
-                <li>Qualified, KYC-cleared demand into products you already run.</li>
+                <li>Suitability-screened demand into products you already run.</li>
                 <li>Diaspora reach without building cross-border onboarding.</li>
                 <li>Your name and regulator on every deal card, no channel conflict.</li>
               </ul>
@@ -962,8 +982,9 @@ export function ComplianceTab({
             <div>
               <div className="mb-1.5 text-[13.5px] font-bold">KYC stays yours</div>
               <p className="m-0 text-sm leading-relaxed text-dim">
-                You already verified these clients. CCN links that status with their consent rather
-                than re-collecting it. You remain the regulated owner of KYC and AML.
+                CCN shares the intake details and declarations a client consented to provide. Your
+                firm remains responsible for verification, screening, escalation and the final KYC
+                and AML decision.
               </p>
             </div>
           </div>
