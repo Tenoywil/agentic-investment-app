@@ -862,7 +862,12 @@ export function consoleRoutes(
         : undefined;
     const q = (c.req.query('q') ?? '').trim();
     const page = await withTenant(deps, tenant, (tx) =>
-      partnerClientsPage(tx, { status, q: q || undefined, limit, offset }),
+      partnerClientsPage(tx, {
+        limit,
+        offset,
+        ...(status ? { status } : {}),
+        ...(q ? { q } : {}),
+      }),
     );
 
     return c.json(page);

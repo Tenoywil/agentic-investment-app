@@ -5,7 +5,13 @@ import { ClientsTab } from '@/app/_components/console/clients-tab';
 import { ComplianceTab } from '@/app/_components/console/compliance-tab';
 import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
 import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
-import { type TabKey, consoleTab, errorMessage } from '@/app/_components/console/lib';
+import {
+  type ConsoleResourceLoader,
+  type TabKey,
+  consoleTab,
+  errorMessage,
+  refreshCurrentLoaders,
+} from '@/app/_components/console/lib';
 import { BulkProductDialog, ListProductDialog } from '@/app/_components/console/list-product';
 import { OrdersTab } from '@/app/_components/console/orders-tab';
 import { OverviewTab } from '@/app/_components/console/overview-tab';
@@ -56,6 +62,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const CONSOLE_PAGE_SIZE = 10;
 const OVERVIEW_ORDER_LIMIT = 6;
+type ConsoleLoaderKey =
+  | 'orders'
+  | 'products'
+  | 'clients'
+  | 'reconciliation'
+  | 'withdrawals'
+  | 'audit'
+  | 'reference';
 
 /**
  * The partner console: a dark-navy shell (Warm-themed shadcn) with Radix Tabs
@@ -129,6 +143,8 @@ export default function InstitutionsPage() {
   const [productQuery, setProductQuery] = useState('');
   const [productOffset, setProductOffset] = useState(0);
   const [productTotal, setProductTotal] = useState(0);
+  const productOffsetCurrent = useRef(productOffset);
+  productOffsetCurrent.current = productOffset;
 
   const [clients, setClients] = useState<ConsoleClient[]>([]);
   const [clientsError, setClientsError] = useState<string | null>(null);
@@ -399,6 +415,33 @@ export default function InstitutionsPage() {
     if (request === referenceLoadSequence.current) setReferenceLoading(false);
   }, []);
 
+  // Async mutations may finish after the operator changes a filter or page.
+  // This ref is replaced every render, so their follow-up refresh resolves the
+  // latest loader instead of the closure captured when the mutation started.
+  const currentLoaders = useRef<Record<ConsoleLoaderKey, ConsoleResourceLoader>>({
+    orders: loadOrders,
+    products: loadProducts,
+    clients: loadClients,
+    reconciliation: loadReconciliation,
+    withdrawals: loadWithdrawals,
+    audit: loadAudit,
+    reference: loadReference,
+  });
+  currentLoaders.current = {
+    orders: loadOrders,
+    products: loadProducts,
+    clients: loadClients,
+    reconciliation: loadReconciliation,
+    withdrawals: loadWithdrawals,
+    audit: loadAudit,
+    reference: loadReference,
+  };
+  const refreshLatest = useCallback(
+    (keys: readonly ConsoleLoaderKey[], showLoading = false) =>
+      refreshCurrentLoaders(currentLoaders, keys, showLoading),
+    [],
+  );
+
   useEffect(() => void loadOrders(), [loadOrders]);
   useEffect(() => void loadProducts(), [loadProducts]);
   useEffect(() => void loadClients(), [loadClients]);
@@ -409,24 +452,11 @@ export default function InstitutionsPage() {
 
   const refreshConsole = useCallback(
     (showLoading = false) =>
-      Promise.all([
-        loadOrders(showLoading),
-        loadProducts(showLoading),
-        loadClients(showLoading),
-        loadReconciliation(showLoading),
-        loadWithdrawals(showLoading),
-        loadAudit(showLoading),
-        loadReference(showLoading),
-      ]),
-    [
-      loadAudit,
-      loadClients,
-      loadOrders,
-      loadProducts,
-      loadReconciliation,
-      loadReference,
-      loadWithdrawals,
-    ],
+      refreshLatest(
+        ['orders', 'products', 'clients', 'reconciliation', 'withdrawals', 'audit', 'reference'],
+        showLoading,
+      ),
+    [refreshLatest],
   );
 
   useRealtime(['order', 'connection', 'reconciliation', 'listing', 'withdrawal'], () =>
@@ -443,7 +473,7 @@ export default function InstitutionsPage() {
           ? `Checked ${checkedClients} client account${checkedClients === 1 ? '' : 's'}. Nothing new to reconcile.`
           : `Checked ${checkedClients} client account${checkedClients === 1 ? '' : 's'}. ${queued} line${queued === 1 ? '' : 's'} queued below.`,
       );
-      await Promise.all([loadReconciliation(false), loadAudit(false), loadReference(false)]);
+      await refreshLatest(['reconciliation', 'audit', 'reference']);
     } catch (err) {
       setPullNote(errorMessage(err, 'Could not pull statements.'));
     } finally {
@@ -482,7 +512,7 @@ export default function InstitutionsPage() {
       try {
         const { order } = await fn(id, arg);
         setOrders((os) => os.map((o) => (o.id === id ? order : o)));
-        void Promise.all([loadOrders(false), loadAudit(false), loadReference(false)]);
+        void refreshLatest(['orders', 'audit', 'reference']);
         return true;
       } catch (err) {
         setOrderActionError(errorMessage(err, fallback));
@@ -529,7 +559,7 @@ export default function InstitutionsPage() {
     try {
       await updatePartner(input);
       await refresh();
-      void loadAudit(false);
+      void refreshLatest(['audit']);
     } catch (err) {
       setProfileError(errorMessage(err, 'Could not save your firm details.'));
     } finally {
@@ -566,7 +596,7 @@ export default function InstitutionsPage() {
     try {
       const { status } = await toggleProductLive(id);
       setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, status } : p)));
-      void Promise.all([loadProducts(false), loadAudit(false), loadReference(false)]);
+      void refreshLatest(['products', 'audit', 'reference']);
     } catch (err) {
       setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, status: previous } : p)));
       setProductActionError(errorMessage(err, 'Could not change this listing.'));
@@ -598,7 +628,7 @@ export default function InstitutionsPage() {
             : c,
         ),
       );
-      void Promise.all([loadClients(false), loadAudit(false), loadReference(false)]);
+      void refreshLatest(['clients', 'audit', 'reference']);
     } catch (err) {
       setClientActionError(errorMessage(err, 'Could not record that decision.'));
     } finally {
@@ -619,7 +649,7 @@ export default function InstitutionsPage() {
       setClients((cs) =>
         cs.map((c) => (c.account_id === id ? { ...c, kyc_requested_at: requestedAt } : c)),
       );
-      void Promise.all([loadClients(false), loadAudit(false)]);
+      void refreshLatest(['clients', 'audit']);
     } catch (err) {
       setClientActionError(errorMessage(err, 'Could not send that request.'));
     } finally {
@@ -633,7 +663,7 @@ export default function InstitutionsPage() {
     try {
       await matchReconciliation(id);
       setReconciliation((items) => items.filter((i) => i.id !== id));
-      void Promise.all([loadReconciliation(false), loadAudit(false), loadReference(false)]);
+      void refreshLatest(['reconciliation', 'audit', 'reference']);
     } catch (err) {
       setReconActionError(errorMessage(err, 'Could not match this item.'));
     } finally {
@@ -669,7 +699,7 @@ export default function InstitutionsPage() {
             : w,
         ),
       );
-      void Promise.all([loadWithdrawals(false), loadAudit(false), loadReference(false)]);
+      void refreshLatest(['withdrawals', 'audit', 'reference']);
     } catch (err) {
       setWithdrawalActionError(errorMessage(err, 'Could not record that decision.'));
     } finally {
@@ -683,7 +713,7 @@ export default function InstitutionsPage() {
     try {
       await rejectReconciliation(id, reason);
       setReconciliation((items) => items.filter((i) => i.id !== id));
-      void Promise.all([loadReconciliation(false), loadAudit(false), loadReference(false)]);
+      void refreshLatest(['reconciliation', 'audit', 'reference']);
     } catch (err) {
       setReconActionError(errorMessage(err, 'Could not reject this item.'));
     } finally {
@@ -812,9 +842,12 @@ export default function InstitutionsPage() {
                   ? ps.map((p) => (p.id === product.id ? product : p))
                   : [product, ...ps],
               );
-              if (productOffset === 0) void loadProducts(false);
-              else setProductOffset(0);
-              void Promise.all([loadAudit(false), loadReference(false)]);
+              if (productOffsetCurrent.current === 0) {
+                void refreshLatest(['products', 'audit', 'reference']);
+              } else {
+                setProductOffset(0);
+                void refreshLatest(['audit', 'reference']);
+              }
             }}
           />
         ) : null}
@@ -824,9 +857,12 @@ export default function InstitutionsPage() {
             onSave={saveProductsBulk}
             onClose={() => setBulkListingOpen(false)}
             onSaved={() => {
-              if (productOffset === 0) void loadProducts(false);
-              else setProductOffset(0);
-              void Promise.all([loadAudit(false), loadReference(false)]);
+              if (productOffsetCurrent.current === 0) {
+                void refreshLatest(['products', 'audit', 'reference']);
+              } else {
+                setProductOffset(0);
+                void refreshLatest(['audit', 'reference']);
+              }
             }}
           />
         ) : null}

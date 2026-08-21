@@ -58,6 +58,8 @@ suite('partner console data surface', () => {
   const handle = createDb(DATABASE_URL ?? '', { max: 4 });
   const { db } = handle;
   const tag = `console-${Date.now()}`;
+  const priorityClientPrefix = `${tag}-priority-client`;
+  const priorityPendingKey = `${priorityClientPrefix}-pending`;
 
   // Built lazily: `describe.skip` still evaluates this callback, so an eager
   // loadServerConfig would throw on the empty DATABASE_URL in the no-DB CI job.
@@ -107,6 +109,8 @@ suite('partner console data surface', () => {
   let listingId = '';
   /** SAG's client connection, for the drill-down and the revoke path. */
   let clientAccountId = '';
+  /** An older pending review that must stay ahead of newer decided clients. */
+  let priorityPendingAccountId = '';
   /** Everything the listing tests create, so afterAll can take it back out. */
   const createdInstrumentIds: string[] = [];
 
@@ -170,7 +174,7 @@ suite('partner console data surface', () => {
     await makeOperator('sagOperator', sagId);
     await makeOperator('ncbOperator', ncbId);
     await makeOperator('investor');
-    await makeOperator('investor2');
+    await makeOperator(priorityPendingKey);
 
     const [inst] = await db
       .insert(instruments)
@@ -242,12 +246,29 @@ suite('partner console data surface', () => {
       })
       .returning({ id: connectedAccounts.id });
     clientAccountId = account?.id ?? '';
-    await db.insert(connectedAccounts).values({
-      userId: ids.investor2 ?? '',
-      partnerId: sagId,
-      label: `${tag} second account`,
-      status: 'pending',
-    });
+    const [priorityPending] = await db
+      .insert(connectedAccounts)
+      .values({
+        userId: ids[priorityPendingKey] ?? '',
+        partnerId: sagId,
+        label: `${tag} priority pending account`,
+        status: 'pending',
+        createdAt: new Date('2020-01-01T00:00:00.000Z'),
+      })
+      .returning({ id: connectedAccounts.id });
+    priorityPendingAccountId = priorityPending?.id ?? '';
+    // Ten newer, already-decided clients reproduce the cross-page failure: a
+    // recency-only sort hid the older actionable review on page two.
+    for (let index = 0; index < 10; index += 1) {
+      const key = `${priorityClientPrefix}-reviewed-${index}`;
+      await makeOperator(key);
+      await db.insert(connectedAccounts).values({
+        userId: ids[key] ?? '',
+        partnerId: sagId,
+        label: `${tag} reviewed account ${index}`,
+        status: 'active',
+      });
+    }
     await db.insert(holdings).values({
       userId: ids.investor ?? '',
       connectedAccountId: clientAccountId,
@@ -569,12 +590,25 @@ suite('partner console data surface', () => {
     expect(pending.clients.length).toBeGreaterThan(0);
     expect(pending.clients.every((client) => client.status === 'pending')).toBe(true);
 
-    const search = await json<Body>('/api/console/clients?q=investor2', 'sagOperator');
+    const search = await json<Body>(
+      `/api/console/clients?q=${encodeURIComponent(priorityClientPrefix)}&status=pending`,
+      'sagOperator',
+    );
     expect(search.total).toBe(1);
-    expect(search.clients[0]?.client_name).toBe('investor2');
+    expect(search.clients[0]?.account_id).toBe(priorityPendingAccountId);
+
+    const prioritized = await json<Body>(
+      `/api/console/clients?q=${encodeURIComponent(priorityClientPrefix)}&limit=10&offset=0`,
+      'sagOperator',
+    );
+    expect(prioritized.total).toBe(11);
+    expect(prioritized.clients).toHaveLength(10);
+    expect(prioritized.clients[0]?.account_id).toBe(priorityPendingAccountId);
 
     const other = await json<Body>('/api/console/clients?limit=200', 'ncbOperator');
-    expect(other.clients.some((client) => client.client_name === 'investor2')).toBe(false);
+    expect(
+      other.clients.some((client) => client.client_name.startsWith(priorityClientPrefix)),
+    ).toBe(false);
   });
 
   test('/console/products/:id/live toggles, and only for the owning partner', async () => {

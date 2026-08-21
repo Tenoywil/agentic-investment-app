@@ -299,6 +299,7 @@ export interface PartnerClientRow {
   requested_at: string;
   reviewed_at: string | null;
   decline_reason: string | null;
+  kyc_requested_at: string | null;
   user_id: string;
   client_name: string;
   client_email: string;
@@ -358,7 +359,10 @@ export async function partnerClientsPage(
            or pc.client_name ilike ${search}
            or pc.client_email ilike ${search}
          )
-       order by pc.requested_at desc, pc.account_id desc
+       order by
+         case when pc.status::text = 'pending' then 0 else 1 end,
+         pc.requested_at desc,
+         pc.account_id desc
        limit ${input.limit}
        offset ${input.offset}
     `)) as unknown as PageRow[];

@@ -7,6 +7,7 @@ import {
   auditEntityLabel,
   consoleTab,
   parseProductImport,
+  refreshCurrentLoaders,
 } from '../app/_components/console/lib';
 
 /**
@@ -246,5 +247,37 @@ describe('bounded partner console queues', () => {
     const demo = readFileSync(join(REPO, 'apps/web/app/demo/institutions/page.tsx'), 'utf8');
     expect(live).toContain("window.scrollTo({ top: 0, behavior: 'auto' })");
     expect(demo).toContain("window.scrollTo({ top: 0, behavior: 'auto' })");
+  });
+
+  it('resolves post-mutation refreshes from the latest filter and page render', async () => {
+    const calls: string[] = [];
+    let releaseMutation: (() => void) | undefined;
+    const mutation = new Promise<void>((resolve) => {
+      releaseMutation = resolve;
+    });
+    const loaders = {
+      current: {
+        orders: async () => {
+          calls.push('captured');
+        },
+      },
+    };
+
+    const afterMutation = mutation.then(() =>
+      refreshCurrentLoaders(loaders, ['orders'] as const, false),
+    );
+    loaders.current = {
+      orders: async () => {
+        calls.push('latest');
+      },
+    };
+    releaseMutation?.();
+    await afterMutation;
+
+    expect(calls).toEqual(['latest']);
+    expect(live).toContain('refreshCurrentLoaders(currentLoaders');
+    expect(live).not.toMatch(
+      /\bload(?:Orders|Products|Clients|Reconciliation|Withdrawals|Audit|Reference)\(false\)/,
+    );
   });
 });
