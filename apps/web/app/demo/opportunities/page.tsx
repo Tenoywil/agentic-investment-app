@@ -451,7 +451,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {[
-                    'Identity intake recorded (KYC · Tier 2)',
+                    'Identity intake recorded · partner verification required before execution',
                     opp.risk === 'High'
                       ? 'Suitability: within your stated high-risk allocation limit'
                       : 'Suitability: matches your balanced-income profile',

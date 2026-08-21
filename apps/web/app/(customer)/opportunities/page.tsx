@@ -255,26 +255,23 @@ const BAND_LABEL: Record<string, string> = {
   high: 'High',
 };
 
-const TIER_LABEL: Record<string, string> = { tier1: 'Tier 1', tier2: 'Tier 2' };
-
 /**
  * The compliance checks, from GET /api/me.
  *
- * This panel used to assert three green ticks — identity verified at Tier 2,
+ * This panel used to assert three green ticks — identity verification,
  * suitability matched, source of funds confirmed — for every viewer, including
  * one who had completed none of them, immediately above the button that routes
  * real money to a licensed partner. Each line now reports the actual state of
- * that step, and an unsatisfied step blocks the instruction here rather than at
- * the partner.
+ * that intake step without treating it as the licensed firm's KYC decision. An
+ * unsatisfied step blocks the instruction here rather than at the partner.
  */
 function ComplianceChecks({ onboarding, band }: { onboarding: MeOnboarding; band: string | null }) {
   const bandLabel = band ? (BAND_LABEL[band] ?? band) : null;
-  const tierLabel = TIER_LABEL[onboarding.tier];
   const checks: { ok: boolean; label: string }[] = [
     {
       ok: onboarding.identityVerified,
       label: onboarding.identityVerified
-        ? `Identity intake recorded${tierLabel ? ` · KYC ${tierLabel}` : ''}`
+        ? 'Identity intake recorded · partner verification required before execution'
         : 'Identity intake not completed',
     },
     {

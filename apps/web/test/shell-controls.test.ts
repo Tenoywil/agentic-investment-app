@@ -281,6 +281,8 @@ describe('app shell controls', () => {
     const onboardingData = code(join(WEB, 'app/(customer)/onboarding/data.ts'));
     const onboardingPage = code(join(WEB, 'app/(customer)/onboarding/page.tsx'));
     const demoAgent = code(join(WEB, 'app/demo/agent/page.tsx'));
+    const opportunities = code(join(WEB, 'app/(customer)/opportunities/page.tsx'));
+    const demoOpportunities = code(join(WEB, 'app/demo/opportunities/page.tsx'));
 
     expect(onboardingData).toContain('Complete identity intake');
     expect(onboardingData).toContain('Identity intake recorded.');
@@ -292,6 +294,12 @@ describe('app shell controls', () => {
     expect(onboardingPage).not.toContain('Identity documents verified · KYC Tier 2 unlocked');
     expect(demoAgent).not.toContain('Verified KYC readiness');
     expect(demoAgent.match(/retains the final KYC and AML decision/g)).toHaveLength(2);
+    for (const surface of [opportunities, demoOpportunities]) {
+      expect(surface).toContain(
+        'Identity intake recorded · partner verification required before execution',
+      );
+      expect(surface).not.toMatch(/KYC(?: ·)? Tier/);
+    }
   });
 
   test('the demo agent uses the real inline chart renderer for visual requests', () => {
