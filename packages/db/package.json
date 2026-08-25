@@ -18,6 +18,7 @@
     "db:seed:reference": "bun run src/seed.ts --reference-only"
   },
   "dependencies": {
+    "@ccn/security": "workspace:*",
     "drizzle-orm": "0.44.2",
     "postgres": "3.4.5"
   },

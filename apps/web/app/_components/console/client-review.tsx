@@ -3,7 +3,7 @@
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
-import type { ConsoleClient } from '@/lib/console-api';
+import type { ConsoleClient, PartnerKycReviewInput } from '@/lib/console-api';
 import { Check, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
 import * as React from 'react';
 import {
@@ -94,6 +94,166 @@ function StatusChip({ status }: { status: ConsoleClient['status'] }) {
   );
 }
 
+const REVIEW_CONTROLS = [
+  ['identityVerified', 'Government ID verified'],
+  ['addressVerified', 'Proof of address verified independently'],
+  ['sanctionsClear', 'Sanctions screening clear'],
+  ['pepReviewComplete', 'PEP screening and EDD completed'],
+  ['fundsVerified', 'Source of funds and wealth verified'],
+  ['taxDocumentationComplete', 'Tax residency and FATCA documents complete'],
+] as const;
+
+function KycApprovalForm({
+  client,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  client: ConsoleClient;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (review: PartnerKycReviewInput) => void;
+}) {
+  const [checked, setChecked] = React.useState<Record<string, boolean>>({});
+  const [risk, setRisk] = React.useState<'low' | 'medium' | 'high'>('medium');
+  const [policy, setPolicy] = React.useState<PartnerKycReviewInput['policyKey'] | ''>('');
+  const [seniorApproval, setSeniorApproval] = React.useState(false);
+  const [notes, setNotes] = React.useState('');
+  const [nextReview, setNextReview] = React.useState(() => {
+    const date = new Date();
+    date.setUTCFullYear(date.getUTCFullYear() + 1);
+    return date.toISOString().slice(0, 10);
+  });
+  const complete = REVIEW_CONTROLS.every(([key]) => checked[key]) && policy !== '';
+  const needsSenior = client.is_pep || risk === 'high';
+
+  return (
+    <form
+      className="mt-3 rounded-xl border border-solid border-border bg-muted/40 p-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!complete || (needsSenior && !seniorApproval)) return;
+        onSubmit({
+          identityVerified: true,
+          addressVerified: true,
+          sanctionsClear: true,
+          pepReviewComplete: true,
+          fundsVerified: true,
+          taxDocumentationComplete: true,
+          amlRiskRating: risk,
+          seniorApproval,
+          policyKey: policy,
+          nextReviewAt: new Date(`${nextReview}T23:59:59.000Z`).toISOString(),
+          notes: notes.trim() || undefined,
+        });
+      }}
+    >
+      <b className="font-display text-[14px]">Licensed-firm KYC/AML decision</b>
+      <p className="mb-3 mt-1 text-[12.5px] leading-relaxed text-faint">
+        Attest only after reviewing the client&rsquo;s evidence. CCN records your decision; it does
+        not perform verification for you.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {REVIEW_CONTROLS.map(([key, label]) => (
+          <label key={key} className="flex items-start gap-2 text-[13px]">
+            <input
+              type="checkbox"
+              checked={checked[key] ?? false}
+              onChange={(event) =>
+                setChecked((value) => ({ ...value, [key]: event.target.checked }))
+              }
+              className="mt-0.5 h-4 w-4"
+            />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <label className="text-[12.5px] font-semibold">
+          Governing policy
+          <select
+            value={policy}
+            onChange={(event) => setPolicy(event.target.value as typeof policy)}
+            className="mt-1 block min-h-11 w-full rounded-[9px] border border-solid border-border bg-card px-2 text-[13px]"
+          >
+            <option value="">Select</option>
+            <option value="JM">Jamaica</option>
+            <option value="GY">Guyana</option>
+            <option value="TT">Trinidad &amp; Tobago</option>
+            <option value="US-NY">United States · New York</option>
+            <option value="US-FL">United States · Florida</option>
+            <option value="BB" disabled>
+              Barbados · future
+            </option>
+            <option value="GB" disabled>
+              United Kingdom · future
+            </option>
+            <option value="CA" disabled>
+              Canada · future
+            </option>
+          </select>
+        </label>
+        <label className="text-[12.5px] font-semibold">
+          AML risk
+          <select
+            value={risk}
+            onChange={(event) => setRisk(event.target.value as typeof risk)}
+            className="mt-1 block min-h-11 w-full rounded-[9px] border border-solid border-border bg-card px-2 text-[13px]"
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+        <label className="text-[12.5px] font-semibold">
+          Next review
+          <input
+            type="date"
+            value={nextReview}
+            onChange={(event) => setNextReview(event.target.value)}
+            className="mt-1 block min-h-11 w-full rounded-[9px] border border-solid border-border bg-card px-2 text-[13px]"
+          />
+        </label>
+      </div>
+      <label className="mt-3 flex items-start gap-2 text-[13px]">
+        <input
+          type="checkbox"
+          checked={seniorApproval}
+          onChange={(event) => setSeniorApproval(event.target.checked)}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span>
+          Senior management approval recorded{needsSenior ? ' (required for this review)' : ''}
+        </span>
+      </label>
+      <label className="mt-3 block text-[12.5px] font-semibold">
+        Review notes (optional)
+        <input
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          className="mt-1 block min-h-11 w-full rounded-[9px] border border-solid border-border bg-card px-3 text-[13px]"
+        />
+      </label>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          type="submit"
+          size="sm"
+          disabled={busy || !complete || (needsSenior && !seniorApproval)}
+        >
+          {busy
+            ? 'Recording…'
+            : client.status === 'declined'
+              ? 'Approve & reinstate'
+              : 'Approve & accept'}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function ClientReview({
   clients,
   clientsError,
@@ -124,7 +284,7 @@ export function ClientReview({
   query: string;
   busyId: string | null;
   actionError: string | null;
-  onReview: (id: string, accept: boolean, reason?: string) => void;
+  onReview: (id: string, accept: boolean, reason?: string, review?: PartnerKycReviewInput) => void;
   /** Ask this person to finish their intake (0032) — the desk's third verb. */
   onRequestKyc: (id: string) => void;
   /** Open the drill-down: positions, orders, and the record with this firm. */
@@ -136,6 +296,7 @@ export function ClientReview({
   const pending = clients.filter((c) => c.status === 'pending');
   const decided = clients.filter((c) => c.status !== 'pending');
   const [declining, setDeclining] = React.useState<string | null>(null);
+  const [accepting, setAccepting] = React.useState<string | null>(null);
   const [reason, setReason] = React.useState('');
 
   function row(c: ConsoleClient) {
@@ -250,7 +411,17 @@ export function ClientReview({
           </p>
         ) : null}
 
-        {awaiting ? (
+        {accepting === c.account_id ? (
+          <KycApprovalForm
+            client={c}
+            busy={busy}
+            onCancel={() => setAccepting(null)}
+            onSubmit={(review) => {
+              onReview(c.account_id, true, undefined, review);
+              setAccepting(null);
+            }}
+          />
+        ) : awaiting ? (
           declining === c.account_id ? (
             <form
               className="mt-3 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap"
@@ -297,9 +468,9 @@ export function ClientReview({
                 size="sm"
                 className="min-h-11 w-full sm:min-h-9 sm:w-auto"
                 disabled={busy || noPackage}
-                onClick={() => onReview(c.account_id, true)}
+                onClick={() => setAccepting(c.account_id)}
               >
-                {busy ? 'Accepting…' : 'Accept as client'}
+                Review &amp; accept
               </Button>
               {askButton}
               <Button
@@ -313,6 +484,16 @@ export function ClientReview({
               </Button>
             </div>
           )
+        ) : c.status === 'declined' ? (
+          <div className="mt-3">
+            <Button
+              size="sm"
+              disabled={busy || noPackage}
+              onClick={() => setAccepting(c.account_id)}
+            >
+              Review &amp; reinstate
+            </Button>
+          </div>
         ) : askButton ? (
           <div className="mt-3">{askButton}</div>
         ) : null}

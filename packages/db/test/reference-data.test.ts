@@ -1,4 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
+import { fileURLToPath } from 'node:url';
+import { createFieldCipher } from '@ccn/security';
 import { asc, eq } from 'drizzle-orm';
 import { createDb } from '../src/client';
 import { seedDemoCustomer } from '../src/demo/customer';
@@ -8,9 +10,11 @@ import {
   approvals,
   goals,
   holdings,
+  kycDossiers,
   kycFunnelStages,
   orders,
   partnerKpis,
+  partnerKycReviews,
   partners,
   productListings,
   user,
@@ -37,8 +41,8 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const suite = DATABASE_URL ? describe : describe.skip;
 
 async function runSeed(): Promise<void> {
-  const proc = Bun.spawn(['bun', 'run', 'src/seed.ts'], {
-    cwd: new URL('..', import.meta.url).pathname,
+  const proc = Bun.spawn([process.execPath, 'run', 'src/seed.ts'], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: { ...process.env },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -92,14 +96,41 @@ suite('reference data and demo attachment', () => {
 
     expect(await counts(fresh.id)).toEqual({ holdings: 0, goals: 0, approvals: 0 });
 
-    await seedDemoCustomer(db, fresh.id);
+    const cipher = createFieldCipher({ id: 'test', material: new Uint8Array(32).fill(17) });
+    await seedDemoCustomer(db, fresh.id, cipher);
     const after = await counts(fresh.id);
     expect(after.holdings).toBeGreaterThan(0);
     expect(after.goals).toBeGreaterThan(0);
 
     // Twice is a no-op — both the grant CLI and lazy provisioning can run it.
-    await seedDemoCustomer(db, fresh.id);
+    await seedDemoCustomer(db, fresh.id, cipher);
     expect(await counts(fresh.id)).toEqual(after);
+
+    const reviews = await db
+      .select()
+      .from(partnerKycReviews)
+      .where(eq(partnerKycReviews.userId, fresh.id));
+    expect(reviews.length).toBeGreaterThan(0);
+    expect(
+      reviews.every(
+        (review) =>
+          review.status === 'approved' &&
+          review.identityVerified &&
+          review.addressVerified &&
+          review.sanctionsClear &&
+          review.pepReviewComplete &&
+          review.fundsVerified &&
+          review.taxDocumentationComplete &&
+          Boolean(review.nextReviewAt),
+      ),
+    ).toBe(true);
+
+    const [dossier] = await db.select().from(kycDossiers).where(eq(kycDossiers.userId, fresh.id));
+    expect(dossier?.identityCiphertext).toStartWith('v1.test.');
+    const identity = JSON.parse(
+      await cipher.decrypt(dossier?.identityCiphertext ?? '', `kyc_dossiers.identity:${fresh.id}`),
+    ) as { citizenships: string[] };
+    expect(identity.citizenships).toEqual(['Jamaica', 'United Kingdom']);
   }, 30_000);
 
   /**

@@ -83,10 +83,33 @@ export default function OnboardingPage() {
 
   const [fullName, setFullName] = useState('');
   const [country, setCountry] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [placeOfBirth, setPlaceOfBirth] = useState('');
+  const [residentialAddress, setResidentialAddress] = useState('');
+  const [citizenships, setCitizenships] = useState('');
   const [occupation, setOccupation] = useState('');
+  const [employer, setEmployer] = useState('');
+  const [pepStatus, setPepStatus] = useState<'none' | 'self' | 'family' | 'close_associate'>(
+    'none',
+  );
+  const [taxCountry, setTaxCountry] = useState('');
+  const [taxIdType, setTaxIdType] = useState<'trn' | 'ssn' | 'tin' | 'national_id' | 'other'>(
+    'tin',
+  );
+  const [taxIdentifier, setTaxIdentifier] = useState('');
+  const [fatcaStatus, setFatcaStatus] = useState<'us_person' | 'non_us_person' | 'undetermined'>(
+    'undetermined',
+  );
+  const [fatcaForm, setFatcaForm] = useState<'w9' | 'w8ben' | 'not_applicable'>('not_applicable');
   const [declared, setDeclared] = useState<boolean[]>(DECLARATIONS.map(() => false));
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [sources, setSources] = useState<Record<string, boolean>>({ salary: true });
+  const [sourceOfWealth, setSourceOfWealth] = useState('');
+  const [accountPurpose, setAccountPurpose] = useState('Long-term investing');
+  const [expectedAnnualInvestment, setExpectedAnnualInvestment] = useState('');
+  const [expectedFrequency, setExpectedFrequency] = useState<
+    'one_off' | 'monthly' | 'quarterly' | 'annually' | 'irregular'
+  >('monthly');
   // Source of truth for the Done step — set from /status on resume, or from
   // submitRisk()'s response when the step is completed live in this session.
   const [serverBand, setServerBand] = useState<string | null>(null);
@@ -144,13 +167,29 @@ export default function OnboardingPage() {
   const riskComplete = scores.length === RISK_QUESTIONS.length;
   const hasSource = Object.values(sources).some(Boolean);
   const identityComplete =
-    fullName.trim() !== '' && country.trim() !== '' && occupation.trim() !== '';
+    fullName.trim() !== '' &&
+    dateOfBirth !== '' &&
+    placeOfBirth.trim() !== '' &&
+    residentialAddress.trim() !== '' &&
+    country.trim() !== '' &&
+    citizenships.split(',').some((value) => value.trim() !== '') &&
+    occupation.trim() !== '';
+  const complianceComplete =
+    allDeclared &&
+    taxCountry.trim() !== '' &&
+    taxIdentifier.trim() !== '' &&
+    fatcaStatus !== 'undetermined';
+  const fundsComplete =
+    hasSource &&
+    sourceOfWealth.trim() !== '' &&
+    accountPurpose.trim() !== '' &&
+    /^\d+(\.\d{1,2})?$/.test(expectedAnnualInvestment);
 
   const canContinue = !(
     (step === 0 && !identityComplete) ||
-    (step === 1 && !allDeclared) ||
+    (step === 1 && !complianceComplete) ||
     (step === 2 && !riskComplete) ||
-    (step === LAST && !hasSource)
+    (step === LAST && !fundsComplete)
   );
 
   const continueLabel = ['Start identity intake', 'Continue', 'Continue', 'Confirm & finish'][step];
@@ -161,13 +200,25 @@ export default function OnboardingPage() {
       const name = fullName.trim();
       const residencyCountry = country.trim();
       const occ = occupation.trim();
-      if (!name || !residencyCountry || !occ) {
-        setError('Enter your full name, country of residence, and occupation.');
+      if (!identityComplete) {
+        setError('Complete every identity, address, residence and citizenship field.');
         return;
       }
       setBusy(true);
       try {
-        await submitIdentity({ fullName: name, residencyCountry, occupation: occ });
+        await submitIdentity({
+          fullName: name,
+          dateOfBirth,
+          placeOfBirth: placeOfBirth.trim(),
+          residentialAddress: residentialAddress.trim(),
+          residencyCountry,
+          citizenships: citizenships
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          occupation: occ,
+          employer: employer.trim() || undefined,
+        });
         setStep((s) => s + 1);
       } catch (err) {
         setError(errorMessage(err, 'Could not save your details.'));
@@ -179,11 +230,18 @@ export default function OnboardingPage() {
     if (step === 1) {
       setBusy(true);
       try {
-        // Their real answer, not a constant. DECLARATIONS carries the PEP item
-        // as a disclosure rather than an affirmation, so this is the one place it
-        // has to be read back out by id rather than by position.
-        const pepIndex = DECLARATIONS.findIndex((d) => d.id === 'pep');
-        await submitCompliance({ isPoliticallyExposed: declared[pepIndex] ?? false });
+        await submitCompliance({
+          pepStatus,
+          taxResidencies: [
+            {
+              country: taxCountry.trim(),
+              identifierType: taxIdType,
+              identifier: taxIdentifier.trim(),
+            },
+          ],
+          fatcaStatus,
+          fatcaForm,
+        });
         setStep((s) => s + 1);
       } catch (err) {
         setError(errorMessage(err, 'Could not save your declarations.'));
@@ -214,7 +272,18 @@ export default function OnboardingPage() {
       if (chosen.length === 0) return;
       setBusy(true);
       try {
-        await submitFunds(chosen);
+        const [whole = '0', fraction = ''] = expectedAnnualInvestment.split('.');
+        const expectedAnnualInvestmentMinor = `${whole}${fraction.padEnd(2, '0')}`.replace(
+          /^0+(?=\d)/,
+          '',
+        );
+        await submitFunds({
+          sources: chosen,
+          sourceOfWealth: sourceOfWealth.trim(),
+          accountPurpose: accountPurpose.trim(),
+          expectedAnnualInvestmentMinor,
+          expectedFrequency,
+        });
         setStep((s) => s + 1);
       } catch (err) {
         setError(errorMessage(err, 'Could not save your source of funds.'));
@@ -261,8 +330,18 @@ export default function OnboardingPage() {
                   onFullNameChange={setFullName}
                   country={country}
                   onCountryChange={setCountry}
+                  dateOfBirth={dateOfBirth}
+                  onDateOfBirthChange={setDateOfBirth}
+                  placeOfBirth={placeOfBirth}
+                  onPlaceOfBirthChange={setPlaceOfBirth}
+                  residentialAddress={residentialAddress}
+                  onResidentialAddressChange={setResidentialAddress}
+                  citizenships={citizenships}
+                  onCitizenshipsChange={setCitizenships}
                   occupation={occupation}
                   onOccupationChange={setOccupation}
+                  employer={employer}
+                  onEmployerChange={setEmployer}
                   recorded={identityIntakeRecorded}
                 />
               ) : null}
@@ -270,6 +349,18 @@ export default function OnboardingPage() {
                 <ComplianceStep
                   declared={declared}
                   onToggle={(i, v) => setDeclared((d) => d.map((x, j) => (j === i ? v : x)))}
+                  pepStatus={pepStatus}
+                  onPepStatusChange={setPepStatus}
+                  taxCountry={taxCountry}
+                  onTaxCountryChange={setTaxCountry}
+                  taxIdType={taxIdType}
+                  onTaxIdTypeChange={setTaxIdType}
+                  taxIdentifier={taxIdentifier}
+                  onTaxIdentifierChange={setTaxIdentifier}
+                  fatcaStatus={fatcaStatus}
+                  onFatcaStatusChange={setFatcaStatus}
+                  fatcaForm={fatcaForm}
+                  onFatcaFormChange={setFatcaForm}
                 />
               ) : null}
               {step === 2 ? (
@@ -285,6 +376,14 @@ export default function OnboardingPage() {
                 <FundsStep
                   sources={sources}
                   onToggle={(id, v) => setSources((s) => ({ ...s, [id]: v }))}
+                  sourceOfWealth={sourceOfWealth}
+                  onSourceOfWealthChange={setSourceOfWealth}
+                  accountPurpose={accountPurpose}
+                  onAccountPurposeChange={setAccountPurpose}
+                  expectedAnnualInvestment={expectedAnnualInvestment}
+                  onExpectedAnnualInvestmentChange={setExpectedAnnualInvestment}
+                  expectedFrequency={expectedFrequency}
+                  onExpectedFrequencyChange={setExpectedFrequency}
                 />
               ) : null}
 
@@ -384,16 +483,36 @@ function IdentityStep({
   onFullNameChange,
   country,
   onCountryChange,
+  dateOfBirth,
+  onDateOfBirthChange,
+  placeOfBirth,
+  onPlaceOfBirthChange,
+  residentialAddress,
+  onResidentialAddressChange,
+  citizenships,
+  onCitizenshipsChange,
   occupation,
   onOccupationChange,
+  employer,
+  onEmployerChange,
   recorded,
 }: {
   fullName: string;
   onFullNameChange: (v: string) => void;
   country: string;
   onCountryChange: (v: string) => void;
+  dateOfBirth: string;
+  onDateOfBirthChange: (v: string) => void;
+  placeOfBirth: string;
+  onPlaceOfBirthChange: (v: string) => void;
+  residentialAddress: string;
+  onResidentialAddressChange: (v: string) => void;
+  citizenships: string;
+  onCitizenshipsChange: (v: string) => void;
   occupation: string;
   onOccupationChange: (v: string) => void;
+  employer: string;
+  onEmployerChange: (v: string) => void;
   recorded: boolean;
 }) {
   return (
@@ -407,6 +526,37 @@ function IdentityStep({
           onChange={(e) => onFullNameChange(e.target.value)}
           autoComplete="name"
           placeholder="As it appears on your ID"
+        />
+      </div>
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="date-of-birth">Date of birth</Label>
+          <Input
+            id="date-of-birth"
+            type="date"
+            value={dateOfBirth}
+            onChange={(e) => onDateOfBirthChange(e.target.value)}
+            autoComplete="bday"
+          />
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="place-of-birth">Place of birth</Label>
+          <Input
+            id="place-of-birth"
+            value={placeOfBirth}
+            onChange={(e) => onPlaceOfBirthChange(e.target.value)}
+            placeholder="City and country"
+          />
+        </div>
+      </div>
+      <div className="mb-4 flex flex-col gap-1.5">
+        <Label htmlFor="residential-address">Residential address</Label>
+        <Input
+          id="residential-address"
+          value={residentialAddress}
+          onChange={(e) => onResidentialAddressChange(e.target.value)}
+          autoComplete="street-address"
+          placeholder="Full current residential address"
         />
       </div>
       <div className="mb-4 flex flex-col gap-4 sm:flex-row">
@@ -438,6 +588,18 @@ function IdentityStep({
           </Select>
         </div>
         <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="citizenships">Citizenship(s)</Label>
+          <Input
+            id="citizenships"
+            value={citizenships}
+            onChange={(e) => onCitizenshipsChange(e.target.value)}
+            placeholder="Jamaica, Canada"
+          />
+          <span className="text-xs text-faint">Separate dual citizenships with commas.</span>
+        </div>
+      </div>
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row">
+        <div className="flex flex-1 flex-col gap-1.5">
           <Label htmlFor="occupation">Occupation</Label>
           <Input
             id="occupation"
@@ -446,6 +608,15 @@ function IdentityStep({
             onChange={(e) => onOccupationChange(e.target.value)}
             autoComplete="organization-title"
             placeholder="e.g. Software engineer"
+          />
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="employer">Employer (if applicable)</Label>
+          <Input
+            id="employer"
+            value={employer}
+            onChange={(e) => onEmployerChange(e.target.value)}
+            autoComplete="organization"
           />
         </div>
       </div>
@@ -474,13 +645,126 @@ function Callout({ children }: { children: React.ReactNode }) {
 function ComplianceStep({
   declared,
   onToggle,
+  pepStatus,
+  onPepStatusChange,
+  taxCountry,
+  onTaxCountryChange,
+  taxIdType,
+  onTaxIdTypeChange,
+  taxIdentifier,
+  onTaxIdentifierChange,
+  fatcaStatus,
+  onFatcaStatusChange,
+  fatcaForm,
+  onFatcaFormChange,
 }: {
   declared: boolean[];
   onToggle: (i: number, v: boolean) => void;
+  pepStatus: 'none' | 'self' | 'family' | 'close_associate';
+  onPepStatusChange: (v: 'none' | 'self' | 'family' | 'close_associate') => void;
+  taxCountry: string;
+  onTaxCountryChange: (v: string) => void;
+  taxIdType: 'trn' | 'ssn' | 'tin' | 'national_id' | 'other';
+  onTaxIdTypeChange: (v: 'trn' | 'ssn' | 'tin' | 'national_id' | 'other') => void;
+  taxIdentifier: string;
+  onTaxIdentifierChange: (v: string) => void;
+  fatcaStatus: 'us_person' | 'non_us_person' | 'undetermined';
+  onFatcaStatusChange: (v: 'us_person' | 'non_us_person' | 'undetermined') => void;
+  fatcaForm: 'w9' | 'w8ben' | 'not_applicable';
+  onFatcaFormChange: (v: 'w9' | 'w8ben' | 'not_applicable') => void;
 }) {
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0">
       <legend className="sr-only">Declarations</legend>
+      <div className="mb-5 grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="pep-status">Politically exposed person status</Label>
+          <Select
+            value={pepStatus}
+            onValueChange={(value) => onPepStatusChange(value as typeof pepStatus)}
+          >
+            <SelectTrigger id="pep-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not a PEP</SelectItem>
+              <SelectItem value="self">I am a PEP</SelectItem>
+              <SelectItem value="family">Family member of a PEP</SelectItem>
+              <SelectItem value="close_associate">Close associate of a PEP</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="tax-country">Tax residence</Label>
+          <Input
+            id="tax-country"
+            value={taxCountry}
+            onChange={(e) => onTaxCountryChange(e.target.value)}
+            placeholder="Country"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="tax-id-type">Tax identifier type</Label>
+          <Select
+            value={taxIdType}
+            onValueChange={(value) => onTaxIdTypeChange(value as typeof taxIdType)}
+          >
+            <SelectTrigger id="tax-id-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="trn">TRN</SelectItem>
+              <SelectItem value="ssn">SSN</SelectItem>
+              <SelectItem value="tin">TIN</SelectItem>
+              <SelectItem value="national_id">National ID</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="tax-identifier">TRN / SSN / TIN</Label>
+          <Input
+            id="tax-identifier"
+            type="password"
+            value={taxIdentifier}
+            onChange={(e) => onTaxIdentifierChange(e.target.value)}
+            autoComplete="off"
+          />
+          <span className="text-xs text-faint">Encrypted before storage.</span>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fatca-status">FATCA status</Label>
+          <Select
+            value={fatcaStatus}
+            onValueChange={(value) => onFatcaStatusChange(value as typeof fatcaStatus)}
+          >
+            <SelectTrigger id="fatca-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="undetermined">Select status</SelectItem>
+              <SelectItem value="us_person">U.S. person</SelectItem>
+              <SelectItem value="non_us_person">Not a U.S. person</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fatca-form">Tax form</Label>
+          <Select
+            value={fatcaForm}
+            onValueChange={(value) => onFatcaFormChange(value as typeof fatcaForm)}
+          >
+            <SelectTrigger id="fatca-form">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="w9">W-9</SelectItem>
+              <SelectItem value="w8ben">W-8BEN</SelectItem>
+              <SelectItem value="not_applicable">Not yet provided</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       <div className="flex flex-col gap-[11px]">
         {DECLARATIONS.map((d, i) => (
           <ToggleRow
@@ -498,9 +782,27 @@ function ComplianceStep({
 function FundsStep({
   sources,
   onToggle,
+  sourceOfWealth,
+  onSourceOfWealthChange,
+  accountPurpose,
+  onAccountPurposeChange,
+  expectedAnnualInvestment,
+  onExpectedAnnualInvestmentChange,
+  expectedFrequency,
+  onExpectedFrequencyChange,
 }: {
   sources: Record<string, boolean>;
   onToggle: (id: string, v: boolean) => void;
+  sourceOfWealth: string;
+  onSourceOfWealthChange: (v: string) => void;
+  accountPurpose: string;
+  onAccountPurposeChange: (v: string) => void;
+  expectedAnnualInvestment: string;
+  onExpectedAnnualInvestmentChange: (v: string) => void;
+  expectedFrequency: 'one_off' | 'monthly' | 'quarterly' | 'annually' | 'irregular';
+  onExpectedFrequencyChange: (
+    v: 'one_off' | 'monthly' | 'quarterly' | 'annually' | 'irregular',
+  ) => void;
 }) {
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0">
@@ -516,6 +818,53 @@ function FundsStep({
             label={s.label}
           />
         ))}
+      </div>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor="source-of-wealth">Source of wealth</Label>
+          <Input
+            id="source-of-wealth"
+            value={sourceOfWealth}
+            onChange={(e) => onSourceOfWealthChange(e.target.value)}
+            placeholder="How your overall wealth was accumulated"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor="account-purpose">Purpose of this account</Label>
+          <Input
+            id="account-purpose"
+            value={accountPurpose}
+            onChange={(e) => onAccountPurposeChange(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="expected-annual">Expected annual investment (USD)</Label>
+          <Input
+            id="expected-annual"
+            inputMode="decimal"
+            value={expectedAnnualInvestment}
+            onChange={(e) => onExpectedAnnualInvestmentChange(e.target.value)}
+            placeholder="12000"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="expected-frequency">Expected frequency</Label>
+          <Select
+            value={expectedFrequency}
+            onValueChange={(value) => onExpectedFrequencyChange(value as typeof expectedFrequency)}
+          >
+            <SelectTrigger id="expected-frequency">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="one_off">One-off</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+              <SelectItem value="annually">Annually</SelectItem>
+              <SelectItem value="irregular">Irregular</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </fieldset>
   );
@@ -704,10 +1053,31 @@ function DoneStep({ band }: { band: string }) {
 
 /** What each upload slot asks for, in the reader's words. `compliance` is the
  *  address-and-tax step, so it holds the proof-of-address document. */
-const DOC_SLOTS: { step: KycDocument['step']; label: string; hint: string }[] = [
-  { step: 'identity', label: 'Photo ID', hint: 'Passport or national ID' },
-  { step: 'compliance', label: 'Proof of address', hint: 'Utility bill or bank statement' },
-  { step: 'funds', label: 'Source of funds', hint: 'Payslip or account statement' },
+const DOC_SLOTS: {
+  step: KycDocument['step'];
+  documentType: NonNullable<KycDocument['documentType']>;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    step: 'identity',
+    documentType: 'government_id',
+    label: 'Photo ID',
+    hint: 'Passport or national ID',
+  },
+  {
+    step: 'compliance',
+    documentType: 'proof_of_address',
+    label: 'Proof of address',
+    hint: 'Utility bill or bank statement',
+  },
+  {
+    step: 'funds',
+    documentType: 'source_of_funds',
+    label: 'Source of funds',
+    hint: 'Payslip or account statement',
+  },
+  { step: 'compliance', documentType: 'tax_form', label: 'FATCA tax form', hint: 'W-9 or W-8BEN' },
 ];
 
 /**
@@ -727,18 +1097,25 @@ function DocumentUploads() {
       .catch(() => {});
   }, []);
 
-  async function onPick(step: KycDocument['step'], file: File | undefined) {
+  async function onPick(
+    step: KycDocument['step'],
+    documentType: NonNullable<KycDocument['documentType']>,
+    file: File | undefined,
+  ) {
     if (!file) return;
-    setBusyStep(step);
+    setBusyStep(documentType);
     setError(null);
     try {
-      const { id } = await uploadKycDocument({ step, file });
+      const { id } = await uploadKycDocument({ step, documentType, file });
       setDocs((ds) => [
         {
           id,
           step,
+          documentType,
           label: file.name,
           mime: file.type,
+          issuingCountry: null,
+          expiresAt: null,
           createdAt: new Date().toISOString(),
         },
         ...ds,
@@ -759,10 +1136,10 @@ function DocumentUploads() {
       </p>
       <div className="flex flex-col gap-2">
         {DOC_SLOTS.map((slot) => {
-          const uploaded = docs.find((d) => d.step === slot.step);
+          const uploaded = docs.find((d) => d.documentType === slot.documentType);
           return (
             <label
-              key={slot.step}
+              key={slot.documentType}
               className="flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-solid border-border bg-card px-3 py-2.5"
             >
               {uploaded ? (
@@ -777,7 +1154,7 @@ function DocumentUploads() {
                 </span>
               </span>
               <span className="text-[12.5px] font-bold text-teal2">
-                {busyStep === slot.step ? 'Uploading…' : uploaded ? 'Replace' : 'Add'}
+                {busyStep === slot.documentType ? 'Uploading…' : uploaded ? 'Replace' : 'Add'}
               </span>
               <input
                 type="file"
@@ -785,7 +1162,7 @@ function DocumentUploads() {
                 className="sr-only"
                 disabled={busyStep !== null}
                 onChange={(e) => {
-                  void onPick(slot.step, e.target.files?.[0]);
+                  void onPick(slot.step, slot.documentType, e.target.files?.[0]);
                   e.target.value = '';
                 }}
               />

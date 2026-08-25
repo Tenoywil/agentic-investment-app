@@ -58,9 +58,11 @@ export function isDatabaseBehind(err: unknown): boolean {
     ) {
       return true;
     }
-    // A missing column, relation or function. No message match: unlike a
-    // permission refusal, there is no legitimate reading of these.
-    if (code === '42703' || code === '42P01' || code === '42883') return true;
+    // A missing column or relation can only mean schema drift here. PostgreSQL
+    // also uses 42883 for invalid operators (for example ILIKE on an enum), so
+    // classify only its explicit "function ... does not exist" shape as drift.
+    if (code === '42703' || code === '42P01') return true;
+    if (code === '42883' && /function .+ does not exist/i.test(message ?? '')) return true;
     e = (e as { cause?: unknown }).cause;
   }
   return false;

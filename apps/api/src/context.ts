@@ -1,6 +1,7 @@
 import type { ServerConfig } from '@ccn/config';
 import type { Database, Transaction } from '@ccn/db';
 import { withRls } from '@ccn/db';
+import type { FieldCipher } from '@ccn/security';
 import type { Auth } from './auth';
 import type { Logger } from './logger';
 
@@ -16,6 +17,7 @@ export interface AppDeps {
   auth: Auth;
   config: ServerConfig;
   logger: Logger;
+  kycFieldCipher?: FieldCipher;
 }
 
 /** The authenticated caller's resolved identity, roles, and tenant scope. */

@@ -1,3 +1,4 @@
+import { createFieldCipher, parseKeyMaterial } from '@ccn/security';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { createDb } from './client';
 import { seedDemoCustomer } from './demo/customer';
@@ -117,7 +118,12 @@ async function main(): Promise<void> {
 
     // The demo customer's whole account, from the one definition that runtime
     // provisioning also uses (see packages/db/src/demo/customer.ts).
-    await seedDemoCustomer(db, demoId);
+    const encryptionKey = process.env.FIELD_ENCRYPTION_KEY;
+    if (!encryptionKey) {
+      throw new Error('FIELD_ENCRYPTION_KEY is required for a full demo seed');
+    }
+    const kycCipher = createFieldCipher({ id: 'k1', material: parseKeyMaterial(encryptionKey) });
+    await seedDemoCustomer(db, demoId, kycCipher);
     await db.insert(userRoles).values({ userId: demoId, role: 'customer' }).onConflictDoNothing();
 
     // Anchor (SAG) console: reset-then-insert -------------------------------

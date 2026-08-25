@@ -43,7 +43,7 @@ export const ONB_LABELS = ['Identity', 'Compliance', 'Risk', 'Funds'];
  * that carries the KYC obligation needs told, which is exactly what CCN is for.
  */
 export interface Declaration {
-  id: 'pep' | 'taxResidency' | 'risk';
+  id: 'taxResidency' | 'risk';
   text: string;
   /** False for a disclosure: it is recorded either way and blocks nothing. */
   mustBeTrue: boolean;
@@ -59,11 +59,6 @@ export const DECLARATIONS: Declaration[] = [
     id: 'risk',
     text: 'I understand investments carry risk and may lose value',
     mustBeTrue: true,
-  },
-  {
-    id: 'pep',
-    text: 'I am a Politically Exposed Person (PEP), or a close associate or family member of one',
-    mustBeTrue: false,
   },
 ];
 

@@ -7,8 +7,10 @@ import {
   goals,
   holdings,
   instruments,
+  kycDossiers,
   kycStatus,
   limits,
+  partnerKycReviews,
   partners,
   riskProfiles,
   user,
@@ -39,11 +41,22 @@ const usd = (dollars: number): bigint => BigInt(Math.round(dollars * 100));
  * superuser and bypass RLS entirely. The API therefore calls this inside
  * `withRls` (see apps/api/src/provisioning.ts).
  */
-export async function seedDemoCustomer(db: Database | Transaction, userId: string): Promise<void> {
+export interface KycCipherPort {
+  encrypt(plaintext: string, context: string): Promise<string>;
+}
+
+export async function seedDemoCustomer(
+  db: Database | Transaction,
+  userId: string,
+  cipher?: KycCipherPort,
+): Promise<void> {
   // Reference data the block below joins against. Seeded separately by the CLI;
   // absent rows simply leave a holding unlinked rather than failing.
-  const partnerRows = await db.select({ id: partners.id, code: partners.code }).from(partners);
+  const partnerRows = await db
+    .select({ id: partners.id, code: partners.code, residency: partners.residency })
+    .from(partners);
   const partnerIdByCode = new Map(partnerRows.map((p) => [p.code as string, p.id]));
+  const partnerResidencyByCode = new Map(partnerRows.map((p) => [p.code as string, p.residency]));
   const instrumentRows = await db
     .select({ id: instruments.id, slug: instruments.slug, metric: instruments.metric })
     .from(instruments);
@@ -77,6 +90,72 @@ export async function seedDemoCustomer(db: Database | Transaction, userId: strin
       sources: ['salary'],
     })
     .onConflictDoNothing({ target: kycStatus.userId });
+  if (cipher) {
+    const [account] = await db
+      .select({ name: user.name })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    const identityCiphertext = await cipher.encrypt(
+      JSON.stringify({
+        fullName: account?.name ?? 'Marcus A. Bailey',
+        dateOfBirth: '1987-04-16',
+        placeOfBirth: 'Kingston, Jamaica',
+        residentialAddress: '12 Demo Crescent, London, United Kingdom',
+        residencyCountry: 'United Kingdom',
+        citizenships: ['Jamaica', 'United Kingdom'],
+        occupation: 'Software Engineer',
+        employer: 'CCN Scenario Employer',
+      }),
+      `kyc_dossiers.identity:${userId}`,
+    );
+    const complianceCiphertext = await cipher.encrypt(
+      JSON.stringify({
+        pepStatus: 'none',
+        taxResidencies: [
+          { country: 'United Kingdom', identifierType: 'tin', identifier: 'DEMO-TIN-BAILEY-001' },
+        ],
+        fatcaStatus: 'non_us_person',
+        fatcaForm: 'w8ben',
+        taxResidencyDeclared: true,
+        risksUnderstood: true,
+      }),
+      `kyc_dossiers.compliance:${userId}`,
+    );
+    const fundsCiphertext = await cipher.encrypt(
+      JSON.stringify({
+        sources: ['salary'],
+        sourceOfWealth: 'Employment income and long-term savings',
+        accountPurpose: 'Long-term investment and education planning',
+        expectedAnnualInvestmentMinor: '2400000',
+        expectedFrequency: 'monthly',
+      }),
+      `kyc_dossiers.funds:${userId}`,
+    );
+    const nextReviewAt = new Date();
+    nextReviewAt.setUTCFullYear(nextReviewAt.getUTCFullYear() + 1);
+    await db
+      .insert(kycDossiers)
+      .values({
+        userId,
+        identityCiphertext,
+        complianceCiphertext,
+        fundsCiphertext,
+        consentedAt: new Date(),
+        nextReviewAt,
+      })
+      .onConflictDoUpdate({
+        target: kycDossiers.userId,
+        set: {
+          identityCiphertext,
+          complianceCiphertext,
+          fundsCiphertext,
+          consentedAt: new Date(),
+          nextReviewAt,
+          updatedAt: new Date(),
+        },
+      });
+  }
   await db.insert(limits).values({ userId: userId }).onConflictDoNothing({ target: limits.userId });
 
   // Reset-then-insert the demo user's owned rows ---------------------------
@@ -132,6 +211,35 @@ export async function seedDemoCustomer(db: Database | Transaction, userId: strin
       .values({ userId, partnerId, label: acc.label, status: 'active', reviewedAt: new Date() })
       .returning({ id: connectedAccounts.id });
     if (!account) continue;
+    const residency = partnerResidencyByCode.get(acc.code);
+    const policyKey =
+      residency === 'Guyana'
+        ? 'GY'
+        : residency === 'Trinidad and Tobago'
+          ? 'TT'
+          : residency === 'United States'
+            ? 'US-NY'
+            : 'JM';
+    const nextReviewAt = new Date();
+    nextReviewAt.setUTCFullYear(nextReviewAt.getUTCFullYear() + 1);
+    await db.insert(partnerKycReviews).values({
+      connectedAccountId: account.id,
+      partnerId,
+      userId,
+      policyKey,
+      status: 'approved',
+      amlRiskRating: 'medium',
+      identityVerified: true,
+      addressVerified: true,
+      sanctionsClear: true,
+      pepReviewComplete: true,
+      fundsVerified: true,
+      taxDocumentationComplete: true,
+      seniorApproval: false,
+      reviewedAt: new Date(),
+      nextReviewAt,
+      notes: 'Deterministic seeded evidence for the allowlisted scenario account.',
+    });
     await db.insert(holdings).values(
       acc.holdings.map((h) => ({
         userId,

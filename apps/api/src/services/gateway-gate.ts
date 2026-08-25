@@ -1,6 +1,6 @@
 import { gatewayClaims, gatewayEvidence, gatewayOpportunities } from '@ccn/db';
 import type { Transaction } from '@ccn/db';
-import type { GatewayOpportunityStatus } from '@ccn/domain';
+import { type GatewayOpportunityStatus, LAUNCH_INVESTMENT_MARKETS } from '@ccn/domain';
 import type { GuardrailInput, GuardrailPolicy } from '@ccn/gateway-guardrail';
 import { eq } from 'drizzle-orm';
 
@@ -14,7 +14,7 @@ import { eq } from 'drizzle-orm';
  * not scattered magic numbers, and the one place to change as the pilot grows.
  */
 export const GATEWAY_POLICY: GuardrailPolicy = {
-  permittedJurisdictions: ['Jamaica', 'Trinidad and Tobago', 'Barbados'],
+  permittedJurisdictions: [...LAUNCH_INVESTMENT_MARKETS],
   permittedSectors: [
     'Renewable Energy',
     'Technology',

@@ -6,6 +6,7 @@ import {
   instruments,
   kycStatus,
   limits,
+  partnerKycReviews,
   partners,
   riskProfiles,
   user,
@@ -146,6 +147,23 @@ suite('trading: gate → order → accept → settle + realtime', () => {
       complianceConfirmed: true,
       riskCompleted: true,
       fundsConfirmed: true,
+    });
+    const nextReviewAt = new Date();
+    nextReviewAt.setUTCFullYear(nextReviewAt.getUTCFullYear() + 1);
+    await db.insert(partnerKycReviews).values({
+      connectedAccountId: acct?.id ?? '',
+      partnerId: ncbId,
+      userId: u1,
+      policyKey: 'JM',
+      status: 'approved',
+      amlRiskRating: 'medium',
+      identityVerified: true,
+      addressVerified: true,
+      sanctionsClear: true,
+      pepReviewComplete: true,
+      fundsVerified: true,
+      taxDocumentationComplete: true,
+      nextReviewAt,
     });
     await db
       .insert(riskProfiles)

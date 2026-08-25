@@ -54,7 +54,9 @@ const fmtDate = (d: Date | null) =>
 const REGULATOR_LABELS: Record<string, string> = {
   FSC_JAMAICA: 'FSC Jamaica',
   FSC_BARBADOS: 'FSC Barbados',
-  FSC_TRINIDAD_TOBAGO: 'FSC Trinidad & Tobago',
+  GSC_GUYANA: 'Guyana Securities Council',
+  TTSEC_TRINIDAD_TOBAGO: 'TTSEC Trinidad & Tobago',
+  FSC_TRINIDAD_TOBAGO: 'TTSEC Trinidad & Tobago (legacy code)',
 };
 
 export function renderContractNote(d: ContractNoteData): string {

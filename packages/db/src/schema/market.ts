@@ -118,6 +118,37 @@ export const connectedAccounts = pgTable('connected_accounts', {
   updatedAt: updatedAt(),
 });
 
+/** The licensed firm's own KYC/AML decision for one connected account. */
+export const partnerKycReviews = pgTable('partner_kyc_reviews', {
+  connectedAccountId: uuid('connected_account_id')
+    .primaryKey()
+    .references(() => connectedAccounts.id, { onDelete: 'cascade' }),
+  partnerId: uuid('partner_id')
+    .notNull()
+    .references(() => partners.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  policyKey: text('policy_key').notNull(),
+  status: text('status')
+    .$type<'pending' | 'needs_info' | 'edd' | 'approved' | 'declined'>()
+    .notNull(),
+  amlRiskRating: text('aml_risk_rating').$type<'low' | 'medium' | 'high'>(),
+  identityVerified: boolean('identity_verified').notNull().default(false),
+  addressVerified: boolean('address_verified').notNull().default(false),
+  sanctionsClear: boolean('sanctions_clear').notNull().default(false),
+  pepReviewComplete: boolean('pep_review_complete').notNull().default(false),
+  fundsVerified: boolean('funds_verified').notNull().default(false),
+  taxDocumentationComplete: boolean('tax_documentation_complete').notNull().default(false),
+  seniorApproval: boolean('senior_approval').notNull().default(false),
+  notes: text('notes'),
+  reviewedBy: uuid('reviewed_by').references(() => user.id),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  nextReviewAt: timestamp('next_review_at', { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 /**
  * Withdrawal requests: the investor asks their firm for money back; the firm
  * pays or declines. Rows are written ONLY through `request_withdrawal` and

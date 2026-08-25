@@ -4,7 +4,9 @@ import {
   connectedAccounts,
   instruments,
   kycDocuments,
+  kycDossiers,
   orders as ordersTable,
+  partnerKycReviews,
   partnerWebhookDeliveries,
   partnerWebhookEndpoints,
   partners,
@@ -15,18 +17,21 @@ import {
 } from '@ccn/db';
 import {
   AUDIT_DECISION_ACTIONS,
+  JURISDICTION_POLICIES,
   type ListInstrumentInput,
   acceptOrderSchema,
   bulkListInstrumentSchema,
   confirmFundsSchema,
   decideWithdrawalSchema,
   listInstrumentSchema,
+  partnerKycReviewSchema,
   partnerProfileSchema,
   partnerWebhookSchema,
   rejectSchema,
   settleOrderSchema,
 } from '@ccn/domain';
 import { formatMoney, money } from '@ccn/money';
+import type { FieldCipher } from '@ccn/security';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -165,6 +170,7 @@ function readPage(c: Context<AppEnv>): { limit: number; offset: number } {
 export function consoleRoutes(
   deps: AppDeps,
   partnerWebhooks: PartnerWebhookAdminRuntime,
+  security: { fieldCipher?: FieldCipher } = {},
 ): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
@@ -936,13 +942,29 @@ export function consoleRoutes(
         .select({
           id: kycDocuments.id,
           step: kycDocuments.step,
+          documentType: kycDocuments.documentType,
           label: kycDocuments.label,
+          issuingCountry: kycDocuments.issuingCountry,
+          expiresAt: kycDocuments.expiresAt,
           mime: kycDocuments.mime,
           createdAt: kycDocuments.createdAt,
         })
         .from(kycDocuments)
         .where(eq(kycDocuments.userId, client.user_id))
         .orderBy(desc(kycDocuments.createdAt));
+      const [dossier] = await tx
+        .select({
+          identity: kycDossiers.identityCiphertext,
+          compliance: kycDossiers.complianceCiphertext,
+          funds: kycDossiers.fundsCiphertext,
+          nextReviewAt: kycDossiers.nextReviewAt,
+        })
+        .from(kycDossiers)
+        .where(eq(kycDossiers.userId, client.user_id));
+      const intake =
+        security.fieldCipher && dossier
+          ? await decryptPartnerIntake(security.fieldCipher, client.user_id, dossier)
+          : null;
       // The relationship over time: this client's value held through THIS
       // firm, one point per day (scope 'client', 0032) — never their
       // cross-firm net worth, which is theirs and not any one firm's to see.
@@ -958,12 +980,13 @@ export function consoleRoutes(
         )
         .orderBy(valueSnapshots.takenOn)
         .limit(366);
-      return { client, holdings, orders: clientOrders, audit: history, documents, equity };
+      return { client, holdings, orders: clientOrders, audit: history, documents, intake, equity };
     });
 
     // Not found and not-yours are the same answer, so an account id cannot be
     // probed by watching which one comes back.
     if (!detail) return c.json({ error: 'client not found' }, 404);
+    c.header('Cache-Control', 'private, no-store');
     return c.json({
       ...detail,
       equity: detail.equity.map((p) => ({ takenOn: p.takenOn, heldMinor: p.heldMinor.toString() })),
@@ -999,6 +1022,8 @@ export function consoleRoutes(
       headers: {
         'Content-Type': doc.mime ?? 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${doc.label.replace(/[^\w. -]/g, '_')}"`,
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   });
@@ -1025,7 +1050,22 @@ export function consoleRoutes(
     if ('error' in scope) return c.json(scope, 403);
 
     let reason: string | null = null;
-    if (!accept) {
+    let acceptedReview: ReturnType<typeof partnerKycReviewSchema.parse> | null = null;
+    if (accept) {
+      const parsed = partnerKycReviewSchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success)
+        return c.json({ error: 'invalid review', issues: parsed.error.issues }, 400);
+      const governingPolicy = JURISDICTION_POLICIES.find(
+        (policy) => policy.key === parsed.data.policyKey,
+      );
+      if (!governingPolicy || governingPolicy.phase !== 'launch') {
+        return c.json(
+          { error: 'That corridor is retained for future use but is not active for onboarding.' },
+          409,
+        );
+      }
+      acceptedReview = parsed.data;
+    } else {
       const parsed = rejectSchema.safeParse(await c.req.json().catch(() => ({})));
       if (!parsed.success)
         return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
@@ -1034,13 +1074,61 @@ export function consoleRoutes(
 
     const id = c.req.param('id');
     try {
-      const status = await withTenant(deps, tenant, (tx) =>
-        partnerReviewClient(tx, id, accept, reason),
-      );
+      const status = await withTenant(deps, tenant, async (tx) => {
+        if (accept && acceptedReview) {
+          const client = (await partnerClients(tx)).find((row) => row.account_id === id);
+          if (!client) throw new Error('connection is not at this partner');
+          if (client.is_pep && !acceptedReview.seniorApproval) {
+            throw new Error('PEP review requires senior approval');
+          }
+          await tx
+            .insert(partnerKycReviews)
+            .values({
+              connectedAccountId: id,
+              partnerId: scope.partnerId,
+              userId: client.user_id,
+              policyKey: acceptedReview.policyKey,
+              status: 'approved',
+              amlRiskRating: acceptedReview.amlRiskRating,
+              identityVerified: acceptedReview.identityVerified,
+              addressVerified: acceptedReview.addressVerified,
+              sanctionsClear: acceptedReview.sanctionsClear,
+              pepReviewComplete: acceptedReview.pepReviewComplete,
+              fundsVerified: acceptedReview.fundsVerified,
+              taxDocumentationComplete: acceptedReview.taxDocumentationComplete,
+              seniorApproval: acceptedReview.seniorApproval,
+              notes: acceptedReview.notes,
+              reviewedBy: tenant.user.id,
+              reviewedAt: new Date(),
+              nextReviewAt: new Date(acceptedReview.nextReviewAt),
+            })
+            .onConflictDoUpdate({
+              target: partnerKycReviews.connectedAccountId,
+              set: {
+                policyKey: acceptedReview.policyKey,
+                status: 'approved',
+                amlRiskRating: acceptedReview.amlRiskRating,
+                identityVerified: acceptedReview.identityVerified,
+                addressVerified: acceptedReview.addressVerified,
+                sanctionsClear: acceptedReview.sanctionsClear,
+                pepReviewComplete: acceptedReview.pepReviewComplete,
+                fundsVerified: acceptedReview.fundsVerified,
+                taxDocumentationComplete: acceptedReview.taxDocumentationComplete,
+                seniorApproval: acceptedReview.seniorApproval,
+                notes: acceptedReview.notes,
+                reviewedBy: tenant.user.id,
+                reviewedAt: new Date(),
+                nextReviewAt: new Date(acceptedReview.nextReviewAt),
+                updatedAt: new Date(),
+              },
+            });
+        }
+        return partnerReviewClient(tx, id, accept, reason);
+      });
       deps.logger.info('partner reviewed a client', { partner: scope.partnerId, status });
       return c.json({ status });
     } catch (err) {
-      if (raisedBy(err, 'has completed no KYC')) {
+      if (raisedBy(err, 'incomplete KYC intake')) {
         return c.json(
           {
             error:
@@ -1048,6 +1136,12 @@ export function consoleRoutes(
           },
           409,
         );
+      }
+      if (raisedBy(err, 'requires senior approval')) {
+        return c.json({ error: 'PEP and high-risk reviews require senior approval.' }, 409);
+      }
+      if (raisedBy(err, 'no approved partner KYC review')) {
+        return c.json({ error: 'Complete every KYC/AML review control before accepting.' }, 409);
       }
       if (raisedBy(err, 'is already')) {
         return c.json({ error: 'that client is already in that state' }, 409);
@@ -1524,7 +1618,7 @@ export function consoleRoutes(
       eq(instruments.partnerId, scope.partnerId),
       status === 'live' || status === 'paused' ? eq(instruments.listingStatus, status) : undefined,
       q
-        ? sql`(${instruments.name} ilike ${`%${q}%`} or ${instruments.abbr} ilike ${`%${q}%`} or ${instruments.type} ilike ${`%${q}%`})`
+        ? sql`(${instruments.name} ilike ${`%${q}%`} or ${instruments.abbr} ilike ${`%${q}%`} or ${instruments.type}::text ilike ${`%${q}%`})`
         : undefined,
     );
     const { rows, total } = await withTenant(deps, tenant, async (tx) => ({
@@ -1801,4 +1895,41 @@ export function consoleRoutes(
   });
 
   return app;
+}
+
+async function decryptPartnerIntake(
+  cipher: FieldCipher,
+  userId: string,
+  dossier: {
+    identity: string | null;
+    compliance: string | null;
+    funds: string | null;
+    nextReviewAt: Date | null;
+  },
+) {
+  const open = async (value: string | null, section: 'identity' | 'compliance' | 'funds') =>
+    value ? JSON.parse(await cipher.decrypt(value, `kyc_dossiers.${section}:${userId}`)) : null;
+  const [identity, complianceRaw, funds] = await Promise.all([
+    open(dossier.identity, 'identity'),
+    open(dossier.compliance, 'compliance'),
+    open(dossier.funds, 'funds'),
+  ]);
+  const compliance =
+    complianceRaw && typeof complianceRaw === 'object'
+      ? {
+          ...complianceRaw,
+          taxResidencies: Array.isArray(complianceRaw.taxResidencies)
+            ? complianceRaw.taxResidencies.map((entry: unknown) => {
+                if (!entry || typeof entry !== 'object') return entry;
+                const value = entry as Record<string, unknown>;
+                const identifier = typeof value.identifier === 'string' ? value.identifier : '';
+                return {
+                  ...value,
+                  identifier: identifier ? `••••${identifier.slice(-4)}` : undefined,
+                };
+              })
+            : [],
+        }
+      : null;
+  return { identity, compliance, funds, nextReviewAt: dossier.nextReviewAt };
 }

@@ -497,9 +497,44 @@ export interface ConsoleClientHolding {
 export interface ConsoleClientDocument {
   id: string;
   step: 'identity' | 'compliance' | 'risk' | 'funds';
+  documentType: string | null;
   label: string;
+  issuingCountry: string | null;
+  expiresAt: string | null;
   mime: string | null;
   createdAt: string;
+}
+
+export interface ConsoleClientIntake {
+  identity: {
+    fullName?: string;
+    dateOfBirth?: string;
+    placeOfBirth?: string;
+    residentialAddress?: string;
+    residencyCountry?: string;
+    citizenships?: string[];
+    occupation?: string;
+    employer?: string;
+  } | null;
+  compliance: {
+    pepStatus?: string;
+    fatcaStatus?: string;
+    fatcaForm?: string;
+    taxResidencies?: Array<{
+      country?: string;
+      identifierType?: string;
+      identifier?: string;
+      noIdentifierReason?: string;
+    }>;
+  } | null;
+  funds: {
+    sources?: string[];
+    sourceOfWealth?: string;
+    accountPurpose?: string;
+    expectedAnnualInvestmentMinor?: string;
+    expectedFrequency?: string;
+  } | null;
+  nextReviewAt: string | null;
 }
 
 /** One day of a client's value held through this firm, minor units as string. */
@@ -516,6 +551,7 @@ export interface ConsoleClientDetail {
   /** What stands behind the declarations. Empty = they uploaded nothing yet,
    *  and the review screen says so rather than hiding the section. */
   documents: ConsoleClientDocument[];
+  intake: ConsoleClientIntake | null;
   /** The relationship's curve: value held through THIS firm, one point per
    *  day since 0032 shipped. Never the client's cross-firm net worth. */
   equity: ClientEquityPoint[];
@@ -553,11 +589,26 @@ export function reviewClient(
   id: string,
   accept: boolean,
   reason?: string,
+  review?: PartnerKycReviewInput,
 ): Promise<{ status: 'active' | 'declined' }> {
   return consoleFetch(`/clients/${id}/${accept ? 'accept' : 'decline'}`, {
     method: 'POST',
-    body: JSON.stringify(!accept && reason ? { reason } : {}),
+    body: JSON.stringify(accept ? review : reason ? { reason } : {}),
   });
+}
+
+export interface PartnerKycReviewInput {
+  identityVerified: true;
+  addressVerified: true;
+  sanctionsClear: true;
+  pepReviewComplete: true;
+  fundsVerified: true;
+  taxDocumentationComplete: true;
+  amlRiskRating: 'low' | 'medium' | 'high';
+  seniorApproval: boolean;
+  policyKey: 'JM' | 'GY' | 'TT' | 'US-NY' | 'US-FL' | 'BB' | 'GB' | 'CA';
+  nextReviewAt: string;
+  notes?: string;
 }
 
 /**

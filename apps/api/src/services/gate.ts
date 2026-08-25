@@ -7,6 +7,7 @@ import {
   kycStatus,
   limits as limitsTable,
   orders,
+  partnerKycReviews,
   partners,
   riskProfiles,
 } from '@ccn/db';
@@ -71,11 +72,19 @@ export async function assessExecutionCompliance(
   const [activeAccount] = await tx
     .select({ id: connectedAccounts.id })
     .from(connectedAccounts)
+    .innerJoin(
+      partnerKycReviews,
+      and(
+        eq(partnerKycReviews.connectedAccountId, connectedAccounts.id),
+        eq(partnerKycReviews.status, 'approved'),
+      ),
+    )
     .where(
       and(
         eq(connectedAccounts.userId, userId),
         eq(connectedAccounts.partnerId, partnerId),
         eq(connectedAccounts.status, 'active'),
+        sql`${partnerKycReviews.nextReviewAt} > now()`,
       ),
     )
     .limit(1);

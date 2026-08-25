@@ -10,6 +10,7 @@ import type {
   ConsoleFunnelStage,
   ConsoleReconciliationItem,
   ConsoleWithdrawal,
+  PartnerKycReviewInput,
 } from '@/lib/console-api';
 import { reconciliationReceiptUrl } from '@/lib/console-api';
 import type { MePartner } from '@/lib/me-api';
@@ -121,7 +122,12 @@ export function ClientsTab({
   clientQuery: string;
   clientBusyId: string | null;
   clientActionError: string | null;
-  onReviewClient: (id: string, accept: boolean, reason?: string) => void;
+  onReviewClient: (
+    id: string,
+    accept: boolean,
+    reason?: string,
+    review?: PartnerKycReviewInput,
+  ) => void;
   onRequestKyc: (id: string) => void;
   onOpenClient: (client: ConsoleClient) => void;
   funnel: ConsoleFunnelStage[];

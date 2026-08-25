@@ -1,5 +1,5 @@
 import { connectedAccounts, kycStatus, limits, partners, userProfiles } from '@ccn/db';
-import { createMemoryStore, createRateLimiter } from '@ccn/security';
+import { type FieldCipher, createMemoryStore, createRateLimiter } from '@ccn/security';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -41,10 +41,11 @@ import {
  */
 export function createApp(
   deps: AppDeps,
-  services: { partnerWebhooks?: PartnerWebhookAdminRuntime } = {},
+  services: { partnerWebhooks?: PartnerWebhookAdminRuntime; kycFieldCipher?: FieldCipher } = {},
 ) {
   const app = new Hono<AppEnv>();
   const partnerWebhooks = services.partnerWebhooks ?? createPartnerWebhookAdminRuntime(deps.config);
+  const kycFieldCipher = services.kycFieldCipher ?? deps.kycFieldCipher;
 
   // One limiter per route class. The in-memory store is correct for a single
   // instance; swap in the Postgres store when the API scales past one machine
@@ -255,13 +256,19 @@ export function createApp(
   app.route('/api/orders', ordersRoutes(deps));
   app.route('/api/approvals', approvalsRoutes(deps));
   app.route('/api/portfolio', portfolioRoutes(deps));
-  app.route('/api/console', consoleRoutes(deps, partnerWebhooks));
+  app.route(
+    '/api/console',
+    consoleRoutes(deps, partnerWebhooks, kycFieldCipher ? { fieldCipher: kycFieldCipher } : {}),
+  );
   app.route('/api/admin', adminRoutes(deps));
   app.route('/api/agent', agentRoutes(deps));
   app.route('/api/ingestion', ingestionRoutes(deps));
   app.route('/api/opportunities', opportunitiesRoutes(deps));
   app.route('/api/planning', planningRoutes(deps));
-  app.route('/api/onboarding', onboardingRoutes(deps));
+  app.route(
+    '/api/onboarding',
+    onboardingRoutes(deps, kycFieldCipher ? { fieldCipher: kycFieldCipher } : {}),
+  );
   app.route('/api/limits', limitsRoutes(deps));
   app.route('/api/gateway', gatewayRoutes(deps, limit));
   // No surface guard on purpose: partner brand marks are the network's public
