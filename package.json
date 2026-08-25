@@ -25,7 +25,7 @@
     "@biomejs/biome": "1.9.4",
     "@commitlint/cli": "19.6.0",
     "@commitlint/config-conventional": "19.6.0",
-    "lefthook": "1.8.2",
+    "lefthook": "2.1.10",
     "turbo": "2.3.3",
     "typescript": "5.6.3"
   }

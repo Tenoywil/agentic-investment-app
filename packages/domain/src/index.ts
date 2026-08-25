@@ -8,6 +8,7 @@ export * from './suitability';
 export * from './schemas';
 export * from './gateway';
 export * from './target-mix';
+export * from './jurisdictions';
 
 /**
  * Audit actions that record a human decision about a client's standing, money,

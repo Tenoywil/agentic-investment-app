@@ -45,8 +45,13 @@ export interface OnboardingStatusResponse {
 
 export interface SubmitIdentityInput {
   fullName: string;
+  dateOfBirth: string;
+  placeOfBirth: string;
+  residentialAddress: string;
   residencyCountry: string;
+  citizenships: string[];
   occupation: string;
+  employer?: string;
 }
 
 export class OnboardingApiError extends Error {
@@ -92,12 +97,20 @@ export function submitIdentity(input: SubmitIdentityInput): Promise<{ ok: true }
  * reads.
  */
 export function submitCompliance(input: {
-  isPoliticallyExposed: boolean;
+  pepStatus: 'none' | 'self' | 'family' | 'close_associate';
+  taxResidencies: Array<{
+    country: string;
+    identifierType: 'trn' | 'ssn' | 'tin' | 'national_id' | 'other';
+    identifier?: string;
+    noIdentifierReason?: string;
+  }>;
+  fatcaStatus: 'us_person' | 'non_us_person' | 'undetermined';
+  fatcaForm: 'w9' | 'w8ben' | 'not_applicable';
 }): Promise<{ ok: true }> {
   return onboardingFetch('/compliance', {
     method: 'POST',
     body: JSON.stringify({
-      isPoliticallyExposed: input.isPoliticallyExposed,
+      ...input,
       taxResidencyDeclared: true,
       risksUnderstood: true,
     }),
@@ -111,16 +124,32 @@ export function submitRisk(scores: [number, number, number]): Promise<{ band: Ri
   return onboardingFetch('/risk', { method: 'POST', body: JSON.stringify({ scores }) });
 }
 
-export function submitFunds(sources: SourceOfFunds[]): Promise<{ ok: true; tier: 'tier2' }> {
-  return onboardingFetch('/funds', { method: 'POST', body: JSON.stringify({ sources }) });
+export function submitFunds(input: {
+  sources: SourceOfFunds[];
+  sourceOfWealth: string;
+  accountPurpose: string;
+  expectedAnnualInvestmentMinor: string;
+  expectedFrequency: 'one_off' | 'monthly' | 'quarterly' | 'annually' | 'irregular';
+}): Promise<{ ok: true; tier: 'tier2' }> {
+  return onboardingFetch('/funds', { method: 'POST', body: JSON.stringify(input) });
 }
 
 /** One uploaded KYC document — metadata only; the bytes are fetched by id. */
 export interface KycDocument {
   id: string;
   step: 'identity' | 'compliance' | 'risk' | 'funds';
+  documentType:
+    | 'government_id'
+    | 'proof_of_address'
+    | 'source_of_funds'
+    | 'source_of_wealth'
+    | 'tax_form'
+    | 'other'
+    | null;
   label: string;
   mime: string | null;
+  issuingCountry: string | null;
+  expiresAt: string | null;
   createdAt: string;
 }
 
@@ -131,7 +160,10 @@ export interface KycDocument {
  */
 export async function uploadKycDocument(input: {
   step: KycDocument['step'];
+  documentType: NonNullable<KycDocument['documentType']>;
   file: File;
+  issuingCountry?: string;
+  expiresAt?: string;
 }): Promise<{ id: string }> {
   if (input.file.size > 2 * 1024 * 1024) {
     throw new OnboardingApiError('Documents are capped at 2MB — send a smaller scan.', 413);
@@ -146,7 +178,10 @@ export async function uploadKycDocument(input: {
     method: 'POST',
     body: JSON.stringify({
       step: input.step,
+      documentType: input.documentType,
       label: input.file.name.slice(0, 140),
+      issuingCountry: input.issuingCountry,
+      expiresAt: input.expiresAt,
       mime: input.file.type,
       data: btoa(binary),
     }),

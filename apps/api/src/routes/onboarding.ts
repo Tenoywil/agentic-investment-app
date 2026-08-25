@@ -1,4 +1,4 @@
-import { kycDocuments, kycStatus, riskProfiles, user, userProfiles } from '@ccn/db';
+import { kycDocuments, kycDossiers, kycStatus, riskProfiles, user, userProfiles } from '@ccn/db';
 import {
   kycDocumentSchema,
   onboardingComplianceSchema,
@@ -6,6 +6,7 @@ import {
   onboardingIdentitySchema,
   onboardingRiskSchema,
 } from '@ccn/domain';
+import type { FieldCipher } from '@ccn/security';
 import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from '../context';
@@ -29,7 +30,10 @@ function scoresToBand(scores: readonly number[]): RiskBand {
  * consent-based, not a document-verification pipeline (that stays with the
  * partner). GET /status lets the wizard resume after a reload.
  */
-export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
+export function onboardingRoutes(
+  deps: AppDeps,
+  security: { fieldCipher?: FieldCipher } = {},
+): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
 
@@ -64,6 +68,13 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!parsed.success)
       return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
     const { fullName, residencyCountry, occupation } = parsed.data;
+    if (!security.fieldCipher) {
+      return c.json({ error: 'secure KYC storage is temporarily unavailable' }, 503);
+    }
+    const identityCiphertext = await security.fieldCipher.encrypt(
+      JSON.stringify(parsed.data),
+      `kyc_dossiers.identity:${tenant.user.id}`,
+    );
 
     await withTenant(deps, tenant, async (tx) => {
       await tx
@@ -76,6 +87,18 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         .onConflictDoUpdate({
           target: userProfiles.userId,
           set: { residencyCountry, occupation, updatedAt: new Date() },
+        });
+      await tx
+        .insert(kycDossiers)
+        .values({
+          userId: tenant.user.id,
+          identityCiphertext,
+          consentedAt: new Date(),
+          nextReviewAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        })
+        .onConflictDoUpdate({
+          target: kycDossiers.userId,
+          set: { identityCiphertext, consentedAt: new Date(), updatedAt: new Date() },
         });
       await tx
         .insert(kycStatus)
@@ -106,6 +129,13 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
     const parsed = onboardingComplianceSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success)
       return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
+    if (!security.fieldCipher) {
+      return c.json({ error: 'secure KYC storage is temporarily unavailable' }, 503);
+    }
+    const complianceCiphertext = await security.fieldCipher.encrypt(
+      JSON.stringify(parsed.data),
+      `kyc_dossiers.compliance:${tenant.user.id}`,
+    );
 
     await withTenant(deps, tenant, async (tx) => {
       await tx
@@ -116,17 +146,24 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
           // What they actually declared. This was hardcoded `false`, so the
           // column recorded the same answer for everyone whether they had been
           // asked or not.
-          isPep: parsed.data.isPoliticallyExposed,
+          isPep: parsed.data.pepStatus !== 'none',
           taxResidencyDeclared: parsed.data.taxResidencyDeclared,
         })
         .onConflictDoUpdate({
           target: kycStatus.userId,
           set: {
             complianceConfirmed: true,
-            isPep: parsed.data.isPoliticallyExposed,
+            isPep: parsed.data.pepStatus !== 'none',
             taxResidencyDeclared: parsed.data.taxResidencyDeclared,
             updatedAt: new Date(),
           },
+        });
+      await tx
+        .insert(kycDossiers)
+        .values({ userId: tenant.user.id, complianceCiphertext, consentedAt: new Date() })
+        .onConflictDoUpdate({
+          target: kycDossiers.userId,
+          set: { complianceCiphertext, consentedAt: new Date(), updatedAt: new Date() },
         });
       await auditAppend(tx, {
         actorType: 'user',
@@ -203,6 +240,16 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
     if (!parsed.success)
       return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400);
     const { sources } = parsed.data;
+    if (!security.fieldCipher) {
+      return c.json({ error: 'secure KYC storage is temporarily unavailable' }, 503);
+    }
+    const fundsCiphertext = await security.fieldCipher.encrypt(
+      JSON.stringify({
+        ...parsed.data,
+        expectedAnnualInvestmentMinor: parsed.data.expectedAnnualInvestmentMinor.toString(),
+      }),
+      `kyc_dossiers.funds:${tenant.user.id}`,
+    );
 
     await withTenant(deps, tenant, async (tx) => {
       await tx
@@ -211,6 +258,13 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         .onConflictDoUpdate({
           target: kycStatus.userId,
           set: { fundsConfirmed: true, sources, tier: 'tier2', updatedAt: new Date() },
+        });
+      await tx
+        .insert(kycDossiers)
+        .values({ userId: tenant.user.id, fundsCiphertext, consentedAt: new Date() })
+        .onConflictDoUpdate({
+          target: kycDossiers.userId,
+          set: { fundsCiphertext, consentedAt: new Date(), updatedAt: new Date() },
         });
       await auditAppend(tx, {
         actorType: 'user',
@@ -252,6 +306,9 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
     if (bytes.length > 2 * 1024 * 1024) {
       return c.json({ error: 'documents are capped at 2MB — send a smaller scan' }, 413);
     }
+    if (!documentMatchesMime(bytes, parsed.data.mime)) {
+      return c.json({ error: 'the file contents do not match the selected file type' }, 400);
+    }
 
     const id = await withTenant(deps, tenant, async (tx) => {
       const [row] = await tx
@@ -259,7 +316,10 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         .values({
           userId: tenant.user.id,
           step: parsed.data.step,
+          documentType: parsed.data.documentType,
           label: parsed.data.label,
+          issuingCountry: parsed.data.issuingCountry,
+          expiresAt: parsed.data.expiresAt,
           mime: parsed.data.mime,
           bytes,
         })
@@ -288,7 +348,10 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         .select({
           id: kycDocuments.id,
           step: kycDocuments.step,
+          documentType: kycDocuments.documentType,
           label: kycDocuments.label,
+          issuingCountry: kycDocuments.issuingCountry,
+          expiresAt: kycDocuments.expiresAt,
           mime: kycDocuments.mime,
           createdAt: kycDocuments.createdAt,
         })
@@ -318,9 +381,32 @@ export function onboardingRoutes(deps: AppDeps): Hono<AppEnv> {
         // Attachment, not inline: nothing a person uploaded executes or renders
         // in this origin's context.
         'Content-Disposition': `attachment; filename="${row.label.replace(/[^\w. -]/g, '_')}"`,
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   });
 
   return app;
+}
+
+function documentMatchesMime(bytes: Uint8Array, mime: string): boolean {
+  if (mime === 'application/pdf') {
+    return bytes.length >= 5 && String.fromCharCode(...bytes.slice(0, 5)) === '%PDF-';
+  }
+  if (mime === 'image/jpeg') {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (mime === 'image/png') {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return signature.every((byte, index) => bytes[index] === byte);
+  }
+  if (mime === 'image/webp') {
+    return (
+      bytes.length >= 12 &&
+      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+    );
+  }
+  return false;
 }

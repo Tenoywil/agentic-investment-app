@@ -8,6 +8,7 @@ import {
   type ConsoleClient,
   type ConsoleClientDetail,
   type ConsoleCurrency,
+  type PartnerKycReviewInput,
   clientDocumentUrl,
   confirmFunds,
   getClient,
@@ -75,7 +76,7 @@ export function ClientDetailDialog({
   client: ConsoleClient;
   busy: boolean;
   actionError: string | null;
-  onReview: (id: string, accept: boolean, reason?: string) => void;
+  onReview: (id: string, accept: boolean, reason?: string, review?: PartnerKycReviewInput) => void;
   onClose: () => void;
 }) {
   const dialogRef = React.useRef<HTMLDialogElement>(null);
@@ -295,6 +296,81 @@ export function ClientDetailDialog({
                 to accept someone needs what they can look at, not only what
                 the person ticked — and when there is nothing, the section says
                 so instead of leaving the reviewer to wonder where to look. */}
+            <section className="mt-6">
+              <b className="font-display text-[15px]">Consented intake details</b>
+              {!detail.intake ? (
+                <p className="mt-1.5 text-[13px] text-faint">
+                  No encrypted structured intake is available. Ask the client to complete the
+                  current onboarding flow.
+                </p>
+              ) : (
+                <div className="mt-2 grid gap-x-5 gap-y-2 rounded-xl bg-muted/50 p-4 text-[13px] sm:grid-cols-2">
+                  <div>
+                    <span className="text-faint">Date / place of birth</span>
+                    <div>
+                      {detail.intake.identity?.dateOfBirth ?? '—'} ·{' '}
+                      {detail.intake.identity?.placeOfBirth ?? '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-faint">Residence</span>
+                    <div>{detail.intake.identity?.residencyCountry ?? '—'}</div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-faint">Residential address</span>
+                    <div>{detail.intake.identity?.residentialAddress ?? '—'}</div>
+                  </div>
+                  <div>
+                    <span className="text-faint">Citizenship(s)</span>
+                    <div>{detail.intake.identity?.citizenships?.join(', ') || '—'}</div>
+                  </div>
+                  <div>
+                    <span className="text-faint">Occupation / employer</span>
+                    <div>
+                      {detail.intake.identity?.occupation ?? '—'}
+                      {detail.intake.identity?.employer
+                        ? ` · ${detail.intake.identity.employer}`
+                        : ''}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-faint">PEP status</span>
+                    <div>{detail.intake.compliance?.pepStatus?.replaceAll('_', ' ') ?? '—'}</div>
+                  </div>
+                  <div>
+                    <span className="text-faint">FATCA</span>
+                    <div>
+                      {detail.intake.compliance?.fatcaStatus?.replaceAll('_', ' ') ?? '—'} ·{' '}
+                      {detail.intake.compliance?.fatcaForm?.toUpperCase() ?? '—'}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-faint">Tax residence(s)</span>
+                    <div>
+                      {detail.intake.compliance?.taxResidencies
+                        ?.map(
+                          (item) =>
+                            `${item.country ?? '—'} · ${item.identifierType?.toUpperCase() ?? 'ID'} ${item.identifier ?? item.noIdentifierReason ?? '—'}`,
+                        )
+                        .join('; ') || '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-faint">Source of wealth</span>
+                    <div>{detail.intake.funds?.sourceOfWealth ?? '—'}</div>
+                  </div>
+                  <div>
+                    <span className="text-faint">Account purpose</span>
+                    <div>{detail.intake.funds?.accountPurpose ?? '—'}</div>
+                  </div>
+                  <div>
+                    <span className="text-faint">Expected activity</span>
+                    <div>{detail.intake.funds?.expectedFrequency?.replaceAll('_', ' ') ?? '—'}</div>
+                  </div>
+                </div>
+              )}
+            </section>
+
             <section className="mt-6">
               <b className="font-display text-[15px]">KYC documents</b>
               {(detail.documents ?? []).length === 0 ? (
@@ -524,14 +600,10 @@ export function ClientDetailDialog({
                     {busy ? 'Working…' : 'Revoke access'}
                   </Button>
                 ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={busy || client.kyc_tier === 'none'}
-                    onClick={() => onReview(client.account_id, true)}
-                  >
-                    {busy ? 'Working…' : 'Reinstate as client'}
-                  </Button>
+                  <p className="text-[12.5px] text-faint">
+                    Close this record and use Review &amp; reinstate on the Clients list.
+                    Reinstatement requires a fresh, explicit KYC/AML attestation.
+                  </p>
                 )}
               </div>
             )}

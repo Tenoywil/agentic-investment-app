@@ -39,6 +39,18 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const suite = DATABASE_URL ? describe : describe.skip;
 
 const SECRET = 'x'.repeat(32);
+const approvedReview = () => ({
+  identityVerified: true,
+  addressVerified: true,
+  sanctionsClear: true,
+  pepReviewComplete: true,
+  fundsVerified: true,
+  taxDocumentationComplete: true,
+  amlRiskRating: 'medium',
+  seniorApproval: false,
+  policyKey: 'JM',
+  nextReviewAt: new Date(Date.now() + 365 * 86_400_000).toISOString(),
+});
 
 async function signCookie(value: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey(
@@ -260,12 +272,28 @@ suite('a partner accepts a client', () => {
     expect(res.status).toBe(403);
   });
 
+  test('a retained future corridor cannot be used to approve onboarding yet', async () => {
+    const [mine] = (await clientsOf('sagOperator')).filter(
+      (c) => c.client_email === `${tag}-investor@x.com`,
+    );
+    const accept = await call(`/api/console/clients/${mine?.account_id}/accept`, 'sagOperator', {
+      method: 'POST',
+      body: JSON.stringify({ ...approvedReview(), policyKey: 'BB' }),
+    });
+    expect(accept.status).toBe(409);
+    expect(((await accept.json()) as { error: string }).error).toContain('future use');
+    expect(
+      (await clientsOf('sagOperator')).find((c) => c.account_id === mine?.account_id)?.status,
+    ).toBe('pending');
+  });
+
   test('accepting is what makes the holdings pullable', async () => {
     const [mine] = (await clientsOf('sagOperator')).filter(
       (c) => c.client_email === `${tag}-investor@x.com`,
     );
     const accept = await call(`/api/console/clients/${mine?.account_id}/accept`, 'sagOperator', {
       method: 'POST',
+      body: JSON.stringify(approvedReview()),
     });
     expect(accept.status).toBe(200);
     expect(((await accept.json()) as { status: string }).status).toBe('active');
@@ -293,6 +321,7 @@ suite('a partner accepts a client', () => {
     );
     const res = await call(`/api/console/clients/${mine?.account_id}/accept`, 'sagOperator', {
       method: 'POST',
+      body: JSON.stringify(approvedReview()),
     });
     expect(res.status).toBe(409);
   });
@@ -320,6 +349,7 @@ suite('a partner accepts a client', () => {
 
     const res = await call(`/api/console/clients/${row?.account_id}/accept`, 'sagOperator', {
       method: 'POST',
+      body: JSON.stringify(approvedReview()),
     });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: string }).error).toContain('not finished onboarding');

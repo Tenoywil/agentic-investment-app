@@ -30,7 +30,8 @@ import * as React from 'react';
 const REGULATORS = [
   { value: 'FSC_JAMAICA', label: 'FSC Jamaica' },
   { value: 'FSC_BARBADOS', label: 'FSC Barbados' },
-  { value: 'FSC_TRINIDAD_TOBAGO', label: 'FSC Trinidad & Tobago' },
+  { value: 'GSC_GUYANA', label: 'Guyana Securities Council' },
+  { value: 'TTSEC_TRINIDAD_TOBAGO', label: 'TTSEC Trinidad & Tobago' },
 ];
 
 const AGREEMENTS = [

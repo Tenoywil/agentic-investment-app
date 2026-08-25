@@ -15,6 +15,9 @@ import { pgEnum } from 'drizzle-orm/pg-core';
 export const regulator = pgEnum('regulator', [
   'FSC_JAMAICA',
   'FSC_BARBADOS',
+  'GSC_GUYANA',
+  'TTSEC_TRINIDAD_TOBAGO',
+  // Retained for migration compatibility; new Trinidad records use TTSEC.
   'FSC_TRINIDAD_TOBAGO',
 ]);
 

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
@@ -14,7 +15,7 @@ if (!url) {
   process.exit(1);
 }
 
-const migrationsFolder = new URL('../migrations', import.meta.url).pathname;
+const migrationsFolder = fileURLToPath(new URL('../migrations', import.meta.url));
 const client = postgres(url, { max: 1 });
 try {
   await migrate(drizzle(client), { migrationsFolder });

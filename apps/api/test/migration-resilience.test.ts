@@ -52,6 +52,16 @@ describe('recognising a database that is behind', () => {
     ).toBe(true);
   });
 
+  test('an invalid operator is a query defect, not a missing migration', () => {
+    expect(
+      isDatabaseBehind(
+        Object.assign(new Error('operator does not exist: instrument_type ~~* text'), {
+          code: '42883',
+        }),
+      ),
+    ).toBe(false);
+  });
+
   test('a missing grant or policy', () => {
     expect(
       isDatabaseBehind(

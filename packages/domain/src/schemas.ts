@@ -424,8 +424,13 @@ export type CreateGoalInput = z.infer<typeof createGoalSchema>;
 /** POST /api/onboarding/identity */
 export const onboardingIdentitySchema = z.object({
   fullName: z.string().min(1).max(200),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date'),
+  placeOfBirth: z.string().min(1).max(150),
+  residentialAddress: z.string().min(5).max(500),
   residencyCountry: z.string().min(1).max(100),
+  citizenships: z.array(z.string().min(1).max(100)).min(1).max(5),
   occupation: z.string().min(1).max(150),
+  employer: z.string().max(200).optional(),
 });
 export type OnboardingIdentityInput = z.infer<typeof onboardingIdentitySchema>;
 
@@ -440,7 +445,24 @@ export type OnboardingIdentityInput = z.infer<typeof onboardingIdentitySchema>;
  * not screening anything.
  */
 export const onboardingComplianceSchema = z.object({
-  isPoliticallyExposed: z.boolean(),
+  pepStatus: z.enum(['none', 'self', 'family', 'close_associate']),
+  taxResidencies: z
+    .array(
+      z
+        .object({
+          country: z.string().min(1).max(100),
+          identifierType: z.enum(['trn', 'ssn', 'tin', 'national_id', 'other']),
+          identifier: z.string().min(3).max(80).optional(),
+          noIdentifierReason: z.string().min(3).max(300).optional(),
+        })
+        .refine((value) => Boolean(value.identifier) !== Boolean(value.noIdentifierReason), {
+          message: 'provide either a tax identifier or a reason it is unavailable',
+        }),
+    )
+    .min(1)
+    .max(5),
+  fatcaStatus: z.enum(['us_person', 'non_us_person', 'undetermined']),
+  fatcaForm: z.enum(['w9', 'w8ben', 'not_applicable']),
   taxResidencyDeclared: z.literal(true),
   risksUnderstood: z.literal(true),
 });
@@ -459,6 +481,10 @@ export type OnboardingRiskInput = z.infer<typeof onboardingRiskSchema>;
 /** POST /api/onboarding/funds — at least one declared source. */
 export const onboardingFundsSchema = z.object({
   sources: z.array(z.enum(['investment', 'salary', 'business', 'other'])).min(1),
+  sourceOfWealth: z.string().min(3).max(500),
+  accountPurpose: z.string().min(3).max(500),
+  expectedAnnualInvestmentMinor: positiveAmountMinorSchema,
+  expectedFrequency: z.enum(['one_off', 'monthly', 'quarterly', 'annually', 'irregular']),
 });
 export type OnboardingFundsInput = z.infer<typeof onboardingFundsSchema>;
 
@@ -473,8 +499,48 @@ export type OnboardingFundsInput = z.infer<typeof onboardingFundsSchema>;
  */
 export const kycDocumentSchema = z.object({
   step: z.enum(['identity', 'compliance', 'risk', 'funds']),
+  documentType: z
+    .enum([
+      'government_id',
+      'proof_of_address',
+      'source_of_funds',
+      'source_of_wealth',
+      'tax_form',
+      'other',
+    ])
+    .default('other'),
   label: z.string().min(1).max(140),
   mime: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+  issuingCountry: z.string().min(1).max(100).optional(),
+  expiresAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date')
+    .optional(),
   data: z.string().min(1).max(2_900_000),
 });
+
+export const partnerKycReviewSchema = z
+  .object({
+    identityVerified: z.literal(true),
+    addressVerified: z.literal(true),
+    sanctionsClear: z.literal(true),
+    pepReviewComplete: z.literal(true),
+    fundsVerified: z.literal(true),
+    taxDocumentationComplete: z.literal(true),
+    amlRiskRating: z.enum(['low', 'medium', 'high']),
+    seniorApproval: z.boolean(),
+    policyKey: z.enum(['JM', 'GY', 'TT', 'US-NY', 'US-FL', 'BB', 'GB', 'CA']),
+    nextReviewAt: z.string().datetime(),
+    notes: z.string().max(1000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.amlRiskRating === 'high' && !value.seniorApproval) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['seniorApproval'],
+        message: 'high-risk clients require senior approval',
+      });
+    }
+  });
+export type PartnerKycReviewInput = z.infer<typeof partnerKycReviewSchema>;
 export type KycDocumentInput = z.infer<typeof kycDocumentSchema>;

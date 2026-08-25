@@ -7,6 +7,7 @@ import {
   instruments,
   kycStatus,
   orders,
+  partnerKycReviews,
   partnerWebhookDeliveries,
   partnerWebhookEndpoints,
   partners,
@@ -87,6 +88,7 @@ suite('partner console data surface', () => {
     newSigningSecret: () => `whsec_test_${++webhookSecretSequence}`,
     encryptSecret: async (secret, endpointId) => `encrypted:${endpointId}:${secret}`,
   };
+  const errorLogs: unknown[] = [];
 
   function app() {
     const config = configFor();
@@ -95,7 +97,7 @@ suite('partner console data surface', () => {
         db,
         auth: createAuth(db, config),
         config,
-        logger: createLogger({ level: 'error', sink: () => {} }),
+        logger: createLogger({ level: 'error', sink: (record) => errorLogs.push(record) }),
       },
       { partnerWebhooks },
     );
@@ -234,7 +236,16 @@ suite('partner console data surface', () => {
      */
     await db
       .insert(kycStatus)
-      .values({ userId: ids.investor ?? '', tier: 'tier1', identityVerified: true })
+      .values({
+        userId: ids.investor ?? '',
+        tier: 'tier2',
+        identityVerified: true,
+        complianceConfirmed: true,
+        riskCompleted: true,
+        fundsConfirmed: true,
+        taxResidencyDeclared: true,
+        sources: ['salary'],
+      })
       .onConflictDoNothing();
     const [account] = await db
       .insert(connectedAccounts)
@@ -305,6 +316,9 @@ suite('partner console data surface', () => {
     }
     const all = Object.values(ids);
     if (all.length > 0) {
+      // A regulated review retains its reviewer reference. Remove this suite's
+      // synthetic decisions explicitly before deleting the synthetic users.
+      await db.delete(partnerKycReviews).where(inArray(partnerKycReviews.reviewedBy, all));
       await db.delete(session).where(inArray(session.userId, all));
       await db.delete(userRoles).where(inArray(userRoles.userId, all));
       // orders cascade with their owning user.
@@ -333,7 +347,11 @@ suite('partner console data surface', () => {
       ...init,
       headers: { cookie: cookies[key] ?? '', ...(init?.headers ?? {}) },
     });
-    expect(res.status).toBe(200);
+    if (res.status !== 200) {
+      throw new Error(
+        `${path} returned ${res.status}: ${await res.text()} ${JSON.stringify(errorLogs.at(-1))}`,
+      );
+    }
     return (await res.json()) as T;
   }
 
@@ -1008,7 +1026,18 @@ suite('partner console data surface', () => {
     // Revoking twice is refused rather than silently written again.
     expect((await move(false)).status).toBe(409);
 
-    const back = await move(true);
+    const back = await move(true, 'sagOperator', {
+      identityVerified: true,
+      addressVerified: true,
+      sanctionsClear: true,
+      pepReviewComplete: true,
+      fundsVerified: true,
+      taxDocumentationComplete: true,
+      amlRiskRating: 'medium',
+      seniorApproval: false,
+      policyKey: 'JM',
+      nextReviewAt: new Date(Date.now() + 365 * 86_400_000).toISOString(),
+    });
     expect(back.status).toBe(200);
     expect(((await back.json()) as { status: string }).status).toBe('active');
     const after = await json<{ audit: { action: string }[] }>(

@@ -6,7 +6,7 @@ import { createApp } from './app';
 import { createAuth, resolveAuthBaseUrl } from './auth';
 import { createLogger } from './logger';
 import { checkMigrations } from './migrations';
-import { createOutboundGuard } from './security';
+import { createFieldCipherFrom, createOutboundGuard } from './security';
 import { startAgentSweep } from './services/agent-sweep';
 import {
   createPartnerWebhookAdminRuntime,
@@ -32,9 +32,10 @@ const logger = createLogger({
   level: config.APP_ENV === 'development' ? 'debug' : 'info',
   base: { service: 'ccn-api', env: config.APP_ENV },
 });
-const deps = { db, auth, config, logger };
+const kycFieldCipher = createFieldCipherFrom(config);
+const deps = { db, auth, config, logger, kycFieldCipher };
 const partnerWebhooks = createPartnerWebhookAdminRuntime(config);
-const app = createApp(deps, { partnerWebhooks });
+const app = createApp(deps, { partnerWebhooks, kycFieldCipher });
 
 /**
  * State the effective auth wiring once, at boot.

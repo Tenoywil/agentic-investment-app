@@ -374,7 +374,12 @@ export function adminRoutes(deps: AppDeps): Hono<AppEnv> {
    * back by operators, so it is set once at onboarding and never edited. Change
    * the name, the regulator, the agreement — not who this is.
    */
-  const REGULATORS = ['FSC_JAMAICA', 'FSC_BARBADOS', 'FSC_TRINIDAD_TOBAGO'] as const;
+  const REGULATORS = [
+    'FSC_JAMAICA',
+    'FSC_BARBADOS',
+    'GSC_GUYANA',
+    'TTSEC_TRINIDAD_TOBAGO',
+  ] as const;
   const AGREEMENTS = ['prospect', 'dpa_pending', 'sandbox', 'live', 'suspended'] as const;
   /** Mirrors the CHECK constraint in 0011, so the caller gets a reason not a 500. */
   const CODE_SHAPE = /^[A-Z][A-Z0-9]{1,11}$/;

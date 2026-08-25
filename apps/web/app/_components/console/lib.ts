@@ -405,7 +405,9 @@ export const KYC_REVIEW_DUE_DAYS = 365;
 const REGULATOR_LABELS: Record<string, string> = {
   FSC_JAMAICA: 'FSC Jamaica',
   FSC_BARBADOS: 'FSC Barbados',
-  FSC_TRINIDAD_TOBAGO: 'FSC Trinidad & Tobago',
+  GSC_GUYANA: 'Guyana Securities Council',
+  TTSEC_TRINIDAD_TOBAGO: 'TTSEC Trinidad & Tobago',
+  FSC_TRINIDAD_TOBAGO: 'TTSEC Trinidad & Tobago (legacy code)',
 };
 
 /** The regulator's display name, or null when the partner row has none — in

@@ -1,10 +1,12 @@
 import {
   boolean,
   customType,
+  date,
   integer,
   jsonb,
   pgTable,
   text,
+  timestamp,
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -94,6 +96,25 @@ export const kycStatus = pgTable('kyc_status', {
 });
 
 /**
+ * Encrypted intake sections. The only plaintext fields are completion and
+ * lifecycle metadata; identity, address, citizenship, tax identifiers and
+ * funds narratives are AES-GCM envelopes bound to this user and section.
+ */
+export const kycDossiers = pgTable('kyc_dossiers', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  identityCiphertext: text('identity_ciphertext'),
+  complianceCiphertext: text('compliance_ciphertext'),
+  fundsCiphertext: text('funds_ciphertext'),
+  profileVersion: integer('profile_version').notNull().default(1),
+  consentedAt: timestamp('consented_at', { withTimezone: true }),
+  nextReviewAt: timestamp('next_review_at', { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/**
  * A KYC / source-of-funds document, file included (0027).
  *
  * `storage_path` is the fossil of a Storage-bucket design that was never
@@ -108,7 +129,17 @@ export const kycDocuments = pgTable('kyc_documents', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   step: kycStep('step').notNull(),
+  documentType: text('document_type').$type<
+    | 'government_id'
+    | 'proof_of_address'
+    | 'source_of_funds'
+    | 'source_of_wealth'
+    | 'tax_form'
+    | 'other'
+  >(),
   label: text('label').notNull(),
+  issuingCountry: text('issuing_country'),
+  expiresAt: date('expires_at'),
   storagePath: text('storage_path'), // legacy; null on rows that carry bytes
   mime: text('mime'),
   bytes: customType<{ data: Uint8Array }>({ dataType: () => 'bytea' })('bytes'),

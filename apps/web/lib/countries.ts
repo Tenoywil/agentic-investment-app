@@ -1,12 +1,12 @@
 /** Country names for the onboarding residency picker. Caribbean corridor
  *  countries first (CCN's actual pilot markets), then the rest alphabetically. */
+export const LAUNCH_CORRIDOR_COUNTRIES = ['Jamaica', 'Guyana', 'Trinidad and Tobago'] as const;
+
+export const FUTURE_CORRIDOR_COUNTRIES = ['Barbados', 'United Kingdom', 'Canada'] as const;
+
 export const CORRIDOR_COUNTRIES = [
-  'Jamaica',
-  'Trinidad and Tobago',
-  'Barbados',
-  'United Kingdom',
-  'United States',
-  'Canada',
+  ...LAUNCH_CORRIDOR_COUNTRIES,
+  ...FUTURE_CORRIDOR_COUNTRIES,
 ] as const;
 
 export const OTHER_COUNTRIES = [
@@ -78,7 +78,6 @@ export const OTHER_COUNTRIES = [
   'Guatemala',
   'Guinea',
   'Guinea-Bissau',
-  'Guyana',
   'Haiti',
   'Honduras',
   'Hungary',

@@ -32,6 +32,7 @@ import {
   type ConsoleSummary,
   type ConsoleWithdrawal,
   type PartnerEquityPoint,
+  type PartnerKycReviewInput,
   type SettlementInput,
   acceptOrder,
   decideWithdrawal,
@@ -611,11 +612,16 @@ export default function InstitutionsPage() {
    * has said so is the one place in this console where a lie would matter. The
    * row moves when the transition returns, and stays put when it fails.
    */
-  async function handleReviewClient(id: string, accept: boolean, reason?: string) {
+  async function handleReviewClient(
+    id: string,
+    accept: boolean,
+    reason?: string,
+    review?: PartnerKycReviewInput,
+  ) {
     setClientBusyId(id);
     setClientActionError(null);
     try {
-      const { status } = await reviewClient(id, accept, reason);
+      const { status } = await reviewClient(id, accept, reason, review);
       setClients((cs) =>
         cs.map((c) =>
           c.account_id === id

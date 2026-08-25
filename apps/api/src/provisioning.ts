@@ -64,6 +64,7 @@ export interface ProvisioningDeps {
   db: AppDeps['db'];
   config: AllowlistConfig & { DB_APP_ROLE: string };
   logger: AppDeps['logger'];
+  kycFieldCipher?: AppDeps['kycFieldCipher'];
 }
 
 /**
@@ -210,7 +211,11 @@ export async function ensureProvisioned(deps: ProvisioningDeps, user: SessionUse
       // (0001_security.sql), by design. This is an administrative operation, so
       // it runs with the connection's own privileges; setting the GUC is what
       // makes the row policies pass rather than bypassing them.
-      await withRls(deps.db, { userId: user.id }, (tx) => seedDemoCustomer(tx, user.id));
+      const kycFieldCipher = deps.kycFieldCipher;
+      if (!kycFieldCipher) throw new Error('secure KYC storage is unavailable');
+      await withRls(deps.db, { userId: user.id }, (tx) =>
+        seedDemoCustomer(tx, user.id, kycFieldCipher),
+      );
     } catch (error) {
       deps.logger.error('demo customer seeding failed; account will be empty', {
         error,
