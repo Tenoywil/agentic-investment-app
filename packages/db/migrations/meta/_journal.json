@@ -253,6 +253,13 @@
       "when": 1787634060000,
       "tag": "0035_harden_kyc_rpc_privileges",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787634120000,
+      "tag": "0036_consolidate_kyc_read_policies",
+      "breakpoints": true
     }
   ]
 }
