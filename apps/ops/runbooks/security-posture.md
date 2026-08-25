@@ -79,7 +79,9 @@ encryption is the correct primitive and avoids a WASM dependency. Revisit only i
 a write-only producer appears.
 
 **Rotation procedure**
-1. Generate a new 32-byte key; set it as `FIELD_ENCRYPTION_KEY`.
+1. Generate a new 32-byte key and encode it as 64 hex characters, for example with
+   `bun -e "console.log(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex'))"`.
+   Set only the generated output as `FIELD_ENCRYPTION_KEY`; do not add a `hex:` or `base64:` prefix.
 2. Move the old one into `FIELD_ENCRYPTION_KEY_PREVIOUS` as `id:material`
    (comma-separated for several). Decryption keeps working throughout.
 3. Sweep: read each encrypted column, `needsRotation()` → re-encrypt → write.

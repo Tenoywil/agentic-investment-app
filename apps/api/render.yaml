@@ -36,6 +36,9 @@
 # never committed here:
 #   Secrets:   DATABASE_URL, BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID,
 #              GOOGLE_CLIENT_SECRET, OPENAI_API_KEY, FIELD_ENCRYPTION_KEY
+#              FIELD_ENCRYPTION_KEY must decode to exactly 32 bytes: use either
+#              64 hex characters or base64/base64url for 32 random bytes, with
+#              no "hex:" or "base64:" prefix. See /.env.example for a generator.
 #   Required, not secret (no default — easy to miss since they aren't secrets):
 #     SUPABASE_URL     the Supabase project URL (also SSRF-allowlisted, apps/api/src/security.ts)
 #     BETTER_AUTH_URL  the WEB app's public origin, e.g.
