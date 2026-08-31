@@ -1,8 +1,22 @@
 'use client';
 
-import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { AppScreen, DemoJourney, PageHead } from '@/app/_components/AppScreen';
+import { Badge } from '@/app/_components/ui/badge';
+import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/_components/ui/dialog';
 import { cn } from '@/app/_lib/utils';
+import { CheckCircle2, CircleAlert, FileText, ScanLine, Send, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { useState } from 'react';
 
 /**
  * Orders, in the signed-out preview.
@@ -79,19 +93,203 @@ const ORDERS: {
 ];
 
 export default function DemoOrdersPage() {
+  const [passportCorrected, setPassportCorrected] = useState(false);
+  const [packOpen, setPackOpen] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [status, setStatus] = useState('');
   const open = ORDERS.filter((o) => o.status === 'created' || o.status === 'accepted');
+
+  function sendPack() {
+    if (!passportCorrected) {
+      setStatus('Replace the expired identity evidence before sending the pack.');
+      return;
+    }
+    setSubmitted(true);
+    setStatus('Marcus’s review pack was sent to NCB Capital Markets.');
+  }
 
   return (
     <AppScreen active="orders" basePath="/demo">
       <PageHead
-        eyebrow="Executed and settled by the institution that holds them"
-        title="Your orders"
+        eyebrow="Compliance agent prepares the evidence; the licensed partner makes the decision"
+        title="Compliance & orders"
         right={
           <div className="rounded-xl border border-solid border-border bg-card px-4 py-2.5 text-[13.5px] text-dim">
             <b className="font-display text-lg text-foreground">{open.length}</b> in progress
           </div>
         }
       />
+
+      <DemoJourney current="compliance" />
+
+      <section aria-labelledby="compliance-heading" className="mb-7">
+        <div className="mb-3">
+          <h2 id="compliance-heading" className="font-display text-xl font-bold">
+            Marcus’s client review pack
+          </h2>
+          <p className="mb-0 mt-1 text-sm text-dim">
+            Sample OCR and declarations are structured for human review. No automated result is
+            represented as a licensed firm’s KYC or AML decision.
+          </p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+          <Card className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-mint text-teal2">
+                  <ScanLine className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <b className="font-display text-lg">Identity scan</b>
+                  <p className="mb-0 mt-1 text-sm text-dim">
+                    OCR confidence 98% · manual review required
+                  </p>
+                </div>
+              </div>
+              <Badge variant={passportCorrected ? 'success' : 'warning'}>
+                {passportCorrected ? 'Evidence ready' : 'Action required'}
+              </Badge>
+            </div>
+
+            <div
+              className={cn(
+                'mt-4 rounded-xl border p-4',
+                passportCorrected
+                  ? 'border-[#cde0d8] bg-mint'
+                  : 'border-[#ecd2c2] bg-[#fbeee7] dark:border-[#5a3f2e] dark:bg-[#2c1f17]',
+              )}
+            >
+              <div className="flex items-start gap-3">
+                {passportCorrected ? (
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-none text-success" aria-hidden />
+                ) : (
+                  <CircleAlert className="mt-0.5 h-5 w-5 flex-none text-terra" aria-hidden />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold">
+                    {passportCorrected
+                      ? 'US passport P•••4821 · expires 18 Sep 2031'
+                      : 'Jamaican passport P•••1842 · expired 12 Jun 2025'}
+                  </div>
+                  <p className="mb-0 mt-1 text-sm leading-snug text-dim">
+                    {passportCorrected
+                      ? 'Replacement identity evidence is ready to include in the partner pack.'
+                      : 'The compliance agent stopped the handoff and requested current identity evidence.'}
+                  </p>
+                </div>
+              </div>
+              {!passportCorrected ? (
+                <Button
+                  type="button"
+                  className="mt-4 w-full sm:w-auto"
+                  onClick={() => {
+                    setPassportCorrected(true);
+                    setStatus('Expired Jamaican passport replaced with a valid US passport.');
+                  }}
+                >
+                  Use valid US passport
+                </Button>
+              ) : null}
+            </div>
+
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              {[
+                ['Residency', 'United States'],
+                ['Citizenship', 'Jamaica + United States'],
+                ['Politically exposed person', 'No · declaration recorded'],
+                ['FATF jurisdiction screen', 'No policy flag in sample evidence'],
+                ['Source of funds', 'Employment income + savings'],
+                ['Proof of address', 'US utility statement · Jul 2026'],
+                ['Tax identifiers', 'TRN •••-•••-517 · SSN •••-••-4821'],
+                [
+                  'Identity document',
+                  passportCorrected ? 'Valid US passport' : 'Expired passport · replace',
+                ],
+              ].map(([term, value]) => (
+                <div key={term} className="rounded-xl bg-muted/50 p-3">
+                  <dt className="text-xs font-bold uppercase tracking-[.4px] text-faint">{term}</dt>
+                  <dd className="mb-0 ml-0 mt-1 text-sm font-semibold">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+
+          <Card className="h-fit p-5 sm:p-6">
+            <ShieldCheck className="h-6 w-6 text-teal2" aria-hidden />
+            <h3 className="mb-0 mt-3 font-display text-lg font-bold">Human-in-the-loop handoff</h3>
+            <p className="mb-0 mt-2 text-sm leading-relaxed text-dim">
+              CCN organises the consented evidence and flags issues. NCB Capital Markets—not CCN—
+              performs its screening and makes the final KYC, AML and client-acceptance decision.
+            </p>
+            <div className="mt-4 rounded-xl bg-[#f4f0e7] p-4 dark:bg-white/[0.04]">
+              <div className="text-xs font-bold uppercase tracking-[.5px] text-faint">
+                Response target
+              </div>
+              <div className="mt-1 font-display text-xl font-bold">Within 3 business days</div>
+              <p className="mb-0 mt-1 text-xs text-dim">
+                Actual timing may change if the partner requests more evidence.
+              </p>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <Button variant="outline" onClick={() => setPackOpen(true)}>
+                <FileText className="h-4 w-4" aria-hidden /> Review client PDF
+              </Button>
+              <Button onClick={sendPack}>
+                <Send className="h-4 w-4" aria-hidden /> Send to NCB
+              </Button>
+            </div>
+            <output
+              className={cn('mb-0 mt-3 text-sm', submitted ? 'text-success-ink' : 'text-terra-ink')}
+            >
+              {status ||
+                'Resolve the identity warning, review the pack, then send it to the partner.'}
+            </output>
+            {submitted ? (
+              <Button asChild variant="secondary" className="mt-4 w-full">
+                <Link href="/demo/institutions">Open NCB partner review</Link>
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </section>
+
+      <Dialog open={packOpen} onOpenChange={setPackOpen}>
+        <DialogContent className="max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle>Marcus Bailey · client review pack</DialogTitle>
+            <DialogDescription>
+              Editable review preview · generated from consented sample declarations and evidence.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1 text-sm">
+            <ReviewSection title="Profile">
+              United States resident · Jamaica and United States citizen · balanced risk · 5–10 year
+              horizon
+            </ReviewSection>
+            <ReviewSection title="Identity evidence">
+              {passportCorrected
+                ? 'Valid US passport P•••4821, expiring 18 Sep 2031.'
+                : 'Jamaican passport P•••1842 expired 12 Jun 2025. Replacement required before handoff.'}
+            </ReviewSection>
+            <ReviewSection title="Tax and address evidence">
+              Masked Jamaican TRN and US SSN · July 2026 US utility statement.
+            </ReviewSection>
+            <ReviewSection title="Declarations">
+              PEP: No · source of funds: employment income and savings · FATF jurisdiction screen:
+              no sample policy flag.
+            </ReviewSection>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" asChild>
+              <Link href="/demo/planning#profile">Edit profile details</Link>
+            </Button>
+            <Button onClick={() => setPackOpen(false)}>Confirm review</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <h2 className="mb-3 font-display text-xl font-bold">Order activity</h2>
 
       <Card className="overflow-hidden" data-tour="customer-order-flow">
         <ul className="m-0 list-none p-0">
@@ -129,5 +327,14 @@ export default function DemoOrdersPage() {
         that holds it from the moment it is routed.
       </p>
     </AppScreen>
+  );
+}
+
+function ReviewSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-border p-4">
+      <h3 className="mb-1 font-bold">{title}</h3>
+      <p className="m-0 leading-relaxed text-dim">{children}</p>
+    </section>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { AppScreen } from '@/app/_components/AppScreen';
+import { AppScreen, DemoJourney } from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { AgentDisplayCard } from '@/app/_components/agent-displays';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
@@ -51,12 +51,16 @@ const SEED: Msg[] = [
 ];
 
 const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
-  { label: 'Summarize my week', mobileLabel: 'Weekly recap', key: 'summary' },
-  { label: 'Chart my allocation', mobileLabel: 'Allocation chart', key: 'rebalance' },
-  { label: 'Best income deal?', mobileLabel: 'Income idea', key: 'income' },
+  { label: 'Compare my top 2', mobileLabel: 'Compare top 2', key: 'compare' },
+  { label: 'I need weekly access', mobileLabel: 'Update profile', key: 'profile' },
+  { label: 'Why not the villa?', mobileLabel: 'Why not villa?', key: 'whynot' },
 ];
 
 const REPLIES: Record<string, string> = {
+  compare:
+    'Your top matches are the <b>GOJ USD Global Bond 2032 at 94%</b> and the <b>Sagicor Real Estate X Fund at 89%</b>. The bond leads on predictable USD income and lower risk. The fund adds quarterly property income and growth but more concentration and valuation risk. Caribbean exposure may add diversification and regional alignment; it is not automatically better than a comparable US product, so I compare net fees, tax, currency, liquidity and investor protections.',
+  profile:
+    'I updated your liquidity need from <b>monthly access</b> to <b>weekly access</b> and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. The <b>NCB USD Money Market Fund</b> moved into your top two because it offers same-day access. The five-year villa note remains screened out. Review and approve any move before I route it.',
   summary:
     "Here's your week: your GOJ 2026 coupon of US$412 settles Friday. I'd reinvest it into the Real Estate X Fund, which is projected to lift blended yield to about 6.9%. Your US$2,150 cash is idle; a money-market sweep is projected to add about US$110 a year. Compared with like-for-like US, Canadian or UK options, the potential value is added Caribbean exposure; compare net fees, tax and reporting, currency, liquidity and investor protections before deciding. Both are queued for your approval.",
   rebalance:
@@ -187,6 +191,9 @@ function classify(text: string): string {
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
   if (/summar|week|overview/.test(t)) return 'summary';
+  if (/compare|top two|top 2|recommendation a|recommendation b/.test(t)) return 'compare';
+  if (/update.*profile|change.*profile|weekly access|liquidity|rematch|re-run/.test(t))
+    return 'profile';
   if (/chart|graph|pie|bar graph|plot|visual/.test(t)) return 'rebalance';
   if (/rebalanc|allocat|overweight|diversif/.test(t)) return 'rebalance';
   if (/income|yield|best|deal|coupon|bond/.test(t)) return 'income';
@@ -560,6 +567,8 @@ export default function AgentPage() {
           ))}
         </span>
       </div>
+
+      <DemoJourney current="advisor" />
 
       <div className="g-agent">
         {/* Chat */}

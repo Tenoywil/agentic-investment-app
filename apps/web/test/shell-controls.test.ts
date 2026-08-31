@@ -277,6 +277,55 @@ describe('app shell controls', () => {
     expect(agent).toContain('no money moved');
   });
 
+  test('the demo presents Marcus as a connected multi-screen agent journey', () => {
+    const shell = code(join(SHELL, 'AppScreen.tsx'));
+    const sidebar = code(join(SHELL, 'AppSidebar.tsx'));
+    const planning = code(join(WEB, 'app/demo/planning/page.tsx'));
+    const matching = code(join(WEB, 'app/demo/opportunities/page.tsx'));
+    const advisor = code(join(WEB, 'app/demo/agent/page.tsx'));
+    const compliance = code(join(WEB, 'app/demo/orders/page.tsx'));
+    const partner = code(join(WEB, 'app/demo/institutions/page.tsx'));
+    const dashboard = code(join(WEB, 'app/demo/home/page.tsx'));
+
+    for (const destination of [
+      '/demo/planning',
+      '/demo/opportunities',
+      '/demo/agent',
+      '/demo/orders',
+      '/demo/institutions',
+      '/demo/home',
+    ]) {
+      expect(shell).toContain(destination);
+    }
+    expect(sidebar).toContain('1 · Profile & goals');
+    expect(sidebar).toContain('5 · Partner review');
+    expect(sidebar).toContain('6 · Dashboard');
+
+    expect(planning).toContain('Marcus Bailey');
+    expect(planning).toContain('Citizenship · select all');
+    expect(planning).toContain('Save and re-run matching');
+
+    expect(matching).toContain('Top 2 recommendations');
+    expect(matching).toContain('Alternatives');
+    expect(matching).toContain('Not a match');
+    expect(matching).toContain('% match');
+
+    expect(advisor).toContain('I need weekly access');
+    expect(advisor).toContain('re-ran the workflow without restarting');
+    expect(advisor).toContain('How the agents reached this');
+
+    expect(compliance).toContain('expired 12 Jun 2025');
+    expect(compliance).toContain('Use valid US passport');
+    expect(compliance).toContain('Review client PDF');
+    expect(compliance).toContain('Within 3 business days');
+    expect(compliance).toContain('makes the final KYC, AML and client-acceptance decision');
+
+    expect(partner).toContain('Marcus Bailey · ••4821');
+    expect(partner).toContain('Review Marcus');
+    expect(partner).toContain('Accept client');
+    expect(dashboard).toContain('Marcus is connected to the live-monitoring workflow');
+  });
+
   test('identity intake and demo compliance copy reserve verification for licensed firms', () => {
     const onboardingData = code(join(WEB, 'app/(customer)/onboarding/data.ts'));
     const onboardingPage = code(join(WEB, 'app/(customer)/onboarding/page.tsx'));

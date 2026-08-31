@@ -1,5 +1,7 @@
 'use client';
 
+import { cn } from '@/app/_lib/utils';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AppSidebar, type Key } from './AppSidebar';
 import { MobileNav } from './MobileNav';
@@ -62,5 +64,69 @@ export function PageHead({
       </div>
       {right}
     </div>
+  );
+}
+
+export type DemoJourneyStep =
+  | 'profile'
+  | 'matches'
+  | 'advisor'
+  | 'compliance'
+  | 'partner'
+  | 'dashboard';
+
+const DEMO_JOURNEY: { key: DemoJourneyStep; label: string; href: string }[] = [
+  { key: 'profile', label: 'Profile', href: '/demo/planning' },
+  { key: 'matches', label: 'Matches', href: '/demo/opportunities' },
+  { key: 'advisor', label: 'Advisor', href: '/demo/agent' },
+  { key: 'compliance', label: 'Compliance', href: '/demo/orders' },
+  { key: 'partner', label: 'Partner review', href: '/demo/institutions' },
+  { key: 'dashboard', label: 'Dashboard', href: '/demo/home' },
+];
+
+/** A route-level map for the scripted Marcus walkthrough. Each destination is
+ * a real screen so evaluators can see the hand-offs instead of one long mock. */
+export function DemoJourney({ current }: { current: DemoJourneyStep }) {
+  const currentIndex = DEMO_JOURNEY.findIndex((step) => step.key === current);
+
+  return (
+    <nav
+      aria-label="Marcus demo journey"
+      className="mb-5 rounded-2xl border border-border bg-card p-3"
+    >
+      <ol className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3 xl:grid-cols-6">
+        {DEMO_JOURNEY.map((step, index) => {
+          const active = step.key === current;
+          const complete = index < currentIndex;
+          return (
+            <li key={step.key}>
+              <Link
+                href={step.href}
+                aria-current={active ? 'step' : undefined}
+                className={cn(
+                  'flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm no-underline',
+                  active
+                    ? 'bg-primary font-bold text-white'
+                    : complete
+                      ? 'bg-mint font-semibold text-teal2'
+                      : 'bg-muted/55 font-semibold text-dim hover:text-foreground',
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'grid h-5 w-5 flex-none place-items-center rounded-full text-[11px] font-bold',
+                    active ? 'bg-white/20' : complete ? 'bg-primary text-white' : 'bg-border',
+                  )}
+                >
+                  {complete ? '✓' : index + 1}
+                </span>
+                <span>{step.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }

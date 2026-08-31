@@ -1,5 +1,6 @@
 'use client';
 
+import { DemoJourney } from '@/app/_components/AppScreen';
 import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
 import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
 import type { TabKey } from '@/app/_components/console/lib';
@@ -37,7 +38,7 @@ import { useMemo, useState } from 'react';
 const PARTNER: MePartner = {
   id: 'demo-partner',
   code: 'DEMO-JM',
-  name: 'Caribbean Capital Demo',
+  name: 'NCB Capital Markets · Demo desk',
   kind: 'Broker-dealer',
   regulator: 'FSC_JAMAICA',
   agreementStatus: 'sandbox',
@@ -64,7 +65,7 @@ const INITIAL_ORDERS: ConsoleOrder[] = [
     amountMinor: '500000',
     currency: 'USD',
     idempotencyKey: 'demo-order-1',
-    clientRef: 'Client ••4821',
+    clientRef: 'Marcus Bailey · ••4821',
     settlementEta: null,
     unitPriceMinor: null,
     units: null,
@@ -219,6 +220,12 @@ const EQUITY: PartnerEquityPoint[] = [
 
 const REVIEW_ITEMS = [
   {
+    ref: 'Marcus Bailey · ••4821',
+    issue: 'Client review pack received',
+    evidence:
+      'Expired Jamaican passport replaced with valid US passport · dual citizenship declared · response target 3 business days',
+  },
+  {
     ref: 'Client ••517',
     issue: 'PEP disclosure requires human review',
     evidence: 'Declaration and source-of-funds files attached',
@@ -236,6 +243,7 @@ const REVIEW_ITEMS = [
 ];
 
 const SAMPLE_DECISIONS = [
+  ['Marcus review pack received', 'Compliance agent · client ••4821'],
   ['Client acceptance recorded', 'Demo Operator · client ••10482'],
   ['Source-of-funds review requested', 'AML agent · client ••10517'],
   ['Order settlement recorded', 'Demo Operator · DEMO-SETTLE-1042'],
@@ -436,6 +444,22 @@ export default function DemoInstitutionsPage() {
         data-tour="demo-institution-shell"
       >
         <ConsoleHeader tab={tab} />
+        <DemoJourney current="partner" />
+
+        {tab === 'overview' ? (
+          <Card className="mb-[18px] flex flex-wrap items-center gap-3 border-[#cde0d8] bg-mint p-4">
+            <UserCheck className="h-5 w-5 flex-none text-teal2" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <b className="font-display text-base">Marcus Bailey’s review pack is ready</b>
+              <p className="mb-0 mt-0.5 text-sm text-dim">
+                Valid replacement ID received · final client-acceptance decision belongs to NCB.
+              </p>
+            </div>
+            <Button type="button" onClick={() => navigateDemoTab('clients')}>
+              Review Marcus
+            </Button>
+          </Card>
+        ) : null}
 
         <TabsContent value="overview" className="mt-0">
           <OverviewTab
@@ -566,7 +590,8 @@ export default function DemoInstitutionsPage() {
                 <div>
                   <b className="font-display text-lg">Client review queue</b>
                   <p className="mb-0 mt-1 text-[13px] text-faint">
-                    Sample consented KYC and AML evidence awaiting a human decision.
+                    Sample consented KYC and AML evidence awaiting a human decision. The partner,
+                    not CCN, owns acceptance; Marcus’s response target is within 3 business days.
                   </p>
                 </div>
                 <Badge>{pendingReviews} pending</Badge>
@@ -599,7 +624,11 @@ export default function DemoInstitutionsPage() {
                           ) : (
                             <UserCheck className="h-4 w-4" aria-hidden />
                           )}
-                          {done ? 'Reviewed' : 'Record review'}
+                          {done
+                            ? 'Decision recorded'
+                            : item.ref.startsWith('Marcus')
+                              ? 'Accept client'
+                              : 'Record review'}
                         </Button>
                       </div>
                     </div>

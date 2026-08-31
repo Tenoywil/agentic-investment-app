@@ -1,6 +1,6 @@
 'use client';
 
-import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import { AppScreen, DemoJourney, PageHead } from '@/app/_components/AppScreen';
 import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -218,7 +218,7 @@ export default function HomePage() {
   return (
     <AppScreen active="home" basePath="/demo">
       <PageHead
-        eyebrow="Saturday, July 18"
+        eyebrow="Marcus lifecycle complete · consolidated sample updates"
         title="Good afternoon, Marcus"
         right={
           <div className="flex items-center gap-3">
@@ -245,6 +245,24 @@ export default function HomePage() {
           </div>
         }
       />
+
+      <DemoJourney current="dashboard" />
+
+      <Card className="mb-[18px] flex flex-wrap items-center gap-3 border-[#cde0d8] bg-mint p-4">
+        <span className="grid h-10 w-10 place-items-center rounded-full bg-primary text-white">
+          <Sparkles className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <b className="font-display text-base">
+            Marcus is connected to the live-monitoring workflow
+          </b>
+          <p className="mb-0 mt-0.5 text-sm text-dim">
+            Profile matched · advisor change re-run · client pack reviewed by NCB · positions and
+            opportunities now update here.
+          </p>
+        </div>
+        <Badge variant="success">Monitoring live</Badge>
+      </Card>
 
       {/* Hero card */}
       <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">
