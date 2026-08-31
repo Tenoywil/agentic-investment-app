@@ -42,6 +42,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 type Msg = { role: 'agent' | 'user'; text: string } | { role: 'agent'; display: AgentDisplayData };
 
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
+
 const SEED: Msg[] = [
   {
     role: 'agent',
@@ -504,7 +506,7 @@ const STATS: { n: string; cls: string; t: string }[] = [
 export default function AgentPage() {
   const [chat, setChat] = useState<Msg[]>(SEED);
   const [demoProfile, setDemoProfile] = useState<DemoProfile>(() => ({
-    ...DEFAULT_DEMO_PROFILE,
+    ...MARCUS_PROFILE,
   }));
   const [draft, setDraft] = useState('');
   const [voice, setVoice] = useState(false);
@@ -528,7 +530,7 @@ export default function AgentPage() {
   const inputId = useId();
 
   useEffect(() => {
-    setDemoProfile(readDemoProfile());
+    setDemoProfile(readDemoProfile(MARCUS_PROFILE));
   }, []);
 
   useEffect(() => {

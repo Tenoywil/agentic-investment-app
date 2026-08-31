@@ -103,15 +103,17 @@ export const DEFAULT_DEMO_PROFILE: DemoProfile = {
   usCitizen: true,
 };
 
+let inMemoryDemoProfile: DemoProfile | null = null;
+
 /** Browser persistence is an enhancement for the public walkthrough. Sandboxed
  * previews and privacy settings may deny storage, so every caller gets a usable
  * in-memory profile instead of a route crash. */
 export function readDemoProfile(fallback: DemoProfile = DEFAULT_DEMO_PROFILE): DemoProfile {
   try {
     const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
-    if (!stored) return { ...fallback };
+    if (!stored) return { ...(inMemoryDemoProfile ?? fallback) };
     const candidate = JSON.parse(stored) as Partial<DemoProfile>;
-    return {
+    const profile = {
       ...fallback,
       ...Object.fromEntries(
         Object.entries(candidate).filter(([key, value]) => {
@@ -120,12 +122,15 @@ export function readDemoProfile(fallback: DemoProfile = DEFAULT_DEMO_PROFILE): D
         }),
       ),
     };
+    inMemoryDemoProfile = profile;
+    return { ...profile };
   } catch {
-    return { ...fallback };
+    return { ...(inMemoryDemoProfile ?? fallback) };
   }
 }
 
 export function writeDemoProfile(profile: DemoProfile): void {
+  inMemoryDemoProfile = { ...profile };
   try {
     window.sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(profile));
   } catch {

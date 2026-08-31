@@ -305,6 +305,7 @@ describe('app shell controls', () => {
     expect(planning).toContain('Citizenship · select all');
     expect(planning).toContain('Save and re-run matching');
     expect(shell).toContain('window.sessionStorage.setItem');
+    expect(shell).toContain('inMemoryDemoProfile = { ...profile }');
     expect(planning).toContain('writeDemoProfile(profile)');
     expect(planning).toContain('setProfile(savedProfile)');
 
@@ -315,6 +316,7 @@ describe('app shell controls', () => {
     expect(shell).toContain('window.sessionStorage.getItem');
     expect(shell).toContain("opportunity.id === 'ncbmm' ? 27");
     expect(matching).toContain('rankDemoMatches(TRADEABLE, profile)');
+    expect(matching).toContain('screenedOutForProfile(opportunity, profile)');
 
     expect(advisor).toContain('I need weekly access');
     expect(advisor).toContain('re-ran the workflow without restarting');
@@ -336,7 +338,9 @@ describe('app shell controls', () => {
     expect(compliance).toContain('makes the final KYC, AML and client-acceptance decision');
 
     expect(partner).toContain('Marcus Bailey · ••4821');
-    expect(partner).toContain('Review Marcus');
+    expect(partner).toContain('setProfile(restored)');
+    expect(partner).toContain('citizenship.join');
+    expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
     expect(dashboard).toContain('Marcus is connected to the live-monitoring workflow');
   });

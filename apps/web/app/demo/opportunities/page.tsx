@@ -62,6 +62,8 @@ type Opp = {
   blockReasons?: string[];
 };
 
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
+
 const OPPS: Opp[] = [
   {
     id: 'goj32',
@@ -238,6 +240,36 @@ const TRADEABLE = OPPS.filter((o) => !o.blocked);
 const BLOCKED = OPPS.filter((o) => o.blocked);
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
+
+function screenedOutForProfile(opportunity: Opp, profile: DemoProfile): Opp {
+  const reasons = [
+    'Size: the US$25,000 minimum is 80% of this sample portfolio, above its 15% single-position cap',
+  ];
+  if (profile.risk !== 'Growth') {
+    reasons.unshift(
+      `Risk: the ${profile.risk.toLowerCase()} risk profile does not fit this speculative development note`,
+    );
+  }
+  if (profile.horizon !== '10+ years' || profile.liquidity !== 'Can lock for 3 years') {
+    reasons.push(
+      `Liquidity: five years with no secondary market conflicts with the ${profile.horizon.toLowerCase()} horizon and ${profile.liquidity.toLowerCase()} need`,
+    );
+  }
+  if (
+    profile.objective === 'Income and long-term growth' ||
+    profile.objective === 'Retirement income'
+  ) {
+    reasons.push(
+      `Income: nothing is paid until exit, which conflicts with the ${profile.objective.toLowerCase()} objective`,
+    );
+  }
+  return {
+    ...opportunity,
+    agentNote:
+      'I recommend against this one under the current profile and will not prepare it. The failing constraints below were re-run from the saved fact-find.',
+    blockReasons: reasons,
+  };
+}
 
 const METRIC_BOX = 'rounded-xl bg-[#f4f0e7] px-[15px] py-[13px] dark:bg-white/[0.04]';
 const METRIC_LBL =
@@ -585,14 +617,15 @@ function useIsPhone(): boolean {
 export default function OpportunitiesPage() {
   const [filter, setFilter] = useState<Kind | 'All'>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
-  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_DEMO_PROFILE);
+  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
   const phone = useIsPhone();
 
   useEffect(() => {
-    setProfile(readDemoProfile());
+    setProfile(readDemoProfile(MARCUS_PROFILE));
   }, []);
 
   const ranked = rankDemoMatches(TRADEABLE, profile);
+  const screenedOut = BLOCKED.map((opportunity) => screenedOutForProfile(opportunity, profile));
   const topMatches = ranked.slice(0, 2);
   const alternatives = ranked.slice(2);
   const firstMatch = topMatches[0];
@@ -601,6 +634,7 @@ export default function OpportunitiesPage() {
     profile.jamaicanCitizen ? 'Jamaica' : '',
     profile.usCitizen ? 'US' : '',
   ].filter(Boolean);
+  const profileName = profile.name.trim() || 'Sample investor';
 
   if (!firstMatch || !secondMatch) return null;
 
@@ -610,7 +644,7 @@ export default function OpportunitiesPage() {
 
   /** Same cards whether the section renders open (desktop) or behind the
    *  phone's disclosure — demo parity with the live marketplace. */
-  const screenedOutCards = BLOCKED.map((b) => (
+  const screenedOutCards = screenedOut.map((b) => (
     <ScreenedOutCard
       key={b.id}
       o={{
@@ -631,7 +665,7 @@ export default function OpportunitiesPage() {
     <AppScreen active="opportunities" basePath="/demo">
       <PageHead
         eyebrow="Research and matching agents compared 47 instruments across 8 licensed partners"
-        title="Marcus’s matches"
+        title={`${profileName}’s matches`}
         right={
           <div className="flex items-center gap-2 rounded-xl border border-border bg-mint px-[15px] py-[9px]">
             <b className="font-display text-xl">2</b>
@@ -652,15 +686,15 @@ export default function OpportunitiesPage() {
             Compare the top two
           </h2>
           <p className="mb-0 mt-1 text-sm text-dim">
-            Fit is explained against Marcus’s profile. A Caribbean product is not automatically
-            better than a US equivalent; fees, tax, currency, liquidity and investor protections
-            still need comparison.
+            Fit is explained against {profileName}’s profile. A Caribbean product is not
+            automatically better than a US equivalent; fees, tax, currency, liquidity and investor
+            protections still need comparison.
           </p>
         </div>
         <div className="grid gap-3 lg:grid-cols-3">
           <ComparisonCard
             title="Client profile"
-            badge="Marcus"
+            badge={profileName}
             lines={[
               `${profile.risk ?? 'Balanced'} · ${profile.objective ?? 'Income and long-term growth'}`,
               `${profile.horizon ?? '5–10 years'} horizon · ${profile.liquidity ?? 'Monthly access'}`,
@@ -736,7 +770,7 @@ export default function OpportunitiesPage() {
       {phone ? (
         <details className="mt-[30px]">
           <summary className="cursor-pointer list-none rounded-xl border border-solid border-[#ecd2c2] bg-card px-4 py-3 font-display text-[15px] font-bold marker:content-none dark:border-[#5a3f2e] [&::-webkit-details-marker]:hidden">
-            Not a match · {BLOCKED.length}
+            Not a match · {screenedOut.length}
           </summary>
           <p className="mb-3 mt-3 text-sm text-dim">
             Listed so you can see exactly what fails your suitability profile, and why.

@@ -1,6 +1,11 @@
 'use client';
 
-import { DemoJourney } from '@/app/_components/AppScreen';
+import {
+  DEFAULT_DEMO_PROFILE,
+  DemoJourney,
+  type DemoProfile,
+  readDemoProfile,
+} from '@/app/_components/AppScreen';
 import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
 import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
 import type { TabKey } from '@/app/_components/console/lib';
@@ -24,7 +29,7 @@ import type {
 import type { MePartner } from '@/lib/me-api';
 import { ArrowLeft, CheckCircle2, FileSearch, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
  * Isolated partner-console rehearsal.
@@ -51,6 +56,7 @@ const PARTNER: MePartner = {
 
 const OPERATOR = { name: 'Demo Operator', email: 'operator@example.invalid' };
 const DEMO_PAGE_SIZE = 2;
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
 
 const INITIAL_ORDERS: ConsoleOrder[] = [
   {
@@ -218,32 +224,28 @@ const EQUITY: PartnerEquityPoint[] = [
   { takenOn: '2026-08-20', heldMinor: '4820000000', clients: 1284 },
 ];
 
-const REVIEW_ITEMS = [
-  {
-    ref: 'Marcus Bailey · ••4821',
-    issue: 'Client review pack received',
-    evidence:
-      'Expired Jamaican passport replaced with valid US passport · dual citizenship declared · response target 3 business days',
-  },
+const OTHER_REVIEW_ITEMS = [
   {
     ref: 'Client ••517',
     issue: 'PEP disclosure requires human review',
     evidence: 'Declaration and source-of-funds files attached',
+    demoClient: false,
   },
   {
     ref: 'Client ••904',
     issue: 'Source-of-funds variance flagged',
     evidence: 'Income range differs from intended funding amount',
+    demoClient: false,
   },
   {
     ref: 'Client ••228',
     issue: 'Identity evidence needs operator verification',
     evidence: 'Shared intake is complete; the firm still owns final verification',
+    demoClient: false,
   },
 ];
 
-const SAMPLE_DECISIONS = [
-  ['Marcus review pack received', 'Compliance agent · client ••4821'],
+const OTHER_SAMPLE_DECISIONS = [
   ['Client acceptance recorded', 'Demo Operator · client ••10482'],
   ['Source-of-funds review requested', 'AML agent · client ••10517'],
   ['Order settlement recorded', 'Demo Operator · DEMO-SETTLE-1042'],
@@ -265,6 +267,37 @@ export default function DemoInstitutionsPage() {
   const [bulkListingOpen, setBulkListingOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ConsoleProduct>();
   const [reviewed, setReviewed] = useState<string[]>([]);
+  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
+
+  useEffect(() => {
+    const restored = readDemoProfile(MARCUS_PROFILE);
+    const restoredName = restored.name.trim() || 'Sample investor';
+    setProfile(restored);
+    setOrders((current) =>
+      current.map((order) =>
+        order.id === 'demo-order-1' ? { ...order, clientRef: `${restoredName} · ••4821` } : order,
+      ),
+    );
+  }, []);
+
+  const citizenship = [
+    profile.jamaicanCitizen ? 'Jamaican' : '',
+    profile.usCitizen ? 'US' : '',
+  ].filter(Boolean);
+  const profileName = profile.name.trim() || 'Sample investor';
+  const reviewItems = [
+    {
+      ref: `${profileName} · ••4821`,
+      issue: 'Client review pack received',
+      evidence: `Expired Jamaican passport replaced with valid US passport · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizenship declared` : 'citizenship requires clarification'} · response target 3 business days`,
+      demoClient: true,
+    },
+    ...OTHER_REVIEW_ITEMS,
+  ];
+  const sampleDecisions = [
+    [`${profileName} review pack received`, 'Compliance agent · client ••4821'],
+    ...OTHER_SAMPLE_DECISIONS,
+  ] as const;
 
   const filteredOrders = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -290,8 +323,8 @@ export default function DemoInstitutionsPage() {
     );
   }, [productQuery, productStatus, products]);
   const visibleProducts = filteredProducts.slice(productOffset, productOffset + DEMO_PAGE_SIZE);
-  const visibleReviews = REVIEW_ITEMS.slice(reviewOffset, reviewOffset + DEMO_PAGE_SIZE);
-  const visibleDecisions = SAMPLE_DECISIONS.slice(auditOffset, auditOffset + DEMO_PAGE_SIZE);
+  const visibleReviews = reviewItems.slice(reviewOffset, reviewOffset + DEMO_PAGE_SIZE);
+  const visibleDecisions = sampleDecisions.slice(auditOffset, auditOffset + DEMO_PAGE_SIZE);
 
   async function acceptOrder(id: string, settlementEta?: string) {
     const now = new Date().toISOString();
@@ -399,7 +432,7 @@ export default function DemoInstitutionsPage() {
   };
 
   const pendingOrders = orders.filter((order) => order.status === 'created').length;
-  const pendingReviews = REVIEW_ITEMS.filter((item) => !reviewed.includes(item.ref)).length;
+  const pendingReviews = reviewItems.filter((item) => !reviewed.includes(item.ref)).length;
   const navigateDemoTab = (next: TabKey) => {
     setTab(next);
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -450,13 +483,13 @@ export default function DemoInstitutionsPage() {
           <Card className="mb-[18px] flex flex-wrap items-center gap-3 border-[#cde0d8] bg-mint p-4">
             <UserCheck className="h-5 w-5 flex-none text-teal2" aria-hidden />
             <div className="min-w-0 flex-1">
-              <b className="font-display text-base">Marcus Bailey’s review pack is ready</b>
+              <b className="font-display text-base">{profileName}’s review pack is ready</b>
               <p className="mb-0 mt-0.5 text-sm text-dim">
                 Valid replacement ID received · final client-acceptance decision belongs to NCB.
               </p>
             </div>
             <Button type="button" onClick={() => navigateDemoTab('clients')}>
-              Review Marcus
+              Review client
             </Button>
           </Card>
         ) : null}
@@ -591,7 +624,8 @@ export default function DemoInstitutionsPage() {
                   <b className="font-display text-lg">Client review queue</b>
                   <p className="mb-0 mt-1 text-[13px] text-faint">
                     Sample consented KYC and AML evidence awaiting a human decision. The partner,
-                    not CCN, owns acceptance; Marcus’s response target is within 3 business days.
+                    not CCN, owns acceptance; this client’s response target is within 3 business
+                    days.
                   </p>
                 </div>
                 <Badge>{pendingReviews} pending</Badge>
@@ -626,7 +660,7 @@ export default function DemoInstitutionsPage() {
                           )}
                           {done
                             ? 'Decision recorded'
-                            : item.ref.startsWith('Marcus')
+                            : item.demoClient
                               ? 'Accept client'
                               : 'Record review'}
                         </Button>
@@ -637,7 +671,7 @@ export default function DemoInstitutionsPage() {
               </div>
               <ConsolePager
                 label="Demo client review queue"
-                total={REVIEW_ITEMS.length}
+                total={reviewItems.length}
                 offset={reviewOffset}
                 pageSize={DEMO_PAGE_SIZE}
                 visible={visibleReviews.length}
@@ -696,7 +730,7 @@ export default function DemoInstitutionsPage() {
               </div>
               <ConsolePager
                 label="Demo decision trail"
-                total={SAMPLE_DECISIONS.length}
+                total={sampleDecisions.length}
                 offset={auditOffset}
                 pageSize={DEMO_PAGE_SIZE}
                 visible={visibleDecisions.length}

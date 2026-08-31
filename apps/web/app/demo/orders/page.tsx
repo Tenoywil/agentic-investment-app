@@ -99,17 +99,19 @@ const ORDERS: {
   },
 ];
 
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
+
 export default function DemoOrdersPage() {
   const [passportCorrected, setPassportCorrected] = useState(false);
   const [packOpen, setPackOpen] = useState(false);
   const [packReviewed, setPackReviewed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState('');
-  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_DEMO_PROFILE);
+  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
   const open = ORDERS.filter((o) => o.status === 'created' || o.status === 'accepted');
 
   useEffect(() => {
-    setProfile(readDemoProfile());
+    setProfile(readDemoProfile(MARCUS_PROFILE));
   }, []);
 
   const citizenship = [
