@@ -91,7 +91,7 @@ export function DemoJourney({ current }: { current: DemoJourneyStep }) {
 
   return (
     <nav
-      aria-label="Marcus demo journey"
+      aria-label="Demo lifecycle journey"
       className="mb-5 rounded-2xl border border-border bg-card p-3"
     >
       <ol className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3 xl:grid-cols-6">
