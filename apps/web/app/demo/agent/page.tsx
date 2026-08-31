@@ -162,12 +162,16 @@ function comparisonReply(profile: DemoProfile): string {
   return `Your current top matches are the <b>${first.name} at ${first.match}%</b> and the <b>${second.name} at ${second.match}%</b>. This order reflects your <b>${profile.risk.toLowerCase()}</b> risk appetite, <b>${profile.objective.toLowerCase()}</b> objective, <b>${profile.horizon}</b> horizon and <b>${profile.liquidity.toLowerCase()}</b> liquidity need. Caribbean exposure is not automatically better than a comparable US product, so I still compare net fees, tax, currency, liquidity and investor protections.`;
 }
 
-function profileUpdateReply(previousProfile: DemoProfile): string {
+function profileUpdateReply(previousProfile: DemoProfile, updatedProfile: DemoProfile): string {
   const update =
     previousProfile.liquidity === 'Weekly access'
       ? 'Your liquidity need was already <b>weekly access</b>, so I kept it unchanged'
       : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>weekly access</b>`;
-  return `${update} and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. The <b>NCB USD Money Market Fund</b> moved into your top two because it offers same-day access. The five-year villa note remains screened out. Review and approve any move before I route it.`;
+  const ranked = rankDemoMatches(AGENT_MATCH_CANDIDATES, updatedProfile);
+  const topTwo = ranked.slice(0, 2);
+  const ncbPosition = ranked.findIndex((candidate) => candidate.id === 'ncbmm') + 1;
+  const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The NCB USD Money Market Fund's same-day access improved its liquidity fit${ncbPosition > 0 ? ` and places it at #${ncbPosition}` : ''}.`;
+  return `${update} and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. ${rankingSummary} The five-year villa note remains screened out. Review and approve any move before I route it.`;
 }
 
 function villaScreenReply(profile: DemoProfile): string {
@@ -289,17 +293,18 @@ function classify(text: string): string {
   if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
+  const weeklyAccessNegated = /\b(don't|do not|doesn't|does not|not|no longer|never)\b/.test(t);
+  const explicitWeeklyAccessUpdate =
+    !weeklyAccessNegated &&
+    (/\b(update|change|set|switch|make)\b.*\bweekly access\b/.test(t) ||
+      /\b(i need|i want|please)\b.*\bweekly access\b/.test(t) ||
+      /\b(profile|liquidity)\b.*\b(to|for)\b.*\bweekly access\b/.test(t));
+  if (explicitWeeklyAccessUpdate) return 'profile';
   const weeklyAccessQuestion =
     t.includes('?') ||
     /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t) ||
-    /\b(don't|do not|doesn't|does not|not|no longer|never)\b/.test(t);
+    weeklyAccessNegated;
   if (/\bweekly access\b/.test(t) && weeklyAccessQuestion) return 'liquidity';
-  if (
-    /\b(update|change|set|switch|make)\b.*\bweekly access\b/.test(t) ||
-    /\b(i need|i want|please)\b.*\bweekly access\b/.test(t) ||
-    /\b(profile|liquidity)\b.*\b(to|for)\b.*\bweekly access\b/.test(t)
-  )
-    return 'profile';
   if (/summar|this week|weekly summary|overview/.test(t)) return 'summary';
   if (/compare|top two|top 2|recommendation a|recommendation b/.test(t)) return 'compare';
   if (/liquidity|weekly access|access need|lock-up/.test(t)) return 'liquidity';
@@ -590,7 +595,7 @@ export default function AgentPage() {
       key === 'compare'
         ? comparisonReply(profileForReply)
         : key === 'profile'
-          ? profileUpdateReply(previousProfile)
+          ? profileUpdateReply(previousProfile, profileForReply)
           : key === 'whynot'
             ? villaScreenReply(profileForReply)
             : (REPLIES[key] ?? FALLBACK);

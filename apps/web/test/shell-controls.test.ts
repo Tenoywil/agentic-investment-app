@@ -327,6 +327,8 @@ describe('app shell controls', () => {
     expect(advisor).toContain('setDemoProfile(nextProfile)');
     expect(advisor).toContain("return 'liquidity'");
     expect(advisor).toContain('weeklyAccessQuestion');
+    expect(advisor).toContain('explicitWeeklyAccessUpdate');
+    expect(advisor).toContain('ncbPosition');
     expect(advisor).toContain('villaScreenReply(profileForReply)');
     expect(advisor).toContain('max-[900px]:hidden');
 

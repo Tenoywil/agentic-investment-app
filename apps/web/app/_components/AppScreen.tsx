@@ -158,16 +158,18 @@ export function demoVillaScreenReasons(profile: DemoProfile, context: DemoVillaC
   const reasons = [
     `Size: the ${context.minimumAmount} minimum is ${context.portfolioShare} of this sample portfolio, above its ${context.singlePositionCap} single-position cap`,
   ];
+  const liquidityTolerance =
+    profile.liquidity === 'Can lock for 3 years'
+      ? 'three-year lock tolerance'
+      : `${profile.liquidity.toLowerCase()} liquidity need`;
   if (profile.risk !== 'Growth') {
     reasons.unshift(
       `Risk: the ${profile.risk.toLowerCase()} risk profile does not fit this speculative development note`,
     );
   }
-  if (profile.horizon !== '10+ years' || profile.liquidity !== 'Can lock for 3 years') {
-    reasons.push(
-      `Liquidity: five years with no secondary market conflicts with the ${profile.horizon.toLowerCase()} horizon and ${profile.liquidity.toLowerCase()} need`,
-    );
-  }
+  reasons.push(
+    `Liquidity: five years with no secondary market exceeds the ${liquidityTolerance}${profile.horizon === '10+ years' ? '' : ` and conflicts with the ${profile.horizon.toLowerCase()} horizon`}`,
+  );
   if (
     profile.objective === 'Income and long-term growth' ||
     profile.objective === 'Retirement income'
