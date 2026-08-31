@@ -8,7 +8,42 @@ import { cn } from '@/app/_lib/utils';
 import { CheckCircle2, Pencil, UserRoundCheck } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
+
+type DemoProfile = {
+  name: string;
+  residence: string;
+  age: string;
+  objective: string;
+  horizon: string;
+  risk: string;
+  liquidity: string;
+  financialSituation: string;
+  jamaicanCitizen: boolean;
+  usCitizen: boolean;
+};
+
+const DEFAULT_PROFILE: DemoProfile = {
+  name: 'Marcus Bailey',
+  residence: 'United States',
+  age: '35–44',
+  objective: 'Income and long-term growth',
+  horizon: '5–10 years',
+  risk: 'Balanced',
+  liquidity: 'Monthly access',
+  financialSituation: 'Stable income; six-month cash reserve',
+  jamaicanCitizen: true,
+  usCitizen: true,
+};
+
+function citizenshipLabel(profile: DemoProfile): string {
+  if (profile.jamaicanCitizen && profile.usCitizen) return 'Jamaica + US citizen';
+  if (profile.jamaicanCitizen) return 'Jamaican citizen';
+  if (profile.usCitizen) return 'US citizen';
+  return 'citizenship not selected';
+}
 
 const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
   Recommended: 'success',
@@ -142,22 +177,36 @@ function Ring({ pct, color }: { pct: number; color: string }) {
 export default function PlanningPage() {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [profile, setProfile] = useState({
-    name: 'Marcus Bailey',
-    residence: 'United States',
-    age: '35–44',
-    objective: 'Income and long-term growth',
-    horizon: '5–10 years',
-    risk: 'Balanced',
-    liquidity: 'Monthly access',
-    financialSituation: 'Stable income; six-month cash reserve',
-    jamaicanCitizen: true,
-    usCitizen: true,
-  });
+  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_PROFILE);
+  const [savedProfile, setSavedProfile] = useState<DemoProfile>(DEFAULT_PROFILE);
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      const restored = { ...DEFAULT_PROFILE, ...(JSON.parse(stored) as Partial<DemoProfile>) };
+      setProfile(restored);
+      setSavedProfile(restored);
+      setSaved(true);
+    } catch {
+      window.sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
+    }
+  }, []);
 
   function saveProfile() {
+    setSavedProfile(profile);
+    window.sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(profile));
     setEditing(false);
     setSaved(true);
+  }
+
+  function toggleEditing() {
+    if (editing) {
+      setProfile(savedProfile);
+      setEditing(false);
+      return;
+    }
+    setEditing(true);
   }
 
   return (
@@ -179,10 +228,7 @@ export default function PlanningPage() {
               Signed in with Google · marcus.bailey@example.invalid · sample identity only
             </p>
           </div>
-          <Button
-            variant={editing ? 'outline' : 'secondary'}
-            onClick={() => setEditing((value) => !value)}
-          >
+          <Button variant={editing ? 'outline' : 'secondary'} onClick={toggleEditing}>
             <Pencil className="h-4 w-4" aria-hidden />
             {editing ? 'Cancel editing' : 'Edit profile'}
           </Button>
@@ -195,7 +241,9 @@ export default function PlanningPage() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="font-display text-xl font-bold">{profile.name}</div>
-              <div className="text-sm text-dim">🇺🇸 United States resident · dual citizen</div>
+              <div className="text-sm text-dim">
+                {profile.residence} resident · {citizenshipLabel(profile)}
+              </div>
             </div>
             <Badge variant="success">
               <UserRoundCheck className="h-3.5 w-3.5" aria-hidden /> Fact-find complete

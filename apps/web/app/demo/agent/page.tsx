@@ -56,6 +56,8 @@ const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
   { label: 'Why not the villa?', mobileLabel: 'Why not villa?', key: 'whynot' },
 ];
 
+const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
+
 const REPLIES: Record<string, string> = {
   compare:
     'Your top matches are the <b>GOJ USD Global Bond 2032 at 94%</b> and the <b>Sagicor Real Estate X Fund at 89%</b>. The bond leads on predictable USD income and lower risk. The fund adds quarterly property income and growth but more concentration and valuation risk. Caribbean exposure may add diversification and regional alignment; it is not automatically better than a comparable US product, so I compare net fees, tax, currency, liquidity and investor protections.',
@@ -468,10 +470,26 @@ export default function AgentPage() {
   function send(text: string, key?: string) {
     const t = text.trim();
     if (!t || replying) return;
+    const replyKey = key ?? classify(t);
+    if (replyKey === 'profile') {
+      try {
+        const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
+        const current = stored ? (JSON.parse(stored) as Record<string, unknown>) : {};
+        window.sessionStorage.setItem(
+          DEMO_PROFILE_STORAGE_KEY,
+          JSON.stringify({ ...current, liquidity: 'Weekly access' }),
+        );
+      } catch {
+        window.sessionStorage.setItem(
+          DEMO_PROFILE_STORAGE_KEY,
+          JSON.stringify({ liquidity: 'Weekly access' }),
+        );
+      }
+    }
     setChat((c) => [...c, { role: 'user', text: t }]);
     setDraft('');
     setReplying(true);
-    replyTimerRef.current = setTimeout(() => reply(key ?? classify(t)), 450);
+    replyTimerRef.current = setTimeout(() => reply(replyKey), 450);
   }
 
   function approveCard(a: (typeof APPROVALS)[number]) {
@@ -579,8 +597,8 @@ export default function AgentPage() {
           <div className="agent-chat__head flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px] max-[900px]:gap-2 max-[900px]:px-3 max-[900px]:py-3">
             {/* Phone only (CSS): the chat owns the whole screen there. */}
             <Link
-              href="/demo/home"
-              aria-label="Back to dashboard"
+              href="/demo/opportunities"
+              aria-label="Back to matches"
               className="agent-chat__back h-10 w-10 flex-none place-items-center rounded-[12px] text-foreground hover:bg-muted max-[900px]:h-9 max-[900px]:w-9"
             >
               <ArrowLeft className="h-5 w-5" aria-hidden />
@@ -614,6 +632,12 @@ export default function AgentPage() {
               )}
               <span className="max-[900px]:hidden">Voice {voice ? 'on' : 'off'}</span>
             </button>
+            <Link
+              href="/demo/orders"
+              className="hidden h-9 flex-none items-center gap-1 rounded-[10px] bg-primary px-2.5 text-xs font-bold text-white no-underline max-[900px]:inline-flex"
+            >
+              Compliance <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
           </div>
 
           <div

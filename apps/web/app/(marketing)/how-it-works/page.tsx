@@ -222,7 +222,7 @@ export default function HowItWorksPage() {
           <Button
             variant="outline"
             size="lg"
-            onClick={() => router.push('/demo/home')}
+            onClick={() => router.push('/demo/planning')}
             className="text-base"
           >
             See a live demo →

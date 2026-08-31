@@ -16,7 +16,25 @@ import { cn } from '@/app/_lib/utils';
 import { CheckCircle2, CircleAlert, FileText, ScanLine, Send, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
+
+type ReviewProfile = {
+  residence: string;
+  risk: string;
+  horizon: string;
+  jamaicanCitizen: boolean;
+  usCitizen: boolean;
+};
+
+const DEFAULT_REVIEW_PROFILE: ReviewProfile = {
+  residence: 'United States',
+  risk: 'Balanced',
+  horizon: '5–10 years',
+  jamaicanCitizen: true,
+  usCitizen: true,
+};
 
 /**
  * Orders, in the signed-out preview.
@@ -95,13 +113,40 @@ const ORDERS: {
 export default function DemoOrdersPage() {
   const [passportCorrected, setPassportCorrected] = useState(false);
   const [packOpen, setPackOpen] = useState(false);
+  const [packReviewed, setPackReviewed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState('');
+  const [profile, setProfile] = useState<ReviewProfile>(DEFAULT_REVIEW_PROFILE);
   const open = ORDERS.filter((o) => o.status === 'created' || o.status === 'accepted');
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      setProfile({
+        ...DEFAULT_REVIEW_PROFILE,
+        ...(JSON.parse(stored) as Partial<ReviewProfile>),
+      });
+    } catch {
+      window.sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
+    }
+  }, []);
+
+  const citizenship = [
+    profile.jamaicanCitizen ? 'Jamaica' : '',
+    profile.usCitizen ? 'United States' : '',
+  ].filter(Boolean);
+  const citizenshipText =
+    citizenship.length > 0 ? `${citizenship.join(' + ')} citizen` : 'Citizenship not selected';
 
   function sendPack() {
     if (!passportCorrected) {
       setStatus('Replace the expired identity evidence before sending the pack.');
+      return;
+    }
+    if (!packReviewed) {
+      setStatus('Review and confirm the client pack before sending it to the partner.');
+      setPackOpen(true);
       return;
     }
     setSubmitted(true);
@@ -195,8 +240,8 @@ export default function DemoOrdersPage() {
 
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
               {[
-                ['Residency', 'United States'],
-                ['Citizenship', 'Jamaica + United States'],
+                ['Residency', profile.residence],
+                ['Citizenship', citizenshipText],
                 ['Politically exposed person', 'No · declaration recorded'],
                 ['FATF jurisdiction screen', 'No policy flag in sample evidence'],
                 ['Source of funds', 'Employment income + savings'],
@@ -264,8 +309,8 @@ export default function DemoOrdersPage() {
           </DialogHeader>
           <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1 text-sm">
             <ReviewSection title="Profile">
-              United States resident · Jamaica and United States citizen · balanced risk · 5–10 year
-              horizon
+              {profile.residence} resident · {citizenshipText} · {profile.risk} risk ·{' '}
+              {profile.horizon} horizon
             </ReviewSection>
             <ReviewSection title="Identity evidence">
               {passportCorrected
@@ -284,7 +329,15 @@ export default function DemoOrdersPage() {
             <Button variant="outline" asChild>
               <Link href="/demo/planning#profile">Edit profile details</Link>
             </Button>
-            <Button onClick={() => setPackOpen(false)}>Confirm review</Button>
+            <Button
+              onClick={() => {
+                setPackReviewed(true);
+                setStatus('Client pack reviewed and ready to send.');
+                setPackOpen(false);
+              }}
+            >
+              Confirm review
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

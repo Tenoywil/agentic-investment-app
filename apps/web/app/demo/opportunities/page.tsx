@@ -54,6 +54,18 @@ type Opp = {
   blockReasons?: string[];
 };
 
+type StoredDemoProfile = {
+  residence?: string;
+  objective?: string;
+  horizon?: string;
+  risk?: string;
+  liquidity?: string;
+  jamaicanCitizen?: boolean;
+  usCitizen?: boolean;
+};
+
+const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
+
 const OPPS: Opp[] = [
   {
     id: 'goj32',
@@ -227,8 +239,6 @@ const OPPS: Opp[] = [
 ];
 
 const TRADEABLE = OPPS.filter((o) => !o.blocked);
-const TOP_MATCHES = TRADEABLE.slice(0, 2);
-const ALTERNATIVES = TRADEABLE.slice(2);
 const BLOCKED = OPPS.filter((o) => o.blocked);
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
@@ -579,9 +589,51 @@ function useIsPhone(): boolean {
 export default function OpportunitiesPage() {
   const [filter, setFilter] = useState<Kind | 'All'>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
+  const [profile, setProfile] = useState<StoredDemoProfile>({
+    residence: 'United States',
+    objective: 'Income and long-term growth',
+    horizon: '5–10 years',
+    risk: 'Balanced',
+    liquidity: 'Monthly access',
+    jamaicanCitizen: true,
+    usCitizen: true,
+  });
   const phone = useIsPhone();
 
-  const shown = filter === 'All' ? TRADEABLE : TRADEABLE.filter((o) => o.type === filter);
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      setProfile((current) => ({ ...current, ...(JSON.parse(stored) as StoredDemoProfile) }));
+    } catch {
+      window.sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
+    }
+  }, []);
+
+  const ranked = TRADEABLE.map((opportunity) => {
+    let adjustment = 0;
+    if (profile.liquidity === 'Weekly access') {
+      adjustment += opportunity.id === 'ncbmm' ? 27 : opportunity.term.includes('yr') ? -8 : 0;
+    }
+    if (profile.risk === 'Conservative') {
+      adjustment += opportunity.risk === 'Low' ? 4 : opportunity.risk === 'High' ? -30 : -10;
+    } else if (profile.risk === 'Growth') {
+      adjustment += opportunity.type === 'Equity' ? 8 : opportunity.type === 'Real Estate' ? 5 : -5;
+    }
+    return { ...opportunity, match: Math.max(1, Math.min(99, opportunity.match + adjustment)) };
+  }).sort((a, b) => b.match - a.match);
+  const topMatches = ranked.slice(0, 2);
+  const alternatives = ranked.slice(2);
+  const firstMatch = topMatches[0];
+  const secondMatch = topMatches[1];
+  const citizenship = [
+    profile.jamaicanCitizen ? 'Jamaica' : '',
+    profile.usCitizen ? 'US' : '',
+  ].filter(Boolean);
+
+  if (!firstMatch || !secondMatch) return null;
+
+  const shown = filter === 'All' ? ranked : ranked.filter((o) => o.type === filter);
   const count = (f: Kind | 'All') =>
     f === 'All' ? TRADEABLE.length : TRADEABLE.filter((o) => o.type === f).length;
 
@@ -639,27 +691,27 @@ export default function OpportunitiesPage() {
             title="Client profile"
             badge="Marcus"
             lines={[
-              'Balanced income and long-term growth',
-              '5–10 year horizon · monthly liquidity',
-              'US resident · Jamaica + US citizen',
+              `${profile.risk ?? 'Balanced'} · ${profile.objective ?? 'Income and long-term growth'}`,
+              `${profile.horizon ?? '5–10 years'} horizon · ${profile.liquidity ?? 'Monthly access'}`,
+              `${profile.residence ?? 'United States'} resident · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizen` : 'citizenship not selected'}`,
             ]}
           />
           <ComparisonCard
-            title="A · GOJ USD Bond 2032"
-            badge="94% match"
+            title={`A · ${firstMatch.name}`}
+            badge={`${firstMatch.match}% match`}
             lines={[
-              'USD income supports the stated objective',
-              'Low risk · 8-year duration',
-              'Versus US bond: higher coupon, with Jamaica credit and liquidity risk',
+              firstMatch.agentNote,
+              `${firstMatch.risk} risk · ${firstMatch.term}`,
+              'Compare net fees, tax, currency, liquidity and investor protections',
             ]}
           />
           <ComparisonCard
-            title="B · Sagicor Real Estate X"
-            badge="89% match"
+            title={`B · ${secondMatch.name}`}
+            badge={`${secondMatch.match}% match`}
             lines={[
-              'Income plus regional growth exposure',
-              'Medium risk · open-ended',
-              'Versus US REIT: direct Caribbean property exposure, with concentration risk',
+              secondMatch.agentNote,
+              `${secondMatch.risk} risk · ${secondMatch.term}`,
+              'Compare net fees, tax, currency, liquidity and investor protections',
             ]}
           />
         </div>
@@ -689,13 +741,13 @@ export default function OpportunitiesPage() {
         <div data-tour="customer-marketplace">
           <h2 className="mb-3 font-display text-xl font-bold">Top 2 recommendations</h2>
           <div className="g2">
-            {TOP_MATCHES.map((o) => (
+            {topMatches.map((o) => (
               <OppCard key={o.id} o={o} onOpen={setSelected} />
             ))}
           </div>
           <h2 className="mb-3 mt-7 font-display text-xl font-bold">Alternatives</h2>
           <div className="g2">
-            {ALTERNATIVES.map((o) => (
+            {alternatives.map((o) => (
               <OppCard key={o.id} o={o} onOpen={setSelected} />
             ))}
           </div>

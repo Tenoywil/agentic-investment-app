@@ -304,19 +304,26 @@ describe('app shell controls', () => {
     expect(planning).toContain('Marcus Bailey');
     expect(planning).toContain('Citizenship · select all');
     expect(planning).toContain('Save and re-run matching');
+    expect(planning).toContain('window.sessionStorage.setItem');
+    expect(planning).toContain('setProfile(savedProfile)');
 
     expect(matching).toContain('Top 2 recommendations');
     expect(matching).toContain('Alternatives');
     expect(matching).toContain('Not a match');
     expect(matching).toContain('% match');
+    expect(matching).toContain('window.sessionStorage.getItem');
+    expect(matching).toContain("opportunity.id === 'ncbmm' ? 27");
 
     expect(advisor).toContain('I need weekly access');
     expect(advisor).toContain('re-ran the workflow without restarting');
     expect(advisor).toContain('How the agents reached this');
+    expect(advisor).toContain('href="/demo/orders"');
+    expect(advisor).toContain("liquidity: 'Weekly access'");
 
     expect(compliance).toContain('expired 12 Jun 2025');
     expect(compliance).toContain('Use valid US passport');
     expect(compliance).toContain('Review client PDF');
+    expect(compliance).toContain('if (!packReviewed)');
     expect(compliance).toContain('Within 3 business days');
     expect(compliance).toContain('makes the final KYC, AML and client-acceptance decision');
 
