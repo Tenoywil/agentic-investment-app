@@ -298,7 +298,7 @@ function classify(text: string): string {
     t.includes('?') ||
     /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
   const weeklyAccessAction =
-    /(?:update|change|set|switch)\s+(?:(?:my|the)\s+)?(?:profile|liquidity(?:\s+(?:need|target))?)\b.*\bweekly access\b|make\s+(?:my|the)\s+(?:profile|liquidity(?:\s+(?:need|target))?)\b.*\bweekly access\b|set\s+weekly access\b.*\b(?:(?:my|the)\s+)?(?:profile|liquidity(?:\s+(?:need|target))?)\b/;
+    /(?:update|change|set|switch|make)\b(?!\s+me\b)(?=[^.!?]*\bweekly access\b)(?=[^.!?]*\b(?:profile|liquidity)\b)[^.!?]*/;
   const weeklyAccessActionIndex = t.search(weeklyAccessAction);
   const weeklyAccessActionPrefix =
     weeklyAccessActionIndex >= 0 ? t.slice(0, weeklyAccessActionIndex) : null;
