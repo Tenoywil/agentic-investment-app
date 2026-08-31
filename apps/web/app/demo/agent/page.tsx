@@ -382,7 +382,7 @@ function classify(text: string): string {
       ));
   const weeklyAccessRationaleDirectlyNegatesValue =
     weeklyAccessRationale !== null &&
-    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:avoid|cancel|decline|delete|disable|drop|opt out|reject|remove|stop(?: using)?|turn (?:it |weekly access )?off)\b|(?:accept|choose|have|keep|manage|need|receive|require|retain|select|use|want)\s+(?:it|weekly access|(?:this|the) setting)\b|(?:be\s+(?:on|stuck with)|continue with|deal with|depend on|enroll in|remain on|rely on|stay on)\s+(?:it|weekly access|(?:this|the) setting)\b)/.test(
+    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:avoid|cancel|decline|delete|disable|drop|opt out|reject|remove|stop(?: using)?|turn (?:it |weekly access )?off)\b|(?:accept|have|keep|need|receive|require|retain|use|want)\s+(?:it|weekly access|(?:this|the) setting)\b|continue\s+to\s+(?:accept|have|keep|need|receive|require|retain|use|want)\s+(?:it|weekly access|(?:this|the) setting)\b|(?:be\s+(?:on|stuck with)|continue with|deal with|depend on|enroll in|remain on|rely on|stay on)\s+(?:it|weekly access|(?:this|the) setting)\b)/.test(
       weeklyAccessRationale,
     );
   const weeklyAccessRationaleExplainsConvenience =
