@@ -294,17 +294,19 @@ function classify(text: string): string {
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
   const weeklyAccessNegated = /\b(don't|do not|doesn't|does not|not|no longer|never)\b/.test(t);
-  const explicitWeeklyAccessUpdate =
-    !weeklyAccessNegated &&
-    (/\b(update|change|set|switch|make)\b.*\bweekly access\b/.test(t) ||
-      /\b(i need|i want|please)\b.*\bweekly access\b/.test(t) ||
-      /\b(profile|liquidity)\b.*\b(to|for)\b.*\bweekly access\b/.test(t));
-  if (explicitWeeklyAccessUpdate) return 'profile';
   const weeklyAccessQuestion =
     t.includes('?') ||
-    /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t) ||
-    weeklyAccessNegated;
-  if (/\bweekly access\b/.test(t) && weeklyAccessQuestion) return 'liquidity';
+    /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
+  const explicitWeeklyAccessUpdate =
+    !weeklyAccessNegated &&
+    (/^(?:please\s+)?(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(t) ||
+      /^(?:can|could|would|will)\s+you\b.*\b(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(
+        t,
+      ) ||
+      (!weeklyAccessQuestion && /\b(i need|i want|please)\b.*\bweekly access\b/.test(t)));
+  if (explicitWeeklyAccessUpdate) return 'profile';
+  if (/\bweekly access\b/.test(t) && (weeklyAccessQuestion || weeklyAccessNegated))
+    return 'liquidity';
   if (/summar|this week|weekly summary|overview/.test(t)) return 'summary';
   if (/compare|top two|top 2|recommendation a|recommendation b/.test(t)) return 'compare';
   if (/liquidity|weekly access|access need|lock-up/.test(t)) return 'liquidity';
