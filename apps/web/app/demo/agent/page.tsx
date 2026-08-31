@@ -380,15 +380,18 @@ function classify(text: string): string {
       /\b(?:copy|details?|information|labels?|notes?|overview|text|wording)\s+(?:in|on)\s+(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b/.test(
         weeklyAccessRationalePrefix,
       ));
-  const weeklyAccessRationaleExplainsConvenience =
-    weeklyAccessRationale !== null &&
-    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?|(?![^.!?]*\b(?:avoid|cancel|decline|delete|disable|drop|opt out|reject|remove|stop|turn (?:it )?off)\b)[^.!?]*\b(?:again|each time|every time|each week|every week|each month|every month|later))\s*$/.test(
-      weeklyAccessRationale,
-    );
   const weeklyAccessRationaleDirectlyNegatesValue =
     weeklyAccessRationale !== null &&
-    !weeklyAccessRationaleExplainsConvenience &&
-    /\b(?:weekly access|it|(?:this|the) setting|(?:daily|monthly|quarterly) access|remove|disable|cancel|decline|avoid|opt out|turn (?:it )?off)\b/.test(
+    (/\b(?:avoid|cancel|decline|delete|disable|drop|opt out|reject|remove|stop(?: using)?|turn (?:it |weekly access )?off)\b/.test(
+      weeklyAccessRationale,
+    ) ||
+      /\b(?:accept|have|keep|need|receive|require|retain|use)\s+(?:it|weekly access|(?:this|the) setting)\b/.test(
+        weeklyAccessRationale,
+      ));
+  const weeklyAccessRationaleExplainsConvenience =
+    weeklyAccessRationale !== null &&
+    !weeklyAccessRationaleDirectlyNegatesValue &&
+    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?|[^.!?]*\b(?:again|each time|every time|each week|every week|each month|every month|later))\s*$/.test(
       weeklyAccessRationale,
     );
   const weeklyAccessHasAffirmativeRationale =
