@@ -355,6 +355,53 @@ function classify(text: string): string {
     /^(?=[^.!?]*\b(?:profile|liquidity)\b)[^.!?]*\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)(?:(?!\bto\b)[^.!?])*\bto\s+(?:(?:default|setting|status)\s+to\s+)?(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|in|on|to)\b[^.!?]*)?\s*(?:$|[,;.!?])/.test(
       weeklyAccessClause,
     );
+  const weeklyAccessRationaleIndex =
+    weeklyAccessClause?.search(
+      /\b(?:so(?: that)?|such that|until)\s+(?:(?:i|it|my profile|the profile|this profile)\s+)?(?:doesn't|does not|don't|do not|won't|will not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*have\s+to\b/,
+    ) ?? -1;
+  const weeklyAccessRationalePrefix =
+    weeklyAccessClause !== null && weeklyAccessRationaleIndex >= 0
+      ? weeklyAccessClause.slice(0, weeklyAccessRationaleIndex)
+      : null;
+  const weeklyAccessRationale =
+    weeklyAccessClause !== null && weeklyAccessRationaleIndex >= 0
+      ? weeklyAccessClause.slice(weeklyAccessRationaleIndex)
+      : null;
+  const weeklyAccessRationaleHasContraryDestination =
+    weeklyAccessRationalePrefix !== null &&
+    /\bweekly access\b[^.!?]*\bto\s+(?!(?:active|enabled|required|on)\b)(?!weekly access\b)/.test(
+      weeklyAccessRationalePrefix,
+    );
+  const weeklyAccessRationaleHasInformationalTarget =
+    weeklyAccessRationalePrefix !== null &&
+    (/\b(?:profile|liquidity)\s+(?:copy|details?|information|labels?|notes?|overview|text|wording)\b/.test(
+      weeklyAccessRationalePrefix,
+    ) ||
+      /\b(?:copy|details?|information|labels?|notes?|overview|text|wording)\s+(?:in|on)\s+(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b/.test(
+        weeklyAccessRationalePrefix,
+      ));
+  const weeklyAccessRationaleExplainsConvenience =
+    weeklyAccessRationale !== null &&
+    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?)\s*$/.test(
+      weeklyAccessRationale,
+    );
+  const weeklyAccessRationaleDirectlyNegatesValue =
+    weeklyAccessRationale !== null &&
+    !weeklyAccessRationaleExplainsConvenience &&
+    /\b(?:weekly access|it|(?:daily|monthly|quarterly) access|remove|disable|cancel|decline|avoid|opt out|turn (?:it )?off)\b/.test(
+      weeklyAccessRationale,
+    );
+  const weeklyAccessHasAffirmativeRationale =
+    weeklyAccessRationalePrefix !== null &&
+    !weeklyAccessRationaleHasContraryDestination &&
+    !weeklyAccessRationaleHasInformationalTarget &&
+    !weeklyAccessRationaleDirectlyNegatesValue &&
+    (/\b(?:profile|liquidity)(?:\s+(?:access|need|setting|status))?\s+(?:to|as|for)\s+(?:(?:have|require|provide)\s+)?weekly access\b/.test(
+      weeklyAccessRationalePrefix,
+    ) ||
+      /\bweekly access\b\s+(?:in|on|for|to)\s+(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b(?:\s+(?:setting|status))?(?:\s+to\s+(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|in|on)\b[^,;.!?]*)?)?\s*[,;]?\s*$/.test(
+        weeklyAccessRationalePrefix,
+      ));
   const weeklyAccessSourceTransition =
     weeklyAccessClause !== null &&
     (/\bweekly access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bto\s+(?!weekly access\b)/.test(
@@ -367,7 +414,9 @@ function classify(text: string): string {
   const weeklyAccessIsSource =
     weeklyAccessClause !== null &&
     (/\bfrom\s+weekly access\b/.test(weeklyAccessClause) ||
-      (weeklyAccessSourceTransition && !weeklyAccessEndsInAffirmativeState));
+      (weeklyAccessSourceTransition &&
+        !weeklyAccessEndsInAffirmativeState &&
+        !weeklyAccessHasAffirmativeRationale));
   const weeklyAccessTargetsProfile =
     weeklyAccessClause !== null &&
     weeklyAccessHasSettingObject &&
@@ -379,9 +428,10 @@ function classify(text: string): string {
     /\b(?:doesn't|does not|don't|do not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:accept|add|allow|assign|enable|give|grant|include|need|offer|permit|provide|require|use|want)\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
       t,
     ) ||
-    /\b(?:so|such that|to|until)\s+(?:(?:i|it|my profile|the profile|this profile)\s+)?(?:doesn't|does not|don't|do not|won't|will not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*have\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
-      t,
-    ) ||
+    (!weeklyAccessHasAffirmativeRationale &&
+      /\b(?:so(?: that)?|such that|to|until)\s+(?:(?:i|it|my profile|the profile|this profile)\s+)?(?:doesn't|does not|don't|do not|won't|will not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*have\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+        t,
+      )) ||
     /\bavoid(?:ing)?\s+(?:(?:a|all|any|changing|for|having|mandatory|my|need|needs|of|profile|requirement|requirements|requiring|setting|switching|the|to|updating|using)\s+)*weekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
       t,
     ) ||
