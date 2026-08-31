@@ -6,6 +6,7 @@ import {
   DemoJourney,
   type DemoProfile,
   PageHead,
+  demoVillaScreenReasons,
   rankDemoMatches,
   readDemoProfile,
 } from '@/app/_components/AppScreen';
@@ -240,34 +241,18 @@ const TRADEABLE = OPPS.filter((o) => !o.blocked);
 const BLOCKED = OPPS.filter((o) => o.blocked);
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
+const VILLA_SCREEN_CONTEXT = {
+  minimumAmount: 'US$25,000',
+  portfolioShare: '80%',
+  singlePositionCap: '15%',
+};
 
 function screenedOutForProfile(opportunity: Opp, profile: DemoProfile): Opp {
-  const reasons = [
-    'Size: the US$25,000 minimum is 80% of this sample portfolio, above its 15% single-position cap',
-  ];
-  if (profile.risk !== 'Growth') {
-    reasons.unshift(
-      `Risk: the ${profile.risk.toLowerCase()} risk profile does not fit this speculative development note`,
-    );
-  }
-  if (profile.horizon !== '10+ years' || profile.liquidity !== 'Can lock for 3 years') {
-    reasons.push(
-      `Liquidity: five years with no secondary market conflicts with the ${profile.horizon.toLowerCase()} horizon and ${profile.liquidity.toLowerCase()} need`,
-    );
-  }
-  if (
-    profile.objective === 'Income and long-term growth' ||
-    profile.objective === 'Retirement income'
-  ) {
-    reasons.push(
-      `Income: nothing is paid until exit, which conflicts with the ${profile.objective.toLowerCase()} objective`,
-    );
-  }
   return {
     ...opportunity,
     agentNote:
       'I recommend against this one under the current profile and will not prepare it. The failing constraints below were re-run from the saved fact-find.',
-    blockReasons: reasons,
+    blockReasons: demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT),
   };
 }
 

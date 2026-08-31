@@ -316,7 +316,7 @@ describe('app shell controls', () => {
     expect(shell).toContain('window.sessionStorage.getItem');
     expect(shell).toContain("opportunity.id === 'ncbmm' ? 27");
     expect(matching).toContain('rankDemoMatches(TRADEABLE, profile)');
-    expect(matching).toContain('screenedOutForProfile(opportunity, profile)');
+    expect(matching).toContain('demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT)');
 
     expect(advisor).toContain('I need weekly access');
     expect(advisor).toContain('re-ran the workflow without restarting');
@@ -326,10 +326,13 @@ describe('app shell controls', () => {
     expect(advisor).toContain('rankDemoMatches(AGENT_MATCH_CANDIDATES, profile)');
     expect(advisor).toContain('setDemoProfile(nextProfile)');
     expect(advisor).toContain("return 'liquidity'");
+    expect(advisor).toContain('weeklyAccessQuestion');
+    expect(advisor).toContain('villaScreenReply(profileForReply)');
     expect(advisor).toContain('max-[900px]:hidden');
 
-    expect(compliance).toContain('expired 12 Jun 2025');
-    expect(compliance).toContain('Use valid US passport');
+    expect(shell).toContain('expired 12 Jun 2025');
+    expect(compliance).toContain('identityEvidence.replacementButtonLabel');
+    expect(compliance).toContain('demoIdentityEvidence(profile)');
     expect(compliance).toContain('Review client PDF');
     expect(compliance).toContain('if (!packReviewed)');
     expect(compliance).toContain('setPackReviewed(false)');
@@ -339,6 +342,7 @@ describe('app shell controls', () => {
 
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');
+    expect(partner).toContain('restoredEvidence.clientReference');
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');

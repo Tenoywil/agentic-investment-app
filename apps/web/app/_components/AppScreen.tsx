@@ -103,6 +103,82 @@ export const DEFAULT_DEMO_PROFILE: DemoProfile = {
   usCitizen: true,
 };
 
+export type DemoIdentityEvidence = {
+  clientReference: string;
+  currentDocument: string;
+  replacementDocument: string | null;
+  replacementButtonLabel: string;
+  replacementSummary: string;
+  addressEvidence: string;
+  taxIdentifiers: string;
+};
+
+export type DemoVillaContext = {
+  minimumAmount: string;
+  portfolioShare: string;
+  singlePositionCap: string;
+};
+
+/** Keeps the sample compliance pack aligned with the editable fact-find. */
+export function demoIdentityEvidence(profile: DemoProfile): DemoIdentityEvidence {
+  const currentCountry = profile.jamaicanCitizen ? 'Jamaican' : profile.usCitizen ? 'US' : null;
+  const replacementCountry = profile.usCitizen ? 'US' : profile.jamaicanCitizen ? 'Jamaican' : null;
+  const taxIdentifiers = [
+    profile.jamaicanCitizen || profile.residence === 'Jamaica' ? 'TRN •••-•••-517' : '',
+    profile.usCitizen || profile.residence === 'United States' ? 'SSN •••-••-4821' : '',
+    profile.residence === 'Canada' ? 'SIN •••-•••-482' : '',
+    profile.residence === 'United Kingdom' ? 'National Insurance number ••••821' : '',
+  ].filter(Boolean);
+
+  return {
+    clientReference:
+      replacementCountry === 'US' ? '••4821' : replacementCountry ? '••1517' : 'unverified',
+    currentDocument: currentCountry
+      ? `${currentCountry} passport P•••1842 · expired 12 Jun 2025`
+      : 'Passport evidence missing · select citizenship in the profile',
+    replacementDocument: replacementCountry
+      ? `${replacementCountry} passport P•••4821 · expires 18 Sep 2031`
+      : null,
+    replacementButtonLabel: replacementCountry
+      ? `Use valid ${replacementCountry} passport`
+      : 'Select citizenship in profile',
+    replacementSummary: replacementCountry
+      ? `Expired ${currentCountry} passport replaced with valid ${replacementCountry} passport`
+      : 'Citizenship requires clarification before identity evidence can be selected',
+    addressEvidence: `${profile.residence} utility statement · Jul 2026`,
+    taxIdentifiers:
+      taxIdentifiers.length > 0
+        ? taxIdentifiers.join(' · ')
+        : 'Tax identifiers require clarification',
+  };
+}
+
+/** Suitability reasons shared by the matches screen and advisor explanation. */
+export function demoVillaScreenReasons(profile: DemoProfile, context: DemoVillaContext): string[] {
+  const reasons = [
+    `Size: the ${context.minimumAmount} minimum is ${context.portfolioShare} of this sample portfolio, above its ${context.singlePositionCap} single-position cap`,
+  ];
+  if (profile.risk !== 'Growth') {
+    reasons.unshift(
+      `Risk: the ${profile.risk.toLowerCase()} risk profile does not fit this speculative development note`,
+    );
+  }
+  if (profile.horizon !== '10+ years' || profile.liquidity !== 'Can lock for 3 years') {
+    reasons.push(
+      `Liquidity: five years with no secondary market conflicts with the ${profile.horizon.toLowerCase()} horizon and ${profile.liquidity.toLowerCase()} need`,
+    );
+  }
+  if (
+    profile.objective === 'Income and long-term growth' ||
+    profile.objective === 'Retirement income'
+  ) {
+    reasons.push(
+      `Income: nothing is paid until exit, which conflicts with the ${profile.objective.toLowerCase()} objective`,
+    );
+  }
+  return reasons;
+}
+
 let inMemoryDemoProfile: DemoProfile | null = null;
 
 /** Browser persistence is an enhancement for the public walkthrough. Sandboxed

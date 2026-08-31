@@ -6,6 +6,7 @@ import {
   DemoJourney,
   type DemoProfile,
   PageHead,
+  demoIdentityEvidence,
   readDemoProfile,
 } from '@/app/_components/AppScreen';
 import { Badge } from '@/app/_components/ui/badge';
@@ -121,6 +122,7 @@ export default function DemoOrdersPage() {
   const citizenshipText =
     citizenship.length > 0 ? `${citizenship.join(' + ')} citizen` : 'Citizenship not selected';
   const profileName = profile.name.trim() || 'Sample investor';
+  const identityEvidence = demoIdentityEvidence(profile);
 
   function sendPack() {
     if (!passportCorrected) {
@@ -196,9 +198,9 @@ export default function DemoOrdersPage() {
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="font-bold">
-                    {passportCorrected
-                      ? 'US passport P•••4821 · expires 18 Sep 2031'
-                      : 'Jamaican passport P•••1842 · expired 12 Jun 2025'}
+                    {passportCorrected && identityEvidence.replacementDocument
+                      ? identityEvidence.replacementDocument
+                      : identityEvidence.currentDocument}
                   </div>
                   <p className="mb-0 mt-1 text-sm leading-snug text-dim">
                     {passportCorrected
@@ -212,14 +214,21 @@ export default function DemoOrdersPage() {
                   type="button"
                   className="mt-4 w-full sm:w-auto"
                   onClick={() => {
+                    if (!identityEvidence.replacementDocument) {
+                      setStatus(
+                        'Select at least one citizenship in the profile before replacing the passport.',
+                      );
+                      return;
+                    }
                     setPassportCorrected(true);
                     setPackReviewed(false);
                     setStatus(
-                      'Expired Jamaican passport replaced with a valid US passport. Review the updated pack before sending.',
+                      `${identityEvidence.replacementSummary}. Review the updated pack before sending.`,
                     );
                   }}
+                  disabled={!identityEvidence.replacementDocument}
                 >
-                  Use valid US passport
+                  {identityEvidence.replacementButtonLabel}
                 </Button>
               ) : null}
             </div>
@@ -231,11 +240,13 @@ export default function DemoOrdersPage() {
                 ['Politically exposed person', 'No · declaration recorded'],
                 ['FATF jurisdiction screen', 'No policy flag in sample evidence'],
                 ['Source of funds', 'Employment income + savings'],
-                ['Proof of address', 'US utility statement · Jul 2026'],
-                ['Tax identifiers', 'TRN •••-•••-517 · SSN •••-••-4821'],
+                ['Proof of address', identityEvidence.addressEvidence],
+                ['Tax identifiers', identityEvidence.taxIdentifiers],
                 [
                   'Identity document',
-                  passportCorrected ? 'Valid US passport' : 'Expired passport · replace',
+                  passportCorrected && identityEvidence.replacementDocument
+                    ? identityEvidence.replacementDocument
+                    : identityEvidence.currentDocument,
                 ],
               ].map(([term, value]) => (
                 <div key={term} className="rounded-xl bg-muted/50 p-3">
@@ -300,11 +311,11 @@ export default function DemoOrdersPage() {
             </ReviewSection>
             <ReviewSection title="Identity evidence">
               {passportCorrected
-                ? 'Valid US passport P•••4821, expiring 18 Sep 2031.'
-                : 'Jamaican passport P•••1842 expired 12 Jun 2025. Replacement required before handoff.'}
+                ? `${identityEvidence.replacementDocument}.`
+                : `${identityEvidence.currentDocument}. Replacement required before handoff.`}
             </ReviewSection>
             <ReviewSection title="Tax and address evidence">
-              Masked Jamaican TRN and US SSN · July 2026 US utility statement.
+              {identityEvidence.taxIdentifiers} · {identityEvidence.addressEvidence}.
             </ReviewSection>
             <ReviewSection title="Declarations">
               PEP: No · source of funds: employment income and savings · FATF jurisdiction screen:

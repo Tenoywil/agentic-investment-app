@@ -4,6 +4,7 @@ import {
   DEFAULT_DEMO_PROFILE,
   DemoJourney,
   type DemoProfile,
+  demoIdentityEvidence,
   readDemoProfile,
 } from '@/app/_components/AppScreen';
 import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
@@ -272,10 +273,13 @@ export default function DemoInstitutionsPage() {
   useEffect(() => {
     const restored = readDemoProfile(MARCUS_PROFILE);
     const restoredName = restored.name.trim() || 'Sample investor';
+    const restoredEvidence = demoIdentityEvidence(restored);
     setProfile(restored);
     setOrders((current) =>
       current.map((order) =>
-        order.id === 'demo-order-1' ? { ...order, clientRef: `${restoredName} · ••4821` } : order,
+        order.id === 'demo-order-1'
+          ? { ...order, clientRef: `${restoredName} · ${restoredEvidence.clientReference}` }
+          : order,
       ),
     );
   }, []);
@@ -285,17 +289,21 @@ export default function DemoInstitutionsPage() {
     profile.usCitizen ? 'US' : '',
   ].filter(Boolean);
   const profileName = profile.name.trim() || 'Sample investor';
+  const identityEvidence = demoIdentityEvidence(profile);
   const reviewItems = [
     {
-      ref: `${profileName} · ••4821`,
+      ref: `${profileName} · ${identityEvidence.clientReference}`,
       issue: 'Client review pack received',
-      evidence: `Expired Jamaican passport replaced with valid US passport · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizenship declared` : 'citizenship requires clarification'} · response target 3 business days`,
+      evidence: `${identityEvidence.replacementSummary} · ${identityEvidence.addressEvidence} · ${identityEvidence.taxIdentifiers} · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizenship declared` : 'citizenship requires clarification'} · response target 3 business days`,
       demoClient: true,
     },
     ...OTHER_REVIEW_ITEMS,
   ];
   const sampleDecisions = [
-    [`${profileName} review pack received`, 'Compliance agent · client ••4821'],
+    [
+      `${profileName} review pack received`,
+      `Compliance agent · client ${identityEvidence.clientReference}`,
+    ],
     ...OTHER_SAMPLE_DECISIONS,
   ] as const;
 

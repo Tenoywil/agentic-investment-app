@@ -5,6 +5,7 @@ import {
   DEFAULT_DEMO_PROFILE,
   DemoJourney,
   type DemoProfile,
+  demoVillaScreenReasons,
   rankDemoMatches,
   readDemoProfile,
   writeDemoProfile,
@@ -76,8 +77,6 @@ const REPLIES: Record<string, string> = {
   income:
     'For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Compared with a like-for-like US, Canadian or UK bond, its potential diaspora value is direct Jamaica exposure and a USD coupon. It is not automatically better: compare after-tax return, duration, credit risk, liquidity, settlement and investor protections. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?',
   idle: 'You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Its potential diaspora value versus a like-for-like US, Canadian or UK cash fund is Caribbean account exposure in USD; compare net fees, tax and reporting, liquidity, settlement and investor protections before deciding. Rates move; the fund’s rate is variable. I can queue it now.',
-  whynot:
-    'The Beachfront Villas Development Note fails your suitability screen on four counts: it is a high-risk speculative note against your balanced-income profile, the US$25,000 minimum is about 80% of your portfolio versus your 15% single-position cap, five illiquid years conflict with your university-fund timeline, and it pays no income until exit. I keep it visible so you can see what I screen out, but I will not prepare or route it.',
   safety:
     "Here's the honest split: I research, screen and prepare. The licensed executing firm executes, custodies and settles. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every decision is written to an audit log you can read.",
   fees: 'Applicable CCN and partner product fees are shown before you approve. The executing firm reports the actual settlement price, units and fee; I do not estimate a missing settlement figure.',
@@ -151,6 +150,12 @@ const AGENT_MATCH_CANDIDATES = [
   },
 ];
 
+const VILLA_SCREEN_CONTEXT = {
+  minimumAmount: 'US$25,000',
+  portfolioShare: '80%',
+  singlePositionCap: '15%',
+};
+
 function comparisonReply(profile: DemoProfile): string {
   const [first, second] = rankDemoMatches(AGENT_MATCH_CANDIDATES, profile);
   if (!first || !second) return REPLIES.summary ?? FALLBACK;
@@ -163,6 +168,11 @@ function profileUpdateReply(previousProfile: DemoProfile): string {
       ? 'Your liquidity need was already <b>weekly access</b>, so I kept it unchanged'
       : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>weekly access</b>`;
   return `${update} and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. The <b>NCB USD Money Market Fund</b> moved into your top two because it offers same-day access. The five-year villa note remains screened out. Review and approve any move before I route it.`;
+}
+
+function villaScreenReply(profile: DemoProfile): string {
+  const reasons = demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT);
+  return `The <b>Beachfront Villas Development Note</b> remains screened out under your current profile for ${reasons.length} ${reasons.length === 1 ? 'reason' : 'reasons'}: ${reasons.join('; ')}. I keep it visible so you can see what I screen out, but I will not prepare or route it.`;
 }
 
 /** Sample-only numbers for the public preview. The live surface receives this
@@ -279,8 +289,14 @@ function classify(text: string): string {
   if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
+  const weeklyAccessQuestion =
+    t.includes('?') ||
+    /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t) ||
+    /\b(don't|do not|doesn't|does not|not|no longer|never)\b/.test(t);
+  if (/\bweekly access\b/.test(t) && weeklyAccessQuestion) return 'liquidity';
   if (
-    /\b(update|change|set|switch|make|need|want)\b.*\bweekly access\b/.test(t) ||
+    /\b(update|change|set|switch|make)\b.*\bweekly access\b/.test(t) ||
+    /\b(i need|i want|please)\b.*\bweekly access\b/.test(t) ||
     /\b(profile|liquidity)\b.*\b(to|for)\b.*\bweekly access\b/.test(t)
   )
     return 'profile';
@@ -575,7 +591,9 @@ export default function AgentPage() {
         ? comparisonReply(profileForReply)
         : key === 'profile'
           ? profileUpdateReply(previousProfile)
-          : (REPLIES[key] ?? FALLBACK);
+          : key === 'whynot'
+            ? villaScreenReply(profileForReply)
+            : (REPLIES[key] ?? FALLBACK);
     const display = REPLY_DISPLAYS[key];
     setChat((c) =>
       display
