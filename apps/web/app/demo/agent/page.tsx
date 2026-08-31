@@ -297,20 +297,36 @@ function classify(text: string): string {
   const weeklyAccessQuestion =
     t.includes('?') ||
     /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
-  const weeklyAccessAction = /(?:update|change|set|switch|make)\b.*\bweekly access\b/;
-  const directWeeklyAccessUpdate =
-    /^(?:please\s+)?(?:go ahead and\s+)?(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(
+  const weeklyAccessInformational =
+    /\b(?:explain|tell|show|know|whether|what|how|why|list|funds?|options?|affect|mean|means)\b/.test(
       t,
     );
+  const weeklyAccessAction =
+    /(?:update|change|set|switch)\b.*\b(?:profile|liquidity(?:\s+(?:need|target))?)\b.*\bweekly access\b|(?:set|make)\b.*\bweekly access\b.*\b(?:profile|liquidity(?:\s+(?:need|target))?)\b/;
+  const weeklyAccessActionIndex = t.search(weeklyAccessAction);
+  const weeklyAccessActionPrefix =
+    weeklyAccessActionIndex >= 0 ? t.slice(0, weeklyAccessActionIndex) : null;
+  const directWeeklyAccessUpdate =
+    weeklyAccessActionPrefix !== null &&
+    /^(?:(?:hi|hello)[,!]?\s+)?(?:please\s+|kindly\s+)?(?:go ahead and\s+)?$/.test(
+      weeklyAccessActionPrefix,
+    );
+  const modalWeeklyAccessUpdate =
+    weeklyAccessActionPrefix !== null &&
+    /^(?:can|could|would|will)\s+you\s+(?:please\s+|kindly\s+)?(?:go ahead and\s+)?$/.test(
+      weeklyAccessActionPrefix,
+    );
+  const desiredWeeklyAccessUpdate =
+    weeklyAccessActionPrefix !== null &&
+    /^(?:(?:i'd|i would)\s+like(?:\s+you)?\s+to|i want you to)\s+$/.test(weeklyAccessActionPrefix);
   const explicitWeeklyAccessUpdate =
     !weeklyAccessNegated &&
+    !weeklyAccessInformational &&
     (directWeeklyAccessUpdate ||
-      /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:go ahead and\s+)?(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(
-        t,
-      ) ||
-      (/^(?:i'd|i would)\s+like(?:\s+you)?\s+to\s+/.test(t) && weeklyAccessAction.test(t)) ||
-      (/^i want you to\s+/.test(t) && weeklyAccessAction.test(t)) ||
-      (!weeklyAccessQuestion && /^i (?:need|want)\s+weekly access\b/.test(t)));
+      modalWeeklyAccessUpdate ||
+      desiredWeeklyAccessUpdate ||
+      (!weeklyAccessQuestion &&
+        /^(?:(?:hi|hello)[,!]?\s+)?i (?:need|want)(?: to have)?\s+weekly access\b/.test(t)));
   if (explicitWeeklyAccessUpdate) return 'profile';
   if (/\bweekly access\b/.test(t) && (weeklyAccessQuestion || weeklyAccessNegated))
     return 'liquidity';
