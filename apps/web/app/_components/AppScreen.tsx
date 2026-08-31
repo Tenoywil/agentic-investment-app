@@ -1,5 +1,7 @@
 'use client';
 
+import { cn } from '@/app/_lib/utils';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AppSidebar, type Key } from './AppSidebar';
 import { MobileNav } from './MobileNav';
@@ -62,5 +64,250 @@ export function PageHead({
       </div>
       {right}
     </div>
+  );
+}
+
+export type DemoJourneyStep =
+  | 'profile'
+  | 'matches'
+  | 'advisor'
+  | 'compliance'
+  | 'partner'
+  | 'dashboard';
+
+export const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
+
+export type DemoProfile = {
+  name: string;
+  residence: string;
+  age: string;
+  objective: string;
+  horizon: string;
+  risk: string;
+  liquidity: string;
+  financialSituation: string;
+  jamaicanCitizen: boolean;
+  usCitizen: boolean;
+};
+
+export const DEFAULT_DEMO_PROFILE: DemoProfile = {
+  name: 'Sample investor',
+  residence: 'United States',
+  age: '35–44',
+  objective: 'Income and long-term growth',
+  horizon: '5–10 years',
+  risk: 'Balanced',
+  liquidity: 'Monthly access',
+  financialSituation: 'Stable income; six-month cash reserve',
+  jamaicanCitizen: true,
+  usCitizen: true,
+};
+
+export type DemoIdentityEvidence = {
+  clientReference: string;
+  currentDocument: string;
+  replacementDocument: string | null;
+  replacementButtonLabel: string;
+  replacementSummary: string;
+  addressEvidence: string;
+  taxIdentifiers: string;
+};
+
+export type DemoVillaContext = {
+  minimumAmount: string;
+  portfolioShare: string;
+  singlePositionCap: string;
+};
+
+/** Keeps the sample compliance pack aligned with the editable fact-find. */
+export function demoIdentityEvidence(profile: DemoProfile): DemoIdentityEvidence {
+  const currentCountry = profile.jamaicanCitizen ? 'Jamaican' : profile.usCitizen ? 'US' : null;
+  const replacementCountry = profile.usCitizen ? 'US' : profile.jamaicanCitizen ? 'Jamaican' : null;
+  const taxIdentifiers = [
+    profile.jamaicanCitizen || profile.residence === 'Jamaica' ? 'TRN •••-•••-517' : '',
+    profile.usCitizen || profile.residence === 'United States' ? 'SSN •••-••-4821' : '',
+    profile.residence === 'Canada' ? 'SIN •••-•••-482' : '',
+    profile.residence === 'United Kingdom' ? 'National Insurance number ••••821' : '',
+  ].filter(Boolean);
+
+  return {
+    clientReference:
+      replacementCountry === 'US' ? '••4821' : replacementCountry ? '••1517' : 'unverified',
+    currentDocument: currentCountry
+      ? `${currentCountry} passport P•••1842 · expired 12 Jun 2025`
+      : 'Passport evidence missing · select citizenship in the profile',
+    replacementDocument: replacementCountry
+      ? `${replacementCountry} passport P•••4821 · expires 18 Sep 2031`
+      : null,
+    replacementButtonLabel: replacementCountry
+      ? `Use valid ${replacementCountry} passport`
+      : 'Select citizenship in profile',
+    replacementSummary: replacementCountry
+      ? `Expired ${currentCountry} passport replaced with valid ${replacementCountry} passport`
+      : 'Citizenship requires clarification before identity evidence can be selected',
+    addressEvidence: `${profile.residence} utility statement · Jul 2026`,
+    taxIdentifiers:
+      taxIdentifiers.length > 0
+        ? taxIdentifiers.join(' · ')
+        : 'Tax identifiers require clarification',
+  };
+}
+
+/** Suitability reasons shared by the matches screen and advisor explanation. */
+export function demoVillaScreenReasons(profile: DemoProfile, context: DemoVillaContext): string[] {
+  const reasons = [
+    `Size: the ${context.minimumAmount} minimum is ${context.portfolioShare} of this sample portfolio, above its ${context.singlePositionCap} single-position cap`,
+  ];
+  const liquidityTolerance =
+    profile.liquidity === 'Can lock for 3 years'
+      ? 'three-year lock tolerance'
+      : `${profile.liquidity.toLowerCase()} liquidity need`;
+  if (profile.risk !== 'Growth') {
+    reasons.unshift(
+      `Risk: the ${profile.risk.toLowerCase()} risk profile does not fit this speculative development note`,
+    );
+  }
+  reasons.push(
+    `Liquidity: five years with no secondary market exceeds the ${liquidityTolerance}${profile.horizon === '10+ years' ? '' : ` and conflicts with the ${profile.horizon.toLowerCase()} horizon`}`,
+  );
+  if (
+    profile.objective === 'Income and long-term growth' ||
+    profile.objective === 'Retirement income'
+  ) {
+    reasons.push(
+      `Income: nothing is paid until exit, which conflicts with the ${profile.objective.toLowerCase()} objective`,
+    );
+  }
+  return reasons;
+}
+
+let inMemoryDemoProfile: DemoProfile | null = null;
+
+/** Browser persistence is an enhancement for the public walkthrough. Sandboxed
+ * previews and privacy settings may deny storage, so every caller gets a usable
+ * in-memory profile instead of a route crash. */
+export function readDemoProfile(fallback: DemoProfile = DEFAULT_DEMO_PROFILE): DemoProfile {
+  try {
+    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
+    if (!stored) return { ...(inMemoryDemoProfile ?? fallback) };
+    const candidate = JSON.parse(stored) as Partial<DemoProfile>;
+    const profile = {
+      ...fallback,
+      ...Object.fromEntries(
+        Object.entries(candidate).filter(([key, value]) => {
+          const expected = fallback[key as keyof DemoProfile];
+          return typeof value === typeof expected;
+        }),
+      ),
+    };
+    inMemoryDemoProfile = profile;
+    return { ...profile };
+  } catch {
+    return { ...(inMemoryDemoProfile ?? fallback) };
+  }
+}
+
+export function writeDemoProfile(profile: DemoProfile): void {
+  inMemoryDemoProfile = { ...profile };
+  try {
+    window.sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  } catch {
+    // Storage is optional; the current screen keeps its in-memory state.
+  }
+}
+
+type DemoMatchInput = {
+  id: string;
+  match: number;
+  risk: string;
+  type: string;
+  term: string;
+};
+
+/** Deterministic demo scoring shared by the match cards and scripted advisor. */
+export function rankDemoMatches<T extends DemoMatchInput>(
+  opportunities: T[],
+  profile: DemoProfile,
+): (T & { match: number })[] {
+  return opportunities
+    .map((opportunity) => {
+      let adjustment = 0;
+      if (profile.liquidity === 'Weekly access') {
+        adjustment += opportunity.id === 'ncbmm' ? 27 : opportunity.term.includes('yr') ? -8 : 0;
+      }
+      if (profile.risk === 'Conservative') {
+        adjustment += opportunity.risk === 'Low' ? 4 : opportunity.risk === 'High' ? -30 : -10;
+      } else if (profile.risk === 'Growth') {
+        adjustment +=
+          opportunity.type === 'Equity' ? 8 : opportunity.type === 'Real Estate' ? 5 : -5;
+      }
+      if (profile.objective === 'Capital preservation') {
+        adjustment += opportunity.risk === 'Low' ? 8 : opportunity.risk === 'High' ? -25 : -10;
+      } else if (profile.objective === 'Growth') {
+        adjustment += opportunity.type === 'Equity' || opportunity.type === 'Real Estate' ? 8 : -4;
+      } else if (profile.objective === 'Retirement income') {
+        adjustment += opportunity.type === 'Bond' || opportunity.type === 'Fund' ? 5 : -3;
+      }
+      const termYears = Number.parseInt(opportunity.term.match(/(\d+)\s*yr/)?.[1] ?? '0', 10);
+      if (profile.horizon === 'Under 3 years' && termYears >= 3) adjustment -= 25;
+      if (profile.horizon === '3–5 years' && termYears > 5) adjustment -= 10;
+      return { ...opportunity, match: Math.max(1, Math.min(99, opportunity.match + adjustment)) };
+    })
+    .sort((a, b) => b.match - a.match);
+}
+
+const DEMO_JOURNEY: { key: DemoJourneyStep; label: string; href: string }[] = [
+  { key: 'profile', label: 'Profile', href: '/demo/planning' },
+  { key: 'matches', label: 'Matches', href: '/demo/opportunities' },
+  { key: 'advisor', label: 'Advisor', href: '/demo/agent' },
+  { key: 'compliance', label: 'Compliance', href: '/demo/orders' },
+  { key: 'partner', label: 'Partner review', href: '/demo/institutions' },
+  { key: 'dashboard', label: 'Dashboard', href: '/demo/home' },
+];
+
+/** A route-level map for the scripted Marcus walkthrough. Each destination is
+ * a real screen so evaluators can see the hand-offs instead of one long mock. */
+export function DemoJourney({ current }: { current: DemoJourneyStep }) {
+  const currentIndex = DEMO_JOURNEY.findIndex((step) => step.key === current);
+
+  return (
+    <nav
+      aria-label="Demo lifecycle journey"
+      className="mb-5 rounded-2xl border border-border bg-card p-3"
+    >
+      <ol className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3 xl:grid-cols-6">
+        {DEMO_JOURNEY.map((step, index) => {
+          const active = step.key === current;
+          const complete = index < currentIndex;
+          return (
+            <li key={step.key}>
+              <Link
+                href={step.href}
+                aria-current={active ? 'step' : undefined}
+                className={cn(
+                  'flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm no-underline',
+                  active
+                    ? 'bg-primary font-bold text-white'
+                    : complete
+                      ? 'bg-mint font-semibold text-teal2'
+                      : 'bg-muted/55 font-semibold text-dim hover:text-foreground',
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'grid h-5 w-5 flex-none place-items-center rounded-full text-[11px] font-bold',
+                    active ? 'bg-white/20' : complete ? 'bg-primary text-white' : 'bg-border',
+                  )}
+                >
+                  {complete ? '✓' : index + 1}
+                </span>
+                <span>{step.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }

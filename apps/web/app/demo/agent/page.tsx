@@ -1,6 +1,15 @@
 'use client';
 
-import { AppScreen } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  DEFAULT_DEMO_PROFILE,
+  DemoJourney,
+  type DemoProfile,
+  demoVillaScreenReasons,
+  rankDemoMatches,
+  readDemoProfile,
+  writeDemoProfile,
+} from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { AgentDisplayCard } from '@/app/_components/agent-displays';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
@@ -34,6 +43,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 type Msg = { role: 'agent' | 'user'; text: string } | { role: 'agent'; display: AgentDisplayData };
 
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
+
 const SEED: Msg[] = [
   {
     role: 'agent',
@@ -51,12 +62,14 @@ const SEED: Msg[] = [
 ];
 
 const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
-  { label: 'Summarize my week', mobileLabel: 'Weekly recap', key: 'summary' },
-  { label: 'Chart my allocation', mobileLabel: 'Allocation chart', key: 'rebalance' },
-  { label: 'Best income deal?', mobileLabel: 'Income idea', key: 'income' },
+  { label: 'Compare my top 2', mobileLabel: 'Compare top 2', key: 'compare' },
+  { label: 'I need weekly access', mobileLabel: 'Update profile', key: 'profile' },
+  { label: 'Why not the villa?', mobileLabel: 'Why not villa?', key: 'whynot' },
 ];
 
 const REPLIES: Record<string, string> = {
+  liquidity:
+    'Liquidity describes how quickly you may need to access invested money. I use it as a suitability constraint: products whose lock-up conflicts with your stated access need are ranked down or screened out. I will only change the profile when you explicitly ask me to.',
   summary:
     "Here's your week: your GOJ 2026 coupon of US$412 settles Friday. I'd reinvest it into the Real Estate X Fund, which is projected to lift blended yield to about 6.9%. Your US$2,150 cash is idle; a money-market sweep is projected to add about US$110 a year. Compared with like-for-like US, Canadian or UK options, the potential value is added Caribbean exposure; compare net fees, tax and reporting, currency, liquidity and investor protections before deciding. Both are queued for your approval.",
   rebalance:
@@ -64,13 +77,107 @@ const REPLIES: Record<string, string> = {
   income:
     'For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Compared with a like-for-like US, Canadian or UK bond, its potential diaspora value is direct Jamaica exposure and a USD coupon. It is not automatically better: compare after-tax return, duration, credit risk, liquidity, settlement and investor protections. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?',
   idle: 'You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Its potential diaspora value versus a like-for-like US, Canadian or UK cash fund is Caribbean account exposure in USD; compare net fees, tax and reporting, liquidity, settlement and investor protections before deciding. Rates move; the fund’s rate is variable. I can queue it now.',
-  whynot:
-    'The Beachfront Villas Development Note fails your suitability screen on four counts: it is a high-risk speculative note against your balanced-income profile, the US$25,000 minimum is about 80% of your portfolio versus your 15% single-position cap, five illiquid years conflict with your university-fund timeline, and it pays no income until exit. I keep it visible so you can see what I screen out, but I will not prepare or route it.',
   safety:
     "Here's the honest split: I research, screen and prepare. The licensed executing firm executes, custodies and settles. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every decision is written to an audit log you can read.",
   fees: 'Applicable CCN and partner product fees are shown before you approve. The executing firm reports the actual settlement price, units and fee; I do not estimate a missing settlement figure.',
   kyc: 'With your consent, CCN collects and passes your declarations and documents to the licensed firm you choose. That firm reviews the evidence, may request more, and remains responsible for the final KYC and AML decision for its own account. A status from one firm is not presented as clearing another.',
 };
+
+const AGENT_MATCH_CANDIDATES = [
+  {
+    id: 'goj32',
+    name: 'GOJ USD Global Bond 2032',
+    match: 94,
+    risk: 'Low',
+    type: 'Bond',
+    term: '8 yr · USD',
+  },
+  {
+    id: 'sagrex',
+    name: 'Sagicor Real Estate X Fund',
+    match: 89,
+    risk: 'Medium',
+    type: 'Real Estate',
+    term: 'Open-ended',
+  },
+  {
+    id: 'gkapo',
+    name: 'GraceKennedy Additional Public Offering',
+    match: 84,
+    risk: 'Medium',
+    type: 'Equity',
+    term: 'Equity',
+  },
+  {
+    id: 'provfd',
+    name: 'Proven USD Fixed Income Fund',
+    match: 78,
+    risk: 'Low',
+    type: 'Fund',
+    term: 'Open-ended',
+  },
+  {
+    id: 'bgtn29',
+    name: 'Barbados Treasury Note 2029',
+    match: 76,
+    risk: 'Low',
+    type: 'Bond',
+    term: '5 yr',
+  },
+  {
+    id: 'sygcr',
+    name: 'Sygnus Private Credit Note III',
+    match: 72,
+    risk: 'High',
+    type: 'Private',
+    term: '3 yr · locked',
+  },
+  {
+    id: 'jmmb',
+    name: 'JMMB Group Rights Issue',
+    match: 68,
+    risk: 'Medium',
+    type: 'Equity',
+    term: 'Equity',
+  },
+  {
+    id: 'ncbmm',
+    name: 'NCB USD Money Market Fund',
+    match: 65,
+    risk: 'Low',
+    type: 'Fund',
+    term: 'Instant access',
+  },
+];
+
+const VILLA_SCREEN_CONTEXT = {
+  minimumAmount: 'US$25,000',
+  portfolioShare: '80%',
+  singlePositionCap: '15%',
+};
+
+function comparisonReply(profile: DemoProfile): string {
+  const [first, second] = rankDemoMatches(AGENT_MATCH_CANDIDATES, profile);
+  if (!first || !second) return REPLIES.summary ?? FALLBACK;
+  return `Your current top matches are the <b>${first.name} at ${first.match}%</b> and the <b>${second.name} at ${second.match}%</b>. This order reflects your <b>${profile.risk.toLowerCase()}</b> risk appetite, <b>${profile.objective.toLowerCase()}</b> objective, <b>${profile.horizon}</b> horizon and <b>${profile.liquidity.toLowerCase()}</b> liquidity need. Caribbean exposure is not automatically better than a comparable US product, so I still compare net fees, tax, currency, liquidity and investor protections.`;
+}
+
+function profileUpdateReply(previousProfile: DemoProfile, updatedProfile: DemoProfile): string {
+  const update =
+    previousProfile.liquidity === 'Weekly access'
+      ? 'Your liquidity need was already <b>weekly access</b>, so I kept it unchanged'
+      : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>weekly access</b>`;
+  const ranked = rankDemoMatches(AGENT_MATCH_CANDIDATES, updatedProfile);
+  const topTwo = ranked.slice(0, 2);
+  const ncbPosition = ranked.findIndex((candidate) => candidate.id === 'ncbmm') + 1;
+  const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The NCB USD Money Market Fund's same-day access improved its liquidity fit${ncbPosition > 0 ? ` and places it at #${ncbPosition}` : ''}.`;
+  return `${update} and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. ${rankingSummary} The five-year villa note remains screened out. Review and approve any move before I route it.`;
+}
+
+function villaScreenReply(profile: DemoProfile): string {
+  const reasons = demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT);
+  return `The <b>Beachfront Villas Development Note</b> remains screened out under your current profile for ${reasons.length} ${reasons.length === 1 ? 'reason' : 'reasons'}: ${reasons.join('; ')}. I keep it visible so you can see what I screen out, but I will not prepare or route it.`;
+}
 
 /** Sample-only numbers for the public preview. The live surface receives this
  *  same shape from the read-only allocation tool over the structured display
@@ -186,7 +293,189 @@ function classify(text: string): string {
   if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
-  if (/summar|week|overview/.test(t)) return 'summary';
+  const weeklyAccessQuestion =
+    t.includes('?') ||
+    /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
+  const weeklyAccessAction = /\b(?:update|change|set|switch|make)\b/.exec(t);
+  const weeklyAccessActionIndex = weeklyAccessAction?.index ?? -1;
+  const weeklyAccessActionPrefix =
+    weeklyAccessActionIndex >= 0 ? t.slice(0, weeklyAccessActionIndex) : null;
+  const weeklyAccessClause =
+    weeklyAccessAction && weeklyAccessActionIndex >= 0
+      ? (
+          t.slice(weeklyAccessActionIndex + weeklyAccessAction[0].length).split(/[.!?]/, 1)[0] ?? ''
+        ).trim()
+      : null;
+  const weeklyAccessMarkers = weeklyAccessClause
+    ? ['weekly access', 'profile', 'liquidity']
+        .map((marker) => weeklyAccessClause.indexOf(marker))
+        .filter((index) => index >= 0)
+    : [];
+  const firstWeeklyAccessMarker =
+    weeklyAccessMarkers.length > 0 ? Math.min(...weeklyAccessMarkers) : -1;
+  const weeklyAccessObjectLead =
+    weeklyAccessClause && firstWeeklyAccessMarker >= 0
+      ? (weeklyAccessClause.slice(0, firstWeeklyAccessMarker).match(/[a-z]+/g) ?? [])
+      : [];
+  const allowedWeeklyAccessObjectWords = new Set([
+    'access',
+    'as',
+    'client',
+    'current',
+    'existing',
+    'for',
+    'in',
+    'investment',
+    'investor',
+    'my',
+    'need',
+    'of',
+    'on',
+    'preferred',
+    'setting',
+    'suitability',
+    'target',
+    'the',
+    'this',
+    'to',
+  ]);
+  const weeklyAccessIsDestination =
+    weeklyAccessClause !== null &&
+    (/\b(?:to|as|for)\s+(?:(?:have|require|provide)\s+)?weekly access\b/.test(weeklyAccessClause) ||
+      /\bweekly access\b\s+(?:in|on|for|to)\s+(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b/.test(
+        weeklyAccessClause,
+      ));
+  const weeklyAccessHasSettingObject =
+    weeklyAccessClause !== null &&
+    /\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+      weeklyAccessClause,
+    );
+  const weeklyAccessEndsInAffirmativeState =
+    weeklyAccessClause !== null &&
+    /^(?=[^.!?]*\b(?:profile|liquidity)\b)[^.!?]*\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)(?:(?!\bto\b)[^.!?])*\bto\s+(?:(?:default|setting|status)\s+to\s+)?(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|in|on|to)\b[^.!?]*)?\s*(?:$|[,;.!?])/.test(
+      weeklyAccessClause,
+    );
+  const weeklyAccessRationaleIndex =
+    weeklyAccessClause?.search(
+      /\b(?:so(?: that)?|such that|until)\s+(?:(?:i|it|my profile|the profile|this profile)\s+)?(?:doesn't|does not|don't|do not|won't|will not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*have\s+to\b/,
+    ) ?? -1;
+  const weeklyAccessRationalePrefix =
+    weeklyAccessClause !== null && weeklyAccessRationaleIndex >= 0
+      ? weeklyAccessClause.slice(0, weeklyAccessRationaleIndex)
+      : null;
+  const weeklyAccessRationale =
+    weeklyAccessClause !== null && weeklyAccessRationaleIndex >= 0
+      ? weeklyAccessClause.slice(weeklyAccessRationaleIndex)
+      : null;
+  const weeklyAccessRationaleHasContraryDestination =
+    weeklyAccessRationalePrefix !== null &&
+    /\bweekly access\b[^.!?]*\bto\s+(?!(?:active|enabled|required|on)\b)(?!weekly access\b)/.test(
+      weeklyAccessRationalePrefix,
+    );
+  const weeklyAccessRationaleHasInformationalTarget =
+    weeklyAccessRationalePrefix !== null &&
+    (/\b(?:profile|liquidity)\s+(?:copy|details?|information|labels?|notes?|overview|text|wording)\b/.test(
+      weeklyAccessRationalePrefix,
+    ) ||
+      /\b(?:copy|details?|information|labels?|notes?|overview|text|wording)\s+(?:in|on)\s+(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b/.test(
+        weeklyAccessRationalePrefix,
+      ));
+  const weeklyAccessRationaleDirectlyNegatesValue =
+    weeklyAccessRationale !== null &&
+    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:avoid|cancel|decline|delete|disable|drop|opt out|reject|remove|stop(?: using)?|turn (?:it |weekly access )?off)\b|(?:accept|have|keep|need|receive|require|retain|use|want)\s+(?:it|weekly access|(?:this|the) setting)\b|continue\s+to\s+(?:accept|have|keep|need|receive|require|retain|use|want)\s+(?:it|weekly access|(?:this|the) setting)\b|(?:be\s+(?:on|stuck with)|continue with|deal with|depend on|enroll in|remain on|rely on|stay on)\s+(?:it|weekly access|(?:this|the) setting)\b)/.test(
+      weeklyAccessRationale,
+    );
+  const weeklyAccessRationaleExplainsConvenience =
+    weeklyAccessRationale !== null &&
+    !weeklyAccessRationaleDirectlyNegatesValue &&
+    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?|[^.!?]*\b(?:again|each time|every time|each week|every week|each month|every month|later))\s*$/.test(
+      weeklyAccessRationale,
+    );
+  const weeklyAccessHasAffirmativeRationale =
+    weeklyAccessRationalePrefix !== null &&
+    weeklyAccessRationaleExplainsConvenience &&
+    !weeklyAccessRationaleHasContraryDestination &&
+    !weeklyAccessRationaleHasInformationalTarget &&
+    !weeklyAccessRationaleDirectlyNegatesValue &&
+    (/\b(?:profile|liquidity)(?:\s+(?:access|need|setting|status))?\s+(?:to|as|for)\s+(?:(?:have|require|provide)\s+)?weekly access\b/.test(
+      weeklyAccessRationalePrefix,
+    ) ||
+      /\bweekly access\b\s+(?:in|on|for|to)\s+(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b(?:\s+(?:setting|status))?(?:\s+to\s+(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|in|on)\b[^,;.!?]*)?)?\s*[,;]?\s*$/.test(
+        weeklyAccessRationalePrefix,
+      ));
+  const weeklyAccessSourceTransition =
+    (weeklyAccessRationalePrefix ?? weeklyAccessClause) !== null &&
+    (/\bweekly access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bto\s+(?!weekly access\b)/.test(
+      weeklyAccessRationalePrefix ?? weeklyAccessClause ?? '',
+    ) ||
+      (!weeklyAccessIsDestination &&
+        /\bweekly access\b[^.!?]*\bto\s+(?!(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b)(?!weekly access\b)/.test(
+          weeklyAccessRationalePrefix ?? weeklyAccessClause ?? '',
+        )));
+  const weeklyAccessIsSource =
+    weeklyAccessClause !== null &&
+    (/\bfrom\s+weekly access\b/.test(weeklyAccessClause) ||
+      (weeklyAccessSourceTransition &&
+        !weeklyAccessEndsInAffirmativeState &&
+        !weeklyAccessHasAffirmativeRationale));
+  const weeklyAccessTargetsProfile =
+    weeklyAccessClause !== null &&
+    weeklyAccessHasSettingObject &&
+    /\b(?:profile|liquidity)\b/.test(weeklyAccessClause) &&
+    weeklyAccessObjectLead.every((word) => allowedWeeklyAccessObjectWords.has(word)) &&
+    !weeklyAccessIsSource;
+  const weeklyAccessNegated =
+    /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
+    weeklyAccessRationaleDirectlyNegatesValue ||
+    /\b(?:doesn't|does not|don't|do not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:accept|add|allow|assign|enable|give|grant|include|need|offer|permit|provide|require|use|want)\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+      t,
+    ) ||
+    (!weeklyAccessHasAffirmativeRationale &&
+      /\b(?:so(?: that)?|such that|to|until)\s+(?:(?:i|it|my profile|the profile|this profile)\s+)?(?:doesn't|does not|don't|do not|won't|will not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*have\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+        t,
+      )) ||
+    /\bavoid(?:ing)?\s+(?:(?:a|all|any|changing|for|having|mandatory|my|need|needs|of|profile|requirement|requirements|requiring|setting|switching|the|to|updating|using)\s+)*weekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+      t,
+    ) ||
+    /\bwithout\s+(?:(?:switching|changing|setting|updating|making)\s+(?:(?:my|the|this)\s+)?(?:(?:profile|liquidity)\s+)?(?:to\s+)?)?(?:(?:requiring|having|needing|using)\s+)?weekly access\b/.test(
+      t,
+    ) ||
+    /\bnot\s+(?:(?:(?:to\s+)?(?:accept|add|allow|assign|enable|give|grant|have|include|need|offer|permit|provide|require|use|want)\s+)|to\s+)?weekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+      t,
+    ) ||
+    /\b(?:update|change|set|switch|make)\b[^.!?]*\b(?:nothing|neither)\b[^.!?]*\bweekly access\b/.test(
+      t,
+    ) ||
+    weeklyAccessIsSource ||
+    /\bweekly access\b[^.!?]*\bnot\s+to\b/.test(t) ||
+    /\b(?:don't|do not|no longer|never)\s+(?:need|want)(?: to have)?\s+weekly access\b/.test(t);
+  const directWeeklyAccessUpdate =
+    weeklyAccessActionPrefix !== null &&
+    /^(?:(?:hi|hello)[,!]?\s+)?(?:please\s+|kindly\s+)?(?:go ahead and\s+)?$/.test(
+      weeklyAccessActionPrefix,
+    );
+  const modalWeeklyAccessUpdate =
+    weeklyAccessActionPrefix !== null &&
+    /^(?:can|could|would|will)\s+you\s+(?:please\s+|kindly\s+)?(?:go ahead and\s+)?$/.test(
+      weeklyAccessActionPrefix,
+    );
+  const desiredWeeklyAccessUpdate =
+    weeklyAccessActionPrefix !== null &&
+    /^(?:(?:i'd|i would)\s+like(?:\s+you)?\s+to|i (?:need|want)(?: you)? to)\s+$/.test(
+      weeklyAccessActionPrefix,
+    );
+  const explicitWeeklyAccessUpdate =
+    !weeklyAccessNegated &&
+    ((weeklyAccessTargetsProfile &&
+      (directWeeklyAccessUpdate || modalWeeklyAccessUpdate || desiredWeeklyAccessUpdate)) ||
+      (!weeklyAccessQuestion &&
+        /^(?:(?:hi|hello)[,!]?\s+)?i (?:need|want)(?: to have)?\s+weekly access\b/.test(t)));
+  if (explicitWeeklyAccessUpdate) return 'profile';
+  if (/\bweekly access\b/.test(t) && (weeklyAccessQuestion || weeklyAccessNegated))
+    return 'liquidity';
+  if (/summar|this week|weekly summary|overview/.test(t)) return 'summary';
+  if (/compare|top two|top 2|recommendation a|recommendation b/.test(t)) return 'compare';
+  if (/liquidity|weekly access|access need|lock-up/.test(t)) return 'liquidity';
   if (/chart|graph|pie|bar graph|plot|visual/.test(t)) return 'rebalance';
   if (/rebalanc|allocat|overweight|diversif/.test(t)) return 'rebalance';
   if (/income|yield|best|deal|coupon|bond/.test(t)) return 'income';
@@ -405,6 +694,9 @@ const STATS: { n: string; cls: string; t: string }[] = [
 
 export default function AgentPage() {
   const [chat, setChat] = useState<Msg[]>(SEED);
+  const [demoProfile, setDemoProfile] = useState<DemoProfile>(() => ({
+    ...MARCUS_PROFILE,
+  }));
   const [draft, setDraft] = useState('');
   const [voice, setVoice] = useState(false);
   const [rules, setRules] = useState(DEMO_RULES);
@@ -427,6 +719,22 @@ export default function AgentPage() {
   const inputId = useId();
 
   useEffect(() => {
+    const restored = readDemoProfile(MARCUS_PROFILE);
+    const firstName = restored.name.trim().split(/\s+/)[0] || 'investor';
+    setDemoProfile(restored);
+    setChat((current) =>
+      current.map((message, index) =>
+        index === 0 && 'text' in message
+          ? {
+              ...message,
+              text: `Welcome back, ${firstName}. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. Two things need your attention this week.`,
+            }
+          : message,
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
     if (chat.length === 0 && !replying) return;
     const frame = requestAnimationFrame(() => {
       const el = logRef.current;
@@ -446,8 +754,19 @@ export default function AgentPage() {
     [],
   );
 
-  function reply(key: string) {
-    const text = REPLIES[key] ?? FALLBACK;
+  function reply(
+    key: string,
+    profileForReply: DemoProfile = demoProfile,
+    previousProfile: DemoProfile = demoProfile,
+  ) {
+    const text =
+      key === 'compare'
+        ? comparisonReply(profileForReply)
+        : key === 'profile'
+          ? profileUpdateReply(previousProfile, profileForReply)
+          : key === 'whynot'
+            ? villaScreenReply(profileForReply)
+            : (REPLIES[key] ?? FALLBACK);
     const display = REPLY_DISPLAYS[key];
     setChat((c) =>
       display
@@ -461,10 +780,18 @@ export default function AgentPage() {
   function send(text: string, key?: string) {
     const t = text.trim();
     if (!t || replying) return;
+    const replyKey = key ?? classify(t);
+    const previousProfile = demoProfile;
+    const nextProfile =
+      replyKey === 'profile' ? { ...previousProfile, liquidity: 'Weekly access' } : previousProfile;
+    if (replyKey === 'profile') {
+      setDemoProfile(nextProfile);
+      writeDemoProfile(nextProfile);
+    }
     setChat((c) => [...c, { role: 'user', text: t }]);
     setDraft('');
     setReplying(true);
-    replyTimerRef.current = setTimeout(() => reply(key ?? classify(t)), 450);
+    replyTimerRef.current = setTimeout(() => reply(replyKey, nextProfile, previousProfile), 450);
   }
 
   function approveCard(a: (typeof APPROVALS)[number]) {
@@ -561,6 +888,10 @@ export default function AgentPage() {
         </span>
       </div>
 
+      <div className="max-[900px]:hidden">
+        <DemoJourney current="advisor" />
+      </div>
+
       <div className="g-agent">
         {/* Chat */}
         <Card
@@ -570,8 +901,8 @@ export default function AgentPage() {
           <div className="agent-chat__head flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px] max-[900px]:gap-2 max-[900px]:px-3 max-[900px]:py-3">
             {/* Phone only (CSS): the chat owns the whole screen there. */}
             <Link
-              href="/demo/home"
-              aria-label="Back to dashboard"
+              href="/demo/opportunities"
+              aria-label="Back to matches"
               className="agent-chat__back h-10 w-10 flex-none place-items-center rounded-[12px] text-foreground hover:bg-muted max-[900px]:h-9 max-[900px]:w-9"
             >
               <ArrowLeft className="h-5 w-5" aria-hidden />
@@ -605,6 +936,12 @@ export default function AgentPage() {
               )}
               <span className="max-[900px]:hidden">Voice {voice ? 'on' : 'off'}</span>
             </button>
+            <Link
+              href="/demo/orders"
+              className="hidden h-9 flex-none items-center gap-1 rounded-[10px] bg-primary px-2.5 text-xs font-bold text-white no-underline max-[900px]:inline-flex"
+            >
+              Compliance <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
           </div>
 
           <div

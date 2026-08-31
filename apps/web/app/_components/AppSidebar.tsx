@@ -40,7 +40,8 @@ export type Key =
   | 'gatewayMandate'
   | 'gatewayOpportunities'
   | 'gatewayIntroductions'
-  | 'gatewayReview';
+  | 'gatewayReview'
+  | 'institutions';
 
 /**
  * Nav items carry no counts. Each one used to ship a hardcoded badge (4, 8, 2)
@@ -205,12 +206,23 @@ export function AgentCard() {
  */
 export function navGroupsFor(basePath: string, showOnboarding = false): NavGroup[] {
   if (basePath) {
-    // The demo shell: no Gateway (live-only) and no Onboarding (it IS the real
-    // signup flow, not something to preview).
-    return GROUPS.filter((g) => g.label !== 'Private markets').map((g) => ({
-      ...g,
-      items: g.items.filter((i) => i.key !== 'onboarding'),
-    }));
+    // The public preview is a six-screen Marcus story. It reuses real product
+    // routes but orders and names them by the workflow an evaluator is seeing.
+    const demoItems: NavGroup['items'] = [
+      { key: 'planning', label: '1 · Profile & goals', href: '/planning', Icon: UserPlus },
+      { key: 'opportunities', label: '2 · Matches', href: '/opportunities', Icon: TrendingUp },
+      { key: 'agent', label: '3 · Advisor', href: '/agent', Icon: Sparkles },
+      { key: 'orders', label: '4 · Compliance', href: '/orders', Icon: ShieldCheck },
+      {
+        key: 'institutions',
+        label: '5 · Partner review',
+        href: '/institutions',
+        Icon: HandHeart,
+      },
+      { key: 'home', label: '6 · Dashboard', href: '/home', Icon: LayoutGrid },
+      { key: 'portfolio', label: 'Portfolio detail', href: '/portfolio', Icon: LineChart },
+    ];
+    return [{ label: '', items: demoItems }];
   }
   if (showOnboarding) return GROUPS;
   // A finished (or still-loading) one-time flow gets no permanent link. Only a

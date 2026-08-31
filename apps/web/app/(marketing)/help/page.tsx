@@ -79,7 +79,7 @@ export default function HelpPage() {
         Want the bigger picture first? Read <Link href="/how-it-works">how it works</Link>
         {DEMO_ENABLED && (
           <>
-            , or explore the <Link href="/demo/home">live demo</Link>. Every figure there is
+            , or explore the <Link href="/demo/planning">live demo</Link>. Every figure there is
             labelled as sample data
           </>
         )}

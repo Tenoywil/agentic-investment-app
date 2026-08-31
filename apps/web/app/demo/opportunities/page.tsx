@@ -1,6 +1,15 @@
 'use client';
 
-import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  DEFAULT_DEMO_PROFILE,
+  DemoJourney,
+  type DemoProfile,
+  PageHead,
+  demoVillaScreenReasons,
+  rankDemoMatches,
+  readDemoProfile,
+} from '@/app/_components/AppScreen';
 import { DealCard, ScreenedOutCard } from '@/app/_components/DealCard';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -47,11 +56,14 @@ type Opp = {
   min: string;
   term: string;
   risk: 'Low' | 'Medium' | 'High';
+  match: number;
   desc: string;
   agentNote: string;
   blocked?: boolean;
   blockReasons?: string[];
 };
+
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
 
 const OPPS: Opp[] = [
   {
@@ -67,6 +79,7 @@ const OPPS: Opp[] = [
     min: 'US$1,000',
     term: '8 yr · USD',
     risk: 'Low',
+    match: 94,
     desc: 'A US-dollar sovereign bond issued by the Government of Jamaica, paying a fixed 7.875% semi-annual coupon. Suited to income-focused investors seeking hard-currency Caribbean sovereign exposure.',
     agentNote:
       'Strong fit for your income goal. Adds hard-currency duration and lifts blended yield without changing your risk band.',
@@ -84,6 +97,7 @@ const OPPS: Opp[] = [
     min: 'US$5,000',
     term: 'Open-ended',
     risk: 'Medium',
+    match: 89,
     desc: 'A diversified fund holding income-producing commercial real estate across Kingston and Montego Bay. Distributes quarterly with inflation-linked growth potential.',
     agentNote:
       'Matches your income and growth blend. I’d cap this at 15% of your portfolio to keep real-estate concentration in range.',
@@ -101,6 +115,7 @@ const OPPS: Opp[] = [
     min: 'US$500',
     term: 'Equity',
     risk: 'Medium',
+    match: 84,
     desc: 'An additional public offering of shares in GraceKennedy, one of the Caribbean’s largest consumer and financial conglomerates, funding regional expansion.',
     agentNote:
       'Adds equity growth you’re currently light on. Higher volatility than your bonds, so sizing matters.',
@@ -118,6 +133,7 @@ const OPPS: Opp[] = [
     min: 'US$1,000',
     term: 'Open-ended',
     risk: 'Low',
+    match: 78,
     desc: 'A professionally-managed USD fund investing in a diversified pool of regional corporate and sovereign credit, targeting stable monthly income.',
     agentNote:
       'You already hold this. Topping up would concentrate credit exposure. Consider the GOJ bond instead for diversification.',
@@ -135,6 +151,7 @@ const OPPS: Opp[] = [
     min: 'US$1,000',
     term: '5 yr',
     risk: 'Low',
+    match: 76,
     desc: 'A Barbadian government treasury note offering fixed semi-annual interest, providing geographic diversification within your sovereign allocation.',
     agentNote:
       'Good diversifier away from single-country Jamaica exposure. Slightly lower coupon than GOJ.',
@@ -152,6 +169,7 @@ const OPPS: Opp[] = [
     min: 'US$10,000',
     term: '3 yr · locked',
     risk: 'High',
+    match: 72,
     desc: 'A private credit note providing senior secured financing to mid-market Caribbean firms. Higher return for reduced liquidity: capital is locked for the term.',
     agentNote:
       'Unlocked by your source-of-funds declaration. Illiquid, and only suitable for capital you won’t need for 3 years.',
@@ -169,6 +187,7 @@ const OPPS: Opp[] = [
     min: 'US$500',
     term: 'Equity',
     risk: 'Medium',
+    match: 68,
     desc: 'A rights issue allowing existing and new shareholders to buy JMMB shares at a discount to market, funding regional banking growth.',
     agentNote:
       'Time-sensitive: the rights window closes in 9 days. Discount is attractive but adds financial-sector concentration.',
@@ -186,6 +205,7 @@ const OPPS: Opp[] = [
     min: 'US$100',
     term: 'Instant access',
     risk: 'Low',
+    match: 65,
     desc: 'A liquid USD money-market fund for parking cash while earning yield, with same-day access. A natural home for your idle wallet balance.',
     agentNote:
       'Your US$2,150 cash is earning nothing. Moving it here adds ~US$110/yr with instant access.',
@@ -203,6 +223,7 @@ const OPPS: Opp[] = [
     min: 'US$25,000',
     term: '5 yr · illiquid',
     risk: 'High',
+    match: 18,
     blocked: true,
     desc: 'A private note funding a pre-construction villa development. Returns depend entirely on construction milestones and unit sales. Capital is locked for the full term with no secondary market and no income until exit.',
     agentNote:
@@ -220,6 +241,20 @@ const TRADEABLE = OPPS.filter((o) => !o.blocked);
 const BLOCKED = OPPS.filter((o) => o.blocked);
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
+const VILLA_SCREEN_CONTEXT = {
+  minimumAmount: 'US$25,000',
+  portfolioShare: '80%',
+  singlePositionCap: '15%',
+};
+
+function screenedOutForProfile(opportunity: Opp, profile: DemoProfile): Opp {
+  return {
+    ...opportunity,
+    agentNote:
+      'I recommend against this one under the current profile and will not prepare it. The failing constraints below were re-run from the saved fact-find.',
+    blockReasons: demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT),
+  };
+}
 
 const METRIC_BOX = 'rounded-xl bg-[#f4f0e7] px-[15px] py-[13px] dark:bg-white/[0.04]';
 const METRIC_LBL =
@@ -228,23 +263,29 @@ const METRIC_LBL =
 /** Same card component as the live marketplace — demo parity by construction. */
 function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
   return (
-    <DealCard
-      o={{
-        id: o.id,
-        abbr: o.abbr,
-        type: o.type,
-        name: o.name,
-        region: o.region,
-        metricLabel: o.metricLabel,
-        metric: o.metric,
-        min: o.min,
-        term: o.term,
-        partner: o.partner,
-        regulator: o.regulator,
-        risk: o.risk,
-      }}
-      onOpen={() => onOpen(o)}
-    />
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <span className="text-xs font-bold uppercase tracking-[.5px] text-faint">Profile fit</span>
+        <Badge variant={o.match >= 85 ? 'success' : 'secondary'}>{o.match}% match</Badge>
+      </div>
+      <DealCard
+        o={{
+          id: o.id,
+          abbr: o.abbr,
+          type: o.type,
+          name: o.name,
+          region: o.region,
+          metricLabel: o.metricLabel,
+          metric: o.metric,
+          min: o.min,
+          term: o.term,
+          partner: o.partner,
+          regulator: o.regulator,
+          risk: o.risk,
+        }}
+        onOpen={() => onOpen(o)}
+      />
+    </div>
   );
 }
 
@@ -561,15 +602,34 @@ function useIsPhone(): boolean {
 export default function OpportunitiesPage() {
   const [filter, setFilter] = useState<Kind | 'All'>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
+  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
   const phone = useIsPhone();
 
-  const shown = filter === 'All' ? TRADEABLE : TRADEABLE.filter((o) => o.type === filter);
+  useEffect(() => {
+    setProfile(readDemoProfile(MARCUS_PROFILE));
+  }, []);
+
+  const ranked = rankDemoMatches(TRADEABLE, profile);
+  const screenedOut = BLOCKED.map((opportunity) => screenedOutForProfile(opportunity, profile));
+  const topMatches = ranked.slice(0, 2);
+  const alternatives = ranked.slice(2);
+  const firstMatch = topMatches[0];
+  const secondMatch = topMatches[1];
+  const citizenship = [
+    profile.jamaicanCitizen ? 'Jamaica' : '',
+    profile.usCitizen ? 'US' : '',
+  ].filter(Boolean);
+  const profileName = profile.name.trim() || 'Sample investor';
+
+  if (!firstMatch || !secondMatch) return null;
+
+  const shown = filter === 'All' ? ranked : ranked.filter((o) => o.type === filter);
   const count = (f: Kind | 'All') =>
     f === 'All' ? TRADEABLE.length : TRADEABLE.filter((o) => o.type === f).length;
 
   /** Same cards whether the section renders open (desktop) or behind the
    *  phone's disclosure — demo parity with the live marketplace. */
-  const screenedOutCards = BLOCKED.map((b) => (
+  const screenedOutCards = screenedOut.map((b) => (
     <ScreenedOutCard
       key={b.id}
       o={{
@@ -589,19 +649,63 @@ export default function OpportunitiesPage() {
   return (
     <AppScreen active="opportunities" basePath="/demo">
       <PageHead
-        eyebrow="Regional investments across jurisdictions · executed by licensed partners"
-        title="Opportunities"
+        eyebrow="Research and matching agents compared 47 instruments across 8 licensed partners"
+        title={`${profileName}’s matches`}
         right={
           <div className="flex items-center gap-2 rounded-xl border border-border bg-mint px-[15px] py-[9px]">
-            <b className="font-display text-xl">6</b>
+            <b className="font-display text-xl">2</b>
             <span className="text-[12.5px] leading-tight text-dim">
-              matched to
+              strongest
               <br />
-              your goals
+              matches
             </span>
           </div>
         }
       />
+
+      <DemoJourney current="matches" />
+
+      <section aria-labelledby="comparison-heading" className="mb-6">
+        <div className="mb-3">
+          <h2 id="comparison-heading" className="font-display text-xl font-bold">
+            Compare the top two
+          </h2>
+          <p className="mb-0 mt-1 text-sm text-dim">
+            Fit is explained against {profileName}’s profile. A Caribbean product is not
+            automatically better than a US equivalent; fees, tax, currency, liquidity and investor
+            protections still need comparison.
+          </p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          <ComparisonCard
+            title="Client profile"
+            badge={profileName}
+            lines={[
+              `${profile.risk ?? 'Balanced'} · ${profile.objective ?? 'Income and long-term growth'}`,
+              `${profile.horizon ?? '5–10 years'} horizon · ${profile.liquidity ?? 'Monthly access'}`,
+              `${profile.residence ?? 'United States'} resident · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizen` : 'citizenship not selected'}`,
+            ]}
+          />
+          <ComparisonCard
+            title={`A · ${firstMatch.name}`}
+            badge={`${firstMatch.match}% match`}
+            lines={[
+              firstMatch.agentNote,
+              `${firstMatch.risk} risk · ${firstMatch.term}`,
+              'Compare net fees, tax, currency, liquidity and investor protections',
+            ]}
+          />
+          <ComparisonCard
+            title={`B · ${secondMatch.name}`}
+            badge={`${secondMatch.match}% match`}
+            lines={[
+              secondMatch.agentNote,
+              `${secondMatch.risk} risk · ${secondMatch.term}`,
+              'Compare net fees, tax, currency, liquidity and investor protections',
+            ]}
+          />
+        </div>
+      </section>
 
       <div className="mb-5 flex flex-wrap gap-2.5">
         {FILTERS.map((f) => (
@@ -623,18 +727,35 @@ export default function OpportunitiesPage() {
         ))}
       </div>
 
-      <div className="g2" data-tour="customer-marketplace">
-        {shown.map((o) => (
-          <OppCard key={o.id} o={o} onOpen={setSelected} />
-        ))}
-      </div>
+      {filter === 'All' ? (
+        <div data-tour="customer-marketplace">
+          <h2 className="mb-3 font-display text-xl font-bold">Top 2 recommendations</h2>
+          <div className="g2">
+            {topMatches.map((o) => (
+              <OppCard key={o.id} o={o} onOpen={setSelected} />
+            ))}
+          </div>
+          <h2 className="mb-3 mt-7 font-display text-xl font-bold">Alternatives</h2>
+          <div className="g2">
+            {alternatives.map((o) => (
+              <OppCard key={o.id} o={o} onOpen={setSelected} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="g2" data-tour="customer-marketplace">
+          {shown.map((o) => (
+            <OppCard key={o.id} o={o} onOpen={setSelected} />
+          ))}
+        </div>
+      )}
 
       {/* What your agent screens out — the guardrail the product is built
           around. Collapsed behind a disclosure on phones, like the live page. */}
       {phone ? (
         <details className="mt-[30px]">
           <summary className="cursor-pointer list-none rounded-xl border border-solid border-[#ecd2c2] bg-card px-4 py-3 font-display text-[15px] font-bold marker:content-none dark:border-[#5a3f2e] [&::-webkit-details-marker]:hidden">
-            What your agent screens out · {BLOCKED.length}
+            Not a match · {screenedOut.length}
           </summary>
           <p className="mb-3 mt-3 text-sm text-dim">
             Listed so you can see exactly what fails your suitability profile, and why.
@@ -643,9 +764,7 @@ export default function OpportunitiesPage() {
         </details>
       ) : (
         <>
-          <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
-            What your agent screens out
-          </h2>
+          <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">Not a match</h2>
           <p className="mb-3.5 text-sm text-dim">
             Listed so you can see exactly what fails your suitability profile, and why.
           </p>
@@ -655,5 +774,29 @@ export default function OpportunitiesPage() {
 
       <ExecDialog opp={selected} onClose={() => setSelected(null)} />
     </AppScreen>
+  );
+}
+
+function ComparisonCard({
+  title,
+  badge,
+  lines,
+}: {
+  title: string;
+  badge: string;
+  lines: string[];
+}) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-2">
+        <b className="font-display text-base">{title}</b>
+        <Badge variant="secondary">{badge}</Badge>
+      </div>
+      <ul className="mb-0 mt-3 space-y-2 pl-5 text-sm leading-snug text-dim">
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </Card>
   );
 }
