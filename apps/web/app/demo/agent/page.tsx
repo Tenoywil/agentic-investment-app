@@ -352,7 +352,7 @@ function classify(text: string): string {
     );
   const weeklyAccessEndsInAffirmativeState =
     weeklyAccessClause !== null &&
-    /^(?=[^.!?]*\b(?:profile|liquidity)\b)[^.!?]*\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)(?:(?!\bto\b)[^.!?])*\bto\s+(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|in|on|to)\b[^.!?]*)?\s*(?:$|[,;.!?])/.test(
+    /^(?=[^.!?]*\b(?:profile|liquidity)\b)[^.!?]*\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)(?:(?!\bto\b)[^.!?])*\bto\s+(?:(?:default|setting|status)\s+to\s+)?(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|in|on|to)\b[^.!?]*)?\s*(?:$|[,;.!?])/.test(
       weeklyAccessClause,
     );
   const weeklyAccessSourceTransition =
@@ -379,7 +379,7 @@ function classify(text: string): string {
     /\b(?:doesn't|does not|don't|do not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:accept|add|allow|assign|enable|give|grant|include|need|offer|permit|provide|require|use|want)\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
       t,
     ) ||
-    /\b(?:so|such that)\s+(?:(?:it|my|the|this|profile|liquidity)\s+)*(?:doesn't|does not|won't|will not)\s+(?:still\s+)?have\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+    /\b(?:so|such that|to|until)\s+(?:(?:i|it|my profile|the profile|this profile)\s+)?(?:doesn't|does not|don't|do not|won't|will not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*have\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
       t,
     ) ||
     /\bavoid(?:ing)?\s+(?:(?:a|all|any|changing|for|having|mandatory|my|need|needs|of|profile|requirement|requirements|requiring|setting|switching|the|to|updating|using)\s+)*weekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
