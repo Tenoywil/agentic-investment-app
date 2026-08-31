@@ -293,20 +293,65 @@ function classify(text: string): string {
   if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
-  const weeklyAccessNegated =
-    /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
-    /\b(?:update|change|set|switch|make)\b[^.!?]*\b(?:not|nothing|neither)\b[^.!?]*\bweekly access\b/.test(
-      t,
-    ) ||
-    /\b(?:don't|do not|no longer|never)\s+(?:need|want)(?: to have)?\s+weekly access\b/.test(t);
   const weeklyAccessQuestion =
     t.includes('?') ||
     /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
-  const weeklyAccessAction =
-    /(?:update|change|switch)\s+(?:(?:my|the|this)\s+)?(?:(?:investor|investment|client|current|existing)\s+)*(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b[^.!?]*\bweekly access\b|set\s+(?:(?:my|the|this)\s+)?(?:(?:investor|investment|client|current|existing)\s+)*(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b[^.!?]*\bweekly access\b|set\s+(?:(?:my|the|this)\s+)?(?:preferred\s+)?access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bweekly access\b|(?:set|make)\s+weekly access\s+(?:(?:as|for)\s+)?(?:(?:my|the|this)\s+)?(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b|make\s+(?:(?:my|the|this)\s+)?(?:(?:investor|investment|client|current|existing)\s+)*(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b[^.!?]*\bweekly access\b/;
-  const weeklyAccessActionIndex = t.search(weeklyAccessAction);
+  const weeklyAccessAction = /\b(?:update|change|set|switch|make)\b/.exec(t);
+  const weeklyAccessActionIndex = weeklyAccessAction?.index ?? -1;
   const weeklyAccessActionPrefix =
     weeklyAccessActionIndex >= 0 ? t.slice(0, weeklyAccessActionIndex) : null;
+  const weeklyAccessClause =
+    weeklyAccessAction && weeklyAccessActionIndex >= 0
+      ? (
+          t.slice(weeklyAccessActionIndex + weeklyAccessAction[0].length).split(/[.!?]/, 1)[0] ?? ''
+        ).trim()
+      : null;
+  const weeklyAccessMarkers = weeklyAccessClause
+    ? ['weekly access', 'profile', 'liquidity']
+        .map((marker) => weeklyAccessClause.indexOf(marker))
+        .filter((index) => index >= 0)
+    : [];
+  const firstWeeklyAccessMarker =
+    weeklyAccessMarkers.length > 0 ? Math.min(...weeklyAccessMarkers) : -1;
+  const weeklyAccessObjectLead =
+    weeklyAccessClause && firstWeeklyAccessMarker >= 0
+      ? (weeklyAccessClause.slice(0, firstWeeklyAccessMarker).match(/[a-z]+/g) ?? [])
+      : [];
+  const allowedWeeklyAccessObjectWords = new Set([
+    'access',
+    'as',
+    'client',
+    'current',
+    'existing',
+    'for',
+    'in',
+    'investment',
+    'investor',
+    'my',
+    'need',
+    'of',
+    'on',
+    'preferred',
+    'setting',
+    'suitability',
+    'target',
+    'the',
+    'this',
+    'to',
+  ]);
+  const weeklyAccessTargetsProfile =
+    weeklyAccessClause !== null &&
+    /\bweekly access\b/.test(weeklyAccessClause) &&
+    /\b(?:profile|liquidity)\b/.test(weeklyAccessClause) &&
+    weeklyAccessObjectLead.every((word) => allowedWeeklyAccessObjectWords.has(word));
+  const weeklyAccessNegated =
+    /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
+    /\b(?:doesn't|does not|don't|do not|never|without|avoid)\b[^.!?]*\bweekly access\b/.test(t) ||
+    /\b(?:update|change|set|switch|make)\b[^.!?]*\b(?:nothing|neither)\b[^.!?]*\bweekly access\b/.test(
+      t,
+    ) ||
+    /\bfrom\s+weekly access\b|\bweekly access\b[^.!?]*\bnot\s+to\b/.test(t) ||
+    /\b(?:don't|do not|no longer|never)\s+(?:need|want)(?: to have)?\s+weekly access\b/.test(t);
   const directWeeklyAccessUpdate =
     weeklyAccessActionPrefix !== null &&
     /^(?:(?:hi|hello)[,!]?\s+)?(?:please\s+|kindly\s+)?(?:go ahead and\s+)?$/.test(
@@ -319,12 +364,13 @@ function classify(text: string): string {
     );
   const desiredWeeklyAccessUpdate =
     weeklyAccessActionPrefix !== null &&
-    /^(?:(?:i'd|i would)\s+like(?:\s+you)?\s+to|i want you to)\s+$/.test(weeklyAccessActionPrefix);
+    /^(?:(?:i'd|i would)\s+like(?:\s+you)?\s+to|i (?:need|want)(?: you)? to)\s+$/.test(
+      weeklyAccessActionPrefix,
+    );
   const explicitWeeklyAccessUpdate =
     !weeklyAccessNegated &&
-    (directWeeklyAccessUpdate ||
-      modalWeeklyAccessUpdate ||
-      desiredWeeklyAccessUpdate ||
+    ((weeklyAccessTargetsProfile &&
+      (directWeeklyAccessUpdate || modalWeeklyAccessUpdate || desiredWeeklyAccessUpdate)) ||
       (!weeklyAccessQuestion &&
         /^(?:(?:hi|hello)[,!]?\s+)?i (?:need|want)(?: to have)?\s+weekly access\b/.test(t)));
   if (explicitWeeklyAccessUpdate) return 'profile';
