@@ -339,18 +339,31 @@ function classify(text: string): string {
     'this',
     'to',
   ]);
+  const weeklyAccessIsSource =
+    weeklyAccessClause !== null &&
+    (/\bfrom\s+weekly access\b/.test(weeklyAccessClause) ||
+      /\bweekly access\b[^.!?]*\bto\s+(?!weekly access\b)/.test(weeklyAccessClause));
+  const weeklyAccessIsInformationalObject =
+    weeklyAccessClause !== null &&
+    /\bweekly access\s+(?:chart|copy|details|information|note|overview|text|wording)\b/.test(
+      weeklyAccessClause,
+    );
   const weeklyAccessTargetsProfile =
     weeklyAccessClause !== null &&
     /\bweekly access\b/.test(weeklyAccessClause) &&
     /\b(?:profile|liquidity)\b/.test(weeklyAccessClause) &&
-    weeklyAccessObjectLead.every((word) => allowedWeeklyAccessObjectWords.has(word));
+    weeklyAccessObjectLead.every((word) => allowedWeeklyAccessObjectWords.has(word)) &&
+    !weeklyAccessIsSource &&
+    !weeklyAccessIsInformationalObject;
   const weeklyAccessNegated =
     /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
-    /\b(?:doesn't|does not|don't|do not|never|without|avoid)\b[^.!?]*\bweekly access\b/.test(t) ||
-    /\b(?:update|change|set|switch|make)\b[^.!?]*\b(?:nothing|neither)\b[^.!?]*\bweekly access\b/.test(
+    /\b(?:doesn't|does not|don't|do not|never|avoid)\b[^.!?]*\bweekly access\b/.test(t) ||
+    /\bwithout\s+(?:(?:requiring|having|needing)\s+)?weekly access\b/.test(t) ||
+    /\b(?:update|change|set|switch|make)\b[^.!?]*\b(?:not|nothing|neither)\b[^.!?]*\bweekly access\b/.test(
       t,
     ) ||
-    /\bfrom\s+weekly access\b|\bweekly access\b[^.!?]*\bnot\s+to\b/.test(t) ||
+    weeklyAccessIsSource ||
+    /\bweekly access\b[^.!?]*\bnot\s+to\b/.test(t) ||
     /\b(?:don't|do not|no longer|never)\s+(?:need|want)(?: to have)?\s+weekly access\b/.test(t);
   const directWeeklyAccessUpdate =
     weeklyAccessActionPrefix !== null &&
