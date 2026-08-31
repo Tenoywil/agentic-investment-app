@@ -1,6 +1,14 @@
 'use client';
 
-import { AppScreen, DemoJourney, PageHead } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  DEFAULT_DEMO_PROFILE,
+  DemoJourney,
+  type DemoProfile,
+  PageHead,
+  rankDemoMatches,
+  readDemoProfile,
+} from '@/app/_components/AppScreen';
 import { DealCard, ScreenedOutCard } from '@/app/_components/DealCard';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -53,18 +61,6 @@ type Opp = {
   blocked?: boolean;
   blockReasons?: string[];
 };
-
-type StoredDemoProfile = {
-  residence?: string;
-  objective?: string;
-  horizon?: string;
-  risk?: string;
-  liquidity?: string;
-  jamaicanCitizen?: boolean;
-  usCitizen?: boolean;
-};
-
-const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
 
 const OPPS: Opp[] = [
   {
@@ -589,39 +585,14 @@ function useIsPhone(): boolean {
 export default function OpportunitiesPage() {
   const [filter, setFilter] = useState<Kind | 'All'>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
-  const [profile, setProfile] = useState<StoredDemoProfile>({
-    residence: 'United States',
-    objective: 'Income and long-term growth',
-    horizon: '5–10 years',
-    risk: 'Balanced',
-    liquidity: 'Monthly access',
-    jamaicanCitizen: true,
-    usCitizen: true,
-  });
+  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_DEMO_PROFILE);
   const phone = useIsPhone();
 
   useEffect(() => {
-    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
-    if (!stored) return;
-    try {
-      setProfile((current) => ({ ...current, ...(JSON.parse(stored) as StoredDemoProfile) }));
-    } catch {
-      window.sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
-    }
+    setProfile(readDemoProfile());
   }, []);
 
-  const ranked = TRADEABLE.map((opportunity) => {
-    let adjustment = 0;
-    if (profile.liquidity === 'Weekly access') {
-      adjustment += opportunity.id === 'ncbmm' ? 27 : opportunity.term.includes('yr') ? -8 : 0;
-    }
-    if (profile.risk === 'Conservative') {
-      adjustment += opportunity.risk === 'Low' ? 4 : opportunity.risk === 'High' ? -30 : -10;
-    } else if (profile.risk === 'Growth') {
-      adjustment += opportunity.type === 'Equity' ? 8 : opportunity.type === 'Real Estate' ? 5 : -5;
-    }
-    return { ...opportunity, match: Math.max(1, Math.min(99, opportunity.match + adjustment)) };
-  }).sort((a, b) => b.match - a.match);
+  const ranked = rankDemoMatches(TRADEABLE, profile);
   const topMatches = ranked.slice(0, 2);
   const alternatives = ranked.slice(2);
   const firstMatch = topMatches[0];

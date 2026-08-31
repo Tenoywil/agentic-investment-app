@@ -1,6 +1,13 @@
 'use client';
 
-import { AppScreen, DemoJourney, PageHead } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  DEFAULT_DEMO_PROFILE,
+  DemoJourney,
+  type DemoProfile,
+  PageHead,
+  readDemoProfile,
+} from '@/app/_components/AppScreen';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -17,24 +24,6 @@ import { CheckCircle2, CircleAlert, FileText, ScanLine, Send, ShieldCheck } from
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-
-const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
-
-type ReviewProfile = {
-  residence: string;
-  risk: string;
-  horizon: string;
-  jamaicanCitizen: boolean;
-  usCitizen: boolean;
-};
-
-const DEFAULT_REVIEW_PROFILE: ReviewProfile = {
-  residence: 'United States',
-  risk: 'Balanced',
-  horizon: '5–10 years',
-  jamaicanCitizen: true,
-  usCitizen: true,
-};
 
 /**
  * Orders, in the signed-out preview.
@@ -116,20 +105,11 @@ export default function DemoOrdersPage() {
   const [packReviewed, setPackReviewed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState('');
-  const [profile, setProfile] = useState<ReviewProfile>(DEFAULT_REVIEW_PROFILE);
+  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_DEMO_PROFILE);
   const open = ORDERS.filter((o) => o.status === 'created' || o.status === 'accepted');
 
   useEffect(() => {
-    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
-    if (!stored) return;
-    try {
-      setProfile({
-        ...DEFAULT_REVIEW_PROFILE,
-        ...(JSON.parse(stored) as Partial<ReviewProfile>),
-      });
-    } catch {
-      window.sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
-    }
+    setProfile(readDemoProfile());
   }, []);
 
   const citizenship = [

@@ -1,6 +1,12 @@
 'use client';
 
-import { AppScreen, DemoJourney } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  DemoJourney,
+  rankDemoMatches,
+  readDemoProfile,
+  writeDemoProfile,
+} from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
 import { AgentDisplayCard } from '@/app/_components/agent-displays';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
@@ -56,11 +62,7 @@ const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
   { label: 'Why not the villa?', mobileLabel: 'Why not villa?', key: 'whynot' },
 ];
 
-const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
-
 const REPLIES: Record<string, string> = {
-  compare:
-    'Your top matches are the <b>GOJ USD Global Bond 2032 at 94%</b> and the <b>Sagicor Real Estate X Fund at 89%</b>. The bond leads on predictable USD income and lower risk. The fund adds quarterly property income and growth but more concentration and valuation risk. Caribbean exposure may add diversification and regional alignment; it is not automatically better than a comparable US product, so I compare net fees, tax, currency, liquidity and investor protections.',
   profile:
     'I updated your liquidity need from <b>monthly access</b> to <b>weekly access</b> and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. The <b>NCB USD Money Market Fund</b> moved into your top two because it offers same-day access. The five-year villa note remains screened out. Review and approve any move before I route it.',
   summary:
@@ -77,6 +79,80 @@ const REPLIES: Record<string, string> = {
   fees: 'Applicable CCN and partner product fees are shown before you approve. The executing firm reports the actual settlement price, units and fee; I do not estimate a missing settlement figure.',
   kyc: 'With your consent, CCN collects and passes your declarations and documents to the licensed firm you choose. That firm reviews the evidence, may request more, and remains responsible for the final KYC and AML decision for its own account. A status from one firm is not presented as clearing another.',
 };
+
+const AGENT_MATCH_CANDIDATES = [
+  {
+    id: 'goj32',
+    name: 'GOJ USD Global Bond 2032',
+    match: 94,
+    risk: 'Low',
+    type: 'Bond',
+    term: '8 yr · USD',
+  },
+  {
+    id: 'sagrex',
+    name: 'Sagicor Real Estate X Fund',
+    match: 89,
+    risk: 'Medium',
+    type: 'Real Estate',
+    term: 'Open-ended',
+  },
+  {
+    id: 'gkapo',
+    name: 'GraceKennedy Additional Public Offering',
+    match: 84,
+    risk: 'Medium',
+    type: 'Equity',
+    term: 'Equity',
+  },
+  {
+    id: 'provfd',
+    name: 'Proven USD Fixed Income Fund',
+    match: 78,
+    risk: 'Low',
+    type: 'Fund',
+    term: 'Open-ended',
+  },
+  {
+    id: 'bgtn29',
+    name: 'Barbados Treasury Note 2029',
+    match: 76,
+    risk: 'Low',
+    type: 'Bond',
+    term: '5 yr',
+  },
+  {
+    id: 'sygcr',
+    name: 'Sygnus Private Credit Note III',
+    match: 72,
+    risk: 'High',
+    type: 'Private',
+    term: '3 yr · locked',
+  },
+  {
+    id: 'jmmb',
+    name: 'JMMB Group Rights Issue',
+    match: 68,
+    risk: 'Medium',
+    type: 'Equity',
+    term: 'Equity',
+  },
+  {
+    id: 'ncbmm',
+    name: 'NCB USD Money Market Fund',
+    match: 65,
+    risk: 'Low',
+    type: 'Fund',
+    term: 'Instant access',
+  },
+];
+
+function comparisonReply(): string {
+  const profile = readDemoProfile();
+  const [first, second] = rankDemoMatches(AGENT_MATCH_CANDIDATES, profile);
+  if (!first || !second) return REPLIES.summary ?? FALLBACK;
+  return `Your current top matches are the <b>${first.name} at ${first.match}%</b> and the <b>${second.name} at ${second.match}%</b>. This order reflects your <b>${profile.risk.toLowerCase()}</b> risk appetite, <b>${profile.objective.toLowerCase()}</b> objective, <b>${profile.horizon}</b> horizon and <b>${profile.liquidity.toLowerCase()}</b> liquidity need. Caribbean exposure is not automatically better than a comparable US product, so I still compare net fees, tax, currency, liquidity and investor protections.`;
+}
 
 /** Sample-only numbers for the public preview. The live surface receives this
  *  same shape from the read-only allocation tool over the structured display
@@ -456,7 +532,7 @@ export default function AgentPage() {
   );
 
   function reply(key: string) {
-    const text = REPLIES[key] ?? FALLBACK;
+    const text = key === 'compare' ? comparisonReply() : (REPLIES[key] ?? FALLBACK);
     const display = REPLY_DISPLAYS[key];
     setChat((c) =>
       display
@@ -472,19 +548,7 @@ export default function AgentPage() {
     if (!t || replying) return;
     const replyKey = key ?? classify(t);
     if (replyKey === 'profile') {
-      try {
-        const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
-        const current = stored ? (JSON.parse(stored) as Record<string, unknown>) : {};
-        window.sessionStorage.setItem(
-          DEMO_PROFILE_STORAGE_KEY,
-          JSON.stringify({ ...current, liquidity: 'Weekly access' }),
-        );
-      } catch {
-        window.sessionStorage.setItem(
-          DEMO_PROFILE_STORAGE_KEY,
-          JSON.stringify({ liquidity: 'Weekly access' }),
-        );
-      }
+      writeDemoProfile({ ...readDemoProfile(), liquidity: 'Weekly access' });
     }
     setChat((c) => [...c, { role: 'user', text: t }]);
     setDraft('');
@@ -586,7 +650,9 @@ export default function AgentPage() {
         </span>
       </div>
 
-      <DemoJourney current="advisor" />
+      <div className="max-[900px]:hidden">
+        <DemoJourney current="advisor" />
+      </div>
 
       <div className="g-agent">
         {/* Chat */}

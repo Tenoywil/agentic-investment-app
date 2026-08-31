@@ -75,6 +75,104 @@ export type DemoJourneyStep =
   | 'partner'
   | 'dashboard';
 
+export const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
+
+export type DemoProfile = {
+  name: string;
+  residence: string;
+  age: string;
+  objective: string;
+  horizon: string;
+  risk: string;
+  liquidity: string;
+  financialSituation: string;
+  jamaicanCitizen: boolean;
+  usCitizen: boolean;
+};
+
+export const DEFAULT_DEMO_PROFILE: DemoProfile = {
+  name: 'Sample investor',
+  residence: 'United States',
+  age: '35–44',
+  objective: 'Income and long-term growth',
+  horizon: '5–10 years',
+  risk: 'Balanced',
+  liquidity: 'Monthly access',
+  financialSituation: 'Stable income; six-month cash reserve',
+  jamaicanCitizen: true,
+  usCitizen: true,
+};
+
+/** Browser persistence is an enhancement for the public walkthrough. Sandboxed
+ * previews and privacy settings may deny storage, so every caller gets a usable
+ * in-memory profile instead of a route crash. */
+export function readDemoProfile(fallback: DemoProfile = DEFAULT_DEMO_PROFILE): DemoProfile {
+  try {
+    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
+    if (!stored) return { ...fallback };
+    const candidate = JSON.parse(stored) as Partial<DemoProfile>;
+    return {
+      ...fallback,
+      ...Object.fromEntries(
+        Object.entries(candidate).filter(([key, value]) => {
+          const expected = fallback[key as keyof DemoProfile];
+          return typeof value === typeof expected;
+        }),
+      ),
+    };
+  } catch {
+    return { ...fallback };
+  }
+}
+
+export function writeDemoProfile(profile: DemoProfile): void {
+  try {
+    window.sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  } catch {
+    // Storage is optional; the current screen keeps its in-memory state.
+  }
+}
+
+type DemoMatchInput = {
+  id: string;
+  match: number;
+  risk: string;
+  type: string;
+  term: string;
+};
+
+/** Deterministic demo scoring shared by the match cards and scripted advisor. */
+export function rankDemoMatches<T extends DemoMatchInput>(
+  opportunities: T[],
+  profile: DemoProfile,
+): (T & { match: number })[] {
+  return opportunities
+    .map((opportunity) => {
+      let adjustment = 0;
+      if (profile.liquidity === 'Weekly access') {
+        adjustment += opportunity.id === 'ncbmm' ? 27 : opportunity.term.includes('yr') ? -8 : 0;
+      }
+      if (profile.risk === 'Conservative') {
+        adjustment += opportunity.risk === 'Low' ? 4 : opportunity.risk === 'High' ? -30 : -10;
+      } else if (profile.risk === 'Growth') {
+        adjustment +=
+          opportunity.type === 'Equity' ? 8 : opportunity.type === 'Real Estate' ? 5 : -5;
+      }
+      if (profile.objective === 'Capital preservation') {
+        adjustment += opportunity.risk === 'Low' ? 8 : opportunity.risk === 'High' ? -25 : -10;
+      } else if (profile.objective === 'Growth') {
+        adjustment += opportunity.type === 'Equity' || opportunity.type === 'Real Estate' ? 8 : -4;
+      } else if (profile.objective === 'Retirement income') {
+        adjustment += opportunity.type === 'Bond' || opportunity.type === 'Fund' ? 5 : -3;
+      }
+      const termYears = Number.parseInt(opportunity.term.match(/(\d+)\s*yr/)?.[1] ?? '0', 10);
+      if (profile.horizon === 'Under 3 years' && termYears >= 3) adjustment -= 25;
+      if (profile.horizon === '3–5 years' && termYears > 5) adjustment -= 10;
+      return { ...opportunity, match: Math.max(1, Math.min(99, opportunity.match + adjustment)) };
+    })
+    .sort((a, b) => b.match - a.match);
+}
+
 const DEMO_JOURNEY: { key: DemoJourneyStep; label: string; href: string }[] = [
   { key: 'profile', label: 'Profile', href: '/demo/planning' },
   { key: 'matches', label: 'Matches', href: '/demo/opportunities' },

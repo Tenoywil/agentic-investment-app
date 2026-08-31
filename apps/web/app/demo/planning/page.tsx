@@ -1,6 +1,14 @@
 'use client';
 
-import { AppScreen, DemoJourney, PageHead } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  DEFAULT_DEMO_PROFILE,
+  DemoJourney,
+  type DemoProfile,
+  PageHead,
+  readDemoProfile,
+  writeDemoProfile,
+} from '@/app/_components/AppScreen';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -10,40 +18,14 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
-const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
-
-type DemoProfile = {
-  name: string;
-  residence: string;
-  age: string;
-  objective: string;
-  horizon: string;
-  risk: string;
-  liquidity: string;
-  financialSituation: string;
-  jamaicanCitizen: boolean;
-  usCitizen: boolean;
-};
-
-const DEFAULT_PROFILE: DemoProfile = {
-  name: 'Marcus Bailey',
-  residence: 'United States',
-  age: '35–44',
-  objective: 'Income and long-term growth',
-  horizon: '5–10 years',
-  risk: 'Balanced',
-  liquidity: 'Monthly access',
-  financialSituation: 'Stable income; six-month cash reserve',
-  jamaicanCitizen: true,
-  usCitizen: true,
-};
-
 function citizenshipLabel(profile: DemoProfile): string {
   if (profile.jamaicanCitizen && profile.usCitizen) return 'Jamaica + US citizen';
   if (profile.jamaicanCitizen) return 'Jamaican citizen';
   if (profile.usCitizen) return 'US citizen';
   return 'citizenship not selected';
 }
+
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
 
 const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
   Recommended: 'success',
@@ -177,25 +159,18 @@ function Ring({ pct, color }: { pct: number; color: string }) {
 export default function PlanningPage() {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_PROFILE);
-  const [savedProfile, setSavedProfile] = useState<DemoProfile>(DEFAULT_PROFILE);
+  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
+  const [savedProfile, setSavedProfile] = useState<DemoProfile>(MARCUS_PROFILE);
 
   useEffect(() => {
-    const stored = window.sessionStorage.getItem(DEMO_PROFILE_STORAGE_KEY);
-    if (!stored) return;
-    try {
-      const restored = { ...DEFAULT_PROFILE, ...(JSON.parse(stored) as Partial<DemoProfile>) };
-      setProfile(restored);
-      setSavedProfile(restored);
-      setSaved(true);
-    } catch {
-      window.sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
-    }
+    const restored = readDemoProfile(MARCUS_PROFILE);
+    setProfile(restored);
+    setSavedProfile(restored);
   }, []);
 
   function saveProfile() {
     setSavedProfile(profile);
-    window.sessionStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    writeDemoProfile(profile);
     setEditing(false);
     setSaved(true);
   }
