@@ -382,7 +382,7 @@ function classify(text: string): string {
       ));
   const weeklyAccessRationaleExplainsConvenience =
     weeklyAccessRationale !== null &&
-    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?)\s*$/.test(
+    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?|(?:select|choose|enable|re-enable|set up|configure)\s+(?:it|weekly access)\s+(?:again|each time|every time|each week|every week))\s*$/.test(
       weeklyAccessRationale,
     );
   const weeklyAccessRationaleDirectlyNegatesValue =
@@ -393,6 +393,7 @@ function classify(text: string): string {
     );
   const weeklyAccessHasAffirmativeRationale =
     weeklyAccessRationalePrefix !== null &&
+    weeklyAccessRationaleExplainsConvenience &&
     !weeklyAccessRationaleHasContraryDestination &&
     !weeklyAccessRationaleHasInformationalTarget &&
     !weeklyAccessRationaleDirectlyNegatesValue &&
