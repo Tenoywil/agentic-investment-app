@@ -297,12 +297,8 @@ function classify(text: string): string {
   const weeklyAccessQuestion =
     t.includes('?') ||
     /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
-  const weeklyAccessInformational =
-    /\b(?:explain|tell|show|know|whether|what|how|why|list|funds?|options?|affect|mean|means)\b/.test(
-      t,
-    );
   const weeklyAccessAction =
-    /(?:update|change|set|switch)\b.*\b(?:profile|liquidity(?:\s+(?:need|target))?)\b.*\bweekly access\b|(?:set|make)\b.*\bweekly access\b.*\b(?:profile|liquidity(?:\s+(?:need|target))?)\b/;
+    /(?:update|change|set|switch)\s+(?:(?:my|the)\s+)?(?:profile|liquidity(?:\s+(?:need|target))?)\b.*\bweekly access\b|make\s+(?:my|the)\s+(?:profile|liquidity(?:\s+(?:need|target))?)\b.*\bweekly access\b|set\s+weekly access\b.*\b(?:(?:my|the)\s+)?(?:profile|liquidity(?:\s+(?:need|target))?)\b/;
   const weeklyAccessActionIndex = t.search(weeklyAccessAction);
   const weeklyAccessActionPrefix =
     weeklyAccessActionIndex >= 0 ? t.slice(0, weeklyAccessActionIndex) : null;
@@ -321,7 +317,6 @@ function classify(text: string): string {
     /^(?:(?:i'd|i would)\s+like(?:\s+you)?\s+to|i want you to)\s+$/.test(weeklyAccessActionPrefix);
   const explicitWeeklyAccessUpdate =
     !weeklyAccessNegated &&
-    !weeklyAccessInformational &&
     (directWeeklyAccessUpdate ||
       modalWeeklyAccessUpdate ||
       desiredWeeklyAccessUpdate ||

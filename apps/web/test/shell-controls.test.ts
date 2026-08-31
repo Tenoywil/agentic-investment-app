@@ -327,7 +327,6 @@ describe('app shell controls', () => {
     expect(advisor).toContain('setDemoProfile(nextProfile)');
     expect(advisor).toContain("return 'liquidity'");
     expect(advisor).toContain('weeklyAccessQuestion');
-    expect(advisor).toContain('weeklyAccessInformational');
     expect(advisor).toContain('explicitWeeklyAccessUpdate');
     expect(advisor).toContain('modalWeeklyAccessUpdate');
     expect(advisor).toContain("(?:i'd|i would)\\s+like");
