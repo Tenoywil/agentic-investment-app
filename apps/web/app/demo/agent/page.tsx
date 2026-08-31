@@ -3,11 +3,12 @@
 import {
   AppScreen,
   DEFAULT_DEMO_PROFILE,
-  DemoJourney,
   type DemoProfile,
   demoVillaScreenReasons,
   rankDemoMatches,
+  readDemoAccountState,
   readDemoProfile,
+  writeDemoAccountState,
   writeDemoProfile,
 } from '@/app/_components/AppScreen';
 import { ChatMarkdown } from '@/app/_components/ChatMarkdown';
@@ -171,7 +172,7 @@ function profileUpdateReply(previousProfile: DemoProfile, updatedProfile: DemoPr
   const topTwo = ranked.slice(0, 2);
   const ncbPosition = ranked.findIndex((candidate) => candidate.id === 'ncbmm') + 1;
   const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The NCB USD Money Market Fund's same-day access improved its liquidity fit${ncbPosition > 0 ? ` and places it at #${ncbPosition}` : ''}.`;
-  return `${update} and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. ${rankingSummary} The five-year villa note remains screened out. Review and approve any move before I route it.`;
+  return `${update} and refreshed your recommendations. ${rankingSummary} The five-year villa note remains screened out. Review and approve any move before I route it.`;
 }
 
 function villaScreenReply(profile: DemoProfile): string {
@@ -495,8 +496,6 @@ const APPROVALS: {
   confirm: string;
   /** The card's own settled line once approved. */
   done: string;
-  /** The visible specialist hand-offs behind this sample recommendation. */
-  trace: { agent: string; summary: string }[];
 }[] = [
   {
     id: 'coupon',
@@ -507,32 +506,8 @@ const APPROVALS: {
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
     cta: 'Approve reinvestment',
     confirm:
-      'Demo complete. In the live app, approval would route the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. The resulting order would remain visible in My orders.',
-    done: 'Sample routed to Sagicor · no transaction placed',
-    trace: [
-      {
-        agent: 'Research agent',
-        summary: 'Flagged the maturing coupon and compared the listed income products.',
-      },
-      {
-        agent: 'Portfolio fit agent',
-        summary:
-          'Favoured real-estate income to reduce the portfolio’s fixed-income concentration.',
-      },
-      {
-        agent: 'Suitability agent',
-        summary: 'Checked the risk band, minimum, cash floor and single-position cap.',
-      },
-      {
-        agent: 'Compliance agent',
-        summary:
-          'Checked recorded onboarding readiness and the active Sagicor relationship; Sagicor retains the final KYC and AML decision.',
-      },
-      {
-        agent: 'Coordinator',
-        summary: 'Sized the sample move to the coupon and prepared it for human approval.',
-      },
-    ],
+      'Approved. I sent the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. You can track it in My orders.',
+    done: 'Routed to Sagicor for execution',
   },
   {
     id: 'idle',
@@ -543,31 +518,8 @@ const APPROVALS: {
     body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
     cta: 'Move cash',
     confirm:
-      'Demo complete. In the live app, approval would ask <b>NCB</b> to place <b>US$2,150</b> into its USD Money Market Fund. No money moved in this preview.',
-    done: 'Sample routed to NCB · no money moved',
-    trace: [
-      {
-        agent: 'Research agent',
-        summary: 'Compared the idle balance with listed short-duration cash products.',
-      },
-      {
-        agent: 'Portfolio fit agent',
-        summary: 'Selected the option that preserves same-day access for near-term goals.',
-      },
-      {
-        agent: 'Suitability agent',
-        summary: 'Verified the cash floor, approval threshold and enabled sweep rule.',
-      },
-      {
-        agent: 'Compliance agent',
-        summary:
-          'Checked recorded onboarding readiness and the active NCB relationship; NCB retains the final KYC and AML decision.',
-      },
-      {
-        agent: 'Coordinator',
-        summary: 'Prepared the sample sweep for a person to approve before NCB executes.',
-      },
-    ],
+      'Approved. I sent the <b>US$2,150</b> instruction for the <b>NCB USD Money Market Fund</b> to NCB for execution. You can track it in My orders.',
+    done: 'Routed to NCB for execution',
   },
 ];
 
@@ -720,8 +672,17 @@ export default function AgentPage() {
 
   useEffect(() => {
     const restored = readDemoProfile(MARCUS_PROFILE);
+    const accountState = readDemoAccountState();
     const firstName = restored.name.trim().split(/\s+/)[0] || 'investor';
     setDemoProfile(restored);
+    setCardState(
+      Object.fromEntries(
+        APPROVALS.map((approval) => [
+          approval.id,
+          accountState.approvedActions.includes(approval.id) ? 'approved' : 'pending',
+        ]),
+      ),
+    );
     setChat((current) =>
       current.map((message, index) =>
         index === 0 && 'text' in message
@@ -796,6 +757,11 @@ export default function AgentPage() {
 
   function approveCard(a: (typeof APPROVALS)[number]) {
     setCardState((s) => ({ ...s, [a.id]: 'approved' }));
+    const accountState = readDemoAccountState();
+    writeDemoAccountState({
+      ...accountState,
+      approvedActions: [...new Set([...accountState.approvedActions, a.id])],
+    });
     setChat((c) => [...c, { role: 'agent', text: a.confirm }]);
   }
 
@@ -878,7 +844,7 @@ export default function AgentPage() {
         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] text-dim">
           <span className="flex items-center gap-1.5 font-bold text-teal2">
             <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
-            Interactive demo
+            Online
           </span>
           {STATS.slice(0, 2).map((s) => (
             <span key={s.t}>
@@ -886,10 +852,6 @@ export default function AgentPage() {
             </span>
           ))}
         </span>
-      </div>
-
-      <div className="max-[900px]:hidden">
-        <DemoJourney current="advisor" />
       </div>
 
       <div className="g-agent">
@@ -901,8 +863,8 @@ export default function AgentPage() {
           <div className="agent-chat__head flex items-center gap-3 border-b border-solid border-x-0 border-t-0 border-border px-5 py-[18px] max-[900px]:gap-2 max-[900px]:px-3 max-[900px]:py-3">
             {/* Phone only (CSS): the chat owns the whole screen there. */}
             <Link
-              href="/demo/opportunities"
-              aria-label="Back to matches"
+              href="/demo/home"
+              aria-label="Back to dashboard"
               className="agent-chat__back h-10 w-10 flex-none place-items-center rounded-[12px] text-foreground hover:bg-muted max-[900px]:h-9 max-[900px]:w-9"
             >
               <ArrowLeft className="h-5 w-5" aria-hidden />
@@ -940,7 +902,7 @@ export default function AgentPage() {
               href="/demo/orders"
               className="hidden h-9 flex-none items-center gap-1 rounded-[10px] bg-primary px-2.5 text-xs font-bold text-white no-underline max-[900px]:inline-flex"
             >
-              Compliance <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              Orders <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
           </div>
 
@@ -1054,7 +1016,7 @@ export default function AgentPage() {
                 type="button"
                 variant={hearing !== null ? 'default' : 'secondary'}
                 size="icon"
-                aria-label="Voice input (plays a sample question)"
+                aria-label="Voice input"
                 aria-pressed={hearing !== null}
                 onClick={playDictation}
                 disabled={replying || hearing !== null || draft.trim() !== ''}
@@ -1100,18 +1062,6 @@ export default function AgentPage() {
                 </div>
                 <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
                 <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
-                <details className="mb-3 rounded-lg border border-solid border-border bg-muted/40 px-3 py-2 text-[12.5px]">
-                  <summary className="cursor-pointer font-bold text-teal2">
-                    How the agents reached this
-                  </summary>
-                  <ol className="mb-0 mt-2 space-y-1.5 pl-4 text-dim">
-                    {a.trace.map((stage) => (
-                      <li key={stage.agent}>
-                        <b className="text-foreground">{stage.agent}:</b> {stage.summary}
-                      </li>
-                    ))}
-                  </ol>
-                </details>
                 {cardState[a.id] === 'approved' ? (
                   <p className="m-0 flex items-center gap-1.5 text-[13.5px] font-bold text-success-ink">
                     <span aria-hidden>✓</span> Approved · {a.done}
@@ -1186,8 +1136,7 @@ export default function AgentPage() {
                 <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
                   <DialogTitle>Adjust your agent limits</DialogTitle>
                   <DialogDescription>
-                    Try the same controls available on the live account. These sample changes stay
-                    inside this walkthrough and never reach an account.
+                    Set the boundaries used when your agent prepares recommendations and actions.
                   </DialogDescription>
                 </DialogHeader>
                 <form
@@ -1229,7 +1178,7 @@ export default function AgentPage() {
                     <Button type="button" variant="outline" onClick={() => setLimitsOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="submit">Apply sample limits</Button>
+                    <Button type="submit">Save limits</Button>
                   </DialogFooter>
                 </form>
               </DialogContent>

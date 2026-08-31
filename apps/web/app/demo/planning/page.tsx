@@ -3,7 +3,6 @@
 import {
   AppScreen,
   DEFAULT_DEMO_PROFILE,
-  DemoJourney,
   type DemoProfile,
   PageHead,
   readDemoProfile,
@@ -187,20 +186,18 @@ export default function PlanningPage() {
   return (
     <AppScreen active="planning" basePath="/demo">
       <PageHead
-        eyebrow="Scripted sign-in, investor profile and fact-find · about 45 seconds"
-        title="Meet Marcus"
+        eyebrow="Cover, retirement, property and legacy planning across borders"
+        title="Planning"
       />
-
-      <DemoJourney current="profile" />
 
       <section id="profile" aria-labelledby="profile-heading" className="mb-7">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="profile-heading" className="font-display text-[22px] font-bold">
-              Let’s get to know you better
+              Your investor profile
             </h2>
             <p className="mb-0 mt-1 text-sm text-dim">
-              Signed in with Google · marcus.bailey@example.invalid · sample identity only
+              Personal details and preferences used for planning and suitability
             </p>
           </div>
           <Button variant={editing ? 'outline' : 'secondary'} onClick={toggleEditing}>

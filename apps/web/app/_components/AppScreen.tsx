@@ -1,7 +1,5 @@
 'use client';
 
-import { cn } from '@/app/_lib/utils';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AppSidebar, type Key } from './AppSidebar';
 import { MobileNav } from './MobileNav';
@@ -67,15 +65,8 @@ export function PageHead({
   );
 }
 
-export type DemoJourneyStep =
-  | 'profile'
-  | 'matches'
-  | 'advisor'
-  | 'compliance'
-  | 'partner'
-  | 'dashboard';
-
 export const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
+export const DEMO_ACCOUNT_STORAGE_KEY = 'ccn-demo-account-state';
 
 export type DemoProfile = {
   name: string;
@@ -91,7 +82,7 @@ export type DemoProfile = {
 };
 
 export const DEFAULT_DEMO_PROFILE: DemoProfile = {
-  name: 'Sample investor',
+  name: 'Investor',
   residence: 'United States',
   age: '35–44',
   objective: 'Income and long-term growth',
@@ -101,6 +92,27 @@ export const DEFAULT_DEMO_PROFILE: DemoProfile = {
   financialSituation: 'Stable income; six-month cash reserve',
   jamaicanCitizen: true,
   usCitizen: true,
+};
+
+export type DemoAccountState = {
+  approvedActions: string[];
+  fundedPartners: string[];
+  ncbClientStatus: 'needs_evidence' | 'evidence_ready' | 'ready_for_review' | 'accepted';
+  opportunityOrders: DemoOpportunityOrder[];
+};
+
+export type DemoOpportunityOrder = {
+  id: string;
+  name: string;
+  partner: string;
+  amount: string;
+};
+
+export const DEFAULT_DEMO_ACCOUNT_STATE: DemoAccountState = {
+  approvedActions: [],
+  fundedPartners: [],
+  ncbClientStatus: 'needs_evidence',
+  opportunityOrders: [],
 };
 
 export type DemoIdentityEvidence = {
@@ -156,7 +168,7 @@ export function demoIdentityEvidence(profile: DemoProfile): DemoIdentityEvidence
 /** Suitability reasons shared by the matches screen and advisor explanation. */
 export function demoVillaScreenReasons(profile: DemoProfile, context: DemoVillaContext): string[] {
   const reasons = [
-    `Size: the ${context.minimumAmount} minimum is ${context.portfolioShare} of this sample portfolio, above its ${context.singlePositionCap} single-position cap`,
+    `Size: the ${context.minimumAmount} minimum is ${context.portfolioShare} of this portfolio, above its ${context.singlePositionCap} single-position cap`,
   ];
   const liquidityTolerance =
     profile.liquidity === 'Can lock for 3 years'
@@ -182,6 +194,7 @@ export function demoVillaScreenReasons(profile: DemoProfile, context: DemoVillaC
 }
 
 let inMemoryDemoProfile: DemoProfile | null = null;
+let inMemoryDemoAccountState: DemoAccountState | null = null;
 
 /** Browser persistence is an enhancement for the public walkthrough. Sandboxed
  * previews and privacy settings may deny storage, so every caller gets a usable
@@ -216,6 +229,53 @@ export function writeDemoProfile(profile: DemoProfile): void {
   }
 }
 
+/** Keeps connected preview outcomes stable as the user moves between screens. */
+export function readDemoAccountState(): DemoAccountState {
+  try {
+    const stored = window.sessionStorage.getItem(DEMO_ACCOUNT_STORAGE_KEY);
+    if (!stored) return { ...(inMemoryDemoAccountState ?? DEFAULT_DEMO_ACCOUNT_STATE) };
+    const candidate = JSON.parse(stored) as Partial<DemoAccountState>;
+    const state: DemoAccountState = {
+      approvedActions: Array.isArray(candidate.approvedActions)
+        ? candidate.approvedActions.filter((value): value is string => typeof value === 'string')
+        : [],
+      fundedPartners: Array.isArray(candidate.fundedPartners)
+        ? candidate.fundedPartners.filter((value): value is string => typeof value === 'string')
+        : [],
+      ncbClientStatus:
+        candidate.ncbClientStatus === 'accepted' ||
+        candidate.ncbClientStatus === 'ready_for_review' ||
+        candidate.ncbClientStatus === 'evidence_ready'
+          ? candidate.ncbClientStatus
+          : 'needs_evidence',
+      opportunityOrders: Array.isArray(candidate.opportunityOrders)
+        ? candidate.opportunityOrders.filter(
+            (value): value is DemoOpportunityOrder =>
+              typeof value === 'object' &&
+              value !== null &&
+              typeof (value as Partial<DemoOpportunityOrder>).id === 'string' &&
+              typeof (value as Partial<DemoOpportunityOrder>).name === 'string' &&
+              typeof (value as Partial<DemoOpportunityOrder>).partner === 'string' &&
+              typeof (value as Partial<DemoOpportunityOrder>).amount === 'string',
+          )
+        : [],
+    };
+    inMemoryDemoAccountState = state;
+    return { ...state };
+  } catch {
+    return { ...(inMemoryDemoAccountState ?? DEFAULT_DEMO_ACCOUNT_STATE) };
+  }
+}
+
+export function writeDemoAccountState(state: DemoAccountState): void {
+  inMemoryDemoAccountState = { ...state };
+  try {
+    window.sessionStorage.setItem(DEMO_ACCOUNT_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage is optional; the current screen keeps its in-memory state.
+  }
+}
+
 type DemoMatchInput = {
   id: string;
   match: number;
@@ -224,7 +284,7 @@ type DemoMatchInput = {
   term: string;
 };
 
-/** Deterministic demo scoring shared by the match cards and scripted advisor. */
+/** Deterministic preview scoring shared by the match cards and advisor. */
 export function rankDemoMatches<T extends DemoMatchInput>(
   opportunities: T[],
   profile: DemoProfile,
@@ -254,60 +314,4 @@ export function rankDemoMatches<T extends DemoMatchInput>(
       return { ...opportunity, match: Math.max(1, Math.min(99, opportunity.match + adjustment)) };
     })
     .sort((a, b) => b.match - a.match);
-}
-
-const DEMO_JOURNEY: { key: DemoJourneyStep; label: string; href: string }[] = [
-  { key: 'profile', label: 'Profile', href: '/demo/planning' },
-  { key: 'matches', label: 'Matches', href: '/demo/opportunities' },
-  { key: 'advisor', label: 'Advisor', href: '/demo/agent' },
-  { key: 'compliance', label: 'Compliance', href: '/demo/orders' },
-  { key: 'partner', label: 'Partner review', href: '/demo/institutions' },
-  { key: 'dashboard', label: 'Dashboard', href: '/demo/home' },
-];
-
-/** A route-level map for the scripted Marcus walkthrough. Each destination is
- * a real screen so evaluators can see the hand-offs instead of one long mock. */
-export function DemoJourney({ current }: { current: DemoJourneyStep }) {
-  const currentIndex = DEMO_JOURNEY.findIndex((step) => step.key === current);
-
-  return (
-    <nav
-      aria-label="Demo lifecycle journey"
-      className="mb-5 rounded-2xl border border-border bg-card p-3"
-    >
-      <ol className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3 xl:grid-cols-6">
-        {DEMO_JOURNEY.map((step, index) => {
-          const active = step.key === current;
-          const complete = index < currentIndex;
-          return (
-            <li key={step.key}>
-              <Link
-                href={step.href}
-                aria-current={active ? 'step' : undefined}
-                className={cn(
-                  'flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm no-underline',
-                  active
-                    ? 'bg-primary font-bold text-white'
-                    : complete
-                      ? 'bg-mint font-semibold text-teal2'
-                      : 'bg-muted/55 font-semibold text-dim hover:text-foreground',
-                )}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    'grid h-5 w-5 flex-none place-items-center rounded-full text-[11px] font-bold',
-                    active ? 'bg-white/20' : complete ? 'bg-primary text-white' : 'bg-border',
-                  )}
-                >
-                  {complete ? '✓' : index + 1}
-                </span>
-                <span>{step.label}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
 }

@@ -1,6 +1,11 @@
 'use client';
 
-import { AppScreen, PageHead } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  PageHead,
+  readDemoAccountState,
+  writeDemoAccountState,
+} from '@/app/_components/AppScreen';
 import { EquityChart } from '@/app/_components/EquityChart';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -119,6 +124,21 @@ export default function PortfolioPage() {
     setSubmitted(false);
   }
 
+  function openFunding(partner: (typeof INSTITUTIONS)[number]) {
+    setFundingPartner(partner);
+    setSubmitted(readDemoAccountState().fundedPartners.includes(partner.code));
+  }
+
+  function submitFunding() {
+    if (!fundingPartner) return;
+    const accountState = readDemoAccountState();
+    writeDemoAccountState({
+      ...accountState,
+      fundedPartners: [...new Set([...accountState.fundedPartners, fundingPartner.code])],
+    });
+    setSubmitted(true);
+  }
+
   return (
     <AppScreen active="portfolio" basePath="/demo">
       <PageHead
@@ -183,7 +203,7 @@ export default function PortfolioPage() {
               variant="outline"
               className="mt-2 w-full"
               data-tour="customer-portfolio-funding"
-              onClick={() => setFundingPartner(inst)}
+              onClick={() => openFunding(inst)}
             >
               Add money
             </Button>
@@ -217,7 +237,7 @@ export default function PortfolioPage() {
           <DialogHeader className="border-b border-border px-6 py-5 pr-14">
             <DialogTitle>Add money at {fundingPartner?.name}</DialogTitle>
             <DialogDescription>
-              Fixture walkthrough only. No transfer evidence leaves this browser.
+              The transfer happens between you and the firm. CCN never holds your money.
             </DialogDescription>
           </DialogHeader>
           {submitted ? (
@@ -225,15 +245,15 @@ export default function PortfolioPage() {
               <div className="flex items-start gap-3 rounded-xl border border-border bg-mint p-4">
                 <Check className="mt-0.5 h-5 w-5 text-success" aria-hidden />
                 <div>
-                  <b>Evidence ready for partner review</b>
+                  <b>Funding notice sent</b>
                   <p className="mb-0 mt-1 text-sm text-dim">
-                    In live use, the institution verifies the receipt or transaction reference
-                    before crediting cash. This demo did not upload or submit anything.
+                    {fundingPartner?.name} will verify the receipt or transaction reference before
+                    crediting cash to your account.
                   </p>
                 </div>
               </div>
               <Button type="button" className="mt-4 w-full" onClick={closeFunding}>
-                Finish walkthrough
+                Done
               </Button>
             </div>
           ) : (
@@ -241,7 +261,7 @@ export default function PortfolioPage() {
               className="grid gap-4 p-6"
               onSubmit={(event) => {
                 event.preventDefault();
-                setSubmitted(true);
+                submitFunding();
               }}
             >
               <div className="grid grid-cols-2 gap-3 max-[540px]:grid-cols-1">
@@ -293,7 +313,7 @@ export default function PortfolioPage() {
                 />
                 <span className="font-normal text-faint">Optional PDF or image, up to 2 MB.</span>
               </label>
-              <Button type="submit">Submit fixture evidence</Button>
+              <Button type="submit">Submit transfer evidence</Button>
             </form>
           )}
         </DialogContent>

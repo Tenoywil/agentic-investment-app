@@ -265,19 +265,21 @@ describe('app shell controls', () => {
     expect(sidebar.indexOf('<AccountMenu />')).toBeGreaterThan(sidebar.indexOf('<ThemeToggle />'));
   });
 
-  test('every demo screen carries an explicit sample-data and no-transaction boundary', () => {
+  test('the preview keeps deterministic behavior behind the live-shaped product surface', () => {
     const layout = code(join(WEB, 'app/demo/layout.tsx'));
-    expect(layout).toContain('Interactive demo');
-    expect(layout).toContain('sample data only');
-    expect(layout).toContain('no real accounts or transactions');
-
+    expect(layout).not.toContain('Interactive demo');
+    expect(layout).not.toContain('sample data only');
     const agent = code(join(WEB, 'app/demo/agent/page.tsx'));
-    expect(agent).toContain('How the agents reached this');
-    expect(agent).toContain('no transaction placed');
-    expect(agent).toContain('no money moved');
+    const portfolio = code(join(WEB, 'app/demo/portfolio/page.tsx'));
+    const orders = code(join(WEB, 'app/demo/orders/page.tsx'));
+    expect(agent).not.toContain('How the agents reached this');
+    expect(agent).not.toContain('Demo complete');
+    expect(agent).toContain('Routed to NCB for execution');
+    expect(portfolio).toContain('CCN never holds your money');
+    expect(orders).toContain('Nothing here is executed by CCN');
   });
 
-  test('the demo presents Marcus as a connected multi-screen agent journey', () => {
+  test('the preview presents Marcus through the live multi-screen product structure', () => {
     const shell = code(join(SHELL, 'AppScreen.tsx'));
     const sidebar = code(join(SHELL, 'AppSidebar.tsx'));
     const planning = code(join(WEB, 'app/demo/planning/page.tsx'));
@@ -287,25 +289,21 @@ describe('app shell controls', () => {
     const partner = code(join(WEB, 'app/demo/institutions/page.tsx'));
     const dashboard = code(join(WEB, 'app/demo/home/page.tsx'));
 
-    for (const destination of [
-      '/demo/planning',
-      '/demo/opportunities',
-      '/demo/agent',
-      '/demo/orders',
-      '/demo/institutions',
-      '/demo/home',
-    ]) {
-      expect(shell).toContain(destination);
+    for (const label of ['Home', 'Portfolio', 'Invest', 'My orders', 'Your agent', 'Planning']) {
+      expect(sidebar).toContain(`label: '${label}'`);
     }
-    expect(sidebar).toContain('1 · Profile & goals');
-    expect(sidebar).toContain('5 · Partner review');
-    expect(sidebar).toContain('6 · Dashboard');
+    expect(sidebar).not.toContain('1 · Profile & goals');
+    expect(sidebar).not.toContain('5 · Partner review');
+    expect(sidebar).not.toContain('6 · Dashboard');
+    expect(sidebar).not.toContain("label: 'Compliance'");
 
     expect(planning).toContain('Marcus Bailey');
     expect(planning).toContain('Citizenship · select all');
     expect(planning).toContain('Save and re-run matching');
     expect(shell).toContain('window.sessionStorage.setItem');
     expect(shell).toContain('inMemoryDemoProfile = { ...profile }');
+    expect(shell).toContain('DEMO_ACCOUNT_STORAGE_KEY');
+    expect(shell).toContain('opportunityOrders');
     expect(planning).toContain('writeDemoProfile(profile)');
     expect(planning).toContain('setProfile(savedProfile)');
 
@@ -317,14 +315,16 @@ describe('app shell controls', () => {
     expect(shell).toContain("opportunity.id === 'ncbmm' ? 27");
     expect(matching).toContain('rankDemoMatches(TRADEABLE, profile)');
     expect(matching).toContain('demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT)');
+    expect(matching).toContain('writeDemoAccountState');
 
     expect(advisor).toContain('I need weekly access');
-    expect(advisor).toContain('re-ran the workflow without restarting');
-    expect(advisor).toContain('How the agents reached this');
+    expect(advisor).toContain('refreshed your recommendations');
+    expect(advisor).not.toContain('How the agents reached this');
     expect(advisor).toContain('href="/demo/orders"');
     expect(advisor).toContain("liquidity: 'Weekly access'");
     expect(advisor).toContain('rankDemoMatches(AGENT_MATCH_CANDIDATES, profile)');
     expect(advisor).toContain('setDemoProfile(nextProfile)');
+    expect(advisor).toContain('approvedActions');
     expect(advisor).toContain("return 'liquidity'");
     expect(advisor).toContain('weeklyAccessQuestion');
     expect(advisor).toContain('explicitWeeklyAccessUpdate');
@@ -344,6 +344,9 @@ describe('app shell controls', () => {
     expect(compliance).toContain('disabled={!passportCorrected}');
     expect(compliance).toContain('Within 3 business days');
     expect(compliance).toContain('makes the final KYC, AML and client-acceptance decision');
+    expect(compliance).toContain('Accepted by NCB');
+    expect(compliance).not.toContain('Open NCB partner review');
+    expect(compliance).toContain('setOpportunityOrders(accountState.opportunityOrders)');
 
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');
@@ -351,7 +354,6 @@ describe('app shell controls', () => {
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
-    expect(dashboard).toContain('is connected to the live-monitoring workflow');
     expect(dashboard).toContain('readDemoProfile(MARCUS_PROFILE)');
   });
 
@@ -371,7 +373,7 @@ describe('app shell controls', () => {
     );
     expect(onboardingPage).not.toContain('Identity documents verified · KYC Tier 2 unlocked');
     expect(demoAgent).not.toContain('Verified KYC readiness');
-    expect(demoAgent.match(/retains the final KYC and AML decision/g)).toHaveLength(2);
+    expect(demoAgent).toContain('remains responsible for the final KYC and AML decision');
     for (const surface of [opportunities, demoOpportunities]) {
       expect(surface).toContain(
         'Identity intake recorded · partner verification required before execution',

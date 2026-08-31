@@ -3,12 +3,13 @@
 import {
   AppScreen,
   DEFAULT_DEMO_PROFILE,
-  DemoJourney,
   type DemoProfile,
   PageHead,
   demoVillaScreenReasons,
   rankDemoMatches,
+  readDemoAccountState,
   readDemoProfile,
+  writeDemoAccountState,
 } from '@/app/_components/AppScreen';
 import { DealCard, ScreenedOutCard } from '@/app/_components/DealCard';
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
@@ -308,6 +309,19 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
   const amtNum = Number.parseInt(amt.replace(/[^0-9]/g, ''), 10) || 0;
   const amtFmt = `US$${amtNum.toLocaleString('en-US')}`;
 
+  function authorizeOrder() {
+    if (!opp || blocked || amtNum < minValue(opp)) return;
+    const accountState = readDemoAccountState();
+    writeDemoAccountState({
+      ...accountState,
+      opportunityOrders: [
+        ...accountState.opportunityOrders.filter((order) => order.id !== opp.id),
+        { id: opp.id, name: opp.name, partner: opp.partner, amount: amtFmt },
+      ],
+    });
+    setStep(2);
+  }
+
   return (
     <Dialog
       open={!!opp}
@@ -570,7 +584,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 size="lg"
                 className="flex-1"
                 disabled={amtNum < minValue(opp)}
-                onClick={() => setStep(2)}
+                onClick={authorizeOrder}
               >
                 Authorize &amp; route {amtFmt}
               </Button>
@@ -619,7 +633,7 @@ export default function OpportunitiesPage() {
     profile.jamaicanCitizen ? 'Jamaica' : '',
     profile.usCitizen ? 'US' : '',
   ].filter(Boolean);
-  const profileName = profile.name.trim() || 'Sample investor';
+  const profileName = profile.name.trim() || 'Investor';
 
   if (!firstMatch || !secondMatch) return null;
 
@@ -649,8 +663,8 @@ export default function OpportunitiesPage() {
   return (
     <AppScreen active="opportunities" basePath="/demo">
       <PageHead
-        eyebrow="Research and matching agents compared 47 instruments across 8 licensed partners"
-        title={`${profileName}’s matches`}
+        eyebrow="Regional investments across jurisdictions · executed by licensed partners"
+        title="Opportunities"
         right={
           <div className="flex items-center gap-2 rounded-xl border border-border bg-mint px-[15px] py-[9px]">
             <b className="font-display text-xl">2</b>
@@ -662,8 +676,6 @@ export default function OpportunitiesPage() {
           </div>
         }
       />
-
-      <DemoJourney current="matches" />
 
       <section aria-labelledby="comparison-heading" className="mb-6">
         <div className="mb-3">

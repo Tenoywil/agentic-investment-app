@@ -2,20 +2,21 @@
 
 import {
   AppScreen,
+  DEFAULT_DEMO_ACCOUNT_STATE,
   DEFAULT_DEMO_PROFILE,
-  DemoJourney,
+  type DemoAccountState,
   type DemoProfile,
   PageHead,
+  readDemoAccountState,
   readDemoProfile,
 } from '@/app/_components/AppScreen';
-import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { cn } from '@/app/_lib/utils';
-import { Bell, LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
+import { LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
 
@@ -46,8 +47,20 @@ const ACTED = [
 ];
 
 const APPROVALS = [
-  { tag: 'Reinvest', tagColor: '#124e48', title: 'Put your GOJ coupon to work', when: 'Today' },
-  { tag: 'Idle cash', tagColor: '#c56a3e', title: 'US$2,150 earning nothing', when: '2d ago' },
+  {
+    id: 'coupon',
+    tag: 'Reinvest',
+    tagColor: '#124e48',
+    title: 'Put your GOJ coupon to work',
+    when: 'Today',
+  },
+  {
+    id: 'idle',
+    tag: 'Idle cash',
+    tagColor: '#c56a3e',
+    title: 'US$2,150 earning nothing',
+    when: '2d ago',
+  },
 ];
 
 const HELD = [
@@ -129,68 +142,6 @@ const STATS: {
 
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
 
-/** Fixture notifications — the bell used to be a dead control, which in a
- *  preview reads as "this product has dead controls". */
-const NOTIFICATIONS = [
-  { t: 'GOJ 2026 coupon settles Friday', s: 'US$412 · reinvestment prepared', when: 'Today' },
-  { t: '2 actions await your approval', s: 'Nothing moves without your yes', when: 'Today' },
-  { t: 'Statement ready · NCB', s: 'July consolidated statement', when: '2d ago' },
-];
-
-function NotificationsBell() {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  // Light-dismiss: click anywhere else, or Escape, closes it.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={wrapRef} className="relative">
-      <Button
-        variant="outline"
-        size="icon"
-        aria-label="Notifications"
-        aria-expanded={open}
-        aria-haspopup="true"
-        onClick={() => setOpen((o) => !o)}
-        className="h-[42px] w-[42px] rounded-full text-dim [&_svg]:size-[18px]"
-      >
-        <Bell />
-      </Button>
-      {open && (
-        <div className="absolute right-0 top-[50px] z-20 w-[300px] rounded-xl border border-solid border-border bg-card p-1.5 shadow-[0_14px_38px_rgba(30,20,10,0.16)]">
-          <div className="px-2.5 pb-1 pt-2 text-[11.5px] font-bold uppercase tracking-[.5px] text-faint">
-            Notifications
-          </div>
-          {NOTIFICATIONS.map((n) => (
-            <div key={n.t} className="rounded-lg px-2.5 py-2 hover:bg-muted/60">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[13.5px] font-bold leading-snug">{n.t}</span>
-                <span className="flex-none text-[11.5px] text-faint">{n.when}</span>
-              </div>
-              <div className="text-[12.5px] text-dim">{n.s}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Donut() {
   const r = 52;
   const cir = 2 * Math.PI * r;
@@ -222,70 +173,22 @@ function Donut() {
 }
 
 export default function HomePage() {
-  const [cur, setCur] = useState<'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD'>('USD');
   const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
+  const [accountState, setAccountState] = useState<DemoAccountState>(DEFAULT_DEMO_ACCOUNT_STATE);
 
   useEffect(() => {
     setProfile(readDemoProfile(MARCUS_PROFILE));
+    setAccountState(readDemoAccountState());
   }, []);
 
-  const profileName = profile.name.trim() || 'Sample investor';
+  const profileName = profile.name.trim() || 'Investor';
   const firstName = profileName.split(/\s+/)[0] || 'Investor';
-  const initials =
-    profileName
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join('') || 'SI';
-
+  const pendingApprovals = APPROVALS.filter(
+    (approval) => !accountState.approvedActions.includes(approval.id),
+  );
   return (
     <AppScreen active="home" basePath="/demo">
-      <PageHead
-        eyebrow={`${profileName} lifecycle complete · consolidated sample updates`}
-        title={`Good afternoon, ${firstName}`}
-        right={
-          <div className="flex items-center gap-3">
-            {/* A dropdown, matching the live portfolio's switcher — the demo
-                and real flows keep the same controls. */}
-            <label className="flex items-center">
-              <span className="sr-only">Display currency</span>
-              <select
-                value={cur}
-                onChange={(e) => setCur(e.target.value as typeof cur)}
-                className="h-[38px] rounded-[10px] border border-solid border-border bg-card px-2.5 font-mono text-[13px] font-semibold text-foreground"
-              >
-                {(['USD', 'JMD', 'TTD', 'GYD', 'BBD', 'XCD', 'BSD'] as const).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <NotificationsBell />
-            <Avatar className="h-[42px] w-[42px]">
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-          </div>
-        }
-      />
-
-      <DemoJourney current="dashboard" />
-
-      <Card className="mb-[18px] flex flex-wrap items-center gap-3 border-[#cde0d8] bg-mint p-4">
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-primary text-white">
-          <Sparkles className="h-5 w-5" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <b className="font-display text-base">
-            {profileName} is connected to the live-monitoring workflow
-          </b>
-          <p className="mb-0 mt-0.5 text-sm text-dim">
-            Profile matched · advisor change re-run · client pack reviewed by NCB · positions and
-            opportunities now update here.
-          </p>
-        </div>
-        <Badge variant="success">Monitoring live</Badge>
-      </Card>
+      <PageHead eyebrow="Monday, August 31" title={`Good afternoon, ${firstName}`} />
 
       {/* Hero card */}
       <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">
@@ -326,13 +229,17 @@ export default function HomePage() {
           <p className="my-3 mb-[18px] text-[17px] font-medium leading-relaxed text-white">
             This week I matched <b className="text-gold">6 opportunities</b>, swept{' '}
             <b className="text-gold">US$400</b> of idle cash inside your limit, and prepared{' '}
-            <b className="text-gold">2 actions</b> for your approval.
+            <b className="text-gold">{pendingApprovals.length} actions</b> for your approval.
           </p>
           <div className="flex flex-wrap gap-2.5">
             {/* Every link in the demo stays inside /demo — the preview must
                 never route a visitor into the signed-in app. */}
             <Button variant="peach" asChild>
-              <Link href="/demo/agent">Review 2 approvals</Link>
+              <Link href="/demo/agent">
+                {pendingApprovals.length > 0
+                  ? `Review ${pendingApprovals.length} approvals`
+                  : 'Open your agent'}
+              </Link>
             </Button>
             <Button
               asChild
@@ -424,10 +331,15 @@ export default function HomePage() {
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
             <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
-              2
+              {pendingApprovals.length}
             </span>
           </div>
-          {APPROVALS.map((a) => (
+          {pendingApprovals.length === 0 ? (
+            <p className="m-0 rounded-xl bg-muted/40 p-4 text-sm text-dim">
+              Nothing needs your approval right now.
+            </p>
+          ) : null}
+          {pendingApprovals.map((a) => (
             <div key={a.title} className="mb-3 rounded-xl border border-border bg-muted/20 p-4">
               <div className="mb-2 flex items-center justify-between">
                 <span
