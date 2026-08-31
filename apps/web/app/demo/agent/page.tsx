@@ -352,7 +352,7 @@ function classify(text: string): string {
     );
   const weeklyAccessEndsInAffirmativeState =
     weeklyAccessClause !== null &&
-    /\bweekly access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bto\s+(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|to)\b[^.!?]*)?\s*(?:$|[,;.!?])/.test(
+    /^(?=[^.!?]*\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b))(?=[^.!?]*\b(?:profile|liquidity)\b)[^.!?]*\bto\s+(?:active|enabled|required|on)(?:\s+status(?:\s+only)?)?(?:\s+(?:for|in|on|to)\b[^.!?]*)?\s*(?:$|[,;.!?])/.test(
       weeklyAccessClause,
     );
   const weeklyAccessSourceTransition =
@@ -376,7 +376,7 @@ function classify(text: string): string {
     !weeklyAccessIsSource;
   const weeklyAccessNegated =
     /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
-    /\b(?:doesn't|does not|don't|do not|never)\s+(?:(?:[a-z]+ly|always|ever)\s+)*(?:accept|add|allow|assign|enable|give|grant|have|include|need|offer|permit|provide|require|use|want)\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
+    /\b(?:doesn't|does not|don't|do not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:accept|add|allow|assign|enable|give|grant|have|include|need|offer|permit|provide|require|use|want)\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
       t,
     ) ||
     /\bavoid(?:ing)?\s+(?:(?:a|all|any|changing|for|having|mandatory|my|need|needs|of|profile|requirement|requirements|requiring|setting|switching|the|to|updating|using)\s+)*weekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
