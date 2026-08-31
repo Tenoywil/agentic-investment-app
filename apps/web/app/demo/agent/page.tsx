@@ -348,11 +348,11 @@ function classify(text: string): string {
   const weeklyAccessIsSource =
     weeklyAccessClause !== null &&
     (/\bfrom\s+weekly access\b/.test(weeklyAccessClause) ||
-      /\bweekly access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bto\s+(?!weekly access\b)/.test(
+      /\bweekly access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bto\s+(?!(?:active|enabled|on|required)\b)(?!weekly access\b)/.test(
         weeklyAccessClause,
       ) ||
       (!weeklyAccessIsDestination &&
-        /\bweekly access\b[^.!?]*\bto\s+(?!(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b)(?!weekly access\b)/.test(
+        /\bweekly access\b[^.!?]*\bto\s+(?!(?:active|enabled|on|required)\b)(?!(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b)(?!weekly access\b)/.test(
           weeklyAccessClause,
         )));
   const weeklyAccessIsInformationalObject =
@@ -369,16 +369,16 @@ function classify(text: string): string {
     !weeklyAccessIsInformationalObject;
   const weeklyAccessNegated =
     /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
-    /\b(?:doesn't|does not|don't|do not|never)\b(?:(?!\b(?:but|instead)\b)[^.!?]){0,80}\bweekly access\b/.test(
+    /\b(?:doesn't|does not|don't|do not|never)\s+(?:(?:actually|currently|really|still)\s+)?(?:accept|add|allow|assign|enable|give|grant|have|include|need|offer|permit|provide|require|use|want)\b[^.!?]{0,32}\bweekly access\b/.test(
       t,
     ) ||
-    /\bavoid(?:ing)?\s+(?:(?:switching|changing|setting|updating|making)\s+(?:(?:my|the|this)\s+)?(?:(?:profile|liquidity)\s+)?(?:to\s+)?)?(?:(?:requiring|having|needing|using)\s+)?weekly access\b/.test(
+    /\bavoid(?:ing)?\s+(?:(?:a|all|any|changing|for|having|mandatory|my|need|needs|of|profile|requirement|requirements|requiring|setting|switching|the|to|updating|using)\s+)*weekly access\b/.test(
       t,
     ) ||
     /\bwithout\s+(?:(?:switching|changing|setting|updating|making)\s+(?:(?:my|the|this)\s+)?(?:(?:profile|liquidity)\s+)?(?:to\s+)?)?(?:(?:requiring|having|needing|using)\s+)?weekly access\b/.test(
       t,
     ) ||
-    /\bnot\s+(?:(?:(?:to\s+)?(?:require|need|have|provide|use|offer|allow)\s+)|to\s+)?weekly access\b/.test(
+    /\bnot\s+(?:(?:(?:to\s+)?(?:accept|add|allow|assign|enable|give|grant|have|include|need|offer|permit|provide|require|use|want)\s+)|to\s+)?weekly access\b/.test(
       t,
     ) ||
     /\b(?:update|change|set|switch|make)\b[^.!?]*\b(?:nothing|neither)\b[^.!?]*\bweekly access\b/.test(
