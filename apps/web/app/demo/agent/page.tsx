@@ -382,13 +382,13 @@ function classify(text: string): string {
       ));
   const weeklyAccessRationaleExplainsConvenience =
     weeklyAccessRationale !== null &&
-    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?|(?:select|choose|enable|re-enable|set up|configure)\s+(?:it|weekly access)\s+(?:again|each time|every time|each week|every week))\s*$/.test(
+    /\bhave\s+to\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:(?:ask|request)(?:\s+(?:you\s+)?for)?(?:\s+(?:it|(?:weekly\s+)?access))?(?:\s+(?:again|each time|every time|each week|every week|later))?|wait(?:\s+(?:(?:a|one)\s+month(?:\s+for\s+(?:it|weekly access))?|again|for\s+(?:it|weekly access)))?(?:\s+later)?|(?![^.!?]*\b(?:avoid|cancel|decline|delete|disable|drop|opt out|reject|remove|stop|turn (?:it )?off)\b)[^.!?]*\b(?:again|each time|every time|each week|every week|each month|every month|later))\s*$/.test(
       weeklyAccessRationale,
     );
   const weeklyAccessRationaleDirectlyNegatesValue =
     weeklyAccessRationale !== null &&
     !weeklyAccessRationaleExplainsConvenience &&
-    /\b(?:weekly access|it|(?:daily|monthly|quarterly) access|remove|disable|cancel|decline|avoid|opt out|turn (?:it )?off)\b/.test(
+    /\b(?:weekly access|it|(?:this|the) setting|(?:daily|monthly|quarterly) access|remove|disable|cancel|decline|avoid|opt out|turn (?:it )?off)\b/.test(
       weeklyAccessRationale,
     );
   const weeklyAccessHasAffirmativeRationale =
@@ -404,13 +404,13 @@ function classify(text: string): string {
         weeklyAccessRationalePrefix,
       ));
   const weeklyAccessSourceTransition =
-    weeklyAccessClause !== null &&
+    (weeklyAccessRationalePrefix ?? weeklyAccessClause) !== null &&
     (/\bweekly access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bto\s+(?!weekly access\b)/.test(
-      weeklyAccessClause,
+      weeklyAccessRationalePrefix ?? weeklyAccessClause ?? '',
     ) ||
       (!weeklyAccessIsDestination &&
         /\bweekly access\b[^.!?]*\bto\s+(?!(?:(?:my|the|this)\s+)?(?:profile|liquidity)\b)(?!weekly access\b)/.test(
-          weeklyAccessClause,
+          weeklyAccessRationalePrefix ?? weeklyAccessClause ?? '',
         )));
   const weeklyAccessIsSource =
     weeklyAccessClause !== null &&
@@ -426,6 +426,7 @@ function classify(text: string): string {
     !weeklyAccessIsSource;
   const weeklyAccessNegated =
     /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
+    weeklyAccessRationaleDirectlyNegatesValue ||
     /\b(?:doesn't|does not|don't|do not|never)\s+(?:(?:[a-z]+ly|always|anymore|ever|in general|still|yet)\s+)*(?:accept|add|allow|assign|enable|give|grant|include|need|offer|permit|provide|require|use|want)\b[^.!?]{0,32}\bweekly access\b(?!\s+(?:alerts?|charts?|copy|delays?|details?|emails?|fees?|information|messages?|notes?|notifications?|overview|schedule|text|wording)\b)/.test(
       t,
     ) ||
