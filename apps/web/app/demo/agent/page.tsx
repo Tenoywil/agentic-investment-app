@@ -293,12 +293,17 @@ function classify(text: string): string {
   if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
-  const weeklyAccessNegated = /\b(don't|do not|doesn't|does not|not|no longer|never)\b/.test(t);
+  const weeklyAccessNegated =
+    /\b(?:don't|do not|not|no longer|never)\s+(?:update|change|set|switch|make)\b/.test(t) ||
+    /\b(?:update|change|set|switch|make)\b[^.!?]*\b(?:not|nothing|neither)\b[^.!?]*\bweekly access\b/.test(
+      t,
+    ) ||
+    /\b(?:don't|do not|no longer|never)\s+(?:need|want)(?: to have)?\s+weekly access\b/.test(t);
   const weeklyAccessQuestion =
     t.includes('?') ||
     /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
   const weeklyAccessAction =
-    /(?:update|change|set|switch|make)\b(?!\s+me\b)(?=[^.!?]*\bweekly access\b)(?=[^.!?]*\b(?:profile|liquidity)\b)[^.!?]*/;
+    /(?:update|change|switch)\s+(?:(?:my|the|this)\s+)?(?:(?:investor|investment|client|current|existing)\s+)*(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b[^.!?]*\bweekly access\b|set\s+(?:(?:my|the|this)\s+)?(?:(?:investor|investment|client|current|existing)\s+)*(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b[^.!?]*\bweekly access\b|set\s+(?:(?:my|the|this)\s+)?(?:preferred\s+)?access\b[^.!?]*\b(?:profile|liquidity)\b[^.!?]*\bweekly access\b|(?:set|make)\s+weekly access\s+(?:(?:as|for)\s+)?(?:(?:my|the|this)\s+)?(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b|make\s+(?:(?:my|the|this)\s+)?(?:(?:investor|investment|client|current|existing)\s+)*(?:profile|liquidity(?:\s+(?:need|target|setting))?)\b[^.!?]*\bweekly access\b/;
   const weeklyAccessActionIndex = t.search(weeklyAccessAction);
   const weeklyAccessActionPrefix =
     weeklyAccessActionIndex >= 0 ? t.slice(0, weeklyAccessActionIndex) : null;
