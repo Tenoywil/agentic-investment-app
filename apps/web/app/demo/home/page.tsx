@@ -1,6 +1,13 @@
 'use client';
 
-import { AppScreen, DemoJourney, PageHead } from '@/app/_components/AppScreen';
+import {
+  AppScreen,
+  DEFAULT_DEMO_PROFILE,
+  DemoJourney,
+  type DemoProfile,
+  PageHead,
+  readDemoProfile,
+} from '@/app/_components/AppScreen';
 import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -9,6 +16,8 @@ import { cn } from '@/app/_lib/utils';
 import { Bell, LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+
+const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
 
 const PIPE = [
   { n: '1', t: 'Research', b: 'Scans 47 instruments across 8 partners', flag: false },
@@ -214,12 +223,26 @@ function Donut() {
 
 export default function HomePage() {
   const [cur, setCur] = useState<'USD' | 'JMD' | 'TTD' | 'GYD' | 'BBD' | 'XCD' | 'BSD'>('USD');
+  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
+
+  useEffect(() => {
+    setProfile(readDemoProfile(MARCUS_PROFILE));
+  }, []);
+
+  const profileName = profile.name.trim() || 'Sample investor';
+  const firstName = profileName.split(/\s+/)[0] || 'Investor';
+  const initials =
+    profileName
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'SI';
 
   return (
     <AppScreen active="home" basePath="/demo">
       <PageHead
-        eyebrow="Marcus lifecycle complete · consolidated sample updates"
-        title="Good afternoon, Marcus"
+        eyebrow={`${profileName} lifecycle complete · consolidated sample updates`}
+        title={`Good afternoon, ${firstName}`}
         right={
           <div className="flex items-center gap-3">
             {/* A dropdown, matching the live portfolio's switcher — the demo
@@ -240,7 +263,7 @@ export default function HomePage() {
             </label>
             <NotificationsBell />
             <Avatar className="h-[42px] w-[42px]">
-              <AvatarFallback>MB</AvatarFallback>
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </div>
         }
@@ -254,7 +277,7 @@ export default function HomePage() {
         </span>
         <div className="min-w-0 flex-1">
           <b className="font-display text-base">
-            Marcus is connected to the live-monitoring workflow
+            {profileName} is connected to the live-monitoring workflow
           </b>
           <p className="mb-0 mt-0.5 text-sm text-dim">
             Profile matched · advisor change re-run · client pack reviewed by NCB · positions and

@@ -336,7 +336,9 @@ export default function PlanningPage() {
                   : 'Profile ready for research and matching.'}
               </output>
               <Button asChild>
-                <Link href="/demo/opportunities">See Marcus’s matches</Link>
+                <Link href="/demo/opportunities">
+                  See {profile.name.trim() || 'investor'}’s matches
+                </Link>
               </Button>
             </div>
           )}

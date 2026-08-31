@@ -342,7 +342,8 @@ describe('app shell controls', () => {
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
-    expect(dashboard).toContain('Marcus is connected to the live-monitoring workflow');
+    expect(dashboard).toContain('is connected to the live-monitoring workflow');
+    expect(dashboard).toContain('readDemoProfile(MARCUS_PROFILE)');
   });
 
   test('identity intake and demo compliance copy reserve verification for licensed firms', () => {

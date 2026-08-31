@@ -120,6 +120,7 @@ export default function DemoOrdersPage() {
   ].filter(Boolean);
   const citizenshipText =
     citizenship.length > 0 ? `${citizenship.join(' + ')} citizen` : 'Citizenship not selected';
+  const profileName = profile.name.trim() || 'Sample investor';
 
   function sendPack() {
     if (!passportCorrected) {
@@ -132,7 +133,7 @@ export default function DemoOrdersPage() {
       return;
     }
     setSubmitted(true);
-    setStatus('Marcus’s review pack was sent to NCB Capital Markets.');
+    setStatus(`${profileName}’s review pack was sent to NCB Capital Markets.`);
   }
 
   return (
@@ -152,7 +153,7 @@ export default function DemoOrdersPage() {
       <section aria-labelledby="compliance-heading" className="mb-7">
         <div className="mb-3">
           <h2 id="compliance-heading" className="font-display text-xl font-bold">
-            Marcus’s client review pack
+            {profileName}’s client review pack
           </h2>
           <p className="mb-0 mt-1 text-sm text-dim">
             Sample OCR and declarations are structured for human review. No automated result is
@@ -287,7 +288,7 @@ export default function DemoOrdersPage() {
       <Dialog open={packOpen} onOpenChange={setPackOpen}>
         <DialogContent className="max-w-[680px]">
           <DialogHeader>
-            <DialogTitle>Marcus Bailey · client review pack</DialogTitle>
+            <DialogTitle>{profileName} · client review pack</DialogTitle>
             <DialogDescription>
               Editable review preview · generated from consented sample declarations and evidence.
             </DialogDescription>

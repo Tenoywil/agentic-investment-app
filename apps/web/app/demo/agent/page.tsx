@@ -530,7 +530,19 @@ export default function AgentPage() {
   const inputId = useId();
 
   useEffect(() => {
-    setDemoProfile(readDemoProfile(MARCUS_PROFILE));
+    const restored = readDemoProfile(MARCUS_PROFILE);
+    const firstName = restored.name.trim().split(/\s+/)[0] || 'investor';
+    setDemoProfile(restored);
+    setChat((current) =>
+      current.map((message, index) =>
+        index === 0 && 'text' in message
+          ? {
+              ...message,
+              text: `Welcome back, ${firstName}. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. Two things need your attention this week.`,
+            }
+          : message,
+      ),
+    );
   }, []);
 
   useEffect(() => {
