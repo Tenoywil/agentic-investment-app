@@ -210,7 +210,10 @@ export default function DemoOrdersPage() {
                   className="mt-4 w-full sm:w-auto"
                   onClick={() => {
                     setPassportCorrected(true);
-                    setStatus('Expired Jamaican passport replaced with a valid US passport.');
+                    setPackReviewed(false);
+                    setStatus(
+                      'Expired Jamaican passport replaced with a valid US passport. Review the updated pack before sending.',
+                    );
                   }}
                 >
                   Use valid US passport
@@ -310,7 +313,9 @@ export default function DemoOrdersPage() {
               <Link href="/demo/planning#profile">Edit profile details</Link>
             </Button>
             <Button
+              disabled={!passportCorrected}
               onClick={() => {
+                if (!passportCorrected) return;
                 setPackReviewed(true);
                 setStatus('Client pack reviewed and ready to send.');
                 setPackOpen(false);

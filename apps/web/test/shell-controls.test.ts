@@ -322,12 +322,16 @@ describe('app shell controls', () => {
     expect(advisor).toContain('href="/demo/orders"');
     expect(advisor).toContain("liquidity: 'Weekly access'");
     expect(advisor).toContain('rankDemoMatches(AGENT_MATCH_CANDIDATES, profile)');
+    expect(advisor).toContain('setDemoProfile(nextProfile)');
+    expect(advisor).toContain("return 'liquidity'");
     expect(advisor).toContain('max-[900px]:hidden');
 
     expect(compliance).toContain('expired 12 Jun 2025');
     expect(compliance).toContain('Use valid US passport');
     expect(compliance).toContain('Review client PDF');
     expect(compliance).toContain('if (!packReviewed)');
+    expect(compliance).toContain('setPackReviewed(false)');
+    expect(compliance).toContain('disabled={!passportCorrected}');
     expect(compliance).toContain('Within 3 business days');
     expect(compliance).toContain('makes the final KYC, AML and client-acceptance decision');
 

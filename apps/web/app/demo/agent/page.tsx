@@ -2,7 +2,9 @@
 
 import {
   AppScreen,
+  DEFAULT_DEMO_PROFILE,
   DemoJourney,
+  type DemoProfile,
   rankDemoMatches,
   readDemoProfile,
   writeDemoProfile,
@@ -63,8 +65,8 @@ const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
 ];
 
 const REPLIES: Record<string, string> = {
-  profile:
-    'I updated your liquidity need from <b>monthly access</b> to <b>weekly access</b> and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. The <b>NCB USD Money Market Fund</b> moved into your top two because it offers same-day access. The five-year villa note remains screened out. Review and approve any move before I route it.',
+  liquidity:
+    'Liquidity describes how quickly you may need to access invested money. I use it as a suitability constraint: products whose lock-up conflicts with your stated access need are ranked down or screened out. I will only change the profile when you explicitly ask me to.',
   summary:
     "Here's your week: your GOJ 2026 coupon of US$412 settles Friday. I'd reinvest it into the Real Estate X Fund, which is projected to lift blended yield to about 6.9%. Your US$2,150 cash is idle; a money-market sweep is projected to add about US$110 a year. Compared with like-for-like US, Canadian or UK options, the potential value is added Caribbean exposure; compare net fees, tax and reporting, currency, liquidity and investor protections before deciding. Both are queued for your approval.",
   rebalance:
@@ -147,11 +149,18 @@ const AGENT_MATCH_CANDIDATES = [
   },
 ];
 
-function comparisonReply(): string {
-  const profile = readDemoProfile();
+function comparisonReply(profile: DemoProfile): string {
   const [first, second] = rankDemoMatches(AGENT_MATCH_CANDIDATES, profile);
   if (!first || !second) return REPLIES.summary ?? FALLBACK;
   return `Your current top matches are the <b>${first.name} at ${first.match}%</b> and the <b>${second.name} at ${second.match}%</b>. This order reflects your <b>${profile.risk.toLowerCase()}</b> risk appetite, <b>${profile.objective.toLowerCase()}</b> objective, <b>${profile.horizon}</b> horizon and <b>${profile.liquidity.toLowerCase()}</b> liquidity need. Caribbean exposure is not automatically better than a comparable US product, so I still compare net fees, tax, currency, liquidity and investor protections.`;
+}
+
+function profileUpdateReply(previousProfile: DemoProfile): string {
+  const update =
+    previousProfile.liquidity === 'Weekly access'
+      ? 'Your liquidity need was already <b>weekly access</b>, so I kept it unchanged'
+      : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>weekly access</b>`;
+  return `${update} and re-ran the workflow without restarting: Fact-find → Research → Portfolio fit → Suitability → Compliance. The <b>NCB USD Money Market Fund</b> moved into your top two because it offers same-day access. The five-year villa note remains screened out. Review and approve any move before I route it.`;
 }
 
 /** Sample-only numbers for the public preview. The live surface receives this
@@ -268,10 +277,14 @@ function classify(text: string): string {
   if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
   if (/safe|secure|regulat|custod|trust|hold my|licen/.test(t)) return 'safety';
   if (/fee|cost|charge|commission|spread/.test(t)) return 'fees';
-  if (/summar|week|overview/.test(t)) return 'summary';
-  if (/compare|top two|top 2|recommendation a|recommendation b/.test(t)) return 'compare';
-  if (/update.*profile|change.*profile|weekly access|liquidity|rematch|re-run/.test(t))
+  if (
+    /\b(update|change|set|switch|make|need|want)\b.*\bweekly access\b/.test(t) ||
+    /\b(profile|liquidity)\b.*\b(to|for)\b.*\bweekly access\b/.test(t)
+  )
     return 'profile';
+  if (/summar|this week|weekly summary|overview/.test(t)) return 'summary';
+  if (/compare|top two|top 2|recommendation a|recommendation b/.test(t)) return 'compare';
+  if (/liquidity|weekly access|access need|lock-up/.test(t)) return 'liquidity';
   if (/chart|graph|pie|bar graph|plot|visual/.test(t)) return 'rebalance';
   if (/rebalanc|allocat|overweight|diversif/.test(t)) return 'rebalance';
   if (/income|yield|best|deal|coupon|bond/.test(t)) return 'income';
@@ -490,6 +503,9 @@ const STATS: { n: string; cls: string; t: string }[] = [
 
 export default function AgentPage() {
   const [chat, setChat] = useState<Msg[]>(SEED);
+  const [demoProfile, setDemoProfile] = useState<DemoProfile>(() => ({
+    ...DEFAULT_DEMO_PROFILE,
+  }));
   const [draft, setDraft] = useState('');
   const [voice, setVoice] = useState(false);
   const [rules, setRules] = useState(DEMO_RULES);
@@ -512,6 +528,10 @@ export default function AgentPage() {
   const inputId = useId();
 
   useEffect(() => {
+    setDemoProfile(readDemoProfile());
+  }, []);
+
+  useEffect(() => {
     if (chat.length === 0 && !replying) return;
     const frame = requestAnimationFrame(() => {
       const el = logRef.current;
@@ -531,8 +551,17 @@ export default function AgentPage() {
     [],
   );
 
-  function reply(key: string) {
-    const text = key === 'compare' ? comparisonReply() : (REPLIES[key] ?? FALLBACK);
+  function reply(
+    key: string,
+    profileForReply: DemoProfile = demoProfile,
+    previousProfile: DemoProfile = demoProfile,
+  ) {
+    const text =
+      key === 'compare'
+        ? comparisonReply(profileForReply)
+        : key === 'profile'
+          ? profileUpdateReply(previousProfile)
+          : (REPLIES[key] ?? FALLBACK);
     const display = REPLY_DISPLAYS[key];
     setChat((c) =>
       display
@@ -547,13 +576,17 @@ export default function AgentPage() {
     const t = text.trim();
     if (!t || replying) return;
     const replyKey = key ?? classify(t);
+    const previousProfile = demoProfile;
+    const nextProfile =
+      replyKey === 'profile' ? { ...previousProfile, liquidity: 'Weekly access' } : previousProfile;
     if (replyKey === 'profile') {
-      writeDemoProfile({ ...readDemoProfile(), liquidity: 'Weekly access' });
+      setDemoProfile(nextProfile);
+      writeDemoProfile(nextProfile);
     }
     setChat((c) => [...c, { role: 'user', text: t }]);
     setDraft('');
     setReplying(true);
-    replyTimerRef.current = setTimeout(() => reply(replyKey), 450);
+    replyTimerRef.current = setTimeout(() => reply(replyKey, nextProfile, previousProfile), 450);
   }
 
   function approveCard(a: (typeof APPROVALS)[number]) {
