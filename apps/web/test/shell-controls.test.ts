@@ -329,6 +329,8 @@ describe('app shell controls', () => {
     expect(advisor).toContain('weeklyAccessQuestion');
     expect(advisor).toContain('explicitWeeklyAccessUpdate');
     expect(advisor).toContain('(?:can|could|would|will)\\s+you');
+    expect(advisor).toContain("(?:i'd|i would)\\s+like");
+    expect(advisor).toContain('(?:go ahead and\\s+)?');
     expect(advisor).toContain('ncbPosition');
     expect(advisor).toContain('villaScreenReply(profileForReply)');
     expect(advisor).toContain('max-[900px]:hidden');

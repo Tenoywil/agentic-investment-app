@@ -297,13 +297,20 @@ function classify(text: string): string {
   const weeklyAccessQuestion =
     t.includes('?') ||
     /^(do|does|did|should|would|could|can|why|what|when|where|how|is|are)\b/.test(t);
+  const weeklyAccessAction = /(?:update|change|set|switch|make)\b.*\bweekly access\b/;
+  const directWeeklyAccessUpdate =
+    /^(?:please\s+)?(?:go ahead and\s+)?(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(
+      t,
+    );
   const explicitWeeklyAccessUpdate =
     !weeklyAccessNegated &&
-    (/^(?:please\s+)?(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(t) ||
-      /^(?:can|could|would|will)\s+you\b.*\b(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(
+    (directWeeklyAccessUpdate ||
+      /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:go ahead and\s+)?(?:update|change|set|switch|make)\b.*\bweekly access\b/.test(
         t,
       ) ||
-      (!weeklyAccessQuestion && /\b(i need|i want|please)\b.*\bweekly access\b/.test(t)));
+      (/^(?:i'd|i would)\s+like(?:\s+you)?\s+to\s+/.test(t) && weeklyAccessAction.test(t)) ||
+      (/^i want you to\s+/.test(t) && weeklyAccessAction.test(t)) ||
+      (!weeklyAccessQuestion && /^i (?:need|want)\s+weekly access\b/.test(t)));
   if (explicitWeeklyAccessUpdate) return 'profile';
   if (/\bweekly access\b/.test(t) && (weeklyAccessQuestion || weeklyAccessNegated))
     return 'liquidity';
