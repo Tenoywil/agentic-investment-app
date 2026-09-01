@@ -309,6 +309,7 @@ describe('app shell controls', () => {
     expect(shell).toContain('DEMO_ACCOUNT_STORAGE_KEY');
     expect(shell).toContain('opportunityOrders');
     expect(shell).toContain('nextDemoOrderId');
+    expect(shell).toContain('demoIdentityFingerprint');
     expect(planning).toContain('writeDemoProfile(profile)');
     expect(planning).toContain('setProfile(savedProfile)');
 
@@ -334,6 +335,8 @@ describe('app shell controls', () => {
     expect(advisor).toContain('approvedActions');
     expect(advisor).toContain('nextDemoOrderId(`agent-${a.id}`');
     expect(advisor).toContain("amount: 'US$2,150'");
+    expect(advisor).toContain('Nothing needs your attention right now.');
+    expect(advisor).toContain('weekly access\\s+(?:copy|details?|information');
     expect(advisor).toContain("return 'liquidity'");
     expect(advisor).toContain('weeklyAccessQuestion');
     expect(advisor).toContain('explicitWeeklyAccessUpdate');
@@ -357,6 +360,7 @@ describe('app shell controls', () => {
     expect(compliance).not.toContain('Open NCB partner review');
     expect(compliance).toContain('setOpportunityOrders(accountState.opportunityOrders)');
     expect(compliance).toContain('accepted ${restoredName} as a client');
+    expect(compliance).toContain('accountState.ncbEvidenceFingerprint === evidenceFingerprint');
 
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');
@@ -365,6 +369,8 @@ describe('app shell controls', () => {
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
     expect(dashboard).toContain('readDemoProfile(MARCUS_PROFILE)');
+    expect(dashboard).toContain('`${pendingApprovals.length} ready for your approval');
+    expect(planning).toContain('{profileInitials}');
   });
 
   test('identity intake and demo compliance copy reserve verification for licensed firms', () => {

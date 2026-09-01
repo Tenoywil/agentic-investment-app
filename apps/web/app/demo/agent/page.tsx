@@ -468,6 +468,7 @@ function classify(text: string): string {
     );
   const explicitWeeklyAccessUpdate =
     !weeklyAccessNegated &&
+    !/\bweekly access\s+(?:copy|details?|information|notes?|overview|text|wording)\b/.test(t) &&
     ((weeklyAccessTargetsProfile &&
       (directWeeklyAccessUpdate || modalWeeklyAccessUpdate || desiredWeeklyAccessUpdate)) ||
       (!weeklyAccessQuestion &&
@@ -675,6 +676,21 @@ export default function AgentPage() {
     const restored = readDemoProfile(MARCUS_PROFILE);
     const accountState = readDemoAccountState();
     const firstName = restored.name.trim().split(/\s+/)[0] || 'investor';
+    const pendingCount = APPROVALS.filter(
+      (approval) => !accountState.approvedActions.includes(approval.id),
+    ).length;
+    const attentionCopy =
+      pendingCount === 0
+        ? 'Nothing needs your attention right now.'
+        : pendingCount === 1
+          ? 'One thing needs your attention this week.'
+          : `${pendingCount} things need your attention this week.`;
+    const queueCopy =
+      pendingCount === 0
+        ? 'Both instructions are approved and available in My orders.'
+        : pendingCount === 1
+          ? 'One instruction is still queued for your approval.'
+          : "I've queued both for your approval.";
     setDemoProfile(restored);
     setCardState(
       Object.fromEntries(
@@ -686,10 +702,13 @@ export default function AgentPage() {
     );
     setChat((current) =>
       current.map((message, index) =>
-        index === 0 && 'text' in message
+        (index === 0 || index === 3) && 'text' in message
           ? {
               ...message,
-              text: `Welcome back, ${firstName}. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. Two things need your attention this week.`,
+              text:
+                index === 0
+                  ? `Welcome back, ${firstName}. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. ${attentionCopy}`
+                  : `Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. ${queueCopy}`,
             }
           : message,
       ),

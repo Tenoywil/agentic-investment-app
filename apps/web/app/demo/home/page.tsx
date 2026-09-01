@@ -372,7 +372,11 @@ export default function HomePage() {
             <div className={cn('font-display text-3xl font-bold tracking-[-.5px]', s.valClass)}>
               {s.val}
             </div>
-            <div className={cn('mt-1 text-[13.5px]', s.subClass)}>{s.sub}</div>
+            <div className={cn('mt-1 text-[13.5px]', s.subClass)}>
+              {s.label === 'Matched to your goals'
+                ? `${pendingApprovals.length} ready for your approval →`
+                : s.sub}
+            </div>
           </Card>
         ))}
       </div>

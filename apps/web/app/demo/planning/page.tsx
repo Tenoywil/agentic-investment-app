@@ -160,6 +160,13 @@ export default function PlanningPage() {
   const [saved, setSaved] = useState(false);
   const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
   const [savedProfile, setSavedProfile] = useState<DemoProfile>(MARCUS_PROFILE);
+  const profileInitials =
+    profile.name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'I';
 
   useEffect(() => {
     const restored = readDemoProfile(MARCUS_PROFILE);
@@ -209,7 +216,7 @@ export default function PlanningPage() {
         <Card className="p-5 sm:p-6">
           <div className="mb-5 flex flex-wrap items-center gap-3 border-b border-border pb-5">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-primary font-display text-lg font-bold text-white">
-              MB
+              {profileInitials}
             </span>
             <div className="min-w-0 flex-1">
               <div className="font-display text-xl font-bold">{profile.name}</div>

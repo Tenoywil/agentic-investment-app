@@ -7,6 +7,7 @@ import {
   type DemoProfile,
   PageHead,
   demoIdentityEvidence,
+  demoIdentityFingerprint,
   readDemoAccountState,
   readDemoProfile,
   writeDemoAccountState,
@@ -138,14 +139,22 @@ export default function DemoOrdersPage() {
   useEffect(() => {
     const restoredProfile = readDemoProfile(MARCUS_PROFILE);
     const restoredName = restoredProfile.name.trim() || 'Investor';
+    const evidenceFingerprint = demoIdentityFingerprint(restoredProfile);
     setProfile(restoredProfile);
     const accountState = readDemoAccountState();
     setOpportunityOrders(accountState.opportunityOrders);
-    const evidenceReady = accountState.ncbClientStatus !== 'needs_evidence';
-    const reviewReady =
-      accountState.ncbClientStatus === 'ready_for_review' ||
-      accountState.ncbClientStatus === 'accepted';
-    const accepted = accountState.ncbClientStatus === 'accepted';
+    const identityStateCurrent = accountState.ncbEvidenceFingerprint === evidenceFingerprint;
+    const clientStatus = identityStateCurrent ? accountState.ncbClientStatus : 'needs_evidence';
+    if (!identityStateCurrent) {
+      writeDemoAccountState({
+        ...accountState,
+        ncbEvidenceFingerprint: evidenceFingerprint,
+        ncbClientStatus: 'needs_evidence',
+      });
+    }
+    const evidenceReady = clientStatus !== 'needs_evidence';
+    const reviewReady = clientStatus === 'ready_for_review' || clientStatus === 'accepted';
+    const accepted = clientStatus === 'accepted';
     setPassportCorrected(evidenceReady);
     setPackReviewed(reviewReady);
     setSubmitted(accepted);
@@ -179,7 +188,11 @@ export default function DemoOrdersPage() {
     setSubmitted(true);
     setPartnerAccepted(true);
     const accountState = readDemoAccountState();
-    writeDemoAccountState({ ...accountState, ncbClientStatus: 'accepted' });
+    writeDemoAccountState({
+      ...accountState,
+      ncbEvidenceFingerprint: demoIdentityFingerprint(profile),
+      ncbClientStatus: 'accepted',
+    });
     setStatus(
       `NCB Capital Markets accepted ${profileName} as a client. The money market instruction is now in progress.`,
     );
@@ -270,6 +283,7 @@ export default function DemoOrdersPage() {
                     const accountState = readDemoAccountState();
                     writeDemoAccountState({
                       ...accountState,
+                      ncbEvidenceFingerprint: demoIdentityFingerprint(profile),
                       ncbClientStatus: 'evidence_ready',
                     });
                     setStatus(
@@ -380,6 +394,7 @@ export default function DemoOrdersPage() {
                 const accountState = readDemoAccountState();
                 writeDemoAccountState({
                   ...accountState,
+                  ncbEvidenceFingerprint: demoIdentityFingerprint(profile),
                   ncbClientStatus: 'ready_for_review',
                 });
                 setStatus('Client pack reviewed and ready to send.');

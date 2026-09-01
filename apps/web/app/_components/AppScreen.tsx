@@ -97,6 +97,7 @@ export const DEFAULT_DEMO_PROFILE: DemoProfile = {
 export type DemoAccountState = {
   approvedActions: string[];
   fundedPartners: string[];
+  ncbEvidenceFingerprint: string | null;
   ncbClientStatus: 'needs_evidence' | 'evidence_ready' | 'ready_for_review' | 'accepted';
   opportunityOrders: DemoOpportunityOrder[];
 };
@@ -117,6 +118,7 @@ export function nextDemoOrderId(baseId: string, orders: DemoOpportunityOrder[]):
 export const DEFAULT_DEMO_ACCOUNT_STATE: DemoAccountState = {
   approvedActions: [],
   fundedPartners: [],
+  ncbEvidenceFingerprint: null,
   ncbClientStatus: 'needs_evidence',
   opportunityOrders: [],
 };
@@ -136,6 +138,15 @@ export type DemoVillaContext = {
   portfolioShare: string;
   singlePositionCap: string;
 };
+
+export function demoIdentityFingerprint(profile: DemoProfile): string {
+  return JSON.stringify([
+    profile.name.trim(),
+    profile.residence,
+    profile.jamaicanCitizen,
+    profile.usCitizen,
+  ]);
+}
 
 /** Keeps the sample compliance pack aligned with the editable fact-find. */
 export function demoIdentityEvidence(profile: DemoProfile): DemoIdentityEvidence {
@@ -248,6 +259,10 @@ export function readDemoAccountState(): DemoAccountState {
       fundedPartners: Array.isArray(candidate.fundedPartners)
         ? candidate.fundedPartners.filter((value): value is string => typeof value === 'string')
         : [],
+      ncbEvidenceFingerprint:
+        typeof candidate.ncbEvidenceFingerprint === 'string'
+          ? candidate.ncbEvidenceFingerprint
+          : null,
       ncbClientStatus:
         candidate.ncbClientStatus === 'accepted' ||
         candidate.ncbClientStatus === 'ready_for_review' ||
