@@ -353,7 +353,7 @@ export default function HomePage() {
             </DialogDescription>
           </DialogHeader>
 
-          <fieldset className="min-w-0 grid gap-3">
+          <fieldset className="m-0 grid min-w-0 gap-3 border-0 p-0">
             <legend className="sr-only">Choose a demo journey</legend>
             {JOURNEYS.map((journey) => {
               const selected = selectedJourney === journey.id;
