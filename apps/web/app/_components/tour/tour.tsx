@@ -220,7 +220,8 @@ export function Tour() {
       if (settled) {
         window.clearInterval(id);
         const key = DISMISS_KEY(surface, pathname ?? '');
-        if (!seen(surface, pathname ?? '') && !autoStarted.current.has(key)) {
+        const isPreview = surface === 'demo-customer' || surface === 'demo-institution';
+        if (!isPreview && !seen(surface, pathname ?? '') && !autoStarted.current.has(key)) {
           autoStarted.current.add(key);
           start();
         }

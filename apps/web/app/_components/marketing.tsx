@@ -62,7 +62,7 @@ export function MarketingNav() {
             Sign in
           </Button>
           {DEMO_ENABLED ? (
-            <Button onClick={() => router.push('/demo/planning')}>See a demo</Button>
+            <Button onClick={() => router.push('/demo/home?choose=1')}>See a demo</Button>
           ) : (
             <Button onClick={() => router.push('/sign-in')} className="max-[480px]:hidden">
               Get started
