@@ -2,7 +2,6 @@
 
 import {
   DEFAULT_DEMO_PROFILE,
-  DemoJourney,
   type DemoProfile,
   demoIdentityEvidence,
   readDemoProfile,
@@ -49,7 +48,7 @@ const PARTNER: MePartner = {
   regulator: 'FSC_JAMAICA',
   agreementStatus: 'sandbox',
   residency: 'Jamaica',
-  fundingInstructions: 'Sample wire instructions are configured for this rehearsal desk.',
+  fundingInstructions: 'USD wire instructions are available for approved clients.',
   withdrawalFeeFlatMinor: '0',
   withdrawalFeeBps: 0,
   gctBps: 0,
@@ -147,9 +146,9 @@ const INITIAL_PRODUCTS: ConsoleProduct[] = [
     minInvestmentMinor: '100000',
     term: 'Open-ended',
     metric: '6.1%',
-    metricLabel: 'sample trailing yield',
+    metricLabel: 'trailing yield',
     risk: 'medium',
-    description: 'Sample diversified regional fixed-income product.',
+    description: 'Diversified regional fixed-income product.',
     region: 'Caribbean',
     status: 'live',
     blocked: false,
@@ -165,9 +164,9 @@ const INITIAL_PRODUCTS: ConsoleProduct[] = [
     minInvestmentMinor: '500000',
     term: 'Matures 2032',
     metric: '7.0%',
-    metricLabel: 'sample coupon',
+    metricLabel: 'coupon',
     risk: 'medium',
-    description: 'Sample note for demonstrating product presentation and settlement.',
+    description: 'USD-denominated note with institution-managed settlement.',
     region: 'Caribbean',
     status: 'live',
     blocked: false,
@@ -183,9 +182,9 @@ const INITIAL_PRODUCTS: ConsoleProduct[] = [
     minInvestmentMinor: '250000',
     term: 'Matures 2036',
     metric: 'Illustrative',
-    metricLabel: 'demo terms only',
+    metricLabel: 'target return',
     risk: 'low',
-    description: 'A sample listing; not an offer or live security record.',
+    description: 'Private-market listing subject to eligibility and final terms.',
     region: 'Jamaica',
     status: 'paused',
     blocked: false,
@@ -197,23 +196,23 @@ const INITIAL_PRODUCTS: ConsoleProduct[] = [
 const KPIS: ConsoleKpi[] = [
   {
     id: 'demo-aum',
-    label: 'Referred holdings (sample)',
+    label: 'Referred holdings',
     value: 'US$48.2M',
-    sub: 'Demo fixture',
+    sub: 'Updated today',
     sortOrder: 1,
   },
   {
     id: 'demo-clients',
-    label: 'Funded clients (sample)',
+    label: 'Funded clients',
     value: '1,284',
-    sub: 'Demo fixture',
+    sub: 'Updated today',
     sortOrder: 2,
   },
   {
     id: 'demo-settled',
-    label: 'Orders settled (sample)',
+    label: 'Orders settled',
     value: '486',
-    sub: 'Demo fixture',
+    sub: 'Updated today',
     sortOrder: 3,
   },
 ];
@@ -272,7 +271,7 @@ export default function DemoInstitutionsPage() {
 
   useEffect(() => {
     const restored = readDemoProfile(MARCUS_PROFILE);
-    const restoredName = restored.name.trim() || 'Sample investor';
+    const restoredName = restored.name.trim() || 'Investor';
     const restoredEvidence = demoIdentityEvidence(restored);
     setProfile(restored);
     setOrders((current) =>
@@ -288,7 +287,7 @@ export default function DemoInstitutionsPage() {
     profile.jamaicanCitizen ? 'Jamaican' : '',
     profile.usCitizen ? 'US' : '',
   ].filter(Boolean);
-  const profileName = profile.name.trim() || 'Sample investor';
+  const profileName = profile.name.trim() || 'Investor';
   const identityEvidence = demoIdentityEvidence(profile);
   const reviewItems = [
     {
@@ -455,7 +454,7 @@ export default function DemoInstitutionsPage() {
     >
       <ConsoleMobileHeader
         partnerName={PARTNER.name}
-        context="Interactive sample data"
+        context="Signed in · Simone Clarke"
         action={
           <Button
             asChild
@@ -464,7 +463,7 @@ export default function DemoInstitutionsPage() {
           >
             <Link href="/demo/home">
               <ArrowLeft className="h-4 w-4" aria-hidden />
-              Exit demo
+              Investor view
             </Link>
           </Button>
         }
@@ -477,7 +476,7 @@ export default function DemoInstitutionsPage() {
         pendingReconciliation={pendingReviews}
         signingOut={false}
         onSignOut={() => window.location.assign('/demo/home')}
-        exitLabel="Exit partner demo"
+        exitLabel="Investor view"
       />
 
       <main
@@ -485,8 +484,6 @@ export default function DemoInstitutionsPage() {
         data-tour="demo-institution-shell"
       >
         <ConsoleHeader tab={tab} />
-        <DemoJourney current="partner" />
-
         {tab === 'overview' ? (
           <Card className="mb-[18px] flex flex-wrap items-center gap-3 border-[#cde0d8] bg-mint p-4">
             <UserCheck className="h-5 w-5 flex-none text-teal2" aria-hidden />
@@ -631,9 +628,8 @@ export default function DemoInstitutionsPage() {
                 <div>
                   <b className="font-display text-lg">Client review queue</b>
                   <p className="mb-0 mt-1 text-[13px] text-faint">
-                    Sample consented KYC and AML evidence awaiting a human decision. The partner,
-                    not CCN, owns acceptance; this client’s response target is within 3 business
-                    days.
+                    Consented KYC and AML evidence awaiting a human decision. The partner, not CCN,
+                    owns acceptance; this client’s response target is within 3 business days.
                   </p>
                 </div>
                 <Badge>{pendingReviews} pending</Badge>
@@ -724,7 +720,7 @@ export default function DemoInstitutionsPage() {
               </div>
             </Card>
             <Card className="p-5 sm:p-6" data-tour="demo-institution-decisions">
-              <b className="font-display text-[17px]">Sample decision trail</b>
+              <b className="font-display text-[17px]">Decision trail</b>
               <div className="mt-3 space-y-1">
                 {visibleDecisions.map(([action, actor]) => (
                   <div

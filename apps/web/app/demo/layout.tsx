@@ -13,16 +13,10 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
   if (!DEMO_ENABLED) notFound();
   return (
     <>
-      <aside
-        aria-label="Interactive demo with sample data only, no real accounts or transactions"
-        className="demo-status sticky top-0 z-[100] border-b border-solid border-[#2c6f68] bg-primary px-3 py-1 text-center text-[10px] font-bold uppercase tracking-[0.55px] text-white shadow-sm"
-      >
-        <span className="demo-status__full">
-          Interactive demo · sample data only · no real accounts or transactions
-        </span>
-        <span className="demo-status__mobile">Demo · sample data · no real transactions</span>
-      </aside>
       {children}
+      <output className="pointer-events-none fixed bottom-3 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-full border border-white/20 bg-[#173f3a]/95 px-3 py-1 text-[11px] font-semibold text-white shadow-lg max-md:bottom-20">
+        Preview environment · Actions shown here do not send money or open accounts
+      </output>
     </>
   );
 }

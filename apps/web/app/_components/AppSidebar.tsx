@@ -206,21 +206,16 @@ export function AgentCard() {
  */
 export function navGroupsFor(basePath: string, showOnboarding = false): NavGroup[] {
   if (basePath) {
-    // The public preview is a six-screen Marcus story. It reuses real product
-    // routes but orders and names them by the workflow an evaluator is seeing.
+    // The preview uses the same primary information architecture as the live
+    // customer app. Its deterministic state belongs behind these routes, not
+    // in numbered navigation that teaches a different product structure.
     const demoItems: NavGroup['items'] = [
-      { key: 'planning', label: '1 · Profile & goals', href: '/planning', Icon: UserPlus },
-      { key: 'opportunities', label: '2 · Matches', href: '/opportunities', Icon: TrendingUp },
-      { key: 'agent', label: '3 · Advisor', href: '/agent', Icon: Sparkles },
-      { key: 'orders', label: '4 · Compliance', href: '/orders', Icon: ShieldCheck },
-      {
-        key: 'institutions',
-        label: '5 · Partner review',
-        href: '/institutions',
-        Icon: HandHeart,
-      },
-      { key: 'home', label: '6 · Dashboard', href: '/home', Icon: LayoutGrid },
-      { key: 'portfolio', label: 'Portfolio detail', href: '/portfolio', Icon: LineChart },
+      { key: 'home', label: 'Home', href: '/home', Icon: LayoutGrid },
+      { key: 'portfolio', label: 'Portfolio', href: '/portfolio', Icon: LineChart },
+      { key: 'opportunities', label: 'Invest', href: '/opportunities', Icon: TrendingUp },
+      { key: 'orders', label: 'My orders', href: '/orders', Icon: ArrowRightLeft },
+      { key: 'agent', label: 'Your agent', href: '/agent', Icon: Sparkles },
+      { key: 'planning', label: 'Planning', href: '/planning', Icon: ShieldCheck },
     ];
     return [{ label: '', items: demoItems }];
   }
@@ -323,22 +318,14 @@ export function AppSidebar({
 
       {/* No console link on the customer surface: the institution console is a
           different product for a different account, and /api/console answers a
-          customer with 403 — a visible route into it is a dead end at best. The
-          demo shell keeps its link because that preview has both shells and no
-          sign-in at all.
+          customer with 403 — a visible route into it is a dead end at best.
 
-          The demo shell also keeps a bare theme toggle instead of the account
+          The preview shell keeps a bare theme toggle instead of the account
           menu: it has no session to name, nothing to sign out of, and calling
           /api/me from it would break the rule that the preview makes no API
           calls at all. */}
       {basePath ? (
-        <div className="app-sidebar__footer flex items-center justify-between">
-          <Link
-            href={`${basePath}/institutions`}
-            className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
-          >
-            For institutions
-          </Link>
+        <div className="app-sidebar__footer flex items-center justify-end border-0 border-t border-solid border-border pt-2">
           <ThemeToggle />
         </div>
       ) : (

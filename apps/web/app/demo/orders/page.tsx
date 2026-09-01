@@ -3,11 +3,14 @@
 import {
   AppScreen,
   DEFAULT_DEMO_PROFILE,
-  DemoJourney,
+  type DemoOpportunityOrder,
   type DemoProfile,
   PageHead,
   demoIdentityEvidence,
+  demoIdentityFingerprint,
+  readDemoAccountState,
   readDemoProfile,
+  writeDemoAccountState,
 } from '@/app/_components/AppScreen';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
@@ -107,12 +110,60 @@ export default function DemoOrdersPage() {
   const [packOpen, setPackOpen] = useState(false);
   const [packReviewed, setPackReviewed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [partnerAccepted, setPartnerAccepted] = useState(false);
   const [status, setStatus] = useState('');
   const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
-  const open = ORDERS.filter((o) => o.status === 'created' || o.status === 'accepted');
+  const [opportunityOrders, setOpportunityOrders] = useState<DemoOpportunityOrder[]>([]);
+  const orders = [
+    ...opportunityOrders.map((order) => ({
+      id: `opportunity-${order.id}`,
+      name: order.name,
+      status: 'created' as const,
+      says: `Sent to ${order.partner} to accept.`,
+      authorised: 'Authorised today',
+      amount: order.amount,
+      byAgent: true,
+    })),
+    ...ORDERS.map((order) =>
+      order.id === '1' && partnerAccepted
+        ? {
+            ...order,
+            status: 'accepted' as const,
+            says: 'NCB Capital Markets accepted the instruction and is executing it.',
+          }
+        : order,
+    ),
+  ];
+  const open = orders.filter((order) => order.status === 'created' || order.status === 'accepted');
 
   useEffect(() => {
-    setProfile(readDemoProfile(MARCUS_PROFILE));
+    const restoredProfile = readDemoProfile(MARCUS_PROFILE);
+    const restoredName = restoredProfile.name.trim() || 'Investor';
+    const evidenceFingerprint = demoIdentityFingerprint(restoredProfile);
+    setProfile(restoredProfile);
+    const accountState = readDemoAccountState();
+    setOpportunityOrders(accountState.opportunityOrders);
+    const identityStateCurrent = accountState.ncbEvidenceFingerprint === evidenceFingerprint;
+    const clientStatus = identityStateCurrent ? accountState.ncbClientStatus : 'needs_evidence';
+    if (!identityStateCurrent) {
+      writeDemoAccountState({
+        ...accountState,
+        ncbEvidenceFingerprint: evidenceFingerprint,
+        ncbClientStatus: 'needs_evidence',
+      });
+    }
+    const evidenceReady = clientStatus !== 'needs_evidence';
+    const reviewReady = clientStatus === 'ready_for_review' || clientStatus === 'accepted';
+    const accepted = clientStatus === 'accepted';
+    setPassportCorrected(evidenceReady);
+    setPackReviewed(reviewReady);
+    setSubmitted(accepted);
+    setPartnerAccepted(accepted);
+    if (accepted) {
+      setStatus(
+        `NCB Capital Markets accepted ${restoredName} as a client. The money market instruction is now in progress.`,
+      );
+    }
   }, []);
 
   const citizenship = [
@@ -121,7 +172,7 @@ export default function DemoOrdersPage() {
   ].filter(Boolean);
   const citizenshipText =
     citizenship.length > 0 ? `${citizenship.join(' + ')} citizen` : 'Citizenship not selected';
-  const profileName = profile.name.trim() || 'Sample investor';
+  const profileName = profile.name.trim() || 'Investor';
   const identityEvidence = demoIdentityEvidence(profile);
 
   function sendPack() {
@@ -135,14 +186,23 @@ export default function DemoOrdersPage() {
       return;
     }
     setSubmitted(true);
-    setStatus(`${profileName}’s review pack was sent to NCB Capital Markets.`);
+    setPartnerAccepted(true);
+    const accountState = readDemoAccountState();
+    writeDemoAccountState({
+      ...accountState,
+      ncbEvidenceFingerprint: demoIdentityFingerprint(profile),
+      ncbClientStatus: 'accepted',
+    });
+    setStatus(
+      `NCB Capital Markets accepted ${profileName} as a client. The money market instruction is now in progress.`,
+    );
   }
 
   return (
     <AppScreen active="orders" basePath="/demo">
       <PageHead
-        eyebrow="Compliance agent prepares the evidence; the licensed partner makes the decision"
-        title="Compliance & orders"
+        eyebrow="Executed and settled by the institution that holds them"
+        title="Your orders"
         right={
           <div className="rounded-xl border border-solid border-border bg-card px-4 py-2.5 text-[13.5px] text-dim">
             <b className="font-display text-lg text-foreground">{open.length}</b> in progress
@@ -150,16 +210,14 @@ export default function DemoOrdersPage() {
         }
       />
 
-      <DemoJourney current="compliance" />
-
       <section aria-labelledby="compliance-heading" className="mb-7">
         <div className="mb-3">
           <h2 id="compliance-heading" className="font-display text-xl font-bold">
-            {profileName}’s client review pack
+            Partner onboarding
           </h2>
           <p className="mb-0 mt-1 text-sm text-dim">
-            Sample OCR and declarations are structured for human review. No automated result is
-            represented as a licensed firm’s KYC or AML decision.
+            Your documents are organised for review. The licensed institution makes the final KYC,
+            AML and client-acceptance decision.
           </p>
         </div>
 
@@ -222,6 +280,12 @@ export default function DemoOrdersPage() {
                     }
                     setPassportCorrected(true);
                     setPackReviewed(false);
+                    const accountState = readDemoAccountState();
+                    writeDemoAccountState({
+                      ...accountState,
+                      ncbEvidenceFingerprint: demoIdentityFingerprint(profile),
+                      ncbClientStatus: 'evidence_ready',
+                    });
                     setStatus(
                       `${identityEvidence.replacementSummary}. Review the updated pack before sending.`,
                     );
@@ -238,7 +302,7 @@ export default function DemoOrdersPage() {
                 ['Residency', profile.residence],
                 ['Citizenship', citizenshipText],
                 ['Politically exposed person', 'No · declaration recorded'],
-                ['FATF jurisdiction screen', 'No policy flag in sample evidence'],
+                ['FATF jurisdiction screen', 'No policy flag'],
                 ['Source of funds', 'Employment income + savings'],
                 ['Proof of address', identityEvidence.addressEvidence],
                 ['Tax identifiers', identityEvidence.taxIdentifiers],
@@ -278,7 +342,7 @@ export default function DemoOrdersPage() {
                 <FileText className="h-4 w-4" aria-hidden /> Review client PDF
               </Button>
               <Button onClick={sendPack}>
-                <Send className="h-4 w-4" aria-hidden /> Send to NCB
+                <Send className="h-4 w-4" aria-hidden /> Submit for review
               </Button>
             </div>
             <output
@@ -287,11 +351,7 @@ export default function DemoOrdersPage() {
               {status ||
                 'Resolve the identity warning, review the pack, then send it to the partner.'}
             </output>
-            {submitted ? (
-              <Button asChild variant="secondary" className="mt-4 w-full">
-                <Link href="/demo/institutions">Open NCB partner review</Link>
-              </Button>
-            ) : null}
+            {submitted ? <Badge variant="success">Accepted by NCB</Badge> : null}
           </Card>
         </div>
       </section>
@@ -301,7 +361,7 @@ export default function DemoOrdersPage() {
           <DialogHeader>
             <DialogTitle>{profileName} · client review pack</DialogTitle>
             <DialogDescription>
-              Editable review preview · generated from consented sample declarations and evidence.
+              Generated from your consented declarations and identity evidence.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1 text-sm">
@@ -319,7 +379,7 @@ export default function DemoOrdersPage() {
             </ReviewSection>
             <ReviewSection title="Declarations">
               PEP: No · source of funds: employment income and savings · FATF jurisdiction screen:
-              no sample policy flag.
+              no policy flag.
             </ReviewSection>
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
@@ -331,6 +391,12 @@ export default function DemoOrdersPage() {
               onClick={() => {
                 if (!passportCorrected) return;
                 setPackReviewed(true);
+                const accountState = readDemoAccountState();
+                writeDemoAccountState({
+                  ...accountState,
+                  ncbEvidenceFingerprint: demoIdentityFingerprint(profile),
+                  ncbClientStatus: 'ready_for_review',
+                });
                 setStatus('Client pack reviewed and ready to send.');
                 setPackOpen(false);
               }}
@@ -341,11 +407,13 @@ export default function DemoOrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <h2 className="mb-3 font-display text-xl font-bold">Order activity</h2>
+      <h2 id="order-activity" className="mb-3 font-display text-xl font-bold">
+        Order activity
+      </h2>
 
       <Card className="overflow-hidden" data-tour="customer-order-flow">
         <ul className="m-0 list-none p-0">
-          {ORDERS.map((o) => (
+          {orders.map((o) => (
             <li
               key={o.id}
               className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 border-0 border-b border-solid border-border px-[22px] py-4 last:border-b-0"
@@ -375,8 +443,8 @@ export default function DemoOrdersPage() {
       </Card>
 
       <p className="mt-4 text-[13px] text-faint">
-        Sample data. Nothing here is executed by CCN — an order belongs to the licensed institution
-        that holds it from the moment it is routed.
+        Nothing here is executed by CCN — an order belongs to the licensed institution that holds it
+        from the moment it is routed.
       </p>
     </AppScreen>
   );

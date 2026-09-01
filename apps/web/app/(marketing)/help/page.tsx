@@ -79,8 +79,8 @@ export default function HelpPage() {
         Want the bigger picture first? Read <Link href="/how-it-works">how it works</Link>
         {DEMO_ENABLED && (
           <>
-            , or explore the <Link href="/demo/planning">live demo</Link>. Every figure there is
-            labelled as sample data
+            , or explore the <Link href="/demo/planning">live demo</Link>. Actions in the preview do
+            not send money or open accounts
           </>
         )}
         .

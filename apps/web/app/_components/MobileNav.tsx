@@ -159,18 +159,11 @@ export function MobileNav({
             <NavLinks groups={groups} active={active} basePath={basePath} withTourTargets={false} />
           </div>
 
-          <div className="pt-3">
-            {basePath ? (
-              <Link
-                href={`${basePath}/institutions`}
-                className="flex items-center gap-2.5 rounded-[11px] px-3 py-[11px] text-[15px] font-semibold text-dim no-underline"
-              >
-                For institutions
-              </Link>
-            ) : (
+          {basePath ? null : (
+            <div className="pt-3">
               <AgentCard />
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </dialog>
     </div>
