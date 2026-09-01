@@ -314,6 +314,7 @@ describe('app shell controls', () => {
     expect(dashboard).toContain("startPath: '/demo/institutions'");
     expect(dashboard).toContain('window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY)');
     expect(dashboard).toContain('if (!open) {');
+    expect(dashboard).toContain('m-0 grid min-w-0 gap-3 border-0 p-0');
     expect(layout).toContain('z-40');
     expect(tour).toContain("surface === 'demo-customer' || surface === 'demo-institution'");
 
