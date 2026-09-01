@@ -679,6 +679,7 @@ export default function AgentPage() {
     const pendingCount = APPROVALS.filter(
       (approval) => !accountState.approvedActions.includes(approval.id),
     ).length;
+    const couponApproved = accountState.approvedActions.includes('coupon');
     const attentionCopy =
       pendingCount === 0
         ? 'Nothing needs your attention right now.'
@@ -702,13 +703,17 @@ export default function AgentPage() {
     );
     setChat((current) =>
       current.map((message, index) =>
-        (index === 0 || index === 3) && 'text' in message
+        (index === 0 || index === 1 || index === 3) && 'text' in message
           ? {
               ...message,
               text:
                 index === 0
                   ? `Welcome back, ${firstName}. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. ${attentionCopy}`
-                  : `Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. ${queueCopy}`,
+                  : index === 1
+                    ? couponApproved
+                      ? 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. The reinvestment instruction into the <b>Sagicor Real Estate X Fund</b> is approved and available in My orders.'
+                      : 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?'
+                    : `Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. ${queueCopy}`,
             }
           : message,
       ),
