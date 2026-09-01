@@ -283,15 +283,17 @@ describe('app shell controls', () => {
     expect(orders).toContain('Nothing here is executed by CCN');
   });
 
-  test('the preview presents Marcus through the live multi-screen product structure', () => {
+  test('the preview keeps the live screen structure and puts journey selection at entry', () => {
     const shell = code(join(SHELL, 'AppScreen.tsx'));
     const sidebar = code(join(SHELL, 'AppSidebar.tsx'));
     const planning = code(join(WEB, 'app/demo/planning/page.tsx'));
     const matching = code(join(WEB, 'app/demo/opportunities/page.tsx'));
     const advisor = code(join(WEB, 'app/demo/agent/page.tsx'));
-    const compliance = code(join(WEB, 'app/demo/orders/page.tsx'));
+    const orders = code(join(WEB, 'app/demo/orders/page.tsx'));
     const partner = code(join(WEB, 'app/demo/institutions/page.tsx'));
     const dashboard = code(join(WEB, 'app/demo/home/page.tsx'));
+    const layout = code(join(WEB, 'app/demo/layout.tsx'));
+    const tour = code(join(SHELL, 'tour/tour.tsx'));
 
     for (const label of ['Home', 'Portfolio', 'Invest', 'My orders', 'Your agent', 'Planning']) {
       expect(sidebar).toContain(`label: '${label}'`);
@@ -301,29 +303,43 @@ describe('app shell controls', () => {
     expect(sidebar).not.toContain('6 · Dashboard');
     expect(sidebar).not.toContain("label: 'Compliance'");
 
-    expect(planning).toContain('Marcus Bailey');
-    expect(planning).toContain('Citizenship · select all');
-    expect(planning).toContain('Save and re-run matching');
+    expect(dashboard).toContain("Follow Marcus's investor journey");
+    expect(dashboard).toContain('Find and review an investment');
+    expect(dashboard).toContain('Add money to a partner account');
+    expect(dashboard).toContain('Review and accept as a partner');
+    expect(dashboard).toContain('window.sessionStorage.setItem(JOURNEY_STORAGE_KEY');
+    expect(dashboard).toContain("startPath: '/demo/planning'");
+    expect(dashboard).toContain("startPath: '/demo/opportunities'");
+    expect(dashboard).toContain("startPath: '/demo/portfolio'");
+    expect(dashboard).toContain("startPath: '/demo/institutions'");
+    expect(dashboard).toContain('window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY)');
+    expect(dashboard).toContain('if (!open) {');
+    expect(layout).toContain('z-40');
+    expect(tour).toContain("surface === 'demo-customer' || surface === 'demo-institution'");
+
+    expect(planning).toContain('Recommended for you');
+    expect(planning).toContain('Your goals');
+    expect(planning).not.toContain('Your investor profile');
     expect(shell).toContain('window.sessionStorage.setItem');
     expect(shell).toContain('inMemoryDemoProfile = { ...profile }');
     expect(shell).toContain('DEMO_ACCOUNT_STORAGE_KEY');
     expect(shell).toContain('opportunityOrders');
     expect(shell).toContain('nextDemoOrderId');
     expect(shell).toContain('demoIdentityFingerprint');
-    expect(planning).toContain('writeDemoProfile(profile)');
-    expect(planning).toContain('setProfile(savedProfile)');
-
-    expect(matching).toContain('Top 2 recommendations');
-    expect(matching).toContain('Alternatives');
-    expect(matching).toContain('Not a match');
-    expect(matching).toContain('% match');
-    expect(shell).toContain('window.sessionStorage.getItem');
-    expect(shell).toContain("opportunity.id === 'ncbmm' ? 27");
+    expect(matching).toContain('FILTERS.map');
+    expect(matching).toContain('<DealCard');
+    expect(matching).not.toContain('Top 2 recommendations');
     expect(matching).toContain('rankDemoMatches(TRADEABLE, profile)');
     expect(matching).toContain('demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT)');
     expect(matching).toContain('writeDemoAccountState');
-    expect(matching).toContain('...accountState.opportunityOrders');
-    expect(matching).toContain('nextDemoOrderId(opp.id, accountState.opportunityOrders)');
+    expect(matching).toContain('nextDemoOrderId(selectedOpp.id');
+    expect(matching).toContain('Follow this order');
+    expect(shell).toContain('window.sessionStorage.getItem');
+
+    expect(orders).toContain('Executed and settled by the institution that holds them');
+    expect(orders).toContain('data-tour="customer-order-flow"');
+    expect(orders).toContain('readDemoAccountState().opportunityOrders');
+    expect(orders).not.toContain('Partner onboarding');
 
     expect(advisor).toContain('I need weekly access');
     expect(advisor).toContain('refreshed your recommendations');
@@ -348,29 +364,16 @@ describe('app shell controls', () => {
     expect(advisor).toContain('max-[900px]:hidden');
 
     expect(shell).toContain('expired 12 Jun 2025');
-    expect(compliance).toContain('identityEvidence.replacementButtonLabel');
-    expect(compliance).toContain('demoIdentityEvidence(profile)');
-    expect(compliance).toContain('Review client PDF');
-    expect(compliance).toContain('if (!packReviewed)');
-    expect(compliance).toContain('setPackReviewed(false)');
-    expect(compliance).toContain('disabled={!passportCorrected}');
-    expect(compliance).toContain('Within 3 business days');
-    expect(compliance).toContain('makes the final KYC, AML and client-acceptance decision');
-    expect(compliance).toContain('Accepted by NCB');
-    expect(compliance).not.toContain('Open NCB partner review');
-    expect(compliance).toContain('setOpportunityOrders(accountState.opportunityOrders)');
-    expect(compliance).toContain('accepted ${restoredName} as a client');
-    expect(compliance).toContain('accountState.ncbEvidenceFingerprint === evidenceFingerprint');
-
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');
     expect(partner).toContain('restoredEvidence.clientReference');
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
-    expect(dashboard).toContain('readDemoProfile(MARCUS_PROFILE)');
-    expect(dashboard).toContain('`${pendingApprovals.length} ready for your approval');
-    expect(planning).toContain('{profileInitials}');
+    expect(dashboard).toContain('readDemoAccountState()');
+    expect(dashboard).toContain('pendingApprovals.length');
+    expect(dashboard).not.toContain('1 · Profile & goals');
+    expect(dashboard).not.toContain('How the agents reached this');
   });
 
   test('identity intake and demo compliance copy reserve verification for licensed firms', () => {

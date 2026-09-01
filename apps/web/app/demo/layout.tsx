@@ -14,7 +14,7 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <output className="pointer-events-none fixed bottom-3 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-full border border-white/20 bg-[#173f3a]/95 px-3 py-1 text-[11px] font-semibold text-white shadow-lg max-md:bottom-20">
+      <output className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/20 bg-[#173f3a]/95 px-3 py-1 text-[11px] font-semibold text-white shadow-lg max-md:bottom-20">
         Preview environment · Actions shown here do not send money or open accounts
       </output>
     </>

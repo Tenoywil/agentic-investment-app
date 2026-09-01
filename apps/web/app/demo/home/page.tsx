@@ -3,30 +3,78 @@
 import {
   AppScreen,
   DEFAULT_DEMO_ACCOUNT_STATE,
-  DEFAULT_DEMO_PROFILE,
   type DemoAccountState,
-  type DemoProfile,
   PageHead,
   readDemoAccountState,
-  readDemoProfile,
 } from '@/app/_components/AppScreen';
+import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/_components/ui/dialog';
 import { cn } from '@/app/_lib/utils';
-import { LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
+import { Bell, LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 
-const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
+type DemoJourneyId = 'complete' | 'opportunity' | 'funding' | 'institution';
 
-const PIPE = [
-  { n: '1', t: 'Research', b: 'Scans 47 instruments across 8 partners', flag: false },
-  { n: '2', t: 'Suitability', b: 'Matches your balanced-income risk band', flag: false },
-  { n: '3', t: 'Compliance', b: 'KYC, suitability and source-of-funds checks', flag: false },
-  { n: '4', t: 'Your confirmation', b: 'You confirm every move before routing', flag: true },
-  { n: '5', t: 'Execute', b: 'Routed to the licensed partner, then monitored', flag: false },
+const JOURNEY_STORAGE_KEY = 'ccn.demo.journey';
+const FREE_JOURNEY = 'free';
+const JOURNEYS: {
+  id: DemoJourneyId;
+  title: string;
+  description: string;
+  startPath: string;
+  recommended?: boolean;
+}[] = [
+  {
+    id: 'complete',
+    title: "Follow Marcus's investor journey",
+    description: 'Move from planning to advice, approval and order tracking.',
+    startPath: '/demo/planning',
+    recommended: true,
+  },
+  {
+    id: 'opportunity',
+    title: 'Find and review an investment',
+    description: 'See how opportunities are compared, screened and prepared for your decision.',
+    startPath: '/demo/opportunities',
+  },
+  {
+    id: 'funding',
+    title: 'Add money to a partner account',
+    description: 'Explore consolidated holdings and submit funding evidence to a licensed partner.',
+    startPath: '/demo/portfolio',
+  },
+  {
+    id: 'institution',
+    title: 'Review and accept as a partner',
+    description:
+      'Open the partner console to review Marcus, accept instructions and settle orders.',
+    startPath: '/demo/institutions',
+  },
 ];
+
+function isDemoJourneyId(value: string | null): value is DemoJourneyId {
+  return JOURNEYS.some((journey) => journey.id === value);
+}
+
+function todayLabel(): string {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
 
 const ACTED = [
   {
@@ -142,6 +190,75 @@ const STATS: {
 
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
 
+/** Fixture notifications — the bell used to be a dead control, which in a
+ *  preview reads as "this product has dead controls". */
+function NotificationsBell({ pendingApprovals }: { pendingApprovals: number }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const notifications = [
+    { t: 'GOJ 2026 coupon settles Friday', s: 'US$412 · reinvestment prepared', when: 'Today' },
+    ...(pendingApprovals > 0
+      ? [
+          {
+            t: `${pendingApprovals} ${pendingApprovals === 1 ? 'action awaits' : 'actions await'} your approval`,
+            s: 'Nothing moves without your yes',
+            when: 'Today',
+          },
+        ]
+      : []),
+    { t: 'Statement ready · NCB', s: 'July consolidated statement', when: '2d ago' },
+  ];
+
+  // Light-dismiss: click anywhere else, or Escape, closes it.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <Button
+        variant="outline"
+        size="icon"
+        aria-label="Notifications"
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen((o) => !o)}
+        className="h-[42px] w-[42px] rounded-full text-dim [&_svg]:size-[18px]"
+      >
+        <Bell />
+      </Button>
+      {open && (
+        <div className="absolute right-[-54px] top-[50px] z-20 w-[calc(100vw-2rem)] max-w-[300px] rounded-xl border border-solid border-border bg-card p-1.5 shadow-[0_14px_38px_rgba(30,20,10,0.16)] sm:right-0 sm:w-[300px]">
+          <div className="px-2.5 pb-1 pt-2 text-[11.5px] font-bold uppercase tracking-[.5px] text-faint">
+            Notifications
+          </div>
+          {notifications.map((n) => (
+            <div key={n.t} className="rounded-lg px-2.5 py-2 hover:bg-muted/60">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[13.5px] font-bold leading-snug">{n.t}</span>
+                <span className="flex-none text-[11.5px] text-faint">{n.when}</span>
+              </div>
+              <div className="text-[12.5px] text-dim">{n.s}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Donut() {
   const r = 52;
   const cir = 2 * Math.PI * r;
@@ -173,22 +290,139 @@ function Donut() {
 }
 
 export default function HomePage() {
-  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
+  const router = useRouter();
+  const [dateLabel, setDateLabel] = useState('');
   const [accountState, setAccountState] = useState<DemoAccountState>(DEFAULT_DEMO_ACCOUNT_STATE);
+  const [journeyOpen, setJourneyOpen] = useState(false);
+  const [selectedJourney, setSelectedJourney] = useState<DemoJourneyId>('complete');
 
   useEffect(() => {
-    setProfile(readDemoProfile(MARCUS_PROFILE));
+    setDateLabel(todayLabel());
     setAccountState(readDemoAccountState());
+    let stored: string | null = null;
+    try {
+      stored = window.sessionStorage.getItem(JOURNEY_STORAGE_KEY);
+    } catch {
+      // Storage is optional; the selected journey still works for this visit.
+    }
+    if (isDemoJourneyId(stored)) {
+      setSelectedJourney(stored);
+    }
+    const requested = new URLSearchParams(window.location.search).get('choose') === '1';
+    setJourneyOpen(requested || !(stored === FREE_JOURNEY || isDemoJourneyId(stored)));
   }, []);
 
-  const profileName = profile.name.trim() || 'Investor';
-  const firstName = profileName.split(/\s+/)[0] || 'Investor';
+  function startJourney() {
+    const journey = JOURNEYS.find((candidate) => candidate.id === selectedJourney);
+    if (!journey) return;
+    try {
+      window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, journey.id);
+    } catch {
+      // The route still opens when storage is unavailable.
+    }
+    setJourneyOpen(false);
+    router.push(journey.startPath);
+  }
+
   const pendingApprovals = APPROVALS.filter(
     (approval) => !accountState.approvedActions.includes(approval.id),
   );
+
   return (
     <AppScreen active="home" basePath="/demo">
-      <PageHead eyebrow="Monday, August 31" title={`Good afternoon, ${firstName}`} />
+      <Dialog
+        open={journeyOpen}
+        onOpenChange={(open) => {
+          setJourneyOpen(open);
+          if (!open) {
+            try {
+              window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY);
+            } catch {
+              // Dismissal still works when storage is unavailable.
+            }
+            router.replace('/demo/home');
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-2rem)] p-6 sm:max-w-[620px]">
+          <DialogHeader className="pr-8">
+            <DialogTitle>What would you like to explore?</DialogTitle>
+            <DialogDescription>
+              Choose a starting point. You will use the same screens and controls as the live
+              product with Marcus Bailey's profile and portfolio.
+            </DialogDescription>
+          </DialogHeader>
+
+          <fieldset className="min-w-0 grid gap-3">
+            <legend className="sr-only">Choose a demo journey</legend>
+            {JOURNEYS.map((journey) => {
+              const selected = selectedJourney === journey.id;
+              return (
+                <label
+                  key={journey.id}
+                  className={cn(
+                    'flex min-h-16 min-w-0 cursor-pointer items-start gap-3 rounded-xl border border-solid p-4 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+                    selected ? 'border-primary bg-mint' : 'border-border bg-card hover:bg-muted/40',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="demo-journey"
+                    value={journey.id}
+                    checked={selected}
+                    onChange={() => setSelectedJourney(journey.id)}
+                    className="mt-1 h-4 w-4 accent-primary"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2 font-semibold">
+                      {journey.title}
+                      {journey.recommended ? <Badge variant="success">Recommended</Badge> : null}
+                    </span>
+                    <span className="mt-1 block text-sm leading-relaxed text-dim">
+                      {journey.description}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </fieldset>
+
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                try {
+                  window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY);
+                } catch {
+                  // Closing still works when storage is unavailable.
+                }
+                setJourneyOpen(false);
+                router.replace('/demo/home');
+              }}
+            >
+              Explore freely
+            </Button>
+            <Button type="button" className="w-full sm:w-auto" onClick={startJourney}>
+              Start journey
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <PageHead
+        eyebrow={dateLabel}
+        title="Good afternoon, Marcus"
+        right={
+          <div className="ml-auto flex items-center gap-3">
+            <NotificationsBell pendingApprovals={pendingApprovals.length} />
+            <Avatar className="h-[42px] w-[42px]">
+              <AvatarFallback>MB</AvatarFallback>
+            </Avatar>
+          </div>
+        }
+      />
 
       {/* Hero card */}
       <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">

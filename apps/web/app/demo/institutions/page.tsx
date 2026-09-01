@@ -42,11 +42,11 @@ import { useEffect, useMemo, useState } from 'react';
 
 const PARTNER: MePartner = {
   id: 'demo-partner',
-  code: 'DEMO-JM',
-  name: 'NCB Capital Markets · Demo desk',
+  code: 'NCBCM-JM',
+  name: 'NCB Capital Markets',
   kind: 'Broker-dealer',
   regulator: 'FSC_JAMAICA',
-  agreementStatus: 'sandbox',
+  agreementStatus: 'live',
   residency: 'Jamaica',
   fundingInstructions: 'USD wire instructions are available for approved clients.',
   withdrawalFeeFlatMinor: '0',
@@ -54,7 +54,7 @@ const PARTNER: MePartner = {
   gctBps: 0,
 };
 
-const OPERATOR = { name: 'Demo Operator', email: 'operator@example.invalid' };
+const OPERATOR = { name: 'Alex Morgan', email: 'operations@example.invalid' };
 const DEMO_PAGE_SIZE = 2;
 const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
 
@@ -126,7 +126,7 @@ const INITIAL_ORDERS: ConsoleOrder[] = [
     unitPriceMinor: '10125',
     units: '83.9506',
     feeMinor: '2500',
-    externalRef: 'DEMO-SETTLE-1042',
+    externalRef: 'SETTLE-1042',
     rejectedReason: null,
     createdBy: 'user',
     createdAt: '2026-08-19T16:00:00.000Z',
@@ -246,9 +246,9 @@ const OTHER_REVIEW_ITEMS = [
 ];
 
 const OTHER_SAMPLE_DECISIONS = [
-  ['Client acceptance recorded', 'Demo Operator · client ••10482'],
+  ['Client acceptance recorded', 'Alex Morgan · client ••10482'],
   ['Source-of-funds review requested', 'AML agent · client ••10517'],
-  ['Order settlement recorded', 'Demo Operator · DEMO-SETTLE-1042'],
+  ['Order settlement recorded', 'Alex Morgan · SETTLE-1042'],
 ] as const;
 
 export default function DemoInstitutionsPage() {
@@ -674,7 +674,7 @@ export default function DemoInstitutionsPage() {
                 })}
               </div>
               <ConsolePager
-                label="Demo client review queue"
+                label="Client review queue"
                 total={reviewItems.length}
                 offset={reviewOffset}
                 pageSize={DEMO_PAGE_SIZE}
@@ -733,7 +733,7 @@ export default function DemoInstitutionsPage() {
                 ))}
               </div>
               <ConsolePager
-                label="Demo decision trail"
+                label="Decision trail"
                 total={sampleDecisions.length}
                 offset={auditOffset}
                 pageSize={DEMO_PAGE_SIZE}

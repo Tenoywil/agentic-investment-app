@@ -1013,8 +1013,7 @@ export default function AgentPage() {
           </div>
 
           <div className="agent-chat__composer px-5 pb-[18px] max-[900px]:mx-auto max-[900px]:w-full max-[900px]:max-w-[720px] max-[900px]:px-3">
-            {/* The words as they are "heard" — the live screen's dictation
-                preview, driven by the script above rather than a microphone. */}
+            {/* The words as they are heard, using the same composer state as the live screen. */}
             {hearing !== null && (
               <output
                 aria-live="polite"

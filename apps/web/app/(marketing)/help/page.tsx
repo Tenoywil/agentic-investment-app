@@ -79,11 +79,11 @@ export default function HelpPage() {
         Want the bigger picture first? Read <Link href="/how-it-works">how it works</Link>
         {DEMO_ENABLED && (
           <>
-            , or explore the <Link href="/demo/planning">live demo</Link>. Actions in the preview do
-            not send money or open accounts
+            , or explore the <Link href="/demo/home?choose=1">live demo</Link>. Actions in the
+            preview do not send money or open accounts.
           </>
         )}
-        .
+        {!DEMO_ENABLED && '.'}
       </p>
     </MarketingPage>
   );

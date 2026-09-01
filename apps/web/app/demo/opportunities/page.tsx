@@ -13,9 +13,8 @@ import {
   writeDemoAccountState,
 } from '@/app/_components/AppScreen';
 import { DealCard, ScreenedOutCard } from '@/app/_components/DealCard';
-import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
+import type { BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
-import { Card } from '@/app/_components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +25,7 @@ import {
 import { Input } from '@/app/_components/ui/input';
 import { cn } from '@/app/_lib/utils';
 import { Check, CircleAlert, ShieldCheck, Target } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useId, useState } from 'react';
 
 /* ---- type palette (warm), ported from the prototype tone() map. The text inks
@@ -265,29 +265,23 @@ const METRIC_LBL =
 /** Same card component as the live marketplace — demo parity by construction. */
 function OppCard({ o, onOpen }: { o: Opp; onOpen: (o: Opp) => void }) {
   return (
-    <div className="min-w-0">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-xs font-bold uppercase tracking-[.5px] text-faint">Profile fit</span>
-        <Badge variant={o.match >= 85 ? 'success' : 'secondary'}>{o.match}% match</Badge>
-      </div>
-      <DealCard
-        o={{
-          id: o.id,
-          abbr: o.abbr,
-          type: o.type,
-          name: o.name,
-          region: o.region,
-          metricLabel: o.metricLabel,
-          metric: o.metric,
-          min: o.min,
-          term: o.term,
-          partner: o.partner,
-          regulator: o.regulator,
-          risk: o.risk,
-        }}
-        onOpen={() => onOpen(o)}
-      />
-    </div>
+    <DealCard
+      o={{
+        id: o.id,
+        abbr: o.abbr,
+        type: o.type,
+        name: o.name,
+        region: o.region,
+        metricLabel: o.metricLabel,
+        metric: o.metric,
+        min: o.min,
+        term: o.term,
+        partner: o.partner,
+        regulator: o.regulator,
+        risk: o.risk,
+      }}
+      onOpen={() => onOpen(o)}
+    />
   );
 }
 
@@ -305,22 +299,23 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
   }, [opp]);
 
   if (!opp) return null;
+  const selectedOpp = opp;
   const t = TONE[opp.type];
   const blocked = !!opp.blocked;
   const amtNum = Number.parseInt(amt.replace(/[^0-9]/g, ''), 10) || 0;
   const amtFmt = `US$${amtNum.toLocaleString('en-US')}`;
 
   function authorizeOrder() {
-    if (!opp || blocked || amtNum < minValue(opp)) return;
+    if (blocked || amtNum < minValue(selectedOpp)) return;
     const accountState = readDemoAccountState();
     writeDemoAccountState({
       ...accountState,
       opportunityOrders: [
         ...accountState.opportunityOrders,
         {
-          id: nextDemoOrderId(opp.id, accountState.opportunityOrders),
-          name: opp.name,
-          partner: opp.partner,
+          id: nextDemoOrderId(selectedOpp.id, accountState.opportunityOrders),
+          name: selectedOpp.name,
+          partner: selectedOpp.partner,
           amount: amtFmt,
         },
       ],
@@ -595,8 +590,8 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 Authorize &amp; route {amtFmt}
               </Button>
             ) : (
-              <Button size="lg" className="flex-1" onClick={onClose}>
-                Done
+              <Button size="lg" className="flex-1" asChild>
+                <Link href="/demo/orders">Follow this order</Link>
               </Button>
             )}
           </div>
@@ -631,18 +626,6 @@ export default function OpportunitiesPage() {
 
   const ranked = rankDemoMatches(TRADEABLE, profile);
   const screenedOut = BLOCKED.map((opportunity) => screenedOutForProfile(opportunity, profile));
-  const topMatches = ranked.slice(0, 2);
-  const alternatives = ranked.slice(2);
-  const firstMatch = topMatches[0];
-  const secondMatch = topMatches[1];
-  const citizenship = [
-    profile.jamaicanCitizen ? 'Jamaica' : '',
-    profile.usCitizen ? 'US' : '',
-  ].filter(Boolean);
-  const profileName = profile.name.trim() || 'Investor';
-
-  if (!firstMatch || !secondMatch) return null;
-
   const shown = filter === 'All' ? ranked : ranked.filter((o) => o.type === filter);
   const count = (f: Kind | 'All') =>
     f === 'All' ? TRADEABLE.length : TRADEABLE.filter((o) => o.type === f).length;
@@ -673,57 +656,15 @@ export default function OpportunitiesPage() {
         title="Opportunities"
         right={
           <div className="flex items-center gap-2 rounded-xl border border-border bg-mint px-[15px] py-[9px]">
-            <b className="font-display text-xl">2</b>
+            <b className="font-display text-xl">{ranked.length}</b>
             <span className="text-[12.5px] leading-tight text-dim">
-              strongest
+              open to
               <br />
-              matches
+              invest
             </span>
           </div>
         }
       />
-
-      <section aria-labelledby="comparison-heading" className="mb-6">
-        <div className="mb-3">
-          <h2 id="comparison-heading" className="font-display text-xl font-bold">
-            Compare the top two
-          </h2>
-          <p className="mb-0 mt-1 text-sm text-dim">
-            Fit is explained against {profileName}’s profile. A Caribbean product is not
-            automatically better than a US equivalent; fees, tax, currency, liquidity and investor
-            protections still need comparison.
-          </p>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-3">
-          <ComparisonCard
-            title="Client profile"
-            badge={profileName}
-            lines={[
-              `${profile.risk ?? 'Balanced'} · ${profile.objective ?? 'Income and long-term growth'}`,
-              `${profile.horizon ?? '5–10 years'} horizon · ${profile.liquidity ?? 'Monthly access'}`,
-              `${profile.residence ?? 'United States'} resident · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizen` : 'citizenship not selected'}`,
-            ]}
-          />
-          <ComparisonCard
-            title={`A · ${firstMatch.name}`}
-            badge={`${firstMatch.match}% match`}
-            lines={[
-              firstMatch.agentNote,
-              `${firstMatch.risk} risk · ${firstMatch.term}`,
-              'Compare net fees, tax, currency, liquidity and investor protections',
-            ]}
-          />
-          <ComparisonCard
-            title={`B · ${secondMatch.name}`}
-            badge={`${secondMatch.match}% match`}
-            lines={[
-              secondMatch.agentNote,
-              `${secondMatch.risk} risk · ${secondMatch.term}`,
-              'Compare net fees, tax, currency, liquidity and investor protections',
-            ]}
-          />
-        </div>
-      </section>
 
       <div className="mb-5 flex flex-wrap gap-2.5">
         {FILTERS.map((f) => (
@@ -745,35 +686,18 @@ export default function OpportunitiesPage() {
         ))}
       </div>
 
-      {filter === 'All' ? (
-        <div data-tour="customer-marketplace">
-          <h2 className="mb-3 font-display text-xl font-bold">Top 2 recommendations</h2>
-          <div className="g2">
-            {topMatches.map((o) => (
-              <OppCard key={o.id} o={o} onOpen={setSelected} />
-            ))}
-          </div>
-          <h2 className="mb-3 mt-7 font-display text-xl font-bold">Alternatives</h2>
-          <div className="g2">
-            {alternatives.map((o) => (
-              <OppCard key={o.id} o={o} onOpen={setSelected} />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="g2" data-tour="customer-marketplace">
-          {shown.map((o) => (
-            <OppCard key={o.id} o={o} onOpen={setSelected} />
-          ))}
-        </div>
-      )}
+      <div className="g2" data-tour="customer-marketplace">
+        {shown.map((o) => (
+          <OppCard key={o.id} o={o} onOpen={setSelected} />
+        ))}
+      </div>
 
       {/* What your agent screens out — the guardrail the product is built
           around. Collapsed behind a disclosure on phones, like the live page. */}
       {phone ? (
         <details className="mt-[30px]">
           <summary className="cursor-pointer list-none rounded-xl border border-solid border-[#ecd2c2] bg-card px-4 py-3 font-display text-[15px] font-bold marker:content-none dark:border-[#5a3f2e] [&::-webkit-details-marker]:hidden">
-            Not a match · {screenedOut.length}
+            What your agent screens out · {screenedOut.length}
           </summary>
           <p className="mb-3 mt-3 text-sm text-dim">
             Listed so you can see exactly what fails your suitability profile, and why.
@@ -782,7 +706,9 @@ export default function OpportunitiesPage() {
         </details>
       ) : (
         <>
-          <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">Not a match</h2>
+          <h2 className="mb-1.5 mt-[30px] font-display text-xl font-bold">
+            What your agent screens out
+          </h2>
           <p className="mb-3.5 text-sm text-dim">
             Listed so you can see exactly what fails your suitability profile, and why.
           </p>
@@ -792,29 +718,5 @@ export default function OpportunitiesPage() {
 
       <ExecDialog opp={selected} onClose={() => setSelected(null)} />
     </AppScreen>
-  );
-}
-
-function ComparisonCard({
-  title,
-  badge,
-  lines,
-}: {
-  title: string;
-  badge: string;
-  lines: string[];
-}) {
-  return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-2">
-        <b className="font-display text-base">{title}</b>
-        <Badge variant="secondary">{badge}</Badge>
-      </div>
-      <ul className="mb-0 mt-3 space-y-2 pl-5 text-sm leading-snug text-dim">
-        {lines.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
-    </Card>
   );
 }
