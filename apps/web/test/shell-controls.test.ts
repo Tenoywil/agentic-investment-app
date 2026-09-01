@@ -269,6 +269,8 @@ describe('app shell controls', () => {
     const layout = code(join(WEB, 'app/demo/layout.tsx'));
     expect(layout).not.toContain('Interactive demo');
     expect(layout).not.toContain('sample data only');
+    expect(layout).toContain('Preview environment');
+    expect(layout).toContain('do not send money or open accounts');
     const agent = code(join(WEB, 'app/demo/agent/page.tsx'));
     const portfolio = code(join(WEB, 'app/demo/portfolio/page.tsx'));
     const orders = code(join(WEB, 'app/demo/orders/page.tsx'));
@@ -276,6 +278,8 @@ describe('app shell controls', () => {
     expect(agent).not.toContain('Demo complete');
     expect(agent).toContain('Routed to NCB for execution');
     expect(portfolio).toContain('CCN never holds your money');
+    expect(portfolio).toContain('fundedPartners: [...accountState.fundedPartners');
+    expect(portfolio).not.toContain('fundedPartners.includes(partner.code)');
     expect(orders).toContain('Nothing here is executed by CCN');
   });
 
@@ -304,6 +308,7 @@ describe('app shell controls', () => {
     expect(shell).toContain('inMemoryDemoProfile = { ...profile }');
     expect(shell).toContain('DEMO_ACCOUNT_STORAGE_KEY');
     expect(shell).toContain('opportunityOrders');
+    expect(shell).toContain('nextDemoOrderId');
     expect(planning).toContain('writeDemoProfile(profile)');
     expect(planning).toContain('setProfile(savedProfile)');
 
@@ -316,6 +321,8 @@ describe('app shell controls', () => {
     expect(matching).toContain('rankDemoMatches(TRADEABLE, profile)');
     expect(matching).toContain('demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT)');
     expect(matching).toContain('writeDemoAccountState');
+    expect(matching).toContain('...accountState.opportunityOrders');
+    expect(matching).toContain('nextDemoOrderId(opp.id, accountState.opportunityOrders)');
 
     expect(advisor).toContain('I need weekly access');
     expect(advisor).toContain('refreshed your recommendations');
@@ -325,6 +332,8 @@ describe('app shell controls', () => {
     expect(advisor).toContain('rankDemoMatches(AGENT_MATCH_CANDIDATES, profile)');
     expect(advisor).toContain('setDemoProfile(nextProfile)');
     expect(advisor).toContain('approvedActions');
+    expect(advisor).toContain('nextDemoOrderId(`agent-${a.id}`');
+    expect(advisor).toContain("amount: 'US$2,150'");
     expect(advisor).toContain("return 'liquidity'");
     expect(advisor).toContain('weeklyAccessQuestion');
     expect(advisor).toContain('explicitWeeklyAccessUpdate');
@@ -347,6 +356,7 @@ describe('app shell controls', () => {
     expect(compliance).toContain('Accepted by NCB');
     expect(compliance).not.toContain('Open NCB partner review');
     expect(compliance).toContain('setOpportunityOrders(accountState.opportunityOrders)');
+    expect(compliance).toContain('accepted ${restoredName} as a client');
 
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');

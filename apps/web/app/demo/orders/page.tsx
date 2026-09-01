@@ -136,7 +136,9 @@ export default function DemoOrdersPage() {
   const open = orders.filter((order) => order.status === 'created' || order.status === 'accepted');
 
   useEffect(() => {
-    setProfile(readDemoProfile(MARCUS_PROFILE));
+    const restoredProfile = readDemoProfile(MARCUS_PROFILE);
+    const restoredName = restoredProfile.name.trim() || 'Investor';
+    setProfile(restoredProfile);
     const accountState = readDemoAccountState();
     setOpportunityOrders(accountState.opportunityOrders);
     const evidenceReady = accountState.ncbClientStatus !== 'needs_evidence';
@@ -150,7 +152,7 @@ export default function DemoOrdersPage() {
     setPartnerAccepted(accepted);
     if (accepted) {
       setStatus(
-        'NCB Capital Markets accepted Marcus Bailey as a client. The money market instruction is now in progress.',
+        `NCB Capital Markets accepted ${restoredName} as a client. The money market instruction is now in progress.`,
       );
     }
   }, []);

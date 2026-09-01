@@ -126,7 +126,7 @@ export default function PortfolioPage() {
 
   function openFunding(partner: (typeof INSTITUTIONS)[number]) {
     setFundingPartner(partner);
-    setSubmitted(readDemoAccountState().fundedPartners.includes(partner.code));
+    setSubmitted(false);
   }
 
   function submitFunding() {
@@ -134,7 +134,7 @@ export default function PortfolioPage() {
     const accountState = readDemoAccountState();
     writeDemoAccountState({
       ...accountState,
-      fundedPartners: [...new Set([...accountState.fundedPartners, fundingPartner.code])],
+      fundedPartners: [...accountState.fundedPartners, fundingPartner.code],
     });
     setSubmitted(true);
   }

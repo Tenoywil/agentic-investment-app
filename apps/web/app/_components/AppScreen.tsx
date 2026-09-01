@@ -108,6 +108,12 @@ export type DemoOpportunityOrder = {
   amount: string;
 };
 
+export function nextDemoOrderId(baseId: string, orders: DemoOpportunityOrder[]): string {
+  let sequence = 1;
+  while (orders.some((order) => order.id === `${baseId}-${sequence}`)) sequence += 1;
+  return `${baseId}-${sequence}`;
+}
+
 export const DEFAULT_DEMO_ACCOUNT_STATE: DemoAccountState = {
   approvedActions: [],
   fundedPartners: [],

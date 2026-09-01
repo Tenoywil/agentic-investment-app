@@ -5,6 +5,7 @@ import {
   DEFAULT_DEMO_PROFILE,
   type DemoProfile,
   demoVillaScreenReasons,
+  nextDemoOrderId,
   rankDemoMatches,
   readDemoAccountState,
   readDemoProfile,
@@ -758,9 +759,30 @@ export default function AgentPage() {
   function approveCard(a: (typeof APPROVALS)[number]) {
     setCardState((s) => ({ ...s, [a.id]: 'approved' }));
     const accountState = readDemoAccountState();
+    const order =
+      a.id === 'coupon'
+        ? {
+            name: 'Sagicor Real Estate X Fund',
+            partner: 'Sagicor Investments',
+            amount: 'US$412',
+          }
+        : {
+            name: 'NCB USD Money Market Fund',
+            partner: 'NCB Capital Markets',
+            amount: 'US$2,150',
+          };
     writeDemoAccountState({
       ...accountState,
       approvedActions: [...new Set([...accountState.approvedActions, a.id])],
+      opportunityOrders: accountState.approvedActions.includes(a.id)
+        ? accountState.opportunityOrders
+        : [
+            ...accountState.opportunityOrders,
+            {
+              id: nextDemoOrderId(`agent-${a.id}`, accountState.opportunityOrders),
+              ...order,
+            },
+          ],
     });
     setChat((c) => [...c, { role: 'agent', text: a.confirm }]);
   }

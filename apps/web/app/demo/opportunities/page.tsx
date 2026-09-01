@@ -6,6 +6,7 @@ import {
   type DemoProfile,
   PageHead,
   demoVillaScreenReasons,
+  nextDemoOrderId,
   rankDemoMatches,
   readDemoAccountState,
   readDemoProfile,
@@ -315,8 +316,13 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
     writeDemoAccountState({
       ...accountState,
       opportunityOrders: [
-        ...accountState.opportunityOrders.filter((order) => order.id !== opp.id),
-        { id: opp.id, name: opp.name, partner: opp.partner, amount: amtFmt },
+        ...accountState.opportunityOrders,
+        {
+          id: nextDemoOrderId(opp.id, accountState.opportunityOrders),
+          name: opp.name,
+          partner: opp.partner,
+          amount: amtFmt,
+        },
       ],
     });
     setStep(2);
