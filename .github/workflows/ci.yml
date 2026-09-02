@@ -72,7 +72,11 @@ jobs:
         run: bun run db:migrate
       - name: Seed (prototype dataset)
         working-directory: packages/db
-        run: bun run db:seed
+        run: |
+          # The full seed writes encrypted demo KYC evidence. Generate a
+          # throwaway CI-only key instead of storing or reusing any secret.
+          export FIELD_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          bun run db:seed
       - name: RLS + audit + trading integration tests
         run: bun test packages/db apps/api
 
