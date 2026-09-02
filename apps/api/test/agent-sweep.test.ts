@@ -8,6 +8,7 @@ import {
   goals,
   holdings,
   instruments,
+  kycStatus,
   limits,
   partners,
   riskProfiles,
@@ -86,6 +87,16 @@ suite('agent background sweep', () => {
     await db.insert(userRoles).values({ userId: id, role: 'customer' });
     await db.insert(riskProfiles).values({ userId: id, answers: {}, score: 5, band });
     await db.insert(limits).values({ userId: id }); // schema defaults
+    await db.insert(kycStatus).values({
+      userId: id,
+      tier: 'tier2',
+      identityVerified: true,
+      complianceConfirmed: true,
+      riskCompleted: true,
+      fundsConfirmed: true,
+      taxResidencyDeclared: true,
+      sources: ['salary'],
+    });
     const [acct] = await db
       .insert(connectedAccounts)
       .values({ userId: id, partnerId, label: key, status: 'active' })
