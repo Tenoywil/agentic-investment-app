@@ -67,7 +67,17 @@ const INSTITUTIONS = [
   },
 ];
 
-const DEFAULT_CONNECT_PARTNER = INSTITUTIONS[0]?.code ?? '';
+/** Partners in the network that are not already represented in Marcus's
+ * consolidated holdings. The live flow never offers an active relationship a
+ * second time; the demo follows that same rule and keeps the other corridors
+ * available for a first connection. */
+const CONNECTABLE_INSTITUTIONS = [
+  { code: 'BAR', name: 'Barita Investments', kind: 'Broker · Investments' },
+  { code: 'REP', name: 'Republic Bank', kind: 'Bank · Treasury' },
+  { code: 'SYG', name: 'Sygnus Capital', kind: 'Private credit' },
+];
+
+const DEFAULT_CONNECT_PARTNER = CONNECTABLE_INSTITUTIONS[0]?.code ?? '';
 
 /**
  * Fixture equity curve for the demo: thirty days of gentle growth ending at
@@ -125,6 +135,14 @@ export default function PortfolioPage() {
   const [connectPartner, setConnectPartner] = useState(DEFAULT_CONNECT_PARTNER);
   const [connectMode, setConnectMode] = useState<'existing' | 'new' | null>(null);
   const [connectSubmitted, setConnectSubmitted] = useState(false);
+  const [connectedPartners, setConnectedPartners] = useState<string[]>([]);
+  const [requestedPartners, setRequestedPartners] = useState<string[]>([]);
+  const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
+
+  const availableToConnect = CONNECTABLE_INSTITUTIONS.filter(
+    (partner) =>
+      !connectedPartners.includes(partner.code) && !requestedPartners.includes(partner.code),
+  );
 
   function closeFunding() {
     setFundingPartner(null);
@@ -147,7 +165,7 @@ export default function PortfolioPage() {
   }
 
   function openConnect() {
-    setConnectPartner(DEFAULT_CONNECT_PARTNER);
+    setConnectPartner(availableToConnect[0]?.code ?? '');
     setConnectMode(null);
     setConnectSubmitted(false);
     setConnectOpen(true);
@@ -161,7 +179,27 @@ export default function PortfolioPage() {
 
   function submitConnect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!connectMode) return;
+    if (!connectMode || !availableToConnect.some((partner) => partner.code === connectPartner)) {
+      return;
+    }
+    const partnerName =
+      CONNECTABLE_INSTITUTIONS.find((partner) => partner.code === connectPartner)?.name ??
+      'That institution';
+    if (connectMode === 'existing') {
+      setConnectedPartners((current) =>
+        current.includes(connectPartner) ? current : [...current, connectPartner],
+      );
+      setConnectionNotice(
+        `${partnerName} is now linked. Its positions will appear here when the institution reports them.`,
+      );
+    } else {
+      setRequestedPartners((current) =>
+        current.includes(connectPartner) ? current : [...current, connectPartner],
+      );
+      setConnectionNotice(
+        `Request sent to ${partnerName}. Their compliance desk will confirm the relationship.`,
+      );
+    }
     setConnectSubmitted(true);
   }
 
@@ -203,6 +241,12 @@ export default function PortfolioPage() {
           </div>
         }
       />
+
+      {connectionNotice ? (
+        <output className="mb-4 block rounded-xl border border-solid border-border bg-mint px-4 py-3 text-[14px] leading-relaxed text-success-ink">
+          {connectionNotice}
+        </output>
+      ) : null}
 
       <div className="g2" data-tour="customer-portfolio-accounts">
         {INSTITUTIONS.map((inst) => (
@@ -278,23 +322,24 @@ export default function PortfolioPage() {
       </div>
 
       <Dialog open={connectOpen} onOpenChange={(open) => !open && closeConnect()}>
-        <DialogContent className="max-w-[620px]">
-          <DialogHeader>
+        <DialogContent className="app-modal max-w-none flex flex-col gap-0 p-0 max-[900px]:bottom-0 max-[900px]:top-auto max-[900px]:translate-y-0">
+          <DialogHeader className="border-0 border-b border-solid border-border px-[22px] py-4 pr-14">
             <DialogTitle>Connect an account</DialogTitle>
             <DialogDescription>
-              Choose a licensed partner. They decide whether to take you on, then your positions and
-              cash appear here.
+              The institution decides whether to take you on, then your positions and cash come
+              straight from them.
             </DialogDescription>
           </DialogHeader>
           {connectSubmitted ? (
-            <div className="grid gap-4">
+            <div className="grid min-h-0 gap-4 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]">
               <div className="flex items-start gap-3 rounded-xl border border-border bg-mint p-4">
                 <Check className="mt-0.5 h-5 w-5 flex-none text-success" aria-hidden />
                 <div>
                   <b>{connectMode === 'existing' ? 'Account linked' : 'Account request sent'}</b>
                   <p className="mb-0 mt-1 text-sm text-dim">
-                    {INSTITUTIONS.find((inst) => inst.code === connectPartner)?.name} will confirm
-                    the relationship and provide the account details for this portfolio.
+                    {connectMode === 'existing'
+                      ? 'The account is now available to this portfolio. Positions appear as the institution reports them.'
+                      : 'The institution received your intake details and will confirm whether to take you on as a client.'}
                   </p>
                 </div>
               </div>
@@ -305,84 +350,109 @@ export default function PortfolioPage() {
               </DialogFooter>
             </div>
           ) : (
-            <form className="grid gap-4" onSubmit={submitConnect}>
-              <label className="grid gap-1.5 text-sm font-semibold" htmlFor="demo-connect-partner">
-                Partner
-                <select
-                  id="demo-connect-partner"
-                  value={connectPartner}
-                  onChange={(event) => setConnectPartner(event.target.value)}
-                  className="h-10 rounded-lg border border-solid border-border bg-card px-3"
-                >
-                  {INSTITUTIONS.map((inst) => (
-                    <option key={inst.code} value={inst.code}>
-                      {inst.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <fieldset className="m-0 border-0 p-0">
-                <legend className="text-sm font-semibold">
-                  Do you already have an account with this partner?
-                </legend>
-                <div className="mt-2 grid grid-cols-2 gap-2 max-[480px]:grid-cols-1">
-                  {(
-                    [
-                      {
-                        value: 'existing',
-                        title: 'Yes, connect it',
-                        sub: 'Link what I already hold',
-                      },
-                      { value: 'new', title: "No, I'm new", sub: 'Request a new account' },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={connectMode === option.value}
-                      onClick={() => setConnectMode(option.value)}
-                      className={cn(
-                        'rounded-xl border border-solid px-3.5 py-3 text-left',
-                        connectMode === option.value
-                          ? 'border-primary bg-mint'
-                          : 'border-border bg-card',
-                      )}
-                    >
-                      <span className="block text-[14.5px] font-bold">{option.title}</span>
-                      <span className="mt-0.5 block text-[12.5px] text-dim">{option.sub}</span>
-                    </button>
-                  ))}
+            <form
+              className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]"
+              onSubmit={submitConnect}
+            >
+              {availableToConnect.length === 0 ? (
+                <div className="grid gap-4">
+                  <p className="m-0 text-[14.5px] leading-relaxed text-dim">
+                    Every available partner is already connected or has a request waiting with its
+                    compliance desk.
+                  </p>
+                  <DialogFooter>
+                    <Button type="button" className="w-full" onClick={closeConnect}>
+                      Done
+                    </Button>
+                  </DialogFooter>
                 </div>
-              </fieldset>
+              ) : (
+                <div className="grid gap-4">
+                  <label className="grid gap-1.5 text-[13.5px]" htmlFor="demo-connect-partner">
+                    <span className="text-[12px] font-bold uppercase tracking-[.6px] text-dim">
+                      Institution
+                    </span>
+                    <select
+                      id="demo-connect-partner"
+                      value={connectPartner}
+                      onChange={(event) => {
+                        setConnectPartner(event.target.value);
+                        setConnectMode(null);
+                      }}
+                      className="block h-10 w-full rounded-[10px] border border-solid border-border bg-card px-3 text-[15px] text-foreground"
+                    >
+                      {availableToConnect.map((inst) => (
+                        <option key={inst.code} value={inst.code}>
+                          {inst.name} · {inst.kind}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <p className="m-0 text-[12.5px] leading-relaxed text-faint">
-                Your partner receives the identity details and declarations you recorded. They
-                execute, custody and settle the investments; CCN never holds your money.
-              </p>
-              <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-                <Button type="button" variant="ghost" onClick={closeConnect}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={!connectMode}>
-                  {connectMode === 'existing' ? 'Link account' : 'Request an account'}
-                </Button>
-              </DialogFooter>
+                  <fieldset className="m-0 mt-1 border-0 p-0">
+                    <legend className="p-0 text-[12px] font-bold uppercase tracking-[.6px] text-dim">
+                      Do you already have an account with this institution?
+                    </legend>
+                    <div className="mt-2 grid grid-cols-2 gap-2 max-[440px]:grid-cols-1">
+                      {(
+                        [
+                          {
+                            value: 'existing',
+                            title: 'Yes, connect it',
+                            sub: 'Link what I already hold',
+                          },
+                          { value: 'new', title: "No, I'm new", sub: 'Ask them to open one' },
+                        ] as const
+                      ).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-pressed={connectMode === option.value}
+                          onClick={() => setConnectMode(option.value)}
+                          className={cn(
+                            'rounded-xl border border-solid px-3.5 py-3 text-left',
+                            connectMode === option.value
+                              ? 'border-primary bg-mint'
+                              : 'border-border bg-card',
+                          )}
+                        >
+                          <span className="block text-[14.5px] font-bold">{option.title}</span>
+                          <span className="mt-0.5 block text-[12.5px] text-dim">{option.sub}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <p className="m-0 text-[12.5px] leading-relaxed text-faint">
+                    They receive the identity details and declarations you recorded. Their
+                    compliance desk decides what evidence it needs; they execute, custody and settle
+                    the investments.
+                  </p>
+                  <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                    <Button type="button" variant="ghost" onClick={closeConnect}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={!connectMode}>
+                      {connectMode === 'existing' ? 'Request the connection' : 'Request an account'}
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
             </form>
           )}
         </DialogContent>
       </Dialog>
 
       <Dialog open={fundingPartner !== null} onOpenChange={(open) => !open && closeFunding()}>
-        <DialogContent className="max-w-[620px] p-0">
-          <DialogHeader className="border-b border-border px-6 py-5 pr-14">
+        <DialogContent className="app-modal max-w-none flex flex-col gap-0 p-0 max-[900px]:bottom-0 max-[900px]:top-auto max-[900px]:translate-y-0">
+          <DialogHeader className="border-0 border-b border-solid border-border px-[22px] py-4 pr-14">
             <DialogTitle>Add money at {fundingPartner?.name}</DialogTitle>
             <DialogDescription>
               The transfer happens between you and the firm. CCN never holds your money.
             </DialogDescription>
           </DialogHeader>
           {submitted ? (
-            <div className="p-6">
+            <div className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]">
               <div className="flex items-start gap-3 rounded-xl border border-border bg-mint p-4">
                 <Check className="mt-0.5 h-5 w-5 text-success" aria-hidden />
                 <div>
@@ -399,7 +469,7 @@ export default function PortfolioPage() {
             </div>
           ) : (
             <form
-              className="grid gap-4 p-6"
+              className="grid min-h-0 gap-4 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]"
               onSubmit={(event) => {
                 event.preventDefault();
                 submitFunding();
