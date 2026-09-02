@@ -7,6 +7,7 @@ import { cn } from '@/app/_lib/utils';
 import { type Approval, getApprovals } from '@/lib/portfolio-api';
 import {
   ArrowRightLeft,
+  Building2,
   Compass,
   HandHeart,
   LayoutGrid,
@@ -196,9 +197,9 @@ export function AgentCard() {
 /**
  * The destinations for a shell, given its base path.
  *
- * The demo shell (basePath="/demo") never links to auth-required, live-API
- * screens — Gateway is live-only (no fixture version ever existed), and
- * Onboarding *is* the real signup flow, not something to preview.
+ * The demo shell (basePath="/demo") links only to fixture-backed screens. The
+ * partner workspace has its own isolated fixture route, while Gateway remains
+ * live-only and Onboarding remains the real signup flow.
  *
  * Exported because the rail and the mobile drawer are two presentations of one
  * navigation, and a second hand-written copy of this list is how the two would
@@ -217,7 +218,20 @@ export function navGroupsFor(basePath: string, showOnboarding = false): NavGroup
       { key: 'agent', label: 'Your agent', href: '/agent', Icon: Sparkles },
       { key: 'planning', label: 'Planning', href: '/planning', Icon: ShieldCheck },
     ];
-    return [{ label: '', items: demoItems }];
+    return [
+      { label: '', items: demoItems },
+      {
+        label: 'Partner workspace',
+        items: [
+          {
+            key: 'institutions',
+            label: 'Partner console',
+            href: '/institutions',
+            Icon: Building2,
+          },
+        ],
+      },
+    ];
   }
   if (showOnboarding) return GROUPS;
   // A finished (or still-loading) one-time flow gets no permanent link. Only a
@@ -316,9 +330,11 @@ export function AppSidebar({
 
       {basePath ? null : <AgentCard />}
 
-      {/* No console link on the customer surface: the institution console is a
-          different product for a different account, and /api/console answers a
-          customer with 403 — a visible route into it is a dead end at best.
+      {/* The live customer surface has no console link: the institution
+          console is a different product for a different account, and
+          /api/console answers a customer with 403. The preview does include a
+          fixture-backed partner workspace so the two-sided journey remains
+          reachable without crossing into live data.
 
           The preview shell keeps a bare theme toggle instead of the account
           menu: it has no session to name, nothing to sign out of, and calling

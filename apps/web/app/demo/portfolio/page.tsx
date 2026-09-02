@@ -13,13 +13,14 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/app/_components/ui/dialog';
 import { Input } from '@/app/_components/ui/input';
 import { cn } from '@/app/_lib/utils';
-import { Check, ShieldCheck, Upload } from 'lucide-react';
-import { useState } from 'react';
+import { Check, Link2, ShieldCheck, Upload } from 'lucide-react';
+import { type FormEvent, useEffect, useState } from 'react';
 
 const INSTITUTIONS = [
   {
@@ -65,6 +66,8 @@ const INSTITUTIONS = [
     ],
   },
 ];
+
+const DEFAULT_CONNECT_PARTNER = INSTITUTIONS[0]?.code ?? '';
 
 /**
  * Fixture equity curve for the demo: thirty days of gentle growth ending at
@@ -118,6 +121,10 @@ function fmtUsdMinor(minor: string): string {
 export default function PortfolioPage() {
   const [fundingPartner, setFundingPartner] = useState<(typeof INSTITUTIONS)[number] | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [connectPartner, setConnectPartner] = useState(DEFAULT_CONNECT_PARTNER);
+  const [connectMode, setConnectMode] = useState<'existing' | 'new' | null>(null);
+  const [connectSubmitted, setConnectSubmitted] = useState(false);
 
   function closeFunding() {
     setFundingPartner(null);
@@ -139,22 +146,60 @@ export default function PortfolioPage() {
     setSubmitted(true);
   }
 
+  function openConnect() {
+    setConnectPartner(DEFAULT_CONNECT_PARTNER);
+    setConnectMode(null);
+    setConnectSubmitted(false);
+    setConnectOpen(true);
+  }
+
+  function closeConnect() {
+    setConnectOpen(false);
+    setConnectMode(null);
+    setConnectSubmitted(false);
+  }
+
+  function submitConnect(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connectMode) return;
+    setConnectSubmitted(true);
+  }
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('connect') !== '1') return;
+    setConnectOpen(true);
+    setConnectMode(null);
+    setConnectSubmitted(false);
+  }, []);
+
   return (
     <AppScreen active="portfolio" basePath="/demo">
       <PageHead
         eyebrow="Every holding, unified · custodied by licensed partners"
         title="Your portfolio"
         right={
-          <div
-            className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5"
-            data-tour="customer-portfolio-page"
-          >
-            <b className="font-display text-xl">US$31,350</b>
-            <span className="text-[12.5px] text-dim">
-              total
-              <br />
-              net worth
-            </span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={openConnect}
+              data-tour="customer-portfolio-connect"
+            >
+              <Link2 aria-hidden />
+              Connect an account
+            </Button>
+            <div
+              className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5"
+              data-tour="customer-portfolio-page"
+            >
+              <b className="font-display text-xl">US$31,350</b>
+              <span className="text-[12.5px] text-dim">
+                total
+                <br />
+                net worth
+              </span>
+            </div>
           </div>
         }
       />
@@ -231,6 +276,102 @@ export default function PortfolioPage() {
           monitors; you approve every move.
         </p>
       </div>
+
+      <Dialog open={connectOpen} onOpenChange={(open) => !open && closeConnect()}>
+        <DialogContent className="max-w-[620px]">
+          <DialogHeader>
+            <DialogTitle>Connect an account</DialogTitle>
+            <DialogDescription>
+              Choose a licensed partner. They decide whether to take you on, then your positions and
+              cash appear here.
+            </DialogDescription>
+          </DialogHeader>
+          {connectSubmitted ? (
+            <div className="grid gap-4">
+              <div className="flex items-start gap-3 rounded-xl border border-border bg-mint p-4">
+                <Check className="mt-0.5 h-5 w-5 flex-none text-success" aria-hidden />
+                <div>
+                  <b>{connectMode === 'existing' ? 'Account linked' : 'Account request sent'}</b>
+                  <p className="mb-0 mt-1 text-sm text-dim">
+                    {INSTITUTIONS.find((inst) => inst.code === connectPartner)?.name} will confirm
+                    the relationship and provide the account details for this portfolio.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" className="w-full" onClick={closeConnect}>
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <form className="grid gap-4" onSubmit={submitConnect}>
+              <label className="grid gap-1.5 text-sm font-semibold" htmlFor="demo-connect-partner">
+                Partner
+                <select
+                  id="demo-connect-partner"
+                  value={connectPartner}
+                  onChange={(event) => setConnectPartner(event.target.value)}
+                  className="h-10 rounded-lg border border-solid border-border bg-card px-3"
+                >
+                  {INSTITUTIONS.map((inst) => (
+                    <option key={inst.code} value={inst.code}>
+                      {inst.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <fieldset className="m-0 border-0 p-0">
+                <legend className="text-sm font-semibold">
+                  Do you already have an account with this partner?
+                </legend>
+                <div className="mt-2 grid grid-cols-2 gap-2 max-[480px]:grid-cols-1">
+                  {(
+                    [
+                      {
+                        value: 'existing',
+                        title: 'Yes, connect it',
+                        sub: 'Link what I already hold',
+                      },
+                      { value: 'new', title: "No, I'm new", sub: 'Request a new account' },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={connectMode === option.value}
+                      onClick={() => setConnectMode(option.value)}
+                      className={cn(
+                        'rounded-xl border border-solid px-3.5 py-3 text-left',
+                        connectMode === option.value
+                          ? 'border-primary bg-mint'
+                          : 'border-border bg-card',
+                      )}
+                    >
+                      <span className="block text-[14.5px] font-bold">{option.title}</span>
+                      <span className="mt-0.5 block text-[12.5px] text-dim">{option.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <p className="m-0 text-[12.5px] leading-relaxed text-faint">
+                Your partner receives the identity details and declarations you recorded. They
+                execute, custody and settle the investments; CCN never holds your money.
+              </p>
+              <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                <Button type="button" variant="ghost" onClick={closeConnect}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!connectMode}>
+                  {connectMode === 'existing' ? 'Link account' : 'Request an account'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={fundingPartner !== null} onOpenChange={(open) => !open && closeFunding()}>
         <DialogContent className="max-w-[620px] p-0">

@@ -29,7 +29,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
-type DemoJourneyId = 'complete' | 'opportunity' | 'funding' | 'institution';
+type DemoJourneyId = 'complete' | 'opportunity' | 'connect' | 'funding' | 'institution';
 
 const FREE_JOURNEY = 'free';
 const JOURNEYS: {
@@ -51,6 +51,12 @@ const JOURNEYS: {
     title: 'Find and review an investment',
     description: 'See how opportunities are compared, screened and prepared for your decision.',
     startPath: '/demo/opportunities',
+  },
+  {
+    id: 'connect',
+    title: 'Connect an account',
+    description: 'Link an existing partner account or request a new one for your portfolio.',
+    startPath: '/demo/portfolio?connect=1',
   },
   {
     id: 'funding',
