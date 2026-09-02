@@ -3,9 +3,13 @@
 import {
   AppScreen,
   DEFAULT_DEMO_ACCOUNT_STATE,
+  DEFAULT_DEMO_PROFILE,
+  DEMO_JOURNEY_STORAGE_KEY,
   type DemoAccountState,
+  type DemoProfile,
   PageHead,
   readDemoAccountState,
+  readDemoProfile,
 } from '@/app/_components/AppScreen';
 import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
@@ -27,7 +31,6 @@ import { useEffect, useRef, useState } from 'react';
 
 type DemoJourneyId = 'complete' | 'opportunity' | 'funding' | 'institution';
 
-const JOURNEY_STORAGE_KEY = 'ccn.demo.journey';
 const FREE_JOURNEY = 'free';
 const JOURNEYS: {
   id: DemoJourneyId;
@@ -38,9 +41,9 @@ const JOURNEYS: {
 }[] = [
   {
     id: 'complete',
-    title: "Follow Marcus's investor journey",
-    description: 'Move from planning to advice, approval and order tracking.',
-    startPath: '/demo/planning',
+    title: 'Start a new investor journey',
+    description: 'Create a profile, complete the fact-find, then move into advice and approvals.',
+    startPath: '/sign-in?demo=1',
     recommended: true,
   },
   {
@@ -59,7 +62,7 @@ const JOURNEYS: {
     id: 'institution',
     title: 'Review and accept as a partner',
     description:
-      'Open the partner console to review Marcus, accept instructions and settle orders.',
+      'Open the partner console to review a client, accept instructions and settle orders.',
     startPath: '/demo/institutions',
   },
 ];
@@ -293,15 +296,25 @@ export default function HomePage() {
   const router = useRouter();
   const [dateLabel, setDateLabel] = useState('');
   const [accountState, setAccountState] = useState<DemoAccountState>(DEFAULT_DEMO_ACCOUNT_STATE);
+  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_DEMO_PROFILE);
   const [journeyOpen, setJourneyOpen] = useState(false);
   const [selectedJourney, setSelectedJourney] = useState<DemoJourneyId>('complete');
+  const profileInitials =
+    profile.name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase() || 'IN';
 
   useEffect(() => {
     setDateLabel(todayLabel());
     setAccountState(readDemoAccountState());
+    setProfile(readDemoProfile());
     let stored: string | null = null;
     try {
-      stored = window.sessionStorage.getItem(JOURNEY_STORAGE_KEY);
+      stored = window.sessionStorage.getItem(DEMO_JOURNEY_STORAGE_KEY);
     } catch {
       // Storage is optional; the selected journey still works for this visit.
     }
@@ -316,7 +329,7 @@ export default function HomePage() {
     const journey = JOURNEYS.find((candidate) => candidate.id === selectedJourney);
     if (!journey) return;
     try {
-      window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, journey.id);
+      window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, journey.id);
     } catch {
       // The route still opens when storage is unavailable.
     }
@@ -336,7 +349,7 @@ export default function HomePage() {
           setJourneyOpen(open);
           if (!open) {
             try {
-              window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY);
+              window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, FREE_JOURNEY);
             } catch {
               // Dismissal still works when storage is unavailable.
             }
@@ -349,7 +362,7 @@ export default function HomePage() {
             <DialogTitle>What would you like to explore?</DialogTitle>
             <DialogDescription>
               Choose a starting point. You will use the same screens and controls as the live
-              product with Marcus Bailey's profile and portfolio.
+              product. Start with a new profile or jump to another part of the experience.
             </DialogDescription>
           </DialogHeader>
 
@@ -394,7 +407,7 @@ export default function HomePage() {
               className="w-full sm:w-auto"
               onClick={() => {
                 try {
-                  window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY);
+                  window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, FREE_JOURNEY);
                 } catch {
                   // Closing still works when storage is unavailable.
                 }
@@ -413,12 +426,12 @@ export default function HomePage() {
 
       <PageHead
         eyebrow={dateLabel}
-        title="Good afternoon, Marcus"
+        title={`Good afternoon, ${profile.name.trim().split(/\s+/)[0] || 'Investor'}`}
         right={
           <div className="ml-auto flex items-center gap-3">
             <NotificationsBell pendingApprovals={pendingApprovals.length} />
             <Avatar className="h-[42px] w-[42px]">
-              <AvatarFallback>MB</AvatarFallback>
+              <AvatarFallback>{profileInitials}</AvatarFallback>
             </Avatar>
           </div>
         }

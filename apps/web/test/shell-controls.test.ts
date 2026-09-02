@@ -283,9 +283,11 @@ describe('app shell controls', () => {
     expect(orders).toContain('Nothing here is executed by CCN');
   });
 
-  test('the preview keeps the live screen structure and puts journey selection at entry', () => {
+  test('the preview starts as a new visitor before entering the live screen structure', () => {
     const shell = code(join(SHELL, 'AppScreen.tsx'));
     const sidebar = code(join(SHELL, 'AppSidebar.tsx'));
+    const landing = code(join(WEB, 'app/page.tsx'));
+    const signIn = code(join(WEB, 'app/sign-in/page.tsx'));
     const planning = code(join(WEB, 'app/demo/planning/page.tsx'));
     const matching = code(join(WEB, 'app/demo/opportunities/page.tsx'));
     const advisor = code(join(WEB, 'app/demo/agent/page.tsx'));
@@ -303,16 +305,22 @@ describe('app shell controls', () => {
     expect(sidebar).not.toContain('6 · Dashboard');
     expect(sidebar).not.toContain("label: 'Compliance'");
 
-    expect(dashboard).toContain("Follow Marcus's investor journey");
+    expect(landing).toContain("router.push('/sign-in?demo=1')");
+    expect(signIn).toContain('Sign in or create an account');
+    expect(signIn).toContain("router.push('/demo/planning?setup=1')");
+    expect(signIn).toContain('resetDemoInvestorState()');
+    expect(dashboard).toContain('Start a new investor journey');
     expect(dashboard).toContain('Find and review an investment');
     expect(dashboard).toContain('Add money to a partner account');
     expect(dashboard).toContain('Review and accept as a partner');
-    expect(dashboard).toContain('window.sessionStorage.setItem(JOURNEY_STORAGE_KEY');
-    expect(dashboard).toContain("startPath: '/demo/planning'");
+    expect(dashboard).toContain('window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY');
+    expect(dashboard).toContain("startPath: '/sign-in?demo=1'");
     expect(dashboard).toContain("startPath: '/demo/opportunities'");
     expect(dashboard).toContain("startPath: '/demo/portfolio'");
     expect(dashboard).toContain("startPath: '/demo/institutions'");
-    expect(dashboard).toContain('window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY)');
+    expect(dashboard).toContain(
+      'window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, FREE_JOURNEY)',
+    );
     expect(dashboard).toContain('if (!open) {');
     expect(dashboard).toContain('m-0 grid min-w-0 gap-3 border-0 p-0');
     expect(layout).toContain('z-40');
@@ -320,13 +328,25 @@ describe('app shell controls', () => {
 
     expect(planning).toContain('Recommended for you');
     expect(planning).toContain('Your goals');
-    expect(planning).not.toContain('Your investor profile');
+    expect(planning).toContain('Create your investor profile');
+    expect(planning).toContain("Let's get to know you better");
+    expect(planning).toContain('Politically exposed person status');
+    expect(planning).toContain('Upload passport');
+    expect(planning).toContain('Use my agent’s correction');
+    expect(planning).toContain("name: ''");
+    expect(planning).not.toContain('Marcus Bailey');
+    expect(planning).toContain('citizenships,');
+    expect(planning).toContain('pepStatus,');
+    expect(planning).toContain('taxIdLastFour,');
+    expect(dashboard).toContain('<AvatarFallback>{profileInitials}</AvatarFallback>');
+    expect(signIn).toContain('DEMO_ENABLED &&');
     expect(shell).toContain('window.sessionStorage.setItem');
     expect(shell).toContain('inMemoryDemoProfile = { ...profile }');
     expect(shell).toContain('DEMO_ACCOUNT_STORAGE_KEY');
     expect(shell).toContain('opportunityOrders');
     expect(shell).toContain('nextDemoOrderId');
     expect(shell).toContain('demoIdentityFingerprint');
+    expect(shell).toContain('resetDemoInvestorState');
     expect(matching).toContain('FILTERS.map');
     expect(matching).toContain('<DealCard');
     expect(matching).not.toContain('Top 2 recommendations');

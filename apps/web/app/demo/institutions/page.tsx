@@ -283,10 +283,7 @@ export default function DemoInstitutionsPage() {
     );
   }, []);
 
-  const citizenship = [
-    profile.jamaicanCitizen ? 'Jamaican' : '',
-    profile.usCitizen ? 'US' : '',
-  ].filter(Boolean);
+  const citizenship = profile.citizenships;
   const profileName = profile.name.trim() || 'Investor';
   const identityEvidence = demoIdentityEvidence(profile);
   const reviewItems = [

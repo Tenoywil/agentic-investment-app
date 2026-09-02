@@ -88,7 +88,7 @@ const PILLARS: { Icon: LucideIcon; title: string; body: string }[] = [
 export default function LandingPage() {
   const router = useRouter();
   const { start: google, pending, slow, error } = useGoogleSignIn();
-  const demo = () => router.push('/demo/home?choose=1');
+  const demo = () => router.push('/sign-in?demo=1');
 
   // The live records, for enrichment only (real uploaded logos, brand
   // colors). Keyed by partner code; a fetch that fails just means the strip
