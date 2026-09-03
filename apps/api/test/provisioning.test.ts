@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { createDb, partners, user, userRoles } from '@ccn/db';
+import { createFieldCipher } from '@ccn/security';
 import { eq, inArray } from 'drizzle-orm';
 import { createLogger } from '../src/logger';
 import { type ProvisioningDeps, ensureProvisioned, needsOperatorGrant } from '../src/provisioning';
@@ -34,12 +35,14 @@ const suite = DATABASE_URL ? describe : describe.skip;
 suite('first-sign-in provisioning under RLS', () => {
   const { db, client } = createDb(DATABASE_URL ?? '', { max: 4 });
   const logger = createLogger({ level: 'error', base: { service: 'test' } });
+  const kycFieldCipher = createFieldCipher({ id: 'test', material: new Uint8Array(32).fill(23) });
   const made: string[] = [];
   const tag = `prov-${Date.now()}`;
 
   const deps = (over: Partial<ProvisioningDeps['config']> = {}): ProvisioningDeps => ({
     db,
     logger,
+    kycFieldCipher,
     config: {
       PARTNER_OPERATOR_EMAILS: '',
       DEMO_CUSTOMER_EMAILS: '',

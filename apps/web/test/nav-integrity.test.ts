@@ -75,8 +75,9 @@ describe('every navigation destination is a route that exists', () => {
   }
 
   /**
-   * The preview shell's footer links to the console rather than to an account
-   * menu, so it is a nav destination that does not come from `navGroupsFor`.
+   * The preview shell includes an isolated partner workspace alongside the
+   * investor navigation, so the two-sided product remains reachable without
+   * crossing into the live customer or institution surfaces.
    */
   it('the /demo preview: /demo/institutions', () => {
     expect(SERVED.has('/demo/institutions')).toBe(true);

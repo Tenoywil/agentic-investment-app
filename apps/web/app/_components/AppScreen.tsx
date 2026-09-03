@@ -67,6 +67,7 @@ export function PageHead({
 
 export const DEMO_PROFILE_STORAGE_KEY = 'ccn-demo-investor-profile';
 export const DEMO_ACCOUNT_STORAGE_KEY = 'ccn-demo-account-state';
+export const DEMO_JOURNEY_STORAGE_KEY = 'ccn.demo.journey';
 
 export type DemoProfile = {
   name: string;
@@ -79,6 +80,12 @@ export type DemoProfile = {
   financialSituation: string;
   jamaicanCitizen: boolean;
   usCitizen: boolean;
+  citizenships: string[];
+  pepStatus: string;
+  fatcaStatus: string;
+  sourceOfFunds: string[];
+  taxIdType: string;
+  taxIdLastFour: string;
 };
 
 export const DEFAULT_DEMO_PROFILE: DemoProfile = {
@@ -92,6 +99,12 @@ export const DEFAULT_DEMO_PROFILE: DemoProfile = {
   financialSituation: 'Stable income; six-month cash reserve',
   jamaicanCitizen: true,
   usCitizen: true,
+  citizenships: ['Jamaica', 'United States'],
+  pepStatus: 'Not a PEP',
+  fatcaStatus: 'U.S. person',
+  sourceOfFunds: ['Salary'],
+  taxIdType: 'SSN',
+  taxIdLastFour: '4821',
 };
 
 export type DemoAccountState = {
@@ -145,23 +158,39 @@ export function demoIdentityFingerprint(profile: DemoProfile): string {
     profile.residence,
     profile.jamaicanCitizen,
     profile.usCitizen,
+    profile.citizenships,
+    profile.pepStatus,
+    profile.fatcaStatus,
+    profile.sourceOfFunds,
+    profile.taxIdType,
+    profile.taxIdLastFour,
   ]);
 }
 
 /** Keeps the sample compliance pack aligned with the editable fact-find. */
 export function demoIdentityEvidence(profile: DemoProfile): DemoIdentityEvidence {
-  const currentCountry = profile.jamaicanCitizen ? 'Jamaican' : profile.usCitizen ? 'US' : null;
-  const replacementCountry = profile.usCitizen ? 'US' : profile.jamaicanCitizen ? 'Jamaican' : null;
-  const taxIdentifiers = [
-    profile.jamaicanCitizen || profile.residence === 'Jamaica' ? 'TRN •••-•••-517' : '',
-    profile.usCitizen || profile.residence === 'United States' ? 'SSN •••-••-4821' : '',
-    profile.residence === 'Canada' ? 'SIN •••-•••-482' : '',
-    profile.residence === 'United Kingdom' ? 'National Insurance number ••••821' : '',
-  ].filter(Boolean);
+  const citizenships = [
+    ...profile.citizenships,
+    ...(profile.jamaicanCitizen ? ['Jamaica'] : []),
+    ...(profile.usCitizen ? ['United States'] : []),
+  ].filter((country, index, values) => values.indexOf(country) === index);
+  const countryLabel = (country: string | undefined) => {
+    if (country === 'United States') return 'U.S.';
+    if (country === 'United Kingdom') return 'UK';
+    if (country === 'Jamaica') return 'Jamaican';
+    if (country === 'Canada') return 'Canadian';
+    return country ?? null;
+  };
+  const currentCountry = countryLabel(citizenships[0]);
+  const replacementCountry = countryLabel(citizenships[1] ?? citizenships[0]);
+  const lastFour = /^\d{4}$/.test(profile.taxIdLastFour) ? profile.taxIdLastFour : '';
+  const maskedTaxId =
+    profile.taxIdType && lastFour
+      ? `${profile.taxIdType} ${profile.taxIdType === 'SSN' ? '•••-••-' : '•••-•••-'}${lastFour}`
+      : 'Tax identifier requires clarification';
 
   return {
-    clientReference:
-      replacementCountry === 'US' ? '••4821' : replacementCountry ? '••1517' : 'unverified',
+    clientReference: lastFour ? `••${lastFour}` : 'unverified',
     currentDocument: currentCountry
       ? `${currentCountry} passport P•••1842 · expired 12 Jun 2025`
       : 'Passport evidence missing · select citizenship in the profile',
@@ -174,11 +203,8 @@ export function demoIdentityEvidence(profile: DemoProfile): DemoIdentityEvidence
     replacementSummary: replacementCountry
       ? `Expired ${currentCountry} passport replaced with valid ${replacementCountry} passport`
       : 'Citizenship requires clarification before identity evidence can be selected',
-    addressEvidence: `${profile.residence} utility statement · Jul 2026`,
-    taxIdentifiers:
-      taxIdentifiers.length > 0
-        ? taxIdentifiers.join(' · ')
-        : 'Tax identifiers require clarification',
+    addressEvidence: `${profile.residence === 'United States' ? 'New York' : profile.residence} utility statement · Jul 2026`,
+    taxIdentifiers: `${maskedTaxId} · ${profile.fatcaStatus || 'FATCA status requires clarification'} · ${profile.pepStatus || 'PEP status requires clarification'} · ${profile.sourceOfFunds.length > 0 ? `source of funds: ${profile.sourceOfFunds.join(', ')}` : 'source of funds requires clarification'}`,
   };
 }
 
@@ -226,6 +252,9 @@ export function readDemoProfile(fallback: DemoProfile = DEFAULT_DEMO_PROFILE): D
       ...Object.fromEntries(
         Object.entries(candidate).filter(([key, value]) => {
           const expected = fallback[key as keyof DemoProfile];
+          if (Array.isArray(expected)) {
+            return Array.isArray(value) && value.every((item) => typeof item === 'string');
+          }
           return typeof value === typeof expected;
         }),
       ),
@@ -294,6 +323,19 @@ export function writeDemoAccountState(state: DemoAccountState): void {
     window.sessionStorage.setItem(DEMO_ACCOUNT_STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Storage is optional; the current screen keeps its in-memory state.
+  }
+}
+
+/** Starts a new preview visitor without carrying an earlier walkthrough's
+ * personalisation, approvals, funding or orders into the next session. */
+export function resetDemoInvestorState(): void {
+  inMemoryDemoProfile = null;
+  inMemoryDemoAccountState = null;
+  try {
+    window.sessionStorage.removeItem(DEMO_PROFILE_STORAGE_KEY);
+    window.sessionStorage.removeItem(DEMO_ACCOUNT_STORAGE_KEY);
+  } catch {
+    // The next route still starts from the module defaults when storage is unavailable.
   }
 }
 

@@ -170,6 +170,9 @@ suite('customer / institution surface split', () => {
           .map((r) => r.path)
           .filter((p) => p.startsWith('/api/'))
           .filter((p) => !p.startsWith('/api/auth'))
+          // Public partner brand data is intentionally reachable from both
+          // surfaces for the signed-out landing page.
+          .filter((p) => !p.startsWith('/api/public'))
           .filter((p) => !p.includes('*') && !p.includes(':')),
       ),
     ];

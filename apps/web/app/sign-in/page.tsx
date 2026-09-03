@@ -1,11 +1,13 @@
 'use client';
 
+import { DEMO_JOURNEY_STORAGE_KEY, resetDemoInvestorState } from '@/app/_components/AppScreen';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
 import { useGoogleSignIn } from '@/app/_lib/google-sign-in';
 import { DEMO_ENABLED } from '@/lib/config';
 import { CircleAlert, Landmark, Lock, ShieldCheck, Target } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 /**
  * The front door.
@@ -41,6 +43,30 @@ const CLAIMS = [
 export default function SignInPage() {
   const router = useRouter();
   const { start: google, pending, slow, error } = useGoogleSignIn();
+  const [demoMode, setDemoMode] = useState(false);
+
+  useEffect(() => {
+    setDemoMode(DEMO_ENABLED && new URLSearchParams(window.location.search).get('demo') === '1');
+  }, []);
+
+  function continueWithGoogle() {
+    const previewRequested =
+      DEMO_ENABLED && (demoMode || new URLSearchParams(window.location.search).get('demo') === '1');
+    if (!previewRequested) {
+      google();
+      return;
+    }
+
+    resetDemoInvestorState();
+    try {
+      window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, 'complete');
+    } catch {
+      // The preview still starts when browser storage is unavailable.
+    }
+    router.push('/demo/planning?setup=1');
+  }
+
+  const connecting = !demoMode && pending;
 
   return (
     <div className="flex min-h-screen bg-background font-sans text-foreground">
@@ -102,39 +128,41 @@ export default function SignInPage() {
         <div className="flex flex-1 items-center justify-center px-6 pb-[64px] pt-4">
           <Card className="w-full max-w-[428px] px-[34px] py-9 shadow-[0_12px_44px_rgba(40,34,22,0.09)] max-[480px]:border-none max-[480px]:bg-transparent max-[480px]:px-2 max-[480px]:shadow-none">
             <h1 className="text-center font-display text-[25px] font-bold tracking-tight">
-              Create your account
+              Sign in or create an account
             </h1>
             <p className="mx-0 mb-[26px] mt-[9px] text-center text-[15px] leading-relaxed text-dim">
-              Sign up so your capital agent can work across every licensed partner in the region.
+              {demoMode
+                ? 'Continue with Google, then create your investor profile.'
+                : 'Sign up so your capital agent can work across every licensed partner in the region.'}
             </p>
             {/* The primary action, styled as the primary action — one filled
                 button on the screen, and this is it. */}
             <Button
-              onClick={google}
-              disabled={pending}
-              aria-busy={pending}
+              onClick={continueWithGoogle}
+              disabled={connecting}
+              aria-busy={connecting}
               className="h-[54px] w-full gap-3 text-base"
             >
               <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-white font-display text-sm font-bold text-[#3f7ae0]">
                 G
               </span>
-              {pending ? 'Connecting to Google…' : 'Continue with Google'}
+              {connecting ? 'Connecting to Google…' : 'Continue with Google'}
             </Button>
             {/* One line, one height, whichever of the three states is showing, so
                 the card does not resize under the thumb that just tapped it. */}
             <div className="min-h-[34px] pt-3">
-              {error ? (
+              {!demoMode && error ? (
                 <p className="flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
                   <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
                   {error}
                 </p>
-              ) : slow ? (
+              ) : !demoMode && slow ? (
                 <output className="block text-sm text-dim">
                   Waking the server — this can take up to a minute the first time.
                 </output>
               ) : null}
             </div>
-            {DEMO_ENABLED && (
+            {DEMO_ENABLED && !demoMode ? (
               <>
                 <div className="my-5 flex items-center gap-3">
                   <span className="h-px flex-1 bg-border" />
@@ -143,13 +171,16 @@ export default function SignInPage() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => router.push('/demo/home?choose=1')}
+                  onClick={() => {
+                    setDemoMode(true);
+                    router.replace('/sign-in?demo=1');
+                  }}
                   className="w-full text-teal2"
                 >
                   Explore the demo instead
                 </Button>
               </>
-            )}
+            ) : null}
             <div className="mt-[22px] flex items-center justify-center gap-2 text-[13px] text-faint">
               <Lock className="h-3.5 w-3.5" aria-hidden />
               Bank-level encryption · KYC handled by your partner
@@ -158,8 +189,8 @@ export default function SignInPage() {
               Already have an account?{' '}
               <button
                 type="button"
-                onClick={google}
-                disabled={pending}
+                onClick={continueWithGoogle}
+                disabled={connecting}
                 className="font-bold text-teal2 underline-offset-4 hover:underline disabled:opacity-60"
               >
                 Sign in

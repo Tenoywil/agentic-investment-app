@@ -67,6 +67,8 @@ jobs:
           bun-version-file: .bun-version
       - name: Install
         run: bun install --frozen-lockfile
+      - name: Configure CI encryption key
+        run: echo "FIELD_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Migrate (tables + RLS + immutable audit + pgvector)
         working-directory: packages/db
         run: bun run db:migrate

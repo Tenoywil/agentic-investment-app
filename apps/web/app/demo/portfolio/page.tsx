@@ -13,17 +13,19 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/app/_components/ui/dialog';
 import { Input } from '@/app/_components/ui/input';
 import { cn } from '@/app/_lib/utils';
-import { Check, ShieldCheck, Upload } from 'lucide-react';
-import { useState } from 'react';
+import { Check, Link2, ShieldCheck, Upload } from 'lucide-react';
+import { type FormEvent, useEffect, useState } from 'react';
 
 const INSTITUTIONS = [
   {
     code: 'NCB',
+    regulator: 'FSC-regulated',
     name: 'NCB Capital Markets',
     kind: 'Securities · Capital Markets',
     total: 'US$13,400',
@@ -36,6 +38,7 @@ const INSTITUTIONS = [
   },
   {
     code: 'SAG',
+    regulator: 'FSC-regulated',
     name: 'Sagicor Investments',
     kind: 'Funds · Insurance',
     total: 'US$8,200',
@@ -45,6 +48,7 @@ const INSTITUTIONS = [
   },
   {
     code: 'PRV',
+    regulator: 'FSC-regulated',
     name: 'PROVEN Wealth',
     kind: 'Wealth Management',
     total: 'US$5,600',
@@ -54,6 +58,7 @@ const INSTITUTIONS = [
   },
   {
     code: 'JMMB',
+    regulator: 'BOJ-regulated',
     name: 'JMMB Group',
     kind: 'Bank · Money Market',
     total: 'US$4,150',
@@ -65,6 +70,29 @@ const INSTITUTIONS = [
     ],
   },
 ];
+
+/** Partners in the network that are not already represented in Marcus's
+ * consolidated holdings. The live flow never offers an active relationship a
+ * second time; the demo follows that same rule and keeps the other corridors
+ * available for a first connection. */
+const CONNECTABLE_INSTITUTIONS = [
+  {
+    code: 'BAR',
+    name: 'Barita Investments',
+    kind: 'Broker · Investments',
+    regulator: 'FSC-regulated',
+  },
+  { code: 'REP', name: 'Republic Bank', kind: 'Bank · Treasury', regulator: 'BOJ-regulated' },
+  { code: 'SYG', name: 'Sygnus Capital', kind: 'Private credit', regulator: 'FSC-regulated' },
+];
+
+/** The neutral chip a freshly linked partner is drawn with until it reports a
+ *  position — the four seeded partners carry the brand tints they were given
+ *  in the fixture, and inventing one for an arbitrary partner would be worse
+ *  than a plain, legible chip. */
+const NEW_CONNECTION_STYLE = { tint: '#e7edf8', color: '#1a4aa0' };
+
+const DEFAULT_CONNECT_PARTNER = CONNECTABLE_INSTITUTIONS[0]?.code ?? '';
 
 /**
  * Fixture equity curve for the demo: thirty days of gentle growth ending at
@@ -118,6 +146,29 @@ function fmtUsdMinor(minor: string): string {
 export default function PortfolioPage() {
   const [fundingPartner, setFundingPartner] = useState<(typeof INSTITUTIONS)[number] | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [connectPartner, setConnectPartner] = useState(DEFAULT_CONNECT_PARTNER);
+  const [connectMode, setConnectMode] = useState<'existing' | 'new' | null>(null);
+  const [connectSubmitted, setConnectSubmitted] = useState(false);
+  const [connectedPartners, setConnectedPartners] = useState<string[]>([]);
+  const [requestedPartners, setRequestedPartners] = useState<string[]>([]);
+  const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
+
+  const availableToConnect = CONNECTABLE_INSTITUTIONS.filter(
+    (partner) =>
+      !connectedPartners.includes(partner.code) && !requestedPartners.includes(partner.code),
+  );
+  /* Linking a partner set state that nothing on the page read, so the one
+     outcome the "Connect an account" journey exists to show — the account
+     appearing in the portfolio — never appeared. Both surfaces now render it
+     the way the live screen does: a linked partner joins the accounts grid,
+     and one waiting on a compliance desk sits in "Requested" above it. */
+  const linkedPartners = CONNECTABLE_INSTITUTIONS.filter((partner) =>
+    connectedPartners.includes(partner.code),
+  );
+  const pendingPartners = CONNECTABLE_INSTITUTIONS.filter((partner) =>
+    requestedPartners.includes(partner.code),
+  );
 
   function closeFunding() {
     setFundingPartner(null);
@@ -139,27 +190,144 @@ export default function PortfolioPage() {
     setSubmitted(true);
   }
 
+  function openConnect() {
+    setConnectPartner(availableToConnect[0]?.code ?? '');
+    setConnectMode(null);
+    setConnectSubmitted(false);
+    setConnectOpen(true);
+  }
+
+  function closeConnect() {
+    setConnectOpen(false);
+    setConnectMode(null);
+    setConnectSubmitted(false);
+  }
+
+  function submitConnect(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connectMode || !availableToConnect.some((partner) => partner.code === connectPartner)) {
+      return;
+    }
+    const partnerName =
+      CONNECTABLE_INSTITUTIONS.find((partner) => partner.code === connectPartner)?.name ??
+      'That institution';
+    if (connectMode === 'existing') {
+      setConnectedPartners((current) =>
+        current.includes(connectPartner) ? current : [...current, connectPartner],
+      );
+      setConnectionNotice(
+        `${partnerName} is now linked. Its positions will appear here when the institution reports them.`,
+      );
+    } else {
+      setRequestedPartners((current) =>
+        current.includes(connectPartner) ? current : [...current, connectPartner],
+      );
+      setConnectionNotice(
+        `Request sent to ${partnerName}. Their compliance desk will confirm the relationship.`,
+      );
+    }
+    setConnectSubmitted(true);
+  }
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('connect') !== '1') return;
+    setConnectOpen(true);
+    setConnectMode(null);
+    setConnectSubmitted(false);
+  }, []);
+
   return (
     <AppScreen active="portfolio" basePath="/demo">
       <PageHead
         eyebrow="Every holding, unified · custodied by licensed partners"
         title="Your portfolio"
         right={
-          <div
-            className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5"
-            data-tour="customer-portfolio-page"
-          >
-            <b className="font-display text-xl">US$31,350</b>
-            <span className="text-[12.5px] text-dim">
-              total
-              <br />
-              net worth
-            </span>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={openConnect}
+              data-tour="customer-portfolio-connect"
+            >
+              <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
+              Connect an account
+            </Button>
+            {/* `border-solid` is load-bearing: preflight is off, so a bare
+                `border` sets a width against a `border-style` of none and the
+                pill renders with no outline at all — the live header's does. */}
+            <div
+              className="flex items-baseline gap-2 rounded-xl border border-solid border-border bg-mint px-4 py-2.5"
+              data-tour="customer-portfolio-page"
+            >
+              <b className="font-display text-xl">US$31,350</b>
+              <span className="text-[12.5px] text-dim">
+                total
+                <br />
+                net worth
+              </span>
+            </div>
           </div>
         }
       />
 
+      {connectionNotice ? (
+        <output className="mb-4 block rounded-xl border border-solid border-border bg-mint px-4 py-3 text-[14px] leading-relaxed text-success-ink">
+          {connectionNotice}
+        </output>
+      ) : null}
+
+      {pendingPartners.length > 0 ? (
+        <Card className="mb-4 p-[22px]">
+          <b className="font-display text-lg">Requested</b>
+          <div className="mb-3 text-[13px] text-faint">
+            An institution decides whether to take you on as a client. With your consent, CCN passes
+            the intake details and declarations you recorded; nothing is read from them until they
+            accept.
+          </div>
+          <ul className="m-0 list-none p-0">
+            {pendingPartners.map((partner) => (
+              <li
+                key={partner.code}
+                className="flex items-center justify-between gap-3 border-0 border-t border-solid border-border py-[11px] first:border-t-0"
+              >
+                <div className="min-w-0">
+                  <div className="text-[14.5px] font-bold">{partner.name}</div>
+                  <div className="text-[12.5px] text-faint">Waiting on their compliance desk</div>
+                </div>
+                <span className="flex-none rounded-full bg-muted px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[.4px] text-dim">
+                  Pending
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       <div className="g2" data-tour="customer-portfolio-accounts">
+        {linkedPartners.map((partner) => (
+          <Card key={partner.code} className="p-[22px]">
+            <div className="mb-3 flex items-center gap-3">
+              <span
+                className="grid h-10 w-10 flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
+                style={{ background: NEW_CONNECTION_STYLE.tint, color: NEW_CONNECTION_STYLE.color }}
+              >
+                {partner.code}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-bold">{partner.name}</div>
+                <div className="text-[12.5px] text-faint">{partner.kind}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-[15px] font-bold">—</div>
+                <div className="text-[11.5px] text-success-ink">{partner.regulator}</div>
+              </div>
+            </div>
+            <p className="m-0 border-t border-solid border-border pt-[11px] text-[13px] leading-relaxed text-dim">
+              Linked. Positions appear here once {partner.name} next reports them.
+            </p>
+          </Card>
+        ))}
         {INSTITUTIONS.map((inst) => (
           <Card key={inst.code} className="p-[22px]">
             <div className="mb-3 flex items-center gap-3">
@@ -175,7 +343,9 @@ export default function PortfolioPage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-[15px] font-bold">{inst.total}</div>
-                <div className="text-[11.5px] text-success-ink">· Licensed partner</div>
+                {/* The partner's own regulator, and no orphaned leading middot
+                    — the live row prints the regulator alone. */}
+                <div className="text-[11.5px] text-success-ink">{inst.regulator}</div>
               </div>
             </div>
             {inst.holdings.map((h) => (
@@ -186,10 +356,13 @@ export default function PortfolioPage() {
                 <span className="text-sm">{h.name}</span>
                 <span className="flex items-baseline gap-2.5">
                   <b className="font-mono text-[13.5px]">{h.value}</b>
+                  {/* `text-success` is tuned for fills and large numerals; at
+                      13px it measures under the 4.5:1 floor, which is why the
+                      live row uses the -ink variant. */}
                   <span
                     className={cn(
                       'min-w-[42px] text-right text-[13px]',
-                      h.ret === '—' ? 'text-faint' : 'text-success',
+                      h.ret === '—' ? 'text-faint' : 'text-success-ink',
                     )}
                   >
                     {h.ret}
@@ -232,16 +405,138 @@ export default function PortfolioPage() {
         </p>
       </div>
 
+      <Dialog open={connectOpen} onOpenChange={(open) => !open && closeConnect()}>
+        <DialogContent className="app-modal max-w-none flex flex-col gap-0 p-0 max-[900px]:bottom-0 max-[900px]:top-auto max-[900px]:translate-y-0">
+          <DialogHeader className="border-0 border-b border-solid border-border px-[22px] py-4 pr-14">
+            <DialogTitle>Connect an account</DialogTitle>
+            <DialogDescription>
+              The institution decides whether to take you on, then your positions and cash come
+              straight from them.
+            </DialogDescription>
+          </DialogHeader>
+          {connectSubmitted ? (
+            <div className="grid min-h-0 gap-4 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]">
+              <div className="flex items-start gap-3 rounded-xl border border-border bg-mint p-4">
+                <Check className="mt-0.5 h-5 w-5 flex-none text-success" aria-hidden />
+                <div>
+                  <b>{connectMode === 'existing' ? 'Account linked' : 'Account request sent'}</b>
+                  <p className="mb-0 mt-1 text-sm text-dim">
+                    {connectMode === 'existing'
+                      ? 'The account is now available to this portfolio. Positions appear as the institution reports them.'
+                      : 'The institution received your intake details and will confirm whether to take you on as a client.'}
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" className="w-full" onClick={closeConnect}>
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <form
+              className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]"
+              onSubmit={submitConnect}
+            >
+              {availableToConnect.length === 0 ? (
+                <div className="grid gap-4">
+                  <p className="m-0 text-[14.5px] leading-relaxed text-dim">
+                    Every available partner is already connected or has a request waiting with its
+                    compliance desk.
+                  </p>
+                  <DialogFooter>
+                    <Button type="button" className="w-full" onClick={closeConnect}>
+                      Done
+                    </Button>
+                  </DialogFooter>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  <label className="grid gap-1.5 text-[13.5px]" htmlFor="demo-connect-partner">
+                    <span className="text-[12px] font-bold uppercase tracking-[.6px] text-dim">
+                      Institution
+                    </span>
+                    <select
+                      id="demo-connect-partner"
+                      value={connectPartner}
+                      onChange={(event) => {
+                        setConnectPartner(event.target.value);
+                        setConnectMode(null);
+                      }}
+                      className="block h-10 w-full rounded-[10px] border border-solid border-border bg-card px-3 text-[15px] text-foreground"
+                    >
+                      {availableToConnect.map((inst) => (
+                        <option key={inst.code} value={inst.code}>
+                          {inst.name} · {inst.kind}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <fieldset className="m-0 mt-1 border-0 p-0">
+                    <legend className="p-0 text-[12px] font-bold uppercase tracking-[.6px] text-dim">
+                      Do you already have an account with this institution?
+                    </legend>
+                    <div className="mt-2 grid grid-cols-2 gap-2 max-[440px]:grid-cols-1">
+                      {(
+                        [
+                          {
+                            value: 'existing',
+                            title: 'Yes, connect it',
+                            sub: 'Link what I already hold',
+                          },
+                          { value: 'new', title: "No, I'm new", sub: 'Ask them to open one' },
+                        ] as const
+                      ).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-pressed={connectMode === option.value}
+                          onClick={() => setConnectMode(option.value)}
+                          className={cn(
+                            'rounded-xl border border-solid px-3.5 py-3 text-left',
+                            connectMode === option.value
+                              ? 'border-primary bg-mint'
+                              : 'border-border bg-card',
+                          )}
+                        >
+                          <span className="block text-[14.5px] font-bold">{option.title}</span>
+                          <span className="mt-0.5 block text-[12.5px] text-dim">{option.sub}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <p className="m-0 text-[12.5px] leading-relaxed text-faint">
+                    They receive the identity details and declarations you recorded. Their
+                    compliance desk decides what evidence it needs; they execute, custody and settle
+                    the investments.
+                  </p>
+                  <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                    <Button type="button" variant="ghost" onClick={closeConnect}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={!connectMode}>
+                      {connectMode === 'existing' ? 'Request the connection' : 'Request an account'}
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={fundingPartner !== null} onOpenChange={(open) => !open && closeFunding()}>
-        <DialogContent className="max-w-[620px] p-0">
-          <DialogHeader className="border-b border-border px-6 py-5 pr-14">
+        <DialogContent className="app-modal max-w-none flex flex-col gap-0 p-0 max-[900px]:bottom-0 max-[900px]:top-auto max-[900px]:translate-y-0">
+          <DialogHeader className="border-0 border-b border-solid border-border px-[22px] py-4 pr-14">
             <DialogTitle>Add money at {fundingPartner?.name}</DialogTitle>
             <DialogDescription>
               The transfer happens between you and the firm. CCN never holds your money.
             </DialogDescription>
           </DialogHeader>
           {submitted ? (
-            <div className="p-6">
+            <div className="min-h-0 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]">
               <div className="flex items-start gap-3 rounded-xl border border-border bg-mint p-4">
                 <Check className="mt-0.5 h-5 w-5 text-success" aria-hidden />
                 <div>
@@ -258,7 +553,7 @@ export default function PortfolioPage() {
             </div>
           ) : (
             <form
-              className="grid gap-4 p-6"
+              className="grid min-h-0 gap-4 overflow-y-auto overscroll-contain px-[22px] py-[18px] pb-[calc(22px+env(safe-area-inset-bottom))]"
               onSubmit={(event) => {
                 event.preventDefault();
                 submitFunding();

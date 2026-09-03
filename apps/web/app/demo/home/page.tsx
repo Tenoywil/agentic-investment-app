@@ -3,11 +3,14 @@
 import {
   AppScreen,
   DEFAULT_DEMO_ACCOUNT_STATE,
+  DEFAULT_DEMO_PROFILE,
+  DEMO_JOURNEY_STORAGE_KEY,
   type DemoAccountState,
+  type DemoProfile,
   PageHead,
   readDemoAccountState,
+  readDemoProfile,
 } from '@/app/_components/AppScreen';
-import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 import { Badge } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
@@ -19,15 +22,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/_components/ui/dialog';
-import { cn } from '@/app/_lib/utils';
-import { Bell, LineChart, type LucideIcon, Sparkles, TrendingUp } from 'lucide-react';
+import { EmptyState } from '@/app/_components/ui/empty';
+import { APPROVAL_TONE_CLASS, APPROVAL_TONE_PILL, type ApprovalTone, cn } from '@/app/_lib/utils';
+import { CheckCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-type DemoJourneyId = 'complete' | 'opportunity' | 'funding' | 'institution';
+type DemoJourneyId = 'complete' | 'opportunity' | 'connect' | 'funding' | 'institution';
 
-const JOURNEY_STORAGE_KEY = 'ccn.demo.journey';
 const FREE_JOURNEY = 'free';
 const JOURNEYS: {
   id: DemoJourneyId;
@@ -38,9 +41,9 @@ const JOURNEYS: {
 }[] = [
   {
     id: 'complete',
-    title: "Follow Marcus's investor journey",
-    description: 'Move from planning to advice, approval and order tracking.',
-    startPath: '/demo/planning',
+    title: 'Start a new investor journey',
+    description: 'Create a profile, complete the fact-find, then move into advice and approvals.',
+    startPath: '/sign-in?demo=1',
     recommended: true,
   },
   {
@@ -48,6 +51,12 @@ const JOURNEYS: {
     title: 'Find and review an investment',
     description: 'See how opportunities are compared, screened and prepared for your decision.',
     startPath: '/demo/opportunities',
+  },
+  {
+    id: 'connect',
+    title: 'Connect an account',
+    description: 'Link an existing partner account or request a new one for your portfolio.',
+    startPath: '/demo/portfolio?connect=1',
   },
   {
     id: 'funding',
@@ -59,7 +68,7 @@ const JOURNEYS: {
     id: 'institution',
     title: 'Review and accept as a partner',
     description:
-      'Open the partner console to review Marcus, accept instructions and settle orders.',
+      'Open the partner console to review a client, accept instructions and settle orders.',
     startPath: '/demo/institutions',
   },
 ];
@@ -76,47 +85,68 @@ function todayLabel(): string {
   });
 }
 
+/** The same greeting the live home computes, so the preview does not tell a
+ *  visitor "Good afternoon" at nine in the evening. */
+function greeting(name: string): string {
+  const hour = new Date().getHours();
+  const part = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+  const first = name.trim().split(/\s+/)[0];
+  return first ? `Good ${part}, ${first}` : `Good ${part}`;
+}
+
 const ACTED = [
   {
-    dot: '#0a8f5b',
     t: 'Prepared a US$400 move into the NCB Money Market Fund',
     s: 'Inside your US$500 within-limit cap · confirmation still required',
   },
   {
-    dot: '#0a8f5b',
     t: 'Reinvested a US$388 GOJ coupon after you approved it',
     s: 'Human-in-the-loop · Last week',
   },
   {
-    dot: '#c56a3e',
     t: 'Paused a JMD transfer. FX spread was 0.4% above your rule',
     s: 'Held for your review · Last week',
   },
 ];
 
-const APPROVALS = [
+/** Shaped like a live approval: an instrument as the headline and the figure
+ *  the decision is about, so the preview card renders through the same
+ *  name/amount treatment the signed-in home gives a real one. */
+const APPROVALS: {
+  id: string;
+  tag: string;
+  tone: ApprovalTone;
+  name: string;
+  amount: string;
+  when: string;
+}[] = [
   {
     id: 'coupon',
     tag: 'Reinvest',
-    tagColor: '#124e48',
-    title: 'Put your GOJ coupon to work',
+    tone: 'investment',
+    name: 'Sagicor Real Estate X Fund',
+    amount: 'US$412',
     when: 'Today',
   },
   {
     id: 'idle',
     tag: 'Idle cash',
-    tagColor: '#c56a3e',
-    title: 'US$2,150 earning nothing',
+    tone: 'transfer',
+    name: 'NCB USD Money Market Fund',
+    amount: 'US$2,150',
     when: '2d ago',
   },
 ];
 
+/** `regulator` mirrors the live shape: each partner names its own regulator
+ *  rather than the blanket line the preview used to print under all four. */
 const HELD = [
   {
     code: 'NCB',
     name: 'NCB Capital Markets',
     sub: 'GOJ Bond 2029 · Chequing',
     amt: 'US$13,400',
+    regulator: 'FSC-regulated',
     tint: '#e7edf8',
     color: '#1a4aa0',
   },
@@ -125,6 +155,7 @@ const HELD = [
     name: 'Sagicor Investments',
     sub: 'Sigma Global Fund',
     amt: 'US$8,200',
+    regulator: 'FSC-regulated',
     tint: '#e6f2ea',
     color: '#1f7a44',
   },
@@ -133,6 +164,7 @@ const HELD = [
     name: 'PROVEN Wealth',
     sub: 'USD Income Fund',
     amt: 'US$5,600',
+    regulator: 'FSC-regulated',
     tint: '#f6efe0',
     color: '#9a6a1e',
   },
@@ -141,6 +173,7 @@ const HELD = [
     name: 'JMMB Group',
     sub: 'Money Market · Savings',
     amt: 'US$4,150',
+    regulator: 'BOJ-regulated',
     tint: '#fae8e6',
     color: '#c4362b',
   },
@@ -154,110 +187,7 @@ const ALLOC = [
   { label: 'Cash', pct: 7, color: '#e6dccb' },
 ];
 
-const STATS: {
-  label: string;
-  Icon: LucideIcon;
-  val: string;
-  valClass: string;
-  sub: string;
-  subClass: string;
-}[] = [
-  {
-    label: 'Tracked across partners',
-    Icon: LineChart,
-    val: 'US$31,350',
-    valClass: 'text-foreground',
-    sub: '47 holdings · 4 institutions · live',
-    subClass: 'text-faint',
-  },
-  {
-    label: 'Blended yield',
-    Icon: TrendingUp,
-    val: '6.2%',
-    valClass: 'text-success',
-    sub: '≈ US$1,940 income / year',
-    subClass: 'text-faint',
-  },
-  {
-    label: 'Matched to your goals',
-    Icon: Sparkles,
-    val: '6',
-    valClass: 'text-foreground',
-    sub: '2 ready for your approval →',
-    subClass: 'font-bold text-terra',
-  },
-];
-
 const UPPR = 'text-xs font-bold uppercase tracking-[1px]';
-
-/** Fixture notifications — the bell used to be a dead control, which in a
- *  preview reads as "this product has dead controls". */
-function NotificationsBell({ pendingApprovals }: { pendingApprovals: number }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const notifications = [
-    { t: 'GOJ 2026 coupon settles Friday', s: 'US$412 · reinvestment prepared', when: 'Today' },
-    ...(pendingApprovals > 0
-      ? [
-          {
-            t: `${pendingApprovals} ${pendingApprovals === 1 ? 'action awaits' : 'actions await'} your approval`,
-            s: 'Nothing moves without your yes',
-            when: 'Today',
-          },
-        ]
-      : []),
-    { t: 'Statement ready · NCB', s: 'July consolidated statement', when: '2d ago' },
-  ];
-
-  // Light-dismiss: click anywhere else, or Escape, closes it.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={wrapRef} className="relative">
-      <Button
-        variant="outline"
-        size="icon"
-        aria-label="Notifications"
-        aria-expanded={open}
-        aria-haspopup="true"
-        onClick={() => setOpen((o) => !o)}
-        className="h-[42px] w-[42px] rounded-full text-dim [&_svg]:size-[18px]"
-      >
-        <Bell />
-      </Button>
-      {open && (
-        <div className="absolute right-[-54px] top-[50px] z-20 w-[calc(100vw-2rem)] max-w-[300px] rounded-xl border border-solid border-border bg-card p-1.5 shadow-[0_14px_38px_rgba(30,20,10,0.16)] sm:right-0 sm:w-[300px]">
-          <div className="px-2.5 pb-1 pt-2 text-[11.5px] font-bold uppercase tracking-[.5px] text-faint">
-            Notifications
-          </div>
-          {notifications.map((n) => (
-            <div key={n.t} className="rounded-lg px-2.5 py-2 hover:bg-muted/60">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[13.5px] font-bold leading-snug">{n.t}</span>
-                <span className="flex-none text-[11.5px] text-faint">{n.when}</span>
-              </div>
-              <div className="text-[12.5px] text-dim">{n.s}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function Donut() {
   const r = 52;
@@ -293,15 +223,17 @@ export default function HomePage() {
   const router = useRouter();
   const [dateLabel, setDateLabel] = useState('');
   const [accountState, setAccountState] = useState<DemoAccountState>(DEFAULT_DEMO_ACCOUNT_STATE);
+  const [profile, setProfile] = useState<DemoProfile>(DEFAULT_DEMO_PROFILE);
   const [journeyOpen, setJourneyOpen] = useState(false);
   const [selectedJourney, setSelectedJourney] = useState<DemoJourneyId>('complete');
 
   useEffect(() => {
     setDateLabel(todayLabel());
     setAccountState(readDemoAccountState());
+    setProfile(readDemoProfile());
     let stored: string | null = null;
     try {
-      stored = window.sessionStorage.getItem(JOURNEY_STORAGE_KEY);
+      stored = window.sessionStorage.getItem(DEMO_JOURNEY_STORAGE_KEY);
     } catch {
       // Storage is optional; the selected journey still works for this visit.
     }
@@ -316,7 +248,7 @@ export default function HomePage() {
     const journey = JOURNEYS.find((candidate) => candidate.id === selectedJourney);
     if (!journey) return;
     try {
-      window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, journey.id);
+      window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, journey.id);
     } catch {
       // The route still opens when storage is unavailable.
     }
@@ -336,7 +268,7 @@ export default function HomePage() {
           setJourneyOpen(open);
           if (!open) {
             try {
-              window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY);
+              window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, FREE_JOURNEY);
             } catch {
               // Dismissal still works when storage is unavailable.
             }
@@ -349,7 +281,7 @@ export default function HomePage() {
             <DialogTitle>What would you like to explore?</DialogTitle>
             <DialogDescription>
               Choose a starting point. You will use the same screens and controls as the live
-              product with Marcus Bailey's profile and portfolio.
+              product. Start with a new profile or jump to another part of the experience.
             </DialogDescription>
           </DialogHeader>
 
@@ -394,7 +326,7 @@ export default function HomePage() {
               className="w-full sm:w-auto"
               onClick={() => {
                 try {
-                  window.sessionStorage.setItem(JOURNEY_STORAGE_KEY, FREE_JOURNEY);
+                  window.sessionStorage.setItem(DEMO_JOURNEY_STORAGE_KEY, FREE_JOURNEY);
                 } catch {
                   // Closing still works when storage is unavailable.
                 }
@@ -411,75 +343,85 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      <PageHead
-        eyebrow={dateLabel}
-        title="Good afternoon, Marcus"
-        right={
-          <div className="ml-auto flex items-center gap-3">
-            <NotificationsBell pendingApprovals={pendingApprovals.length} />
-            <Avatar className="h-[42px] w-[42px]">
-              <AvatarFallback>MB</AvatarFallback>
-            </Avatar>
-          </div>
-        }
-      />
+      {/* No right-hand slot, exactly as on the live home. A notification bell
+          and an account avatar stood here; the live screen carries neither —
+          there is no notification record anywhere in the schema, and the
+          account menu lives in the sidebar footer where it is on every screen.
+          A preview that shows two controls the product does not have is a
+          preview of a different product. */}
+      <PageHead eyebrow={dateLabel} title={greeting(profile.name)} />
 
-      {/* Hero card */}
-      <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5]">
+      {/* Hero card. `dark:bg-[#124e48]` is not decoration: without it the
+          preview hero keeps the light-theme primary in dark mode while the
+          live hero darkens, which is the single most visible difference
+          between the two homes at night. */}
+      <div className="g-hero rounded-[20px] bg-primary p-7 text-[#eafaf5] dark:bg-[#124e48]">
         <div data-tour="customer-net-worth">
-          <div className={cn(UPPR, 'text-[#eafaf5]/[.66]')}>
-            Total net worth · 4 licensed partners
-          </div>
+          {/* Net worth is the only figure here, as on the live home. The
+              "↑6.8% · +US$1,994 all-time" pill and the rising sparkline under
+              it are gone: there is no valuation history in the schema, so the
+              signed-in hero can never draw them, and a preview that does is
+              promising a screen the product does not ship. */}
+          <div className={cn(UPPR, 'text-[#eafaf5]/[.78]')}>Total net worth</div>
           <div className="my-[10px] mb-3 font-display text-[52px] font-bold leading-none tracking-[-1.5px]">
             US$31,350
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 text-sm text-[#eafaf5]/[.82]">
-            <span className="rounded-[7px] bg-white/[.12] px-[9px] py-[3px] font-mono font-bold text-[#9fe6c6]">
-              ↑ 6.8%
-            </span>
-            +US$1,994 all-time · 47 holdings · yield 6.2%
+          <div className="text-sm text-[#eafaf5]/[.94]">
+            47 holdings · 4 licensed partners · shown in USD
           </div>
-          <svg
-            width="100%"
-            height="64"
-            viewBox="0 0 420 64"
-            preserveAspectRatio="none"
-            className="mt-4"
-            aria-hidden="true"
-          >
-            <polyline
-              points="0,52 40,48 80,50 120,40 160,44 200,32 240,36 280,24 320,26 360,16 420,10"
-              fill="none"
-              stroke="rgba(159,230,198,.75)"
-              strokeWidth="2.5"
-            />
-          </svg>
         </div>
-        <div className="pl-[26px]" data-tour="customer-agent">
-          <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.66]')}>
+        {/* The same reserved height the live hero holds, so the two screens
+            settle at the same size instead of the preview sitting 55px
+            shorter. */}
+        <div
+          className="min-h-[207px] pl-[26px] max-[900px]:min-h-[297px]"
+          data-tour="customer-agent"
+        >
+          <div className={cn(UPPR, 'flex items-center gap-[7px] text-[#eafaf5]/[.78]')}>
             <span className="h-[7px] w-[7px] rounded-full bg-peach" />
-            Your agent · acting within your limits
+            {pendingApprovals.length > 0 ? 'Waiting on you' : 'Where to next'}
           </div>
-          <p className="my-3 mb-[18px] text-[17px] font-medium leading-relaxed text-white">
-            This week I matched <b className="text-gold">6 opportunities</b>, swept{' '}
-            <b className="text-gold">US$400</b> of idle cash inside your limit, and prepared{' '}
-            <b className="text-gold">{pendingApprovals.length} actions</b> for your approval.
+          {/* Doors into the product, not a weekly digest from the agent. The
+              live hero stopped narrating the agent's inner monologue above a
+              person's own money; the preview narrated it anyway. */}
+          <p className="my-3 mb-2 text-[17px] font-medium leading-relaxed text-white">
+            {pendingApprovals.length > 0
+              ? `${pendingApprovals.length === 1 ? 'One move is' : `${pendingApprovals.length} moves are`} waiting for your approval. Nothing happens until you say so.`
+              : 'Browse what you can invest in, follow your orders, or ask your agent. It checks every move against your limits and asks you first.'}
           </p>
-          <div className="flex flex-wrap gap-2.5">
+          <div className="mt-[18px] flex flex-wrap gap-2.5">
             {/* Every link in the demo stays inside /demo — the preview must
                 never route a visitor into the signed-in app. */}
-            <Button variant="peach" asChild>
-              <Link href="/demo/agent">
-                {pendingApprovals.length > 0
-                  ? `Review ${pendingApprovals.length} approvals`
-                  : 'Open your agent'}
-              </Link>
+            {pendingApprovals.length > 0 && (
+              <Button variant="peach" asChild>
+                <Link href="/demo/agent">
+                  Review {pendingApprovals.length} approval
+                  {pendingApprovals.length === 1 ? '' : 's'}
+                </Link>
+              </Button>
+            )}
+            <Button
+              asChild
+              className={
+                pendingApprovals.length > 0
+                  ? 'border border-solid border-white/30 bg-transparent text-white hover:bg-white/10'
+                  : undefined
+              }
+              variant={pendingApprovals.length > 0 ? undefined : 'peach'}
+            >
+              <Link href="/demo/opportunities">Invest</Link>
             </Button>
             <Button
               asChild
-              className="border border-white/30 bg-transparent text-white hover:bg-white/10"
+              className="border border-solid border-white/30 bg-transparent text-white hover:bg-white/10"
             >
-              <Link href="/demo/opportunities">Opportunities</Link>
+              <Link href="/demo/orders">My orders</Link>
+            </Button>
+            <Button
+              asChild
+              className="border border-solid border-white/30 bg-transparent text-white hover:bg-white/10"
+            >
+              <Link href="/demo/agent">Ask your agent</Link>
             </Button>
           </div>
         </div>
@@ -506,11 +448,16 @@ export default function HomePage() {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[14.5px] font-bold">{h.name}</div>
-                <div className="text-[12.5px] text-faint">{h.sub}</div>
+                {/* Truncated, as live: a long holdings list wrapped here and
+                    pushed the row taller than the same row signed in. */}
+                <div className="truncate text-[12.5px] text-faint">{h.sub}</div>
               </div>
               <div className="text-right">
                 <div className="font-mono text-sm font-bold">{h.amt}</div>
-                <div className="text-[11.5px] text-success-ink">· Licensed partner</div>
+                {/* The partner's own regulator, not a blanket "· Licensed
+                    partner" under all four — and without the orphaned middot
+                    that had nothing before it. */}
+                <div className="text-[11.5px] text-success-ink">{h.regulator}</div>
               </div>
             </div>
           ))}
@@ -537,8 +484,53 @@ export default function HomePage() {
         </Card>
       </div>
 
-      {/* Acted / Approvals */}
+      {/* Approvals first, then the agent's activity — the live order. The
+          decision waiting on the reader outranks a log of what already
+          happened. */}
       <div className="g2 mt-[18px]">
+        <Card className="p-[22px]" data-tour="customer-approvals">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
+            {pendingApprovals.length > 0 && (
+              <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
+                {pendingApprovals.length}
+              </span>
+            )}
+          </div>
+          {pendingApprovals.length === 0 && (
+            <EmptyState
+              icon={CheckCheck}
+              title="Nothing needs your approval"
+              body="Moves outside your limits wait here for a decision from you."
+            />
+          )}
+          {pendingApprovals.map((a) => (
+            <div
+              key={a.id}
+              className="mb-3 rounded-xl border border-solid border-border bg-muted/20 p-4"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                {/* Theme-aware, shared with the live home. This pill used to
+                    paint light-theme ink on an 8%-alpha fill of the same hex,
+                    which in dark mode fell to roughly 1.7:1 — well under the
+                    4.5:1 floor the live screen was fixed to meet. */}
+                <span className={cn(APPROVAL_TONE_PILL, APPROVAL_TONE_CLASS[a.tone])}>{a.tag}</span>
+                <span className="text-[12.5px] text-faint">{a.when}</span>
+              </div>
+              {/* Instrument as the headline, the amount as the figure being
+                  decided on — the same treatment the live card gives a real
+                  approval. */}
+              <div className="mb-0.5 text-[15px] font-bold leading-snug">{a.name}</div>
+              <div className="mb-3 font-display text-[22px] font-bold leading-none tracking-tight text-teal2">
+                {a.amount}
+              </div>
+              <Button className="w-full" asChild>
+                <Link href="/demo/agent">Review &amp; approve</Link>
+              </Button>
+            </div>
+          ))}
+        </Card>
+
         <Card className="p-[22px]" data-tour="customer-activity">
           <div className="mb-4 flex items-center gap-2.5">
             <span className={cn(UPPR, 'text-foreground')}>Agent activity</span>
@@ -546,12 +538,11 @@ export default function HomePage() {
           </div>
           {ACTED.map((a) => (
             <div key={a.t} className="mb-[15px] flex gap-2.5">
-              <span
-                className="mt-1.5 h-[9px] w-[9px] flex-none rounded-full"
-                style={{ background: a.dot }}
-              />
-              <div>
-                <div className="text-[14.5px] font-semibold leading-snug">{a.t}</div>
+              {/* One themed dot, as live. Two inline hex dots stood here and
+                  neither had a dark-theme value. */}
+              <span className="mt-1.5 h-[9px] w-[9px] flex-none rounded-full bg-teal2" />
+              <div className="min-w-0">
+                <div className="line-clamp-2 text-[14.5px] font-semibold leading-snug">{a.t}</div>
                 <div className="mt-0.5 text-[12.5px] text-faint">{a.s}</div>
               </div>
             </div>
@@ -560,60 +551,13 @@ export default function HomePage() {
             <Link href="/demo/agent">Adjust your agent's limits</Link>
           </Button>
         </Card>
-
-        <Card className="p-[22px]" data-tour="customer-approvals">
-          <div className="mb-4 flex items-center gap-2.5">
-            <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
-            <span className="min-w-[22px] rounded-full bg-[#f9ede2] dark:bg-[#2e2118] px-2 py-px text-center text-[12.5px] font-bold text-terra-ink">
-              {pendingApprovals.length}
-            </span>
-          </div>
-          {pendingApprovals.length === 0 ? (
-            <p className="m-0 rounded-xl bg-muted/40 p-4 text-sm text-dim">
-              Nothing needs your approval right now.
-            </p>
-          ) : null}
-          {pendingApprovals.map((a) => (
-            <div key={a.title} className="mb-3 rounded-xl border border-border bg-muted/20 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span
-                  className="rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]"
-                  style={{ color: a.tagColor, background: `${a.tagColor}14` }}
-                >
-                  {a.tag}
-                </span>
-                <span className="text-[12.5px] text-faint">{a.when}</span>
-              </div>
-              <div className="mb-3 text-[15px] font-bold">{a.title}</div>
-              <Button className="w-full" asChild>
-                <Link href="/demo/agent">Review &amp; approve</Link>
-              </Button>
-            </div>
-          ))}
-        </Card>
       </div>
 
-      {/* Stat cards */}
-      <div className="g3 mt-[18px]">
-        {STATS.map((s) => (
-          <Card key={s.label} className="p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm text-dim">{s.label}</span>
-              <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-mint text-teal2">
-                <s.Icon className="h-[18px] w-[18px]" aria-hidden />
-              </span>
-            </div>
-            <div className={cn('font-display text-3xl font-bold tracking-[-.5px]', s.valClass)}>
-              {s.val}
-            </div>
-            <div className={cn('mt-1 text-[13.5px]', s.subClass)}>
-              {s.label === 'Matched to your goals'
-                ? `${pendingApprovals.length} ready for your approval →`
-                : s.sub}
-            </div>
-          </Card>
-        ))}
-      </div>
+      {/* The three stat cards that closed this screen restated the hero's own
+          net worth, the allocation card's own split and the approvals card's
+          own count. The live home dropped them for exactly that reason; a
+          preview that keeps them ends on a screenful the product does not
+          have. */}
     </AppScreen>
   );
 }

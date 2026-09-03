@@ -22,6 +22,32 @@ export function splitApprovalTitle(title: string): { name: string; amount: strin
 }
 
 /**
+ * The three tones an approval pill is painted in, and the classes that paint
+ * them.
+ *
+ * These were inline hex colours used for both the ink and an 8%-alpha fill
+ * behind it, which meant the light-theme ink was painted on the dark theme's
+ * background — "Investment" measured 1.68:1 there, far under the 4.5:1 floor.
+ * Tailwind classes with a dark variant instead, so each theme gets ink tuned
+ * for its own surface.
+ *
+ * Shared rather than declared per screen: the live home and the preview home
+ * render the same pill, and two copies of a colour pair are how the two
+ * surfaces drift apart one theme fix at a time.
+ */
+export type ApprovalTone = 'investment' | 'transfer' | 'plan';
+
+export const APPROVAL_TONE_CLASS: Record<ApprovalTone, string> = {
+  investment: 'bg-primary/10 text-primary dark:bg-teal2/15 dark:text-teal2',
+  transfer: 'bg-terra/10 text-terra-ink dark:bg-terra/15 dark:text-terra-ink',
+  plan: 'bg-gold/15 text-[#7a5316] dark:bg-gold/15 dark:text-gold',
+};
+
+/** The pill itself, so its geometry cannot drift between the two surfaces. */
+export const APPROVAL_TONE_PILL =
+  'rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]';
+
+/**
  * An agent reply reduced to one plain sentence for a feed row.
  *
  * The home screen's activity feed shows the agent's recent messages in a
