@@ -15,13 +15,20 @@ import {
 import { Badge, type BadgeProps } from '@/app/_components/ui/badge';
 import { Button } from '@/app/_components/ui/button';
 import { Card } from '@/app/_components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/_components/ui/dialog';
 import { Input } from '@/app/_components/ui/input';
 import { Label } from '@/app/_components/ui/label';
 import { cn } from '@/app/_lib/utils';
-import { Check, CircleAlert, FileCheck2, ShieldCheck, Sparkles, Upload } from 'lucide-react';
+import { Check, CircleAlert, FileCheck2, Plus, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useId, useRef, useState } from 'react';
 
 const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
   Recommended: 'success',
@@ -74,8 +81,20 @@ const PRODUCTS = [
   },
 ];
 
-const GOALS = [
+type DemoGoal = {
+  id: string;
+  name: string;
+  from: string;
+  pct: number;
+  of: string;
+  eta: string;
+  color: string;
+  etaClass: string;
+};
+
+const GOALS: DemoGoal[] = [
   {
+    id: 'university-fund',
     name: 'University fund',
     from: 'NCB · Sagicor',
     pct: 82,
@@ -85,6 +104,7 @@ const GOALS = [
     etaClass: 'text-teal2',
   },
   {
+    id: 'retirement',
     name: 'Retirement',
     from: 'Sagicor · Proven',
     pct: 24,
@@ -94,30 +114,20 @@ const GOALS = [
     etaClass: 'text-terra',
   },
   {
+    id: 'emergency-fund',
     name: 'Emergency fund',
     from: 'JMMB',
     pct: 100,
     of: 'US$15,000 of US$15,000',
     eta: 'Complete',
     color: '#0a8f5b',
-    etaClass: 'text-success',
+    etaClass: 'text-success-ink',
   },
 ];
 
-const STATS: { label: string; val: string; valClass: string; sub: string }[] = [
-  {
-    label: 'Protection gap',
-    val: 'US$120,000',
-    valClass: 'text-terra',
-    sub: 'Recommended life cover',
-  },
-  {
-    label: 'Est. legacy value',
-    val: 'US$310,000',
-    valClass: 'text-foreground',
-    sub: 'Projected at retirement',
-  },
-];
+/** The ring colour a goal created in the preview gets — the same default the
+ *  live screen falls back to when a goal carries none. */
+const NEW_GOAL_COLOR = '#17786e';
 
 const SETUP_STEPS = ['Profile', 'Goals', 'Compliance', 'Documents'] as const;
 const RESIDENCE_OPTIONS = ['United States', 'Jamaica', 'Canada', 'United Kingdom', 'Other'];
@@ -748,7 +758,145 @@ function CheckChoice({
   );
 }
 
+/** A preview-local currency parse for the goal form. The live screen posts
+ *  minor units to the planning API; the preview has no API, so it formats the
+ *  same figure for display and keeps the goal in component state for the rest
+ *  of the visit. */
+function formatGoalTarget(amount: number): string {
+  return `US$${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+function InlineError({ message }: { message: string }) {
+  return (
+    <p className="flex items-center gap-2 text-sm text-[#a44e20] dark:text-terra">
+      <CircleAlert className="h-4 w-4 flex-none" aria-hidden />
+      {message}
+    </p>
+  );
+}
+
+/** The live "Add a goal" dialog, backed by preview state instead of the
+ *  planning API. The live planning screen has offered this since goals became
+ *  editable; the preview showed the goals section with no way to add one, so a
+ *  visitor met a read-only version of a screen that is not read-only. */
+function NewGoalDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (goal: DemoGoal) => void;
+}) {
+  const titleId = useId();
+  const [name, setName] = useState('');
+  const [targetAmount, setTargetAmount] = useState('');
+  const [fromLabel, setFromLabel] = useState('');
+  const [eta, setEta] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset the form each time the dialog opens.
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setTargetAmount('');
+      setFromLabel('');
+      setEta('');
+      setError(null);
+    }
+  }, [open]);
+
+  function handleSubmit() {
+    const trimmedName = name.trim();
+    const target = Number(targetAmount);
+    if (!trimmedName) {
+      setError('Give your goal a name.');
+      return;
+    }
+    if (!targetAmount.trim() || !Number.isFinite(target) || target <= 0) {
+      setError('Enter a target amount greater than zero.');
+      return;
+    }
+    setError(null);
+    onCreated({
+      // Unique for the visit even if two goals share a name, so React keys and
+      // the progress rings do not collide.
+      id: `goal-${Date.now()}-${Math.round(target)}`,
+      name: trimmedName,
+      from: fromLabel.trim(),
+      pct: 0,
+      of: `US$0 of ${formatGoalTarget(Math.round(target))}`,
+      eta: eta.trim(),
+      color: NEW_GOAL_COLOR,
+      etaClass: 'text-teal2',
+    });
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="p-[22px]">
+        <DialogHeader>
+          <DialogTitle id={titleId}>New goal</DialogTitle>
+          <DialogDescription>
+            Set a target and CCN will track your progress toward it.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="demo-goal-name">Goal name</Label>
+            <Input
+              id="demo-goal-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Purchase a property"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="demo-goal-target">Target amount (US$)</Label>
+            <Input
+              id="demo-goal-target"
+              inputMode="decimal"
+              value={targetAmount}
+              onChange={(event) => setTargetAmount(event.target.value)}
+              placeholder="50000"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="demo-goal-from">Institution (optional)</Label>
+            <Input
+              id="demo-goal-from"
+              value={fromLabel}
+              onChange={(event) => setFromLabel(event.target.value)}
+              placeholder="e.g. NCB · Sagicor"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="demo-goal-eta">Timeline (optional)</Label>
+            <Input
+              id="demo-goal-eta"
+              value={eta}
+              onChange={(event) => setEta(event.target.value)}
+              placeholder="e.g. On track · mid-2028"
+            />
+          </div>
+
+          {error && <InlineError message={error} />}
+
+          <Button onClick={handleSubmit} size="lg" className="w-full">
+            Create goal
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PlanningDashboard() {
+  const [goals, setGoals] = useState<DemoGoal[]>(GOALS);
+  const [newGoalOpen, setNewGoalOpen] = useState(false);
+
   return (
     <AppScreen active="planning" basePath="/demo">
       <PageHead
@@ -757,22 +905,15 @@ function PlanningDashboard() {
       />
 
       <div data-tour="customer-planning">
-        <div className="g3">
-          <div className="rounded-2xl bg-primary p-5 text-[#eafaf5]">
-            <div className="text-[13.5px] opacity-80">Financial health</div>
-            <div className="my-1 font-display text-3xl font-bold">72 / 100</div>
-            <div className="text-[13.5px] font-bold text-[#9fe6c6]">Good · on track</div>
-          </div>
-          {STATS.map((s) => (
-            <Card key={s.label} className="p-5">
-              <div className="text-[13.5px] text-dim">{s.label}</div>
-              <div className={cn('my-1 font-display text-3xl font-bold', s.valClass)}>{s.val}</div>
-              <div className="text-[13.5px] text-faint">{s.sub}</div>
-            </Card>
-          ))}
-        </div>
-
-        <h2 className="mb-3.5 mt-7 font-display text-[22px] font-bold">Recommended for you</h2>
+        {/* The row that opened this screen showed a "Financial health 72 / 100",
+            a US$120,000 "Protection gap" and a US$310,000 "Est. legacy value".
+            There is no health score, no protection-gap model and no legacy
+            projection anywhere in the product — not a table, not an endpoint,
+            not a formula — which is why the live screen dropped all three. A
+            preview that quotes three figures the product cannot compute
+            promises a screen nobody can be given. Products and goals, which are
+            real, open the screen on both surfaces now. */}
+        <h2 className="mb-3.5 font-display text-[22px] font-bold">Recommended for you</h2>
         <div className="g2">
           {PRODUCTS.map((p) => (
             <Card key={p.code} className="p-[22px]">
@@ -788,32 +929,51 @@ function PlanningDashboard() {
               </div>
               <p className="mb-4 text-sm leading-relaxed text-dim">{p.desc}</p>
               {/* A door, not a dead control: the demo agent answers planning
-                questions from its script, which is the feel this preview owes. */}
-              <Button variant="secondary" className="w-full" asChild>
+                  questions from its script, which is the feel this preview
+                  owes. `mt-auto` pins it to the card's foot as live does, so a
+                  short description does not float its button mid-card next to
+                  a long one. */}
+              <Button variant="secondary" className="mt-auto w-full" asChild>
                 <Link href="/demo/agent">Explore with agent</Link>
               </Button>
             </Card>
           ))}
         </div>
 
-        <h2 className="mb-3.5 mt-7 font-display text-[22px] font-bold">Your goals</h2>
+        <div className="mb-3.5 mt-7 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-[22px] font-bold">Your goals</h2>
+          <Button variant="outline" size="sm" onClick={() => setNewGoalOpen(true)}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Add a goal
+          </Button>
+        </div>
         <div className="g3">
-          {GOALS.map((g) => (
-            <Card key={g.name} className="p-[22px]">
+          {goals.map((g) => (
+            <Card key={g.id} className="p-[22px]">
               <div className="mb-4 flex items-center gap-4">
                 <Ring pct={g.pct} color={g.color} />
                 <div>
                   <div className="text-base font-bold">{g.name}</div>
-                  <div className="text-[13px] text-faint">{g.from}</div>
+                  {/* Omitted rather than blank when a goal names no
+                      institution, as live does. */}
+                  {g.from ? <div className="text-[13px] text-faint">{g.from}</div> : null}
                 </div>
               </div>
               <div className="border-t border-border pt-3">
                 <div className="font-mono text-sm">{g.of}</div>
-                <div className={cn('mt-1 text-[13.5px] font-bold', g.etaClass)}>{g.eta}</div>
+                {g.eta ? (
+                  <div className={cn('mt-1 text-[13.5px] font-bold', g.etaClass)}>{g.eta}</div>
+                ) : null}
               </div>
             </Card>
           ))}
         </div>
+
+        <NewGoalDialog
+          open={newGoalOpen}
+          onOpenChange={setNewGoalOpen}
+          onCreated={(goal) => setGoals((current) => [...current, goal])}
+        />
       </div>
     </AppScreen>
   );

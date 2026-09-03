@@ -70,7 +70,7 @@ const ORDERS: {
     id: '3',
     name: 'Sagicor Real Estate X Fund',
     status: 'settled',
-    says: 'Settled on 4 Aug 2026. It is in your portfolio.',
+    says: 'Settled on 4 Aug 2026 by Sagicor Investments. It appears in your portfolio once they next report the position.',
     authorised: 'Authorised 1 Aug 2026',
     amount: 'US$5,000',
   },
@@ -111,9 +111,13 @@ export default function DemoOrdersPage() {
         eyebrow="Executed and settled by the institution that holds them"
         title="Your orders"
         right={
-          <div className="rounded-xl border border-solid border-border bg-card px-4 py-2.5 text-[13.5px] text-dim">
-            <b className="font-display text-lg text-foreground">{open.length}</b> in progress
-          </div>
+          // Only when something is actually in progress, as live: a pill
+          // reading "0 in progress" is a header that announces nothing.
+          open.length > 0 ? (
+            <div className="rounded-xl border border-solid border-border bg-card px-4 py-2.5 text-[13.5px] text-dim">
+              <b className="font-display text-lg text-foreground">{open.length}</b> in progress
+            </div>
+          ) : undefined
         }
       />
 

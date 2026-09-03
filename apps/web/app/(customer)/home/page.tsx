@@ -7,7 +7,14 @@ import { Card } from '@/app/_components/ui/card';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { useMe } from '@/app/_lib/session';
 import { useRealtime } from '@/app/_lib/use-realtime';
-import { agentFeedPreview, cn, splitApprovalTitle } from '@/app/_lib/utils';
+import {
+  APPROVAL_TONE_CLASS,
+  APPROVAL_TONE_PILL,
+  type ApprovalTone,
+  agentFeedPreview,
+  cn,
+  splitApprovalTitle,
+} from '@/app/_lib/utils';
 import {
   type AgentMessage,
   type AllocationSlice,
@@ -83,26 +90,12 @@ function partnerStyle(code: string, index: number): { tint: string; color: strin
   return PARTNER_STYLE[code] ?? FALLBACK_STYLES[index % FALLBACK_STYLES.length] ?? DEFAULT_STYLE;
 }
 
-/**
- * Approval type badges. These were inline hex colours used for both the text
- * and an 8%-alpha fill behind it, which meant the light-theme ink was painted
- * on the dark theme's background — "Investment" measured 1.68:1 there, far
- * under the 4.5:1 floor. Tailwind classes with a dark variant instead, so each
- * theme gets ink tuned for its own surface.
- */
-const APPROVAL_TAG: Record<ApprovalType, { label: string; className: string }> = {
-  investment_rec: {
-    label: 'Investment',
-    className: 'bg-primary/10 text-primary dark:bg-teal2/15 dark:text-teal2',
-  },
-  fund_transfer: {
-    label: 'Transfer',
-    className: 'bg-terra/10 text-terra-ink dark:bg-terra/15 dark:text-terra-ink',
-  },
-  plan_enrollment: {
-    label: 'Plan',
-    className: 'bg-gold/15 text-[#7a5316] dark:bg-gold/15 dark:text-gold',
-  },
+/** Approval type badges. The tones themselves live in `_lib/utils` so the
+ *  preview home paints the same pill — see APPROVAL_TONE_CLASS. */
+const APPROVAL_TAG: Record<ApprovalType, { label: string; tone: ApprovalTone }> = {
+  investment_rec: { label: 'Investment', tone: 'investment' },
+  fund_transfer: { label: 'Transfer', tone: 'transfer' },
+  plan_enrollment: { label: 'Plan', tone: 'plan' },
 };
 
 /** Coarse relative-time label ("Today", "3d ago", "Last week", …) — matches
@@ -528,12 +521,7 @@ export default function HomePage() {
                   className="mb-3 rounded-xl border border-solid border-border bg-muted/20 p-4"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span
-                      className={cn(
-                        'rounded-md px-[9px] py-[3px] text-[11px] font-bold uppercase tracking-[.5px]',
-                        tag.className,
-                      )}
-                    >
+                    <span className={cn(APPROVAL_TONE_PILL, APPROVAL_TONE_CLASS[tag.tone])}>
                       {tag.label}
                     </span>
                     <span className="text-[12.5px] text-faint">{relativeTime(a.createdAt)}</span>
