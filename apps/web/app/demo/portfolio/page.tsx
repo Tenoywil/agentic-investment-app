@@ -25,6 +25,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 const INSTITUTIONS = [
   {
     code: 'NCB',
+    regulator: 'FSC-regulated',
     name: 'NCB Capital Markets',
     kind: 'Securities · Capital Markets',
     total: 'US$13,400',
@@ -37,6 +38,7 @@ const INSTITUTIONS = [
   },
   {
     code: 'SAG',
+    regulator: 'FSC-regulated',
     name: 'Sagicor Investments',
     kind: 'Funds · Insurance',
     total: 'US$8,200',
@@ -46,6 +48,7 @@ const INSTITUTIONS = [
   },
   {
     code: 'PRV',
+    regulator: 'FSC-regulated',
     name: 'PROVEN Wealth',
     kind: 'Wealth Management',
     total: 'US$5,600',
@@ -55,6 +58,7 @@ const INSTITUTIONS = [
   },
   {
     code: 'JMMB',
+    regulator: 'BOJ-regulated',
     name: 'JMMB Group',
     kind: 'Bank · Money Market',
     total: 'US$4,150',
@@ -72,10 +76,21 @@ const INSTITUTIONS = [
  * second time; the demo follows that same rule and keeps the other corridors
  * available for a first connection. */
 const CONNECTABLE_INSTITUTIONS = [
-  { code: 'BAR', name: 'Barita Investments', kind: 'Broker · Investments' },
-  { code: 'REP', name: 'Republic Bank', kind: 'Bank · Treasury' },
-  { code: 'SYG', name: 'Sygnus Capital', kind: 'Private credit' },
+  {
+    code: 'BAR',
+    name: 'Barita Investments',
+    kind: 'Broker · Investments',
+    regulator: 'FSC-regulated',
+  },
+  { code: 'REP', name: 'Republic Bank', kind: 'Bank · Treasury', regulator: 'BOJ-regulated' },
+  { code: 'SYG', name: 'Sygnus Capital', kind: 'Private credit', regulator: 'FSC-regulated' },
 ];
+
+/** The neutral chip a freshly linked partner is drawn with until it reports a
+ *  position — the four seeded partners carry the brand tints they were given
+ *  in the fixture, and inventing one for an arbitrary partner would be worse
+ *  than a plain, legible chip. */
+const NEW_CONNECTION_STYLE = { tint: '#e7edf8', color: '#1a4aa0' };
 
 const DEFAULT_CONNECT_PARTNER = CONNECTABLE_INSTITUTIONS[0]?.code ?? '';
 
@@ -142,6 +157,17 @@ export default function PortfolioPage() {
   const availableToConnect = CONNECTABLE_INSTITUTIONS.filter(
     (partner) =>
       !connectedPartners.includes(partner.code) && !requestedPartners.includes(partner.code),
+  );
+  /* Linking a partner set state that nothing on the page read, so the one
+     outcome the "Connect an account" journey exists to show — the account
+     appearing in the portfolio — never appeared. Both surfaces now render it
+     the way the live screen does: a linked partner joins the accounts grid,
+     and one waiting on a compliance desk sits in "Requested" above it. */
+  const linkedPartners = CONNECTABLE_INSTITUTIONS.filter((partner) =>
+    connectedPartners.includes(partner.code),
+  );
+  const pendingPartners = CONNECTABLE_INSTITUTIONS.filter((partner) =>
+    requestedPartners.includes(partner.code),
   );
 
   function closeFunding() {
@@ -216,7 +242,7 @@ export default function PortfolioPage() {
         eyebrow="Every holding, unified · custodied by licensed partners"
         title="Your portfolio"
         right={
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <Button
               type="button"
               variant="outline"
@@ -224,11 +250,14 @@ export default function PortfolioPage() {
               onClick={openConnect}
               data-tour="customer-portfolio-connect"
             >
-              <Link2 aria-hidden />
+              <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
               Connect an account
             </Button>
+            {/* `border-solid` is load-bearing: preflight is off, so a bare
+                `border` sets a width against a `border-style` of none and the
+                pill renders with no outline at all — the live header's does. */}
             <div
-              className="flex items-baseline gap-2 rounded-xl border border-border bg-mint px-4 py-2.5"
+              className="flex items-baseline gap-2 rounded-xl border border-solid border-border bg-mint px-4 py-2.5"
               data-tour="customer-portfolio-page"
             >
               <b className="font-display text-xl">US$31,350</b>
@@ -248,7 +277,57 @@ export default function PortfolioPage() {
         </output>
       ) : null}
 
+      {pendingPartners.length > 0 ? (
+        <Card className="mb-4 p-[22px]">
+          <b className="font-display text-lg">Requested</b>
+          <div className="mb-3 text-[13px] text-faint">
+            An institution decides whether to take you on as a client. With your consent, CCN passes
+            the intake details and declarations you recorded; nothing is read from them until they
+            accept.
+          </div>
+          <ul className="m-0 list-none p-0">
+            {pendingPartners.map((partner) => (
+              <li
+                key={partner.code}
+                className="flex items-center justify-between gap-3 border-0 border-t border-solid border-border py-[11px] first:border-t-0"
+              >
+                <div className="min-w-0">
+                  <div className="text-[14.5px] font-bold">{partner.name}</div>
+                  <div className="text-[12.5px] text-faint">Waiting on their compliance desk</div>
+                </div>
+                <span className="flex-none rounded-full bg-muted px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[.4px] text-dim">
+                  Pending
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       <div className="g2" data-tour="customer-portfolio-accounts">
+        {linkedPartners.map((partner) => (
+          <Card key={partner.code} className="p-[22px]">
+            <div className="mb-3 flex items-center gap-3">
+              <span
+                className="grid h-10 w-10 flex-none place-items-center rounded-[10px] font-mono text-xs font-bold"
+                style={{ background: NEW_CONNECTION_STYLE.tint, color: NEW_CONNECTION_STYLE.color }}
+              >
+                {partner.code}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-bold">{partner.name}</div>
+                <div className="text-[12.5px] text-faint">{partner.kind}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-[15px] font-bold">—</div>
+                <div className="text-[11.5px] text-success-ink">{partner.regulator}</div>
+              </div>
+            </div>
+            <p className="m-0 border-t border-solid border-border pt-[11px] text-[13px] leading-relaxed text-dim">
+              Linked. Positions appear here once {partner.name} next reports them.
+            </p>
+          </Card>
+        ))}
         {INSTITUTIONS.map((inst) => (
           <Card key={inst.code} className="p-[22px]">
             <div className="mb-3 flex items-center gap-3">
@@ -264,7 +343,9 @@ export default function PortfolioPage() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-[15px] font-bold">{inst.total}</div>
-                <div className="text-[11.5px] text-success-ink">· Licensed partner</div>
+                {/* The partner's own regulator, and no orphaned leading middot
+                    — the live row prints the regulator alone. */}
+                <div className="text-[11.5px] text-success-ink">{inst.regulator}</div>
               </div>
             </div>
             {inst.holdings.map((h) => (
@@ -275,10 +356,13 @@ export default function PortfolioPage() {
                 <span className="text-sm">{h.name}</span>
                 <span className="flex items-baseline gap-2.5">
                   <b className="font-mono text-[13.5px]">{h.value}</b>
+                  {/* `text-success` is tuned for fills and large numerals; at
+                      13px it measures under the 4.5:1 floor, which is why the
+                      live row uses the -ink variant. */}
                   <span
                     className={cn(
                       'min-w-[42px] text-right text-[13px]',
-                      h.ret === '—' ? 'text-faint' : 'text-success',
+                      h.ret === '—' ? 'text-faint' : 'text-success-ink',
                     )}
                   >
                     {h.ret}

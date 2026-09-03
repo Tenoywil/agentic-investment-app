@@ -283,6 +283,96 @@ describe('app shell controls', () => {
     expect(orders).toContain('Nothing here is executed by CCN');
   });
 
+  /**
+   * The preview and the signed-in app are one product seen twice, and they
+   * drifted apart on the screens a prospect sees first: the preview home wore
+   * a notification bell and an account avatar the live header does not have,
+   * quoted an all-time return and drew a sparkline off a valuation history the
+   * schema does not hold, closed on three stat cards restating figures already
+   * on the page, and painted its approval pill in a hex pair with no dark-theme
+   * value. The preview planning screen opened on a financial-health score, a
+   * protection gap and a legacy projection — three figures the live screen
+   * dropped because the product computes none of them.
+   *
+   * Each assertion below fails on the exact edit that would reintroduce one of
+   * those, in either direction.
+   */
+  test('the preview home and planning screens carry the live structure', () => {
+    const utils = code(join(WEB, 'app/_lib/utils.ts'));
+    const liveHome = code(join(WEB, 'app/(customer)/home/page.tsx'));
+    const demoHome = code(join(WEB, 'app/demo/home/page.tsx'));
+    const livePlanning = code(join(WEB, 'app/(customer)/planning/page.tsx'));
+    const demoPlanning = code(join(WEB, 'app/demo/planning/page.tsx'));
+    const demoPortfolio = code(join(WEB, 'app/demo/portfolio/page.tsx'));
+    const demoOrders = code(join(WEB, 'app/demo/orders/page.tsx'));
+
+    // One definition of the approval pill's colours, consumed by both homes,
+    // so a theme fix on one surface cannot leave the other behind.
+    expect(utils).toContain('APPROVAL_TONE_CLASS');
+    expect(utils).toContain('dark:bg-teal2/15 dark:text-teal2');
+    for (const home of [liveHome, demoHome]) {
+      expect(home).toContain('APPROVAL_TONE_CLASS[');
+      expect(home).toContain('APPROVAL_TONE_PILL');
+    }
+    // The pattern that made the pill unreadable in dark mode: light-theme ink
+    // over an 8%-alpha fill of the same hex.
+    expect(demoHome).not.toContain('tagColor');
+    expect(demoHome).not.toContain('background: `${');
+
+    // Header: the live home has no right-hand slot, so neither does the
+    // preview.
+    expect(demoHome).not.toContain('NotificationsBell');
+    expect(demoHome).not.toContain('AvatarFallback');
+    expect(demoHome).toContain('<PageHead eyebrow={dateLabel} title={greeting(profile.name)} />');
+    expect(demoHome).toContain("hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'");
+
+    // Hero: same dark ground, same reserved height, one figure and no
+    // fabricated trend.
+    for (const home of [liveHome, demoHome]) {
+      expect(home).toContain('dark:bg-[#124e48]');
+      expect(home).toContain('min-h-[207px]');
+      expect(home).toContain('text-[#eafaf5]/[.78]');
+    }
+    expect(demoHome).not.toContain('<polyline');
+    expect(demoHome).not.toContain('all-time');
+    expect(demoHome).not.toContain('↑ 6.8%');
+
+    // Body: approvals before activity, the live empty state, and no closing
+    // row of stat cards restating what is already on the screen.
+    expect(demoHome.indexOf('data-tour="customer-approvals"')).toBeLessThan(
+      demoHome.indexOf('data-tour="customer-activity"'),
+    );
+    expect(demoHome).toContain('<EmptyState');
+    expect(demoHome).toContain('Nothing needs your approval');
+    expect(demoHome).not.toContain('Blended yield');
+    expect(demoHome).not.toContain('Matched to your goals');
+
+    // Planning: no score, no gap, no projection — on either surface.
+    for (const planningScreen of [livePlanning, demoPlanning]) {
+      expect(planningScreen).not.toContain('Financial health');
+      expect(planningScreen).not.toContain('Protection gap');
+      expect(planningScreen).not.toContain('Est. legacy value');
+      expect(planningScreen).toContain('Add a goal');
+      expect(planningScreen).toContain('<NewGoalDialog');
+      expect(planningScreen).toContain('className="mt-auto w-full"');
+    }
+
+    // Portfolio and orders: preflight is off, so a bare `border` paints
+    // nothing; and a header pill that would read "0 in progress" is withheld,
+    // as live withholds it.
+    expect(demoPortfolio).toContain(
+      'flex items-baseline gap-2 rounded-xl border border-solid border-border bg-mint',
+    );
+    expect(demoPortfolio).not.toContain('· Licensed partner');
+    expect(demoPortfolio).toContain('{inst.regulator}');
+    // Connecting an account has a visible outcome on the screen it happens on.
+    expect(demoPortfolio).toContain('linkedPartners');
+    expect(demoPortfolio).toContain('pendingPartners');
+    expect(demoPortfolio).toContain('Waiting on their compliance desk');
+    expect(demoOrders).toContain('open.length > 0 ? (');
+    expect(demoOrders).toContain('It appears in your portfolio once they next report the position');
+  });
+
   test('the preview starts as a new visitor before entering the live screen structure', () => {
     const shell = code(join(SHELL, 'AppScreen.tsx'));
     const sidebar = code(join(SHELL, 'AppSidebar.tsx'));
@@ -338,7 +428,7 @@ describe('app shell controls', () => {
     expect(planning).toContain('citizenships,');
     expect(planning).toContain('pepStatus,');
     expect(planning).toContain('taxIdLastFour,');
-    expect(dashboard).toContain('<AvatarFallback>{profileInitials}</AvatarFallback>');
+    expect(dashboard).toContain('greeting(profile.name)');
     expect(signIn).toContain('DEMO_ENABLED &&');
     expect(shell).toContain('window.sessionStorage.setItem');
     expect(shell).toContain('inMemoryDemoProfile = { ...profile }');
