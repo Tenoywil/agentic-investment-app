@@ -156,52 +156,6 @@ body {
   color: hsl(var(--foreground));
   font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-
-/* A compact-height browser window should start the setup with an actionable
-   question in view. The page remains naturally scrollable; this only tightens
-   decorative spacing and preserves the current step in the visible header. */
-@media (max-height: 43.75rem) {
-  .planning-setup__content {
-    padding-top: 1rem;
-    padding-bottom: 2rem;
-  }
-
-  .planning-setup__header {
-    margin-bottom: 1rem;
-  }
-
-  .planning-setup__intro,
-  .planning-setup__progress {
-    margin-bottom: 1rem;
-  }
-
-  .planning-setup__eyebrow {
-    margin-bottom: 0.5rem;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.8125rem;
-  }
-
-  .planning-setup__title {
-    font-size: 1.5rem;
-  }
-
-  .planning-setup__description {
-    font-size: 0.875rem;
-    line-height: 1.4;
-  }
-
-  .planning-setup__progress-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-}
 ::-webkit-scrollbar {
   width: 11px;
   height: 11px;
