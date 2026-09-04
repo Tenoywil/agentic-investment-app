@@ -110,24 +110,9 @@ export const DEFAULT_DEMO_PROFILE: DemoProfile = {
 export type DemoAccountState = {
   approvedActions: string[];
   fundedPartners: string[];
-  connectedPartners: string[];
-  requestedPartners: string[];
-  fundingNotices: DemoFundingNotice[];
   ncbEvidenceFingerprint: string | null;
   ncbClientStatus: 'needs_evidence' | 'evidence_ready' | 'ready_for_review' | 'accepted';
   opportunityOrders: DemoOpportunityOrder[];
-};
-
-/** A local-only record of the information a visitor entered in the funding
- * walkthrough. It makes the confirmation survive navigation without ever
- * reading a receipt or contacting a financial institution. */
-export type DemoFundingNotice = {
-  partnerCode: string;
-  partnerName: string;
-  amount: string;
-  currency: 'USD' | 'JMD';
-  reference: string | null;
-  receiptName: string | null;
 };
 
 export type DemoOpportunityOrder = {
@@ -146,9 +131,6 @@ export function nextDemoOrderId(baseId: string, orders: DemoOpportunityOrder[]):
 export const DEFAULT_DEMO_ACCOUNT_STATE: DemoAccountState = {
   approvedActions: [],
   fundedPartners: [],
-  connectedPartners: [],
-  requestedPartners: [],
-  fundingNotices: [],
   ncbEvidenceFingerprint: null,
   ncbClientStatus: 'needs_evidence',
   opportunityOrders: [],
@@ -305,28 +287,6 @@ export function readDemoAccountState(): DemoAccountState {
         : [],
       fundedPartners: Array.isArray(candidate.fundedPartners)
         ? candidate.fundedPartners.filter((value): value is string => typeof value === 'string')
-        : [],
-      connectedPartners: Array.isArray(candidate.connectedPartners)
-        ? candidate.connectedPartners.filter((value): value is string => typeof value === 'string')
-        : [],
-      requestedPartners: Array.isArray(candidate.requestedPartners)
-        ? candidate.requestedPartners.filter((value): value is string => typeof value === 'string')
-        : [],
-      fundingNotices: Array.isArray(candidate.fundingNotices)
-        ? candidate.fundingNotices.filter(
-            (value): value is DemoFundingNotice =>
-              typeof value === 'object' &&
-              value !== null &&
-              typeof (value as Partial<DemoFundingNotice>).partnerCode === 'string' &&
-              typeof (value as Partial<DemoFundingNotice>).partnerName === 'string' &&
-              typeof (value as Partial<DemoFundingNotice>).amount === 'string' &&
-              ((value as Partial<DemoFundingNotice>).currency === 'USD' ||
-                (value as Partial<DemoFundingNotice>).currency === 'JMD') &&
-              ((value as Partial<DemoFundingNotice>).reference === null ||
-                typeof (value as Partial<DemoFundingNotice>).reference === 'string') &&
-              ((value as Partial<DemoFundingNotice>).receiptName === null ||
-                typeof (value as Partial<DemoFundingNotice>).receiptName === 'string'),
-          )
         : [],
       ncbEvidenceFingerprint:
         typeof candidate.ncbEvidenceFingerprint === 'string'

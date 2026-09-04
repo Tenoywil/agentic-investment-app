@@ -681,7 +681,7 @@ export default function DemoInstitutionsPage() {
               />
             </Card>
 
-            <Card className="h-fit border-border bg-[#f4f0e7] p-5 dark:bg-card sm:p-6">
+            <Card className="h-fit border-border bg-[#f4f0e7] p-5 sm:p-6">
               <FileSearch className="h-5 w-5 text-teal2" aria-hidden />
               <b className="mt-3 block font-display text-[17px]">Evidence before automation</b>
               <p className="mb-0 mt-2 text-sm leading-relaxed text-dim">

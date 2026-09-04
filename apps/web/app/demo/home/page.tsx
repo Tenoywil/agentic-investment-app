@@ -29,7 +29,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-type DemoJourneyId = 'complete' | 'opportunity' | 'connect' | 'funding' | 'agent' | 'institution';
+type DemoJourneyId = 'complete' | 'opportunity' | 'connect' | 'funding' | 'institution';
 
 const FREE_JOURNEY = 'free';
 const JOURNEYS: {
@@ -63,13 +63,6 @@ const JOURNEYS: {
     title: 'Add money to a partner account',
     description: 'Explore consolidated holdings and submit funding evidence to a licensed partner.',
     startPath: '/demo/portfolio',
-  },
-  {
-    id: 'agent',
-    title: 'Review an agent proposal',
-    description:
-      'Inspect the rationale, checks and execution partner before approving or dismissing a prepared move.',
-    startPath: '/demo/agent?review=1',
   },
   {
     id: 'institution',
@@ -401,7 +394,7 @@ export default function HomePage() {
                 never route a visitor into the signed-in app. */}
             {pendingApprovals.length > 0 && (
               <Button variant="peach" asChild>
-                <Link href="/demo/agent?review=1">
+                <Link href="/demo/agent">
                   Review {pendingApprovals.length} approval
                   {pendingApprovals.length === 1 ? '' : 's'}
                 </Link>
@@ -532,7 +525,7 @@ export default function HomePage() {
                 {a.amount}
               </div>
               <Button className="w-full" asChild>
-                <Link href="/demo/agent?review=1">Review &amp; approve</Link>
+                <Link href="/demo/agent">Review &amp; approve</Link>
               </Button>
             </div>
           ))}

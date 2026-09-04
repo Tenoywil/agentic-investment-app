@@ -276,7 +276,7 @@ describe('app shell controls', () => {
     const orders = code(join(WEB, 'app/demo/orders/page.tsx'));
     expect(agent).not.toContain('How the agents reached this');
     expect(agent).not.toContain('Demo complete');
-    expect(agent).toContain('Routed to Barita Investments for execution');
+    expect(agent).toContain('Routed to NCB for execution');
     expect(portfolio).toContain('CCN never holds your money');
     expect(portfolio).toContain('fundedPartners: [...accountState.fundedPartners');
     expect(portfolio).not.toContain('fundedPartners.includes(partner.code)');
@@ -470,7 +470,7 @@ describe('app shell controls', () => {
     expect(advisor).toContain('modalWeeklyAccessUpdate');
     expect(advisor).toContain("(?:i'd|i would)\\s+like");
     expect(advisor).toContain('(?:profile|liquidity');
-    expect(advisor).toContain('baritaPosition');
+    expect(advisor).toContain('ncbPosition');
     expect(advisor).toContain('villaScreenReply(profileForReply)');
     expect(advisor).toContain('max-[900px]:hidden');
 
