@@ -60,7 +60,7 @@ const SEED: Msg[] = [
   { role: 'user', text: 'What about the idle cash?' },
   {
     role: 'agent',
-    text: "Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. I've queued both for your approval.",
+    text: 'Good instinct. You have <b>US$2,150</b> earning nothing. I prepared a move into the <b>Barita USD Income Fund</b>, which Barita Investments would execute if you approve it.',
   },
 ];
 
@@ -79,7 +79,7 @@ const REPLIES: Record<string, string> = {
     "You're overweight fixed income at 46% and light on equities at 14%. Shifting about US$3,000 from cash into the GraceKennedy offering moves you toward your balanced-income target while keeping risk in band. Its potential diaspora value versus a like-for-like US, Canadian or UK equity is Jamaica exposure, but that is not automatically better: compare net fees, tax and reporting, currency, liquidity and investor protections. I can prepare it, and Barita would execute it.",
   income:
     'For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Compared with a like-for-like US, Canadian or UK bond, its potential diaspora value is direct Jamaica exposure and a USD coupon. It is not automatically better: compare after-tax return, duration, credit risk, liquidity, settlement and investor protections. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?',
-  idle: 'You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Its potential diaspora value versus a like-for-like US, Canadian or UK cash fund is Caribbean account exposure in USD; compare net fees, tax and reporting, liquidity, settlement and investor protections before deciding. Rates move; the fund’s rate is variable. I can queue it now.',
+  idle: 'You have US$2,150 sitting idle. I prepared a move into the Barita USD Income Fund, which Barita Investments would execute if you approve it. Compare the fund terms, fees, tax and reporting, currency, liquidity, settlement and investor protections before deciding. Nothing is routed until you approve it.',
   safety:
     "Here's the honest split: I research, screen and prepare. The licensed executing firm executes, custodies and settles. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every decision is written to an audit log you can read.",
   fees: 'Applicable CCN and partner product fees are shown before you approve. The executing firm reports the actual settlement price, units and fee; I do not estimate a missing settlement figure.',
@@ -144,12 +144,12 @@ const AGENT_MATCH_CANDIDATES = [
     term: 'Equity',
   },
   {
-    id: 'ncbmm',
-    name: 'NCB USD Money Market Fund',
+    id: 'barita-income',
+    name: 'Barita USD Income Fund',
     match: 65,
     risk: 'Low',
     type: 'Fund',
-    term: 'Instant access',
+    term: 'Open-ended',
   },
 ];
 
@@ -172,8 +172,8 @@ function profileUpdateReply(previousProfile: DemoProfile, updatedProfile: DemoPr
       : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>weekly access</b>`;
   const ranked = rankDemoMatches(AGENT_MATCH_CANDIDATES, updatedProfile);
   const topTwo = ranked.slice(0, 2);
-  const ncbPosition = ranked.findIndex((candidate) => candidate.id === 'ncbmm') + 1;
-  const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The NCB USD Money Market Fund's same-day access improved its liquidity fit${ncbPosition > 0 ? ` and places it at #${ncbPosition}` : ''}.`;
+  const baritaPosition = ranked.findIndex((candidate) => candidate.id === 'barita-income') + 1;
+  const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The Barita USD Income Fund remains available for review${baritaPosition > 0 ? ` at #${baritaPosition}` : ''}.`;
   return `${update} and refreshed your recommendations. ${rankingSummary} The five-year villa note remains screened out. Review and approve any move before I route it.`;
 }
 
@@ -529,20 +529,20 @@ const APPROVALS: {
     tag: 'Idle cash',
     variant: 'terra',
     when: '2d ago',
-    title: 'US$2,150 earning nothing',
-    body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
+    title: 'Put US$2,150 of idle cash to work',
+    body: 'Place your USD cash in the Barita USD Income Fund. You review the partner and terms before anything is routed.',
     amount: 'US$2,150',
-    instrument: 'NCB USD Money Market Fund',
-    partner: 'NCB Capital Markets',
+    instrument: 'Barita USD Income Fund',
+    partner: 'Barita Investments',
     checks: [
-      'Same-day access supports your current liquidity need',
+      'Matches your balanced-income profile',
       'Leaves the US$1,000 cash floor intact',
-      'Will be executed and custodied by NCB Capital Markets',
+      'Will be executed and custodied by Barita Investments',
     ],
     cta: 'Move cash',
     confirm:
-      'Approved. I sent the <b>US$2,150</b> instruction for the <b>NCB USD Money Market Fund</b> to NCB for execution. You can track it in My orders.',
-    done: 'Routed to NCB for execution',
+      'Approved. I sent the <b>US$2,150</b> instruction for the <b>Barita USD Income Fund</b> to Barita Investments for execution. You can track it in My orders.',
+    done: 'Routed to Barita Investments for execution',
   },
 ];
 
@@ -679,6 +679,8 @@ export default function AgentPage() {
   const [limitsDraft, setLimitsDraft] = useState(DEMO_LIMITS);
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [limitsError, setLimitsError] = useState<string | null>(null);
+  const [restorePanelsAfterLimits, setRestorePanelsAfterLimits] = useState(false);
+  const [panelsOpen, setPanelsOpen] = useState(false);
   /** Approval cards live locally: pending → approved, or dismissed away. */
   const [cardState, setCardState] = useState<Record<string, 'pending' | 'approved'>>(
     Object.fromEntries(APPROVALS.map((a) => [a.id, 'pending'])),
@@ -692,6 +694,7 @@ export default function AgentPage() {
   const [hearing, setHearing] = useState<string | null>(null);
   const [replying, setReplying] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const panelsRef = useRef<HTMLDialogElement>(null);
   const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dictationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dictationSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -739,7 +742,7 @@ export default function AgentPage() {
                     ? couponApproved
                       ? 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. The reinvestment instruction into the <b>Sagicor Real Estate X Fund</b> is approved and available in My orders.'
                       : 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?'
-                    : `Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. ${queueCopy}`,
+                    : `Good instinct. You have <b>US$2,150</b> earning nothing. I prepared a move into the <b>Barita USD Income Fund</b>, which Barita Investments would execute if you approve it. ${queueCopy}`,
             }
           : message,
       ),
@@ -817,8 +820,8 @@ export default function AgentPage() {
             amount: 'US$412',
           }
         : {
-            name: 'NCB USD Money Market Fund',
-            partner: 'NCB Capital Markets',
+            name: 'Barita USD Income Fund',
+            partner: 'Barita Investments',
             amount: 'US$2,150',
           };
     writeDemoAccountState({
@@ -876,9 +879,21 @@ export default function AgentPage() {
   }
 
   function openLimits() {
+    const restorePanels = panelsRef.current?.open === true;
+    if (restorePanels) panelsRef.current?.close();
+    setRestorePanelsAfterLimits(restorePanels);
     setLimitsDraft(limits);
     setLimitsError(null);
     setLimitsOpen(true);
+  }
+
+  function openPanels() {
+    if (!panelsRef.current?.open) panelsRef.current?.showModal();
+    setPanelsOpen(true);
+  }
+
+  function closePanels() {
+    panelsRef.current?.close();
   }
 
   function saveLimits() {
@@ -997,6 +1012,26 @@ export default function AgentPage() {
             >
               Orders <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="agent-panels__open h-9 flex-none gap-1.5 px-2.5 font-semibold text-teal2"
+              aria-haspopup="dialog"
+              aria-expanded={panelsOpen}
+              onClick={openPanels}
+            >
+              <SlidersHorizontal className="h-[18px] w-[18px]" aria-hidden />
+              <span className="sr-only">Approvals and limits</span>
+              {pendingCount > 0 ? (
+                <span
+                  className="min-w-[20px] rounded-full bg-[#f9ede2] px-1.5 text-center text-[12px] font-bold text-terra-ink dark:bg-[#2e2118]"
+                  aria-hidden
+                >
+                  {pendingCount}
+                </span>
+              ) : null}
+            </Button>
           </div>
 
           <div
@@ -1129,8 +1164,30 @@ export default function AgentPage() {
           </div>
         </Card>
 
-        {/* Approvals + limits */}
-        <div className="flex flex-col gap-[18px]">
+        {/* Approvals + limits: a desktop column and the same native sheet on mobile. */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: this handler only closes backdrop clicks; Escape remains native dialog behavior. */}
+        <dialog
+          ref={panelsRef}
+          className="agent-panels flex flex-col gap-[18px] bg-transparent text-foreground"
+          aria-label="Approvals and limits"
+          onClose={() => setPanelsOpen(false)}
+          onClick={(event) => {
+            if (event.target === panelsRef.current) closePanels();
+          }}
+        >
+          <button
+            type="button"
+            data-sheet-handle
+            onClick={closePanels}
+            aria-label="Close approvals and limits"
+            className="app-sheet__handle agent-panels__handle"
+          />
+          <div className="agent-panels__bar">
+            <span className="font-display text-base font-bold">Approvals and limits</span>
+            <Button type="button" size="sm" variant="ghost" onClick={closePanels}>
+              Done
+            </Button>
+          </div>
           <Card className="p-5" data-tour="customer-approvals">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
@@ -1152,7 +1209,15 @@ export default function AgentPage() {
                   <Badge variant={a.variant}>{a.tag}</Badge>
                   <span className="text-[12.5px] text-faint">{a.when}</span>
                 </div>
-                <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
+                <div className="mb-0.5 text-[15px] font-bold leading-snug">{a.instrument}</div>
+                <div className="mb-2.5 flex flex-wrap items-baseline gap-2">
+                  <span className="font-display text-[22px] font-bold leading-none tracking-tight text-teal2">
+                    {a.amount}
+                  </span>
+                  <span className="rounded-full border border-solid border-border bg-card px-2.5 py-0.5 text-[12px] font-semibold text-dim">
+                    {a.partner}
+                  </span>
+                </div>
                 <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
                 {cardState[a.id] === 'approved' ? (
                   <p className="m-0 flex items-center gap-1.5 text-[13.5px] font-bold text-success-ink">
@@ -1223,7 +1288,16 @@ export default function AgentPage() {
                 />
               </div>
             ))}
-            <Dialog open={limitsOpen} onOpenChange={setLimitsOpen}>
+            <Dialog
+              open={limitsOpen}
+              onOpenChange={(open) => {
+                setLimitsOpen(open);
+                if (!open && restorePanelsAfterLimits) {
+                  setRestorePanelsAfterLimits(false);
+                  requestAnimationFrame(openPanels);
+                }
+              }}
+            >
               <DialogContent className="max-w-[620px] p-0">
                 <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
                   <DialogTitle>Adjust your agent limits</DialogTitle>
@@ -1276,7 +1350,7 @@ export default function AgentPage() {
               </DialogContent>
             </Dialog>
           </Card>
-        </div>
+        </dialog>
       </div>
 
       <Dialog
