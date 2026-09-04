@@ -336,10 +336,10 @@ function DemoInvestorSetup() {
   }
 
   return (
-    <section className="min-h-screen bg-background font-sans text-foreground">
-      <div className="mx-auto w-full max-w-[760px] px-5 pb-24 pt-8 sm:pt-10">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2.5 no-underline">
+    <section className="planning-setup min-h-screen bg-background font-sans text-foreground">
+      <div className="planning-setup__content mx-auto w-full max-w-[760px] px-5 pb-24 pt-8 sm:pt-10">
+        <div className="planning-setup__header mb-8 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-2.5 text-foreground no-underline">
             <span className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-primary font-display text-[17px] font-bold text-primary-foreground">
               C
             </span>
@@ -350,15 +350,15 @@ function DemoInvestorSetup() {
           </Button>
         </div>
 
-        <div className="mb-6 text-center">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-mint px-4 py-2 text-sm font-bold text-primary dark:text-teal2">
+        <div className="planning-setup__intro mb-6 text-center">
+          <p className="planning-setup__eyebrow mb-3 inline-flex items-center gap-2 rounded-full bg-mint px-4 py-2 text-sm font-bold text-primary dark:text-teal2">
             <ShieldCheck className="h-4 w-4" aria-hidden />
             Investor setup
           </p>
-          <h1 className="font-display text-[30px] font-bold leading-tight tracking-tight">
+          <h1 className="planning-setup__title font-display text-[30px] font-bold leading-tight tracking-tight">
             {stepTitles[step]}
           </h1>
-          <p className="mx-auto mt-2 max-w-[600px] text-base leading-relaxed text-dim">
+          <p className="planning-setup__description mx-auto mt-2 max-w-[600px] text-base leading-relaxed text-dim">
             {stepDescriptions[step]}
           </p>
         </div>
@@ -638,7 +638,10 @@ function DemoInvestorSetup() {
 
 function SetupProgress({ step }: { step: number }) {
   return (
-    <ol className="mb-6 flex list-none gap-2 p-0" aria-label="Investor setup progress">
+    <ol
+      className="planning-setup__progress mb-6 flex list-none gap-2 p-0"
+      aria-label="Investor setup progress"
+    >
       {SETUP_STEPS.map((label, index) => (
         <li
           key={label}
@@ -653,7 +656,7 @@ function SetupProgress({ step }: { step: number }) {
           />
           <span
             className={cn(
-              'mt-2 block truncate text-center text-xs font-semibold',
+              'planning-setup__progress-label mt-2 block truncate text-center text-xs font-semibold',
               index <= step ? 'text-foreground' : 'text-faint',
             )}
           >

@@ -33,6 +33,7 @@ import type { AgentDisplayData } from '@/lib/agent-api';
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   CircleAlert,
   Mic,
   SlidersHorizontal,
@@ -59,7 +60,7 @@ const SEED: Msg[] = [
   { role: 'user', text: 'What about the idle cash?' },
   {
     role: 'agent',
-    text: "Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. I've queued both for your approval.",
+    text: 'Good instinct. You have <b>US$2,150</b> earning nothing. I prepared a move into the <b>Barita USD Income Fund</b>, which Barita Investments would execute if you approve it.',
   },
 ];
 
@@ -78,7 +79,7 @@ const REPLIES: Record<string, string> = {
     "You're overweight fixed income at 46% and light on equities at 14%. Shifting about US$3,000 from cash into the GraceKennedy offering moves you toward your balanced-income target while keeping risk in band. Its potential diaspora value versus a like-for-like US, Canadian or UK equity is Jamaica exposure, but that is not automatically better: compare net fees, tax and reporting, currency, liquidity and investor protections. I can prepare it, and Barita would execute it.",
   income:
     'For income right now the Government of Jamaica USD Bond 2032 at 7.875% is the standout: hard currency, sovereign, and projected to lift your blended yield to about 6.9%. Compared with a like-for-like US, Canadian or UK bond, its potential diaspora value is direct Jamaica exposure and a USD coupon. It is not automatically better: compare after-tax return, duration, credit risk, liquidity, settlement and investor protections. Coupon rates are set at issue; the projection is not a guarantee. Shall I prepare it for your approval?',
-  idle: 'You have US$2,150 sitting idle. Sweeping it into the NCB USD Money Market Fund at the current 5.1% rate is projected to add about US$110 a year, with same-day access. Its potential diaspora value versus a like-for-like US, Canadian or UK cash fund is Caribbean account exposure in USD; compare net fees, tax and reporting, liquidity, settlement and investor protections before deciding. Rates move; the fund’s rate is variable. I can queue it now.',
+  idle: 'You have US$2,150 sitting idle. I prepared a move into the Barita USD Income Fund, which Barita Investments would execute if you approve it. Compare the fund terms, fees, tax and reporting, currency, liquidity, settlement and investor protections before deciding. Nothing is routed until you approve it.',
   safety:
     "Here's the honest split: I research, screen and prepare. The licensed executing firm executes, custodies and settles. CCN never holds your money and never executes a trade itself. Everything I do is inside limits you set, and every decision is written to an audit log you can read.",
   fees: 'Applicable CCN and partner product fees are shown before you approve. The executing firm reports the actual settlement price, units and fee; I do not estimate a missing settlement figure.',
@@ -143,12 +144,12 @@ const AGENT_MATCH_CANDIDATES = [
     term: 'Equity',
   },
   {
-    id: 'ncbmm',
-    name: 'NCB USD Money Market Fund',
+    id: 'barita-income',
+    name: 'Barita USD Income Fund',
     match: 65,
     risk: 'Low',
     type: 'Fund',
-    term: 'Instant access',
+    term: 'Open-ended',
   },
 ];
 
@@ -171,8 +172,8 @@ function profileUpdateReply(previousProfile: DemoProfile, updatedProfile: DemoPr
       : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>weekly access</b>`;
   const ranked = rankDemoMatches(AGENT_MATCH_CANDIDATES, updatedProfile);
   const topTwo = ranked.slice(0, 2);
-  const ncbPosition = ranked.findIndex((candidate) => candidate.id === 'ncbmm') + 1;
-  const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The NCB USD Money Market Fund's same-day access improved its liquidity fit${ncbPosition > 0 ? ` and places it at #${ncbPosition}` : ''}.`;
+  const baritaPosition = ranked.findIndex((candidate) => candidate.id === 'barita-income') + 1;
+  const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The Barita USD Income Fund remains available for review${baritaPosition > 0 ? ` at #${baritaPosition}` : ''}.`;
   return `${update} and refreshed your recommendations. ${rankingSummary} The five-year villa note remains screened out. Review and approve any move before I route it.`;
 }
 
@@ -493,6 +494,10 @@ const APPROVALS: {
   when: string;
   title: string;
   body: string;
+  amount: string;
+  instrument: string;
+  partner: string;
+  checks: string[];
   cta: string;
   /** What the agent says in the chat when this card is approved. */
   confirm: string;
@@ -506,6 +511,14 @@ const APPROVALS: {
     when: 'Today',
     title: 'Put your GOJ coupon to work',
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
+    amount: 'US$412',
+    instrument: 'Sagicor Real Estate X Fund',
+    partner: 'Sagicor Investments',
+    checks: [
+      'Matches your balanced-income profile',
+      'Keeps the proposed position within your 15% concentration limit',
+      'Will be executed and custodied by Sagicor Investments',
+    ],
     cta: 'Approve reinvestment',
     confirm:
       'Approved. I sent the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. You can track it in My orders.',
@@ -516,12 +529,20 @@ const APPROVALS: {
     tag: 'Idle cash',
     variant: 'terra',
     when: '2d ago',
-    title: 'US$2,150 earning nothing',
-    body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
+    title: 'Put US$2,150 of idle cash to work',
+    body: 'Place your USD cash in the Barita USD Income Fund. You review the partner and terms before anything is routed.',
+    amount: 'US$2,150',
+    instrument: 'Barita USD Income Fund',
+    partner: 'Barita Investments',
+    checks: [
+      'Matches your balanced-income profile',
+      'Leaves the US$1,000 cash floor intact',
+      'Will be executed and custodied by Barita Investments',
+    ],
     cta: 'Move cash',
     confirm:
-      'Approved. I sent the <b>US$2,150</b> instruction for the <b>NCB USD Money Market Fund</b> to NCB for execution. You can track it in My orders.',
-    done: 'Routed to NCB for execution',
+      'Approved. I sent the <b>US$2,150</b> instruction for the <b>Barita USD Income Fund</b> to Barita Investments for execution. You can track it in My orders.',
+    done: 'Routed to Barita Investments for execution',
   },
 ];
 
@@ -658,21 +679,29 @@ export default function AgentPage() {
   const [limitsDraft, setLimitsDraft] = useState(DEMO_LIMITS);
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [limitsError, setLimitsError] = useState<string | null>(null);
+  const [restorePanelsAfterLimits, setRestorePanelsAfterLimits] = useState(false);
+  const [panelsOpen, setPanelsOpen] = useState(false);
   /** Approval cards live locally: pending → approved, or dismissed away. */
   const [cardState, setCardState] = useState<Record<string, 'pending' | 'approved'>>(
     Object.fromEntries(APPROVALS.map((a) => [a.id, 'pending'])),
   );
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [reviewingApproval, setReviewingApproval] = useState<(typeof APPROVALS)[number] | null>(
+    null,
+  );
+  const [guidedReview, setGuidedReview] = useState(false);
   /** The simulated dictation: null when idle, else the transcript so far. */
   const [hearing, setHearing] = useState<string | null>(null);
   const [replying, setReplying] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const panelsRef = useRef<HTMLDialogElement>(null);
   const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dictationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dictationSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputId = useId();
 
   useEffect(() => {
+    setGuidedReview(new URLSearchParams(window.location.search).get('review') === '1');
     const restored = readDemoProfile(MARCUS_PROFILE);
     const accountState = readDemoAccountState();
     const firstName = restored.name.trim().split(/\s+/)[0] || 'investor';
@@ -713,7 +742,7 @@ export default function AgentPage() {
                     ? couponApproved
                       ? 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. The reinvestment instruction into the <b>Sagicor Real Estate X Fund</b> is approved and available in My orders.'
                       : 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?'
-                    : `Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. ${queueCopy}`,
+                    : `Good instinct. You have <b>US$2,150</b> earning nothing. I prepared a move into the <b>Barita USD Income Fund</b>, which Barita Investments would execute if you approve it. ${queueCopy}`,
             }
           : message,
       ),
@@ -791,8 +820,8 @@ export default function AgentPage() {
             amount: 'US$412',
           }
         : {
-            name: 'NCB USD Money Market Fund',
-            partner: 'NCB Capital Markets',
+            name: 'Barita USD Income Fund',
+            partner: 'Barita Investments',
             amount: 'US$2,150',
           };
     writeDemoAccountState({
@@ -808,6 +837,7 @@ export default function AgentPage() {
             },
           ],
     });
+    setReviewingApproval(null);
     setChat((c) => [...c, { role: 'agent', text: a.confirm }]);
   }
 
@@ -849,9 +879,21 @@ export default function AgentPage() {
   }
 
   function openLimits() {
+    const restorePanels = panelsRef.current?.open === true;
+    if (restorePanels) panelsRef.current?.close();
+    setRestorePanelsAfterLimits(restorePanels);
     setLimitsDraft(limits);
     setLimitsError(null);
     setLimitsOpen(true);
+  }
+
+  function openPanels() {
+    if (!panelsRef.current?.open) panelsRef.current?.showModal();
+    setPanelsOpen(true);
+  }
+
+  function closePanels() {
+    panelsRef.current?.close();
   }
 
   function saveLimits() {
@@ -899,6 +941,26 @@ export default function AgentPage() {
           ))}
         </span>
       </div>
+
+      {guidedReview ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-mint px-4 py-3.5">
+          <div className="min-w-0">
+            <div className="text-[12px] font-bold uppercase tracking-[.6px] text-teal2">
+              Guided demo · {pendingCount === APPROVALS.length ? 'Step 1 of 2' : 'Step 2 of 2'}
+            </div>
+            <p className="mb-0 mt-1 text-sm leading-relaxed text-dim">
+              {pendingCount === APPROVALS.length
+                ? 'Open a proposal to see the amount, why it fits, the checks performed and the licensed execution partner.'
+                : 'Your decision was recorded in this preview and the instruction now appears in My orders.'}
+            </p>
+          </div>
+          {pendingCount < APPROVALS.length ? (
+            <Button size="sm" asChild>
+              <Link href="/demo/orders">Follow the instruction</Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="g-agent">
         {/* Chat */}
@@ -950,6 +1012,26 @@ export default function AgentPage() {
             >
               Orders <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="agent-panels__open h-9 flex-none gap-1.5 px-2.5 font-semibold text-teal2"
+              aria-haspopup="dialog"
+              aria-expanded={panelsOpen}
+              onClick={openPanels}
+            >
+              <SlidersHorizontal className="h-[18px] w-[18px]" aria-hidden />
+              <span className="sr-only">Approvals and limits</span>
+              {pendingCount > 0 ? (
+                <span
+                  className="min-w-[20px] rounded-full bg-[#f9ede2] px-1.5 text-center text-[12px] font-bold text-terra-ink dark:bg-[#2e2118]"
+                  aria-hidden
+                >
+                  {pendingCount}
+                </span>
+              ) : null}
+            </Button>
           </div>
 
           <div
@@ -1082,8 +1164,30 @@ export default function AgentPage() {
           </div>
         </Card>
 
-        {/* Approvals + limits */}
-        <div className="flex flex-col gap-[18px]">
+        {/* Approvals + limits: a desktop column and the same native sheet on mobile. */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: this handler only closes backdrop clicks; Escape remains native dialog behavior. */}
+        <dialog
+          ref={panelsRef}
+          className="agent-panels flex flex-col gap-[18px] bg-transparent text-foreground"
+          aria-label="Approvals and limits"
+          onClose={() => setPanelsOpen(false)}
+          onClick={(event) => {
+            if (event.target === panelsRef.current) closePanels();
+          }}
+        >
+          <button
+            type="button"
+            data-sheet-handle
+            onClick={closePanels}
+            aria-label="Close approvals and limits"
+            className="app-sheet__handle agent-panels__handle"
+          />
+          <div className="agent-panels__bar">
+            <span className="font-display text-base font-bold">Approvals and limits</span>
+            <Button type="button" size="sm" variant="ghost" onClick={closePanels}>
+              Done
+            </Button>
+          </div>
           <Card className="p-5" data-tour="customer-approvals">
             <div className="mb-3.5 flex items-center gap-2.5">
               <span className={cn(UPPR, 'text-foreground')}>Needs your approval</span>
@@ -1105,7 +1209,15 @@ export default function AgentPage() {
                   <Badge variant={a.variant}>{a.tag}</Badge>
                   <span className="text-[12.5px] text-faint">{a.when}</span>
                 </div>
-                <div className="mb-1.5 text-[15px] font-bold">{a.title}</div>
+                <div className="mb-0.5 text-[15px] font-bold leading-snug">{a.instrument}</div>
+                <div className="mb-2.5 flex flex-wrap items-baseline gap-2">
+                  <span className="font-display text-[22px] font-bold leading-none tracking-tight text-teal2">
+                    {a.amount}
+                  </span>
+                  <span className="rounded-full border border-solid border-border bg-card px-2.5 py-0.5 text-[12px] font-semibold text-dim">
+                    {a.partner}
+                  </span>
+                </div>
                 <p className="mb-3 text-[13.5px] leading-normal text-dim">{a.body}</p>
                 {cardState[a.id] === 'approved' ? (
                   <p className="m-0 flex items-center gap-1.5 text-[13.5px] font-bold text-success-ink">
@@ -1113,8 +1225,8 @@ export default function AgentPage() {
                   </p>
                 ) : (
                   <div className="flex gap-2">
-                    <Button className="h-10 flex-1" onClick={() => approveCard(a)}>
-                      {a.cta}
+                    <Button className="h-10 flex-1" onClick={() => setReviewingApproval(a)}>
+                      Review proposal
                     </Button>
                     <Button
                       variant="outline"
@@ -1176,7 +1288,16 @@ export default function AgentPage() {
                 />
               </div>
             ))}
-            <Dialog open={limitsOpen} onOpenChange={setLimitsOpen}>
+            <Dialog
+              open={limitsOpen}
+              onOpenChange={(open) => {
+                setLimitsOpen(open);
+                if (!open && restorePanelsAfterLimits) {
+                  setRestorePanelsAfterLimits(false);
+                  requestAnimationFrame(openPanels);
+                }
+              }}
+            >
               <DialogContent className="max-w-[620px] p-0">
                 <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
                   <DialogTitle>Adjust your agent limits</DialogTitle>
@@ -1229,8 +1350,78 @@ export default function AgentPage() {
               </DialogContent>
             </Dialog>
           </Card>
-        </div>
+        </dialog>
       </div>
+
+      <Dialog
+        open={reviewingApproval !== null}
+        onOpenChange={(open) => {
+          if (!open) setReviewingApproval(null);
+        }}
+      >
+        <DialogContent className="max-w-[560px] gap-0 p-0">
+          <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
+            <div className="mb-2 flex items-center gap-2">
+              {reviewingApproval ? (
+                <Badge variant={reviewingApproval.variant}>{reviewingApproval.tag}</Badge>
+              ) : null}
+              <span className="text-[12.5px] text-faint">Prepared {reviewingApproval?.when}</span>
+            </div>
+            <DialogTitle>{reviewingApproval?.title}</DialogTitle>
+            <DialogDescription>
+              Review the agent&apos;s rationale and the execution details before you make a
+              decision.
+            </DialogDescription>
+          </DialogHeader>
+
+          {reviewingApproval ? (
+            <div className="grid gap-5 px-6 py-5">
+              <p className="m-0 text-sm leading-relaxed text-dim">{reviewingApproval.body}</p>
+
+              <div className="overflow-hidden rounded-xl border border-border">
+                {[
+                  ['Investment', reviewingApproval.instrument],
+                  ['Amount', reviewingApproval.amount],
+                  ['Execution partner', reviewingApproval.partner],
+                  ['Status', 'Prepared — waiting for your approval'],
+                ].map(([label, value], index) => (
+                  <div
+                    key={label}
+                    className={cn(
+                      'flex items-start justify-between gap-4 px-4 py-3.5 text-sm',
+                      index > 0 && 'border-t border-solid border-x-0 border-b-0 border-border',
+                    )}
+                  >
+                    <span className="text-dim">{label}</span>
+                    <span className="max-w-[62%] text-right font-semibold">{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-[#cde0d8] bg-mint px-4 py-3.5 dark:border-white/10">
+                <div className="mb-2 text-[13px] font-bold text-teal2">Checks completed</div>
+                <div className="grid gap-2">
+                  {reviewingApproval.checks.map((check) => (
+                    <div key={check} className="flex gap-2 text-sm leading-snug text-foreground">
+                      <Check className="mt-0.5 h-4 w-4 flex-none text-success" aria-hidden />
+                      <span>{check}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between">
+                <Button type="button" variant="outline" onClick={() => setReviewingApproval(null)}>
+                  Back to proposals
+                </Button>
+                <Button type="button" onClick={() => approveCard(reviewingApproval)}>
+                  {reviewingApproval.cta}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </AppScreen>
   );
 }

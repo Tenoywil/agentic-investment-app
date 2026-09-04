@@ -2,6 +2,7 @@
 
 import {
   AppScreen,
+  DEMO_JOURNEY_STORAGE_KEY,
   PageHead,
   readDemoAccountState,
   writeDemoAccountState,
@@ -20,7 +21,8 @@ import {
 import { Input } from '@/app/_components/ui/input';
 import { cn } from '@/app/_lib/utils';
 import { Check, Link2, ShieldCheck, Upload } from 'lucide-react';
-import { type FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 const INSTITUTIONS = [
   {
@@ -146,13 +148,20 @@ function fmtUsdMinor(minor: string): string {
 export default function PortfolioPage() {
   const [fundingPartner, setFundingPartner] = useState<(typeof INSTITUTIONS)[number] | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [fundingAmount, setFundingAmount] = useState('');
+  const [fundingCurrency, setFundingCurrency] = useState<'USD' | 'JMD'>('USD');
+  const [fundingReference, setFundingReference] = useState('');
+  const [fundingReceiptName, setFundingReceiptName] = useState<string | null>(null);
+  const [fundingError, setFundingError] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [connectPartner, setConnectPartner] = useState(DEFAULT_CONNECT_PARTNER);
   const [connectMode, setConnectMode] = useState<'existing' | 'new' | null>(null);
   const [connectSubmitted, setConnectSubmitted] = useState(false);
+  const [connectCompleted, setConnectCompleted] = useState(false);
   const [connectedPartners, setConnectedPartners] = useState<string[]>([]);
   const [requestedPartners, setRequestedPartners] = useState<string[]>([]);
   const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
+  const [guidedJourney, setGuidedJourney] = useState<'connect' | 'funding' | null>(null);
 
   const availableToConnect = CONNECTABLE_INSTITUTIONS.filter(
     (partner) =>
@@ -173,20 +182,52 @@ export default function PortfolioPage() {
   function closeFunding() {
     setFundingPartner(null);
     setSubmitted(false);
+    setFundingError(null);
   }
 
-  function openFunding(partner: (typeof INSTITUTIONS)[number]) {
+  const openFunding = useCallback((partner: (typeof INSTITUTIONS)[number]) => {
     setFundingPartner(partner);
     setSubmitted(false);
-  }
+    setFundingAmount('');
+    setFundingCurrency('USD');
+    setFundingReference('');
+    setFundingReceiptName(null);
+    setFundingError(null);
+  }, []);
 
   function submitFunding() {
     if (!fundingPartner) return;
+    const normalizedAmount = fundingAmount.trim().replaceAll(',', '');
+    const amount = Number(normalizedAmount);
+    if (!/^\d+(?:\.\d{1,2})?$/.test(normalizedAmount) || !Number.isFinite(amount) || amount <= 0) {
+      setFundingError('Enter an amount greater than zero, using up to two decimal places.');
+      return;
+    }
+    if (!fundingReference.trim() && !fundingReceiptName) {
+      setFundingError(
+        'Add a transaction reference or choose a receipt so the partner can match the transfer.',
+      );
+      return;
+    }
     const accountState = readDemoAccountState();
     writeDemoAccountState({
       ...accountState,
-      fundedPartners: [...accountState.fundedPartners, fundingPartner.code],
+      fundedPartners: [...accountState.fundedPartners, fundingPartner.code].filter(
+        (partnerCode, index, partners) => partners.indexOf(partnerCode) === index,
+      ),
+      fundingNotices: [
+        ...accountState.fundingNotices,
+        {
+          partnerCode: fundingPartner.code,
+          partnerName: fundingPartner.name,
+          amount: normalizedAmount,
+          currency: fundingCurrency,
+          reference: fundingReference.trim() || null,
+          receiptName: fundingReceiptName,
+        },
+      ],
     });
+    setFundingError(null);
     setSubmitted(true);
   }
 
@@ -226,15 +267,45 @@ export default function PortfolioPage() {
         `Request sent to ${partnerName}. Their compliance desk will confirm the relationship.`,
       );
     }
+    const accountState = readDemoAccountState();
+    writeDemoAccountState({
+      ...accountState,
+      connectedPartners:
+        connectMode === 'existing'
+          ? [...new Set([...accountState.connectedPartners, connectPartner])]
+          : accountState.connectedPartners,
+      requestedPartners:
+        connectMode === 'new'
+          ? [...new Set([...accountState.requestedPartners, connectPartner])]
+          : accountState.requestedPartners,
+    });
     setConnectSubmitted(true);
+    setConnectCompleted(true);
   }
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('connect') !== '1') return;
-    setConnectOpen(true);
-    setConnectMode(null);
-    setConnectSubmitted(false);
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    const accountState = readDemoAccountState();
+    setConnectedPartners(accountState.connectedPartners);
+    setRequestedPartners(accountState.requestedPartners);
+    let selectedJourney: string | null = null;
+    try {
+      selectedJourney = window.sessionStorage.getItem(DEMO_JOURNEY_STORAGE_KEY);
+    } catch {
+      // Browser storage is optional; direct demo links still open their flow.
+    }
+    if (params.get('connect') === '1') {
+      setGuidedJourney('connect');
+      setConnectOpen(true);
+      setConnectMode(null);
+      setConnectSubmitted(false);
+    }
+    if (params.get('fund') === '1' || selectedJourney === 'funding') {
+      setGuidedJourney('funding');
+      const defaultFundingPartner = INSTITUTIONS[0];
+      if (defaultFundingPartner) openFunding(defaultFundingPartner);
+    }
+  }, [openFunding]);
 
   return (
     <AppScreen active="portfolio" basePath="/demo">
@@ -270,6 +341,46 @@ export default function PortfolioPage() {
           </div>
         }
       />
+
+      {guidedJourney === 'connect' ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-mint px-4 py-3.5">
+          <div className="min-w-0">
+            <div className="text-[12px] font-bold uppercase tracking-[.6px] text-teal2">
+              Guided demo · {connectCompleted ? 'Step 2 of 2' : 'Step 1 of 2'}
+            </div>
+            <p className="mb-0 mt-1 text-sm leading-relaxed text-dim">
+              {connectCompleted
+                ? 'The connection outcome is recorded in this preview. Next, tell a partner about a transfer.'
+                : 'Choose a partner, then say whether you are linking an account you already have or asking to open one.'}
+            </p>
+          </div>
+          {connectCompleted ? (
+            <Button size="sm" asChild>
+              <Link href="/demo/portfolio?fund=1">Continue to add money</Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {guidedJourney === 'funding' ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-mint px-4 py-3.5">
+          <div className="min-w-0">
+            <div className="text-[12px] font-bold uppercase tracking-[.6px] text-teal2">
+              Guided demo · {submitted ? 'Step 2 of 2' : 'Step 1 of 2'}
+            </div>
+            <p className="mb-0 mt-1 text-sm leading-relaxed text-dim">
+              {submitted
+                ? 'The funding notice is recorded for this preview. Now review how the agent prepares an investment decision.'
+                : 'Enter a transfer amount and either a reference or receipt name. The partner still verifies the transfer.'}
+            </p>
+          </div>
+          {submitted ? (
+            <Button size="sm" asChild>
+              <Link href="/demo/agent?review=1">Review an agent proposal</Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       {connectionNotice ? (
         <output className="mb-4 block rounded-xl border border-solid border-border bg-mint px-4 py-3 text-[14px] leading-relaxed text-success-ink">
@@ -542,14 +653,26 @@ export default function PortfolioPage() {
                 <div>
                   <b>Funding notice sent</b>
                   <p className="mb-0 mt-1 text-sm text-dim">
-                    {fundingPartner?.name} will verify the receipt or transaction reference before
+                    Your {fundingCurrency}{' '}
+                    {Number(fundingAmount.replaceAll(',', '')).toLocaleString('en-US', {
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    notice is ready for {fundingPartner?.name}. They will verify the
+                    {fundingReference.trim() ? ' transaction reference' : ' receipt'} before
                     crediting cash to your account.
                   </p>
                 </div>
               </div>
-              <Button type="button" className="mt-4 w-full" onClick={closeFunding}>
-                Done
-              </Button>
+              <div className="mt-4 grid gap-2">
+                {guidedJourney === 'funding' ? (
+                  <Button type="button" asChild>
+                    <Link href="/demo/agent?review=1">Review an agent proposal</Link>
+                  </Button>
+                ) : null}
+                <Button type="button" variant="outline" className="w-full" onClick={closeFunding}>
+                  Done
+                </Button>
+              </div>
             </div>
           ) : (
             <form
@@ -567,13 +690,16 @@ export default function PortfolioPage() {
                     required
                     inputMode="decimal"
                     placeholder="1,000"
+                    value={fundingAmount}
+                    onChange={(event) => setFundingAmount(event.target.value)}
                   />
                 </label>
                 <label className="grid gap-1.5 text-sm font-semibold">
                   Currency
                   <select
                     className="h-10 rounded-lg border border-border bg-card px-3"
-                    defaultValue="USD"
+                    value={fundingCurrency}
+                    onChange={(event) => setFundingCurrency(event.target.value as 'USD' | 'JMD')}
                   >
                     <option>USD</option>
                     <option>JMD</option>
@@ -590,8 +716,10 @@ export default function PortfolioPage() {
                   minLength={3}
                   maxLength={120}
                   placeholder="TRD-88214"
+                  value={fundingReference}
+                  onChange={(event) => setFundingReference(event.target.value)}
                 />
-                <span className="font-normal text-faint">Optional when you attach a receipt.</span>
+                <span className="font-normal text-faint">Add this or choose a receipt below.</span>
               </label>
               <label
                 htmlFor="demo-funding-receipt"
@@ -605,9 +733,19 @@ export default function PortfolioPage() {
                   id="demo-funding-receipt"
                   accept="image/jpeg,image/png,image/webp,application/pdf"
                   type="file"
+                  onChange={(event) => setFundingReceiptName(event.target.files?.[0]?.name ?? null)}
                 />
-                <span className="font-normal text-faint">Optional PDF or image, up to 2 MB.</span>
+                <span className="font-normal text-faint">
+                  {fundingReceiptName
+                    ? `${fundingReceiptName} selected for this preview.`
+                    : 'Optional PDF or image, up to 2 MB.'}
+                </span>
               </label>
+              {fundingError ? (
+                <p className="m-0 text-sm font-semibold text-terra-ink" aria-live="polite">
+                  {fundingError}
+                </p>
+              ) : null}
               <Button type="submit">Submit transfer evidence</Button>
             </form>
           )}
