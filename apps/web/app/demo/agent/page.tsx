@@ -33,6 +33,7 @@ import type { AgentDisplayData } from '@/lib/agent-api';
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   CircleAlert,
   Mic,
   SlidersHorizontal,
@@ -493,6 +494,10 @@ const APPROVALS: {
   when: string;
   title: string;
   body: string;
+  amount: string;
+  instrument: string;
+  partner: string;
+  checks: string[];
   cta: string;
   /** What the agent says in the chat when this card is approved. */
   confirm: string;
@@ -506,6 +511,14 @@ const APPROVALS: {
     when: 'Today',
     title: 'Put your GOJ coupon to work',
     body: 'US$412 settles Friday. Reinvesting into the Real Estate X Fund lifts your blended yield to 6.9%.',
+    amount: 'US$412',
+    instrument: 'Sagicor Real Estate X Fund',
+    partner: 'Sagicor Investments',
+    checks: [
+      'Matches your balanced-income profile',
+      'Keeps the proposed position within your 15% concentration limit',
+      'Will be executed and custodied by Sagicor Investments',
+    ],
     cta: 'Approve reinvestment',
     confirm:
       'Approved. I sent the <b>US$412</b> reinvestment into the <b>Sagicor Real Estate X Fund</b> to Sagicor for execution. You can track it in My orders.',
@@ -518,6 +531,14 @@ const APPROVALS: {
     when: '2d ago',
     title: 'US$2,150 earning nothing',
     body: 'Sweep your USD cash into the NCB Money Market Fund for ~US$110/yr with same-day access.',
+    amount: 'US$2,150',
+    instrument: 'NCB USD Money Market Fund',
+    partner: 'NCB Capital Markets',
+    checks: [
+      'Same-day access supports your current liquidity need',
+      'Leaves the US$1,000 cash floor intact',
+      'Will be executed and custodied by NCB Capital Markets',
+    ],
     cta: 'Move cash',
     confirm:
       'Approved. I sent the <b>US$2,150</b> instruction for the <b>NCB USD Money Market Fund</b> to NCB for execution. You can track it in My orders.',
@@ -663,6 +684,10 @@ export default function AgentPage() {
     Object.fromEntries(APPROVALS.map((a) => [a.id, 'pending'])),
   );
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [reviewingApproval, setReviewingApproval] = useState<(typeof APPROVALS)[number] | null>(
+    null,
+  );
+  const [guidedReview, setGuidedReview] = useState(false);
   /** The simulated dictation: null when idle, else the transcript so far. */
   const [hearing, setHearing] = useState<string | null>(null);
   const [replying, setReplying] = useState(false);
@@ -673,6 +698,7 @@ export default function AgentPage() {
   const inputId = useId();
 
   useEffect(() => {
+    setGuidedReview(new URLSearchParams(window.location.search).get('review') === '1');
     const restored = readDemoProfile(MARCUS_PROFILE);
     const accountState = readDemoAccountState();
     const firstName = restored.name.trim().split(/\s+/)[0] || 'investor';
@@ -808,6 +834,7 @@ export default function AgentPage() {
             },
           ],
     });
+    setReviewingApproval(null);
     setChat((c) => [...c, { role: 'agent', text: a.confirm }]);
   }
 
@@ -899,6 +926,26 @@ export default function AgentPage() {
           ))}
         </span>
       </div>
+
+      {guidedReview ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-mint px-4 py-3.5">
+          <div className="min-w-0">
+            <div className="text-[12px] font-bold uppercase tracking-[.6px] text-teal2">
+              Guided demo · {pendingCount === APPROVALS.length ? 'Step 1 of 2' : 'Step 2 of 2'}
+            </div>
+            <p className="mb-0 mt-1 text-sm leading-relaxed text-dim">
+              {pendingCount === APPROVALS.length
+                ? 'Open a proposal to see the amount, why it fits, the checks performed and the licensed execution partner.'
+                : 'Your decision was recorded in this preview and the instruction now appears in My orders.'}
+            </p>
+          </div>
+          {pendingCount < APPROVALS.length ? (
+            <Button size="sm" asChild>
+              <Link href="/demo/orders">Follow the instruction</Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="g-agent">
         {/* Chat */}
@@ -1113,8 +1160,8 @@ export default function AgentPage() {
                   </p>
                 ) : (
                   <div className="flex gap-2">
-                    <Button className="h-10 flex-1" onClick={() => approveCard(a)}>
-                      {a.cta}
+                    <Button className="h-10 flex-1" onClick={() => setReviewingApproval(a)}>
+                      Review proposal
                     </Button>
                     <Button
                       variant="outline"
@@ -1231,6 +1278,76 @@ export default function AgentPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog
+        open={reviewingApproval !== null}
+        onOpenChange={(open) => {
+          if (!open) setReviewingApproval(null);
+        }}
+      >
+        <DialogContent className="max-w-[560px] gap-0 p-0">
+          <DialogHeader className="border-b border-solid border-x-0 border-t-0 border-border px-6 pb-5 pt-6 pr-16">
+            <div className="mb-2 flex items-center gap-2">
+              {reviewingApproval ? (
+                <Badge variant={reviewingApproval.variant}>{reviewingApproval.tag}</Badge>
+              ) : null}
+              <span className="text-[12.5px] text-faint">Prepared {reviewingApproval?.when}</span>
+            </div>
+            <DialogTitle>{reviewingApproval?.title}</DialogTitle>
+            <DialogDescription>
+              Review the agent&apos;s rationale and the execution details before you make a
+              decision.
+            </DialogDescription>
+          </DialogHeader>
+
+          {reviewingApproval ? (
+            <div className="grid gap-5 px-6 py-5">
+              <p className="m-0 text-sm leading-relaxed text-dim">{reviewingApproval.body}</p>
+
+              <div className="overflow-hidden rounded-xl border border-border">
+                {[
+                  ['Investment', reviewingApproval.instrument],
+                  ['Amount', reviewingApproval.amount],
+                  ['Execution partner', reviewingApproval.partner],
+                  ['Status', 'Prepared — waiting for your approval'],
+                ].map(([label, value], index) => (
+                  <div
+                    key={label}
+                    className={cn(
+                      'flex items-start justify-between gap-4 px-4 py-3.5 text-sm',
+                      index > 0 && 'border-t border-solid border-x-0 border-b-0 border-border',
+                    )}
+                  >
+                    <span className="text-dim">{label}</span>
+                    <span className="max-w-[62%] text-right font-semibold">{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-[#cde0d8] bg-mint px-4 py-3.5 dark:border-white/10">
+                <div className="mb-2 text-[13px] font-bold text-teal2">Checks completed</div>
+                <div className="grid gap-2">
+                  {reviewingApproval.checks.map((check) => (
+                    <div key={check} className="flex gap-2 text-sm leading-snug text-foreground">
+                      <Check className="mt-0.5 h-4 w-4 flex-none text-success" aria-hidden />
+                      <span>{check}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between">
+                <Button type="button" variant="outline" onClick={() => setReviewingApproval(null)}>
+                  Back to proposals
+                </Button>
+                <Button type="button" onClick={() => approveCard(reviewingApproval)}>
+                  {reviewingApproval.cta}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </AppScreen>
   );
 }
