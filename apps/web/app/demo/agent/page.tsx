@@ -6,7 +6,6 @@ import {
   type DemoProfile,
   demoVillaScreenReasons,
   nextDemoOrderId,
-  rankDemoMatches,
   readDemoAccountState,
   readDemoProfile,
   writeDemoAccountState,
@@ -30,6 +29,7 @@ import { Label } from '@/app/_components/ui/label';
 import { Switch } from '@/app/_components/ui/switch';
 import { cn } from '@/app/_lib/utils';
 import type { AgentDisplayData } from '@/lib/agent-api';
+import { rankDemoRecommendations } from '@/lib/demo-recommendations';
 import {
   ArrowLeft,
   ArrowRight,
@@ -65,11 +65,14 @@ const SEED: Msg[] = [
 
 const SUGGESTIONS: { label: string; mobileLabel: string; key: string }[] = [
   { label: 'Compare my top 2', mobileLabel: 'Compare top 2', key: 'compare' },
-  { label: 'I need weekly access', mobileLabel: 'Update profile', key: 'profile' },
+  { label: 'I need quarterly access', mobileLabel: 'Update profile', key: 'profile' },
+  { label: 'Why not Lance Ltd APO?', mobileLabel: 'Why not Lance?', key: 'lance' },
   { label: 'Why not the villa?', mobileLabel: 'Why not villa?', key: 'whynot' },
 ];
 
 const REPLIES: Record<string, string> = {
+  lance:
+    'Lance Ltd APO is a fictional screened-out example. The supplied scenario flags weak cash flow in audited financial statements and a prospectus allocating proceeds to debt servicing. Those concerns weaken the case for the growth objective in the example; high risk tolerance alone does not make it a match.',
   liquidity:
     'Liquidity describes how quickly you may need to access invested money. I use it as a suitability constraint: products whose lock-up conflicts with your stated access need are ranked down or screened out. I will only change the profile when you explicitly ask me to.',
   summary:
@@ -85,73 +88,6 @@ const REPLIES: Record<string, string> = {
   kyc: 'With your consent, CCN collects and passes your declarations and documents to the licensed firm you choose. That firm reviews the evidence, may request more, and remains responsible for the final KYC and AML decision for its own account. A status from one firm is not presented as clearing another.',
 };
 
-const AGENT_MATCH_CANDIDATES = [
-  {
-    id: 'goj32',
-    name: 'GOJ USD Global Bond 2032',
-    match: 94,
-    risk: 'Low',
-    type: 'Bond',
-    term: '8 yr · USD',
-  },
-  {
-    id: 'sagrex',
-    name: 'Sagicor Real Estate X Fund',
-    match: 89,
-    risk: 'Medium',
-    type: 'Real Estate',
-    term: 'Open-ended',
-  },
-  {
-    id: 'gkapo',
-    name: 'GraceKennedy Additional Public Offering',
-    match: 84,
-    risk: 'Medium',
-    type: 'Equity',
-    term: 'Equity',
-  },
-  {
-    id: 'provfd',
-    name: 'Proven USD Fixed Income Fund',
-    match: 78,
-    risk: 'Low',
-    type: 'Fund',
-    term: 'Open-ended',
-  },
-  {
-    id: 'bgtn29',
-    name: 'Barbados Treasury Note 2029',
-    match: 76,
-    risk: 'Low',
-    type: 'Bond',
-    term: '5 yr',
-  },
-  {
-    id: 'sygcr',
-    name: 'Sygnus Private Credit Note III',
-    match: 72,
-    risk: 'High',
-    type: 'Private',
-    term: '3 yr · locked',
-  },
-  {
-    id: 'jmmb',
-    name: 'JMMB Group Rights Issue',
-    match: 68,
-    risk: 'Medium',
-    type: 'Equity',
-    term: 'Equity',
-  },
-  {
-    id: 'ncbmm',
-    name: 'NCB USD Money Market Fund',
-    match: 65,
-    risk: 'Low',
-    type: 'Fund',
-    term: 'Instant access',
-  },
-];
-
 const VILLA_SCREEN_CONTEXT = {
   minimumAmount: 'US$25,000',
   portfolioShare: '80%',
@@ -159,17 +95,17 @@ const VILLA_SCREEN_CONTEXT = {
 };
 
 function comparisonReply(profile: DemoProfile): string {
-  const [first, second] = rankDemoMatches(AGENT_MATCH_CANDIDATES, profile);
+  const [first, second] = rankDemoRecommendations(profile);
   if (!first || !second) return REPLIES.summary ?? FALLBACK;
-  return `Your current top matches are the <b>${first.name} at ${first.match}%</b> and the <b>${second.name} at ${second.match}%</b>. This order reflects your <b>${profile.risk.toLowerCase()}</b> risk appetite, <b>${profile.objective.toLowerCase()}</b> objective, <b>${profile.horizon}</b> horizon and <b>${profile.liquidity.toLowerCase()}</b> liquidity need. Caribbean exposure is not automatically better than a comparable US product, so I still compare net fees, tax, currency, liquidity and investor protections.`;
+  return `Your current top matches are the <b>${first.name} at ${first.match}%</b> and the <b>${second.name} at ${second.match}%</b>. This order reflects your <b>${profile.risk.toLowerCase()}</b> risk appetite, <b>${profile.objective.toLowerCase()}</b> objective, <b>${profile.horizon}</b> horizon and <b>${profile.liquidity.toLowerCase()}</b> liquidity need. <b>${first.name}:</b> ${first.agentNote} <b>${second.name}:</b> ${second.agentNote} Caribbean exposure is not automatically better than a comparable US product, so I still compare net fees, tax, currency, liquidity and investor protections.`;
 }
 
 function profileUpdateReply(previousProfile: DemoProfile, updatedProfile: DemoProfile): string {
   const update =
-    previousProfile.liquidity === 'Weekly access'
-      ? 'Your liquidity need was already <b>weekly access</b>, so I kept it unchanged'
-      : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>weekly access</b>`;
-  const ranked = rankDemoMatches(AGENT_MATCH_CANDIDATES, updatedProfile);
+    previousProfile.liquidity === updatedProfile.liquidity
+      ? `Your liquidity need was already <b>${updatedProfile.liquidity.toLowerCase()}</b>, so I kept it unchanged`
+      : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>${updatedProfile.liquidity.toLowerCase()}</b>`;
+  const ranked = rankDemoRecommendations(updatedProfile);
   const topTwo = ranked.slice(0, 2);
   const ncbPosition = ranked.findIndex((candidate) => candidate.id === 'ncbmm') + 1;
   const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The NCB USD Money Market Fund's same-day access improved its liquidity fit${ncbPosition > 0 ? ` and places it at #${ncbPosition}` : ''}.`;
@@ -290,6 +226,8 @@ const FALLBACK =
 
 function classify(text: string): string {
   const t = text.toLowerCase();
+  if (/\blance\b/.test(t)) return 'lance';
+  if (/blue mahoe|ncb capital/.test(t)) return 'compare';
   if (/villa|beachfront|development note|why not|reject|declin|flag|against/.test(t))
     return 'whynot';
   if (/kyc|verif|identity|paperwork|document/.test(t)) return 'kyc';
@@ -693,6 +631,7 @@ export default function AgentPage() {
           ? 'One instruction is still queued for your approval.'
           : "I've queued both for your approval.";
     setDemoProfile(restored);
+    const compareEntry = new URLSearchParams(window.location.search).get('compare') === '1';
     setCardState(
       Object.fromEntries(
         APPROVALS.map((approval) => [
@@ -702,21 +641,29 @@ export default function AgentPage() {
       ),
     );
     setChat((current) =>
-      current.map((message, index) =>
-        (index === 0 || index === 1 || index === 3) && 'text' in message
-          ? {
-              ...message,
-              text:
-                index === 0
-                  ? `Welcome back, ${firstName}. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. ${attentionCopy}`
-                  : index === 1
-                    ? couponApproved
-                      ? 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. The reinvestment instruction into the <b>Sagicor Real Estate X Fund</b> is approved and available in My orders.'
-                      : 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?'
-                    : `Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. ${queueCopy}`,
-            }
-          : message,
-      ),
+      compareEntry
+        ? [
+            { role: 'agent', text: comparisonReply(restored) },
+            {
+              role: 'agent',
+              text: 'Use the microphone to ask about the matches, or edit your profile and return to see updated rankings. These are illustrative research results; partner verification is still required.',
+            },
+          ]
+        : current.map((message, index) =>
+            (index === 0 || index === 1 || index === 3) && 'text' in message
+              ? {
+                  ...message,
+                  text:
+                    index === 0
+                      ? `Welcome back, ${firstName}. Your portfolio is up <b>6.8%</b> this year and I'm tracking <b>47 instruments</b> across <b>8 licensed partners</b>. ${attentionCopy}`
+                      : index === 1
+                        ? couponApproved
+                          ? 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. The reinvestment instruction into the <b>Sagicor Real Estate X Fund</b> is approved and available in My orders.'
+                          : 'Your <b>GOJ 2026 coupon of US$412</b> settles Friday. Reinvesting it into the <b>Sagicor Real Estate X Fund</b> would lift your blended yield to <b>6.9%</b> and stay inside your risk band. Want me to prepare it?'
+                        : `Good instinct. You have <b>US$2,150</b> earning nothing. Sweeping it into the <b>NCB USD Money Market Fund</b> adds about <b>US$110/yr</b> at the current rate, with same-day access. ${queueCopy}`,
+                }
+              : message,
+          ),
     );
   }, []);
 
@@ -766,10 +713,17 @@ export default function AgentPage() {
   function send(text: string, key?: string) {
     const t = text.trim();
     if (!t || replying) return;
-    const replyKey = key ?? classify(t);
+    const accessPeriod = t.match(/\b(quarterly|semiannual|annual) access\b/i)?.[1]?.toLowerCase();
+    const requestedLiquidity = accessPeriod
+      ? `${accessPeriod[0]?.toUpperCase()}${accessPeriod.slice(1)} access`
+      : 'Weekly access';
+    const replyKey =
+      key ?? classify(t.replace(/\b(?:quarterly|semiannual|annual) access\b/gi, 'weekly access'));
     const previousProfile = demoProfile;
     const nextProfile =
-      replyKey === 'profile' ? { ...previousProfile, liquidity: 'Weekly access' } : previousProfile;
+      replyKey === 'profile'
+        ? { ...previousProfile, liquidity: requestedLiquidity }
+        : previousProfile;
     if (replyKey === 'profile') {
       setDemoProfile(nextProfile);
       writeDemoProfile(nextProfile);

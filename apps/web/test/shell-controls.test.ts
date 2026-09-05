@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
+import { demoVillaScreenReasons } from '../app/_components/AppScreen';
+import { DEMO_REFERENCE_PROFILE, rankDemoRecommendations } from '../lib/demo-recommendations';
 
 /**
  * Structural guards for the app shell, from three defects reported off a real
@@ -421,8 +423,10 @@ describe('app shell controls', () => {
     expect(planning).toContain('Create your investor profile');
     expect(planning).toContain("Let's get to know you better");
     expect(planning).toContain('Politically exposed person status');
-    expect(planning).toContain('Upload passport');
-    expect(planning).toContain('Use my agent’s correction');
+    expect(planning).toContain('Scan or upload passport');
+    expect(planning).toContain('Select valid sample replacement');
+    expect(planning).not.toContain('Use my agent’s correction');
+    expect(planning).toContain('Review your investor profile');
     expect(planning).toContain("name: ''");
     expect(planning).not.toContain('Marcus Bailey');
     expect(planning).toContain('citizenships,');
@@ -440,7 +444,7 @@ describe('app shell controls', () => {
     expect(matching).toContain('FILTERS.map');
     expect(matching).toContain('<DealCard');
     expect(matching).not.toContain('Top 2 recommendations');
-    expect(matching).toContain('rankDemoMatches(TRADEABLE, profile)');
+    expect(matching).toContain('rankDemoRecommendations(profile)');
     expect(matching).toContain('demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT)');
     expect(matching).toContain('writeDemoAccountState');
     expect(matching).toContain('nextDemoOrderId(selectedOpp.id');
@@ -452,12 +456,12 @@ describe('app shell controls', () => {
     expect(orders).toContain('readDemoAccountState().opportunityOrders');
     expect(orders).not.toContain('Partner onboarding');
 
-    expect(advisor).toContain('I need weekly access');
+    expect(advisor).toContain('I need quarterly access');
     expect(advisor).toContain('refreshed your recommendations');
     expect(advisor).not.toContain('How the agents reached this');
     expect(advisor).toContain('href="/demo/orders"');
-    expect(advisor).toContain("liquidity: 'Weekly access'");
-    expect(advisor).toContain('rankDemoMatches(AGENT_MATCH_CANDIDATES, profile)');
+    expect(advisor).toContain('liquidity: requestedLiquidity');
+    expect(advisor).toContain('rankDemoRecommendations(profile)');
     expect(advisor).toContain('setDemoProfile(nextProfile)');
     expect(advisor).toContain('approvedActions');
     expect(advisor).toContain('nextDemoOrderId(`agent-${a.id}`');
@@ -575,5 +579,44 @@ describe('app shell controls', () => {
     expect(css).toContain('body:has(dialog.agent-panels[open])');
     expect(agent).toContain('touch-scroll-strip');
     expect(css).toContain('.touch-scroll-strip::-webkit-scrollbar');
+  });
+});
+
+describe('profile-driven demo recommendations', () => {
+  test('reproduces the reference comparison and keeps screened products out', () => {
+    const results = rankDemoRecommendations(DEMO_REFERENCE_PROFILE);
+    expect(results.slice(0, 2).map(({ name, match }) => ({ name, match }))).toEqual([
+      { name: 'Blue Mahoe Capital', match: 98 },
+      { name: 'NCB Capital Markets', match: 92 },
+    ]);
+    expect(results.length).toBeGreaterThanOrEqual(5);
+    expect(results.some((result) => result.blocked)).toBe(false);
+  });
+  test('changes rankings and explains a shorter liquidity preference', () => {
+    const results = rankDemoRecommendations({
+      ...DEMO_REFERENCE_PROFILE,
+      risk: 'Conservative',
+      objective: 'Capital preservation',
+      liquidity: 'Quarterly access',
+    });
+    expect(results[0]?.risk).toBe('Low');
+    const blueMahoe = results.find((result) => result.id === 'blue-mahoe-feedback');
+    expect(blueMahoe?.match).toBeLessThan(98);
+    expect(blueMahoe?.agentNote).toContain('exceeds your access preference');
+  });
+  test('a changed return target changes the fit explanation', () => {
+    const results = rankDemoRecommendations({ ...DEMO_REFERENCE_PROFILE, targetReturn: '5–10%' });
+    expect(results.find((result) => result.id === 'blue-mahoe-feedback')?.agentNote).toContain(
+      'falls outside',
+    );
+  });
+  test('does not invent a liquidity failure for a five-year lock preference', () => {
+    const reasons = demoVillaScreenReasons(DEMO_REFERENCE_PROFILE, {
+      minimumAmount: 'US$25,000',
+      portfolioShare: '80%',
+      singlePositionCap: '15%',
+    });
+    expect(reasons.some((reason) => reason.startsWith('Liquidity:'))).toBe(false);
+    expect(reasons.some((reason) => reason.startsWith('Size:'))).toBe(true);
   });
 });
