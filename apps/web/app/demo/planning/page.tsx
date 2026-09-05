@@ -410,7 +410,7 @@ function DemoInvestorSetup() {
     <section className="min-h-screen bg-background font-sans text-foreground">
       <div className="mx-auto w-full max-w-[760px] px-5 pb-24 pt-8 sm:pt-10">
         <div className="mb-8 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2.5 no-underline">
+          <Link href="/" className="flex items-center gap-2.5 text-foreground no-underline">
             <span className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-primary font-display text-[17px] font-bold text-primary-foreground">
               C
             </span>

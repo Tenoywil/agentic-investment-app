@@ -427,6 +427,9 @@ describe('app shell controls', () => {
     expect(planning).toContain('Select valid sample replacement');
     expect(planning).not.toContain('Use my agent’s correction');
     expect(planning).toContain('Review your investor profile');
+    expect(planning).toContain(
+      'className="flex items-center gap-2.5 text-foreground no-underline"',
+    );
     expect(planning).toContain("name: ''");
     expect(planning).not.toContain('Marcus Bailey');
     expect(planning).toContain('citizenships,');
