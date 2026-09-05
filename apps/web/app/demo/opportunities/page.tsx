@@ -2,12 +2,10 @@
 
 import {
   AppScreen,
-  DEFAULT_DEMO_PROFILE,
   type DemoProfile,
   PageHead,
   demoVillaScreenReasons,
   nextDemoOrderId,
-  rankDemoMatches,
   readDemoAccountState,
   readDemoProfile,
   writeDemoAccountState,
@@ -24,6 +22,12 @@ import {
 } from '@/app/_components/ui/dialog';
 import { Input } from '@/app/_components/ui/input';
 import { cn } from '@/app/_lib/utils';
+import {
+  DEMO_REFERENCE_PROFILE,
+  DEMO_OPPORTUNITIES as OPPS,
+  type DemoOpportunity as Opp,
+  rankDemoRecommendations,
+} from '@/lib/demo-recommendations';
 import { Check, CircleAlert, ShieldCheck, Target } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useId, useState } from 'react';
@@ -45,201 +49,148 @@ const RISK_VARIANT: Record<string, BadgeProps['variant']> = {
   High: 'terra',
 };
 
-type Opp = {
-  id: string;
-  abbr: string;
-  type: Kind;
-  partner: string;
-  regulator: string;
-  name: string;
-  region: string;
-  metricLabel: string;
-  metric: string;
-  min: string;
-  term: string;
-  risk: 'Low' | 'Medium' | 'High';
-  match: number;
-  desc: string;
-  agentNote: string;
-  blocked?: boolean;
-  blockReasons?: string[];
-};
+function FeedbackComparison({
+  opportunities,
+  profile,
+  onInvest,
+}: {
+  opportunities: Opp[];
+  profile: DemoProfile;
+  onInvest: (opportunity: Opp) => void;
+}) {
+  return (
+    <section aria-labelledby="feedback-matches" className="mb-8">
+      <h2 id="feedback-matches" className="font-display text-2xl font-bold">
+        Top 2 matches
+      </h2>
+      <p className="mb-4 mt-2 text-sm text-dim">
+        {profile.name} · age {profile.age} · {profile.risk.toLowerCase()} risk appetite ·{' '}
+        {profile.objective.toLowerCase()} · {profile.horizon} · target total return{' '}
+        {profile.targetReturn}.
+      </p>
+      <div className="g2">
+        {opportunities.map((opportunity) => (
+          <div key={opportunity.id} className="rounded-2xl border border-border bg-card p-5">
+            <p className="text-sm text-dim">{opportunity.region}</p>
+            <h3 className="mt-1 font-display text-xl font-bold">{opportunity.name}</h3>
+            <p className="mt-3 font-mono text-3xl font-bold text-success">
+              {opportunity.match}% <span className="font-sans text-sm">match</span>
+            </p>
+            <p className="mt-2 text-sm text-dim">{opportunity.agentNote}</p>
+            <a
+              className="mt-3 inline-block text-sm font-semibold underline"
+              href="#investment-comparison"
+            >
+              Compare side by side
+            </a>
+          </div>
+        ))}
+      </div>
+      <section
+        className="mt-4 overflow-x-auto rounded-2xl border border-border bg-card"
+        aria-label="Investment comparison"
+        id="investment-comparison"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users must be able to scroll the comparison horizontally.
+        tabIndex={0}
+      >
+        <table className="w-full min-w-[640px] text-left text-sm">
+          <caption className="sr-only">
+            Compare the two leading investments for the example client
+          </caption>
+          <thead>
+            <tr className="border-b border-border">
+              <th scope="col" className="p-4">
+                Client profile
+              </th>
+              {opportunities.map((opportunity) => (
+                <th scope="col" className="p-4" key={opportunity.id}>
+                  {opportunity.name}
+                  <span className="block font-normal text-dim">{opportunity.region}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-border">
+              <th scope="row" className="p-4">
+                Target: {profile.targetReturn} over {profile.horizon}
+              </th>
+              {opportunities.map((opportunity) => (
+                <td className="p-4" key={opportunity.id}>
+                  {opportunity.metricLabel}: {opportunity.metric} · {opportunity.term}
+                </td>
+              ))}
+            </tr>
+            <tr className="border-b border-border">
+              <th scope="row" className="p-4">
+                Country GDP growth
+              </th>
+              {opportunities.map((opportunity) => (
+                <td className="p-4" key={opportunity.id}>
+                  {opportunity.gdpGrowth ?? 'Not supplied'}
+                  <span className="block text-xs text-dim">Period unspecified in feedback</span>
+                </td>
+              ))}
+            </tr>
+            <tr className="border-b border-border">
+              <th scope="row" className="p-4">
+                Minimum investment
+              </th>
+              {opportunities.map((opportunity) => (
+                <td className="p-4" key={opportunity.id}>
+                  {opportunity.min}
+                </td>
+              ))}
+            </tr>
+            <tr className="border-b border-border">
+              <th scope="row" className="p-4">
+                Key risk to review
+              </th>
+              {opportunities.map((opportunity) => (
+                <td className="max-w-xs p-4 align-top" key={opportunity.id}>
+                  {opportunity.keyRisk ?? opportunity.agentNote}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row" className="p-4">
+                Your decision
+              </th>
+              {opportunities.map((opportunity) => (
+                <td className="p-4" key={opportunity.id}>
+                  <Button
+                    onClick={() => onInvest(opportunity)}
+                    aria-label={`Invest in ${opportunity.name}`}
+                  >
+                    Invest
+                  </Button>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      <p className="mt-3 text-xs text-dim">
+        Illustrative figures and risk statements supplied in feedback; not verified company
+        research. Match scores change with your profile; they are not the probability of a return.
+        GDP growth is not an investment return. Investment actions are simulated.
+      </p>
+      <article className="mt-5 rounded-2xl border border-border bg-card p-5">
+        <p className="text-sm font-semibold text-terra">Not a match</p>
+        <h3 className="mt-1 font-display text-xl font-bold">Lance Ltd APO</h3>
+        <p className="mt-2 text-sm text-dim">
+          Weak cash flow and debt servicing conflict with the example’s growth objective. High risk
+          tolerance alone does not make it a suitable growth investment.
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
+          <li>Audited financial statements signal weak cash flow in the supplied scenario.</li>
+          <li>The scenario’s prospectus states that APO proceeds will service debt.</li>
+        </ul>
+      </article>
+    </section>
+  );
+}
 
-const MARCUS_PROFILE: DemoProfile = { ...DEFAULT_DEMO_PROFILE, name: 'Marcus Bailey' };
-
-const OPPS: Opp[] = [
-  {
-    id: 'goj32',
-    abbr: 'GOJ',
-    type: 'Bond',
-    partner: 'NCB Capital Markets',
-    regulator: 'FSC Jamaica',
-    name: 'Gov’t of Jamaica USD Global Bond 2032',
-    region: 'Jamaica · Sovereign',
-    metricLabel: 'Coupon',
-    metric: '7.875%',
-    min: 'US$1,000',
-    term: '8 yr · USD',
-    risk: 'Low',
-    match: 94,
-    desc: 'A US-dollar sovereign bond issued by the Government of Jamaica, paying a fixed 7.875% semi-annual coupon. Suited to income-focused investors seeking hard-currency Caribbean sovereign exposure.',
-    agentNote:
-      'Strong fit for your income goal. Adds hard-currency duration and lifts blended yield without changing your risk band.',
-  },
-  {
-    id: 'sagrex',
-    abbr: 'REX',
-    type: 'Real Estate',
-    partner: 'Sagicor Investments',
-    regulator: 'FSC Jamaica',
-    name: 'Sagicor Real Estate X Fund',
-    region: 'Jamaica · Commercial property',
-    metricLabel: 'Target return',
-    metric: '9.2%',
-    min: 'US$5,000',
-    term: 'Open-ended',
-    risk: 'Medium',
-    match: 89,
-    desc: 'A diversified fund holding income-producing commercial real estate across Kingston and Montego Bay. Distributes quarterly with inflation-linked growth potential.',
-    agentNote:
-      'Matches your income and growth blend. I’d cap this at 15% of your portfolio to keep real-estate concentration in range.',
-  },
-  {
-    id: 'gkapo',
-    abbr: 'GK',
-    type: 'Equity',
-    partner: 'Barita Investments',
-    regulator: 'FSC Jamaica',
-    name: 'GraceKennedy Additional Public Offering',
-    region: 'Jamaica · Consumer / Financial',
-    metricLabel: 'Indicative yield',
-    metric: '4.6%',
-    min: 'US$500',
-    term: 'Equity',
-    risk: 'Medium',
-    match: 84,
-    desc: 'An additional public offering of shares in GraceKennedy, one of the Caribbean’s largest consumer and financial conglomerates, funding regional expansion.',
-    agentNote:
-      'Adds equity growth you’re currently light on. Higher volatility than your bonds, so sizing matters.',
-  },
-  {
-    id: 'provfd',
-    abbr: 'PWF',
-    type: 'Fund',
-    partner: 'PROVEN Wealth',
-    regulator: 'FSC Jamaica',
-    name: 'Proven USD Fixed Income Fund',
-    region: 'Regional · Diversified credit',
-    metricLabel: '12-mo yield',
-    metric: '6.4%',
-    min: 'US$1,000',
-    term: 'Open-ended',
-    risk: 'Low',
-    match: 78,
-    desc: 'A professionally-managed USD fund investing in a diversified pool of regional corporate and sovereign credit, targeting stable monthly income.',
-    agentNote:
-      'You already hold this. Topping up would concentrate credit exposure. Consider the GOJ bond instead for diversification.',
-  },
-  {
-    id: 'bgtn29',
-    abbr: 'BGB',
-    type: 'Bond',
-    partner: 'Republic Bank',
-    regulator: 'FSC Barbados',
-    name: 'Barbados Treasury Note 2029',
-    region: 'Barbados · Sovereign',
-    metricLabel: 'Coupon',
-    metric: '6.25%',
-    min: 'US$1,000',
-    term: '5 yr',
-    risk: 'Low',
-    match: 76,
-    desc: 'A Barbadian government treasury note offering fixed semi-annual interest, providing geographic diversification within your sovereign allocation.',
-    agentNote:
-      'Good diversifier away from single-country Jamaica exposure. Slightly lower coupon than GOJ.',
-  },
-  {
-    id: 'sygcr',
-    abbr: 'SYG',
-    type: 'Private',
-    partner: 'Sygnus Capital',
-    regulator: 'FSC Jamaica',
-    name: 'Sygnus Private Credit Note III',
-    region: 'Regional · Private credit',
-    metricLabel: 'Target return',
-    metric: '8.5%',
-    min: 'US$10,000',
-    term: '3 yr · locked',
-    risk: 'High',
-    match: 72,
-    desc: 'A private credit note providing senior secured financing to mid-market Caribbean firms. Higher return for reduced liquidity: capital is locked for the term.',
-    agentNote:
-      'Unlocked by your source-of-funds declaration. Illiquid, and only suitable for capital you won’t need for 3 years.',
-  },
-  {
-    id: 'jmmb',
-    abbr: 'JMB',
-    type: 'Equity',
-    partner: 'JMMB Group',
-    regulator: 'FSC Jamaica',
-    name: 'JMMB Group Rights Issue',
-    region: 'Jamaica · Financial',
-    metricLabel: 'Discount',
-    metric: '12%',
-    min: 'US$500',
-    term: 'Equity',
-    risk: 'Medium',
-    match: 68,
-    desc: 'A rights issue allowing existing and new shareholders to buy JMMB shares at a discount to market, funding regional banking growth.',
-    agentNote:
-      'Time-sensitive: the rights window closes in 9 days. Discount is attractive but adds financial-sector concentration.',
-  },
-  {
-    id: 'ncbmm',
-    abbr: 'MMF',
-    type: 'Fund',
-    partner: 'NCB Capital Markets',
-    regulator: 'FSC Jamaica',
-    name: 'NCB USD Money Market Fund',
-    region: 'Jamaica · Cash management',
-    metricLabel: 'Current yield',
-    metric: '5.1%',
-    min: 'US$100',
-    term: 'Instant access',
-    risk: 'Low',
-    match: 65,
-    desc: 'A liquid USD money-market fund for parking cash while earning yield, with same-day access. A natural home for your idle wallet balance.',
-    agentNote:
-      'Your US$2,150 cash is earning nothing. Moving it here adds ~US$110/yr with instant access.',
-  },
-  {
-    id: 'slbd',
-    abbr: 'BVD',
-    type: 'Private',
-    partner: 'Sygnus Capital',
-    regulator: 'FSC Jamaica',
-    name: 'Beachfront Villas Development Note',
-    region: 'St. Lucia · Pre-construction real estate',
-    metricLabel: 'Target return',
-    metric: '14.0%',
-    min: 'US$25,000',
-    term: '5 yr · illiquid',
-    risk: 'High',
-    match: 18,
-    blocked: true,
-    desc: 'A private note funding a pre-construction villa development. Returns depend entirely on construction milestones and unit sales. Capital is locked for the full term with no secondary market and no income until exit.',
-    agentNote:
-      'I recommend against this one for you, and I will not prepare it. It is listed so you can see exactly what I screen out and why.',
-    blockReasons: [
-      'High risk: your profile is balanced-income; this is a speculative development note',
-      'Size: the US$25,000 minimum is 80% of your portfolio, far above your 15% single-position cap',
-      'Liquidity: five years locked with no secondary market conflicts with your university-fund timeline',
-      'Income: pays nothing until exit, while your stated goal is yield today',
-    ],
-  },
-];
-
-const TRADEABLE = OPPS.filter((o) => !o.blocked);
 const BLOCKED = OPPS.filter((o) => o.blocked);
 const FILTERS: (Kind | 'All')[] = ['All', 'Bond', 'Fund', 'Equity', 'Real Estate', 'Private'];
 const minValue = (o: Opp) => Number.parseInt(o.min.replace(/[^0-9]/g, ''), 10) || 0;
@@ -289,6 +240,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
   const formId = useId();
   const [step, setStep] = useState(0);
   const [amt, setAmt] = useState('');
+  const [orderReference, setOrderReference] = useState('');
 
   // Reset the wizard whenever a new opportunity is opened.
   useEffect(() => {
@@ -308,12 +260,14 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
   function authorizeOrder() {
     if (blocked || amtNum < minValue(selectedOpp)) return;
     const accountState = readDemoAccountState();
+    const orderId = nextDemoOrderId(selectedOpp.id, accountState.opportunityOrders);
+    setOrderReference(orderId);
     writeDemoAccountState({
       ...accountState,
       opportunityOrders: [
         ...accountState.opportunityOrders,
         {
-          id: nextDemoOrderId(selectedOpp.id, accountState.opportunityOrders),
+          id: orderId,
           name: selectedOpp.name,
           partner: selectedOpp.partner,
           amount: amtFmt,
@@ -449,7 +403,7 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
 
               <div className="flex items-center gap-2 text-[13.5px] text-dim">
                 <ShieldCheck className="h-3.5 w-3.5 flex-none text-success" aria-hidden />
-                Executed by {opp.partner} · Regulated by {opp.regulator}
+                Executed by {opp.partner} · Regulatory status: {opp.regulator}
               </div>
             </>
           )}
@@ -502,15 +456,13 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
                 <div className="mb-2 flex items-center gap-2">
                   <ShieldCheck className="h-[15px] w-[15px] text-success" aria-hidden />
                   <span className="text-[13.5px] font-bold text-teal2">
-                    Agent ran your compliance checks
+                    Declarations prepared for partner review
                   </span>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {[
                     'Identity intake recorded · partner verification required before execution',
-                    opp.risk === 'High'
-                      ? 'Suitability: within your stated high-risk allocation limit'
-                      : 'Suitability: matches your balanced-income profile',
+                    'Suitability: final assessment remains with the licensed partner',
                     'Source-of-funds declaration recorded',
                   ].map((line) => (
                     <div
@@ -531,16 +483,16 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
               <div className="mx-auto mb-4 grid h-[68px] w-[68px] place-items-center rounded-full bg-[#e2f4ea] dark:bg-[#12352a]">
                 <Check className="h-8 w-8 text-success" aria-hidden strokeWidth={2.2} />
               </div>
-              <div className="font-display text-[21px] font-bold">Instruction submitted</div>
+              <div className="font-display text-[21px] font-bold">Simulated instruction saved</div>
               <p className="mx-auto mb-[18px] mt-2 max-w-[330px] text-[14.5px] leading-snug text-dim">
-                CCN routed your {amtFmt} instruction to {opp.partner}, who executes, custodies and
-                settles it (T+2). CCN never holds your money. Projections are estimates, not
-                guarantees.
+                Your {amtFmt} instruction for {opp.partner} is saved in this demo’s order history.
+                No instruction or money was sent. A licensed partner would verify, execute and
+                settle a real investment.
               </p>
               <div className="mx-auto max-w-[320px] rounded-xl bg-[#f4f0e7] dark:bg-white/[0.04] px-4 py-3.5 text-left">
                 <div className="flex justify-between py-1 text-[13.5px]">
                   <span className="text-dim">Reference</span>
-                  <span className="font-mono font-bold">CCN-8F42-QX</span>
+                  <span className="font-mono font-bold">{orderReference}</span>
                 </div>
                 <div className="flex justify-between py-1 text-[13.5px]">
                   <span className="text-dim">Status</span>
@@ -617,18 +569,19 @@ function useIsPhone(): boolean {
 export default function OpportunitiesPage() {
   const [filter, setFilter] = useState<Kind | 'All'>('All');
   const [selected, setSelected] = useState<Opp | null>(null);
-  const [profile, setProfile] = useState<DemoProfile>(MARCUS_PROFILE);
+  const [profile, setProfile] = useState<DemoProfile>(DEMO_REFERENCE_PROFILE);
   const phone = useIsPhone();
 
   useEffect(() => {
-    setProfile(readDemoProfile(MARCUS_PROFILE));
+    setProfile(readDemoProfile(DEMO_REFERENCE_PROFILE));
   }, []);
 
-  const ranked = rankDemoMatches(TRADEABLE, profile);
+  const ranked = rankDemoRecommendations(profile);
   const screenedOut = BLOCKED.map((opportunity) => screenedOutForProfile(opportunity, profile));
-  const shown = filter === 'All' ? ranked : ranked.filter((o) => o.type === filter);
+  const alternatives = ranked.slice(2);
+  const shown = filter === 'All' ? alternatives : alternatives.filter((o) => o.type === filter);
   const count = (f: Kind | 'All') =>
-    f === 'All' ? TRADEABLE.length : TRADEABLE.filter((o) => o.type === f).length;
+    f === 'All' ? alternatives.length : alternatives.filter((o) => o.type === f).length;
 
   /** Same cards whether the section renders open (desktop) or behind the
    *  phone's disclosure — demo parity with the live marketplace. */
@@ -666,6 +619,45 @@ export default function OpportunitiesPage() {
         }
       />
 
+      <div className="mb-5 rounded-2xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-bold">Your research and matching results</h2>
+          <Button asChild variant="outline">
+            <Link href="/demo/planning?setup=1&edit=1">Review or edit my profile</Link>
+          </Button>
+        </div>
+        <ol className="mt-4 grid gap-3 p-0 text-sm sm:grid-cols-3">
+          <li className="list-none">
+            <b>Research</b>
+            <p className="mt-1 text-dim">
+              Reviewed {ranked.length} sample opportunities and the financial-health exclusion
+              below.
+            </p>
+          </li>
+          <li className="list-none">
+            <b>Matching</b>
+            <p className="mt-1 text-dim">
+              Ranked against your {profile.risk.toLowerCase()} risk appetite, {profile.horizon}{' '}
+              horizon and {profile.liquidity.toLowerCase()} need.
+            </p>
+          </li>
+          <li className="list-none">
+            <b>Compliance</b>
+            <p className="mt-1 text-dim">
+              Partner verification remains required before any real investment.
+            </p>
+          </li>
+        </ol>
+        <Button asChild variant="secondary" className="mt-4">
+          <Link href="/demo/agent?compare=1">Talk to your advisor about these matches</Link>
+        </Button>
+      </div>
+      <FeedbackComparison
+        opportunities={ranked.slice(0, 2)}
+        profile={profile}
+        onInvest={setSelected}
+      />
+      <h2 className="mb-3 font-display text-xl font-bold">Alternative opportunities</h2>
       <div className="mb-5 flex flex-wrap gap-2.5">
         {FILTERS.map((f) => (
           <button

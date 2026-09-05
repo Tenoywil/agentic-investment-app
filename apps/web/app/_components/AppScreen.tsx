@@ -74,6 +74,7 @@ export type DemoProfile = {
   residence: string;
   age: string;
   objective: string;
+  targetReturn: string;
   horizon: string;
   risk: string;
   liquidity: string;
@@ -93,6 +94,7 @@ export const DEFAULT_DEMO_PROFILE: DemoProfile = {
   residence: 'United States',
   age: '35–44',
   objective: 'Income and long-term growth',
+  targetReturn: '5–15%',
   horizon: '5–10 years',
   risk: 'Balanced',
   liquidity: 'Monthly access',
@@ -222,9 +224,16 @@ export function demoVillaScreenReasons(profile: DemoProfile, context: DemoVillaC
       `Risk: the ${profile.risk.toLowerCase()} risk profile does not fit this speculative development note`,
     );
   }
-  reasons.push(
-    `Liquidity: five years with no secondary market exceeds the ${liquidityTolerance}${profile.horizon === '10+ years' ? '' : ` and conflicts with the ${profile.horizon.toLowerCase()} horizon`}`,
-  );
+  if (profile.liquidity !== 'Can lock for 5 years') {
+    reasons.push(
+      `Liquidity: five years with no secondary market exceeds the ${liquidityTolerance}`,
+    );
+  }
+  if (profile.horizon === 'Under 3 years') {
+    reasons.push(
+      'Horizon: the five-year term exceeds your investment horizon of under three years',
+    );
+  }
   if (
     profile.objective === 'Income and long-term growth' ||
     profile.objective === 'Retirement income'

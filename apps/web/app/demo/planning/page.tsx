@@ -9,6 +9,8 @@ import {
   PageHead,
   demoIdentityEvidence,
   demoIdentityFingerprint,
+  readDemoAccountState,
+  readDemoProfile,
   writeDemoAccountState,
   writeDemoProfile,
 } from '@/app/_components/AppScreen';
@@ -25,6 +27,7 @@ import {
 import { Input } from '@/app/_components/ui/input';
 import { Label } from '@/app/_components/ui/label';
 import { cn } from '@/app/_lib/utils';
+import { CORRIDOR_COUNTRIES, OTHER_COUNTRIES } from '@/lib/countries';
 import { Check, CircleAlert, FileCheck2, Plus, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -129,7 +132,7 @@ const GOALS: DemoGoal[] = [
  *  live screen falls back to when a goal carries none. */
 const NEW_GOAL_COLOR = '#17786e';
 
-const SETUP_STEPS = ['Profile', 'Goals', 'Compliance', 'Documents'] as const;
+const SETUP_STEPS = ['Profile', 'Goals', 'Compliance', 'Documents', 'Review'] as const;
 const RESIDENCE_OPTIONS = ['United States', 'Jamaica', 'Canada', 'United Kingdom', 'Other'];
 const AGE_OPTIONS = ['18–24', '25–34', '35–44', '45–54', '55+'];
 const CITIZENSHIP_OPTIONS = ['Jamaica', 'United States', 'Canada', 'United Kingdom'];
@@ -141,7 +144,13 @@ const OBJECTIVE_OPTIONS = [
 ];
 const HORIZON_OPTIONS = ['Under 3 years', '3–5 years', '5–10 years', '10+ years'];
 const RISK_OPTIONS = ['Conservative', 'Balanced', 'Growth'];
-const LIQUIDITY_OPTIONS = ['Weekly access', 'Monthly access', 'Can lock for 3 years'];
+const LIQUIDITY_OPTIONS = [
+  'Quarterly access',
+  'Semiannual access',
+  'Annual access',
+  'Can lock for 3 years',
+  'Can lock for 5 years',
+];
 const FINANCIAL_OPTIONS = [
   'Stable income; six-month cash reserve',
   'Stable income; building a cash reserve',
@@ -158,6 +167,7 @@ const EMPTY_DEMO_PROFILE: DemoProfile = {
   residence: '',
   age: '',
   objective: '',
+  targetReturn: '',
   horizon: '',
   risk: '',
   liquidity: '',
@@ -235,8 +245,14 @@ function PlanningRouteLoading() {
 
 function DemoInvestorSetup() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const passportInputRef = useRef<HTMLInputElement>(null);
+  const [passportPreview, setPassportPreview] = useState<string | null>(null);
+  const [passportName, setPassportName] = useState('');
+  const [passportError, setPassportError] = useState('');
   const passportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [step, setStep] = useState(0);
+  const [returnToReview, setReturnToReview] = useState(false);
   const [profile, setProfile] = useState<DemoProfile>(EMPTY_DEMO_PROFILE);
   const [citizenships, setCitizenships] = useState<string[]>([]);
   const [pepStatus, setPepStatus] = useState('');
@@ -254,12 +270,54 @@ function DemoInvestorSetup() {
     [],
   );
 
+  useEffect(() => {
+    if (searchParams.get('edit') !== '1') return;
+    const saved = readDemoProfile();
+    setProfile(saved);
+    setCitizenships(saved.citizenships);
+    setPepStatus(saved.pepStatus);
+    setFatcaStatus(saved.fatcaStatus);
+    setSources(saved.sourceOfFunds);
+    setTaxIdType(saved.taxIdType);
+    setTaxIdLastFour(saved.taxIdLastFour);
+    const hasEvidence =
+      readDemoAccountState().ncbEvidenceFingerprint === demoIdentityFingerprint(saved);
+    setPassportState(hasEvidence ? 'resolved' : 'idle');
+    setProofAddressAdded(hasEvidence);
+    setPassportName(hasEvidence ? 'Previously selected identity evidence' : '');
+    setStep(4);
+  }, [searchParams]);
+
+  useEffect(
+    () => () => {
+      if (passportPreview) URL.revokeObjectURL(passportPreview);
+    },
+    [passportPreview],
+  );
+
+  function selectPassport(file: File | undefined) {
+    if (!file) return;
+    if (
+      !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+      file.size > 10 * 1024 * 1024
+    ) {
+      setPassportError('Choose a JPEG, PNG or WebP image under 10 MB.');
+      return;
+    }
+    if (passportTimerRef.current) clearTimeout(passportTimerRef.current);
+    setPassportError('');
+    setPassportPreview(URL.createObjectURL(file));
+    setPassportName(file.name);
+    setPassportState('resolved');
+  }
+
   const stepComplete = [
     profile.residence !== '' &&
       profile.name.trim() !== '' &&
       profile.age !== '' &&
       citizenships.length > 0,
     profile.objective !== '' &&
+      profile.targetReturn !== '' &&
       profile.horizon !== '' &&
       profile.risk !== '' &&
       profile.liquidity !== '' &&
@@ -270,6 +328,10 @@ function DemoInvestorSetup() {
       taxIdType !== '' &&
       /^\d{4}$/.test(taxIdLastFour),
     passportState === 'resolved' && proofAddressAdded,
+    passportState === 'resolved' &&
+      proofAddressAdded &&
+      profile.name.trim() !== '' &&
+      citizenships.length > 0,
   ][step];
 
   const stepTitles = [
@@ -277,12 +339,14 @@ function DemoInvestorSetup() {
     "Let's get to know you better",
     'Confirm your compliance details',
     'Add your identity documents',
+    'Review your investor profile',
   ];
   const stepDescriptions = [
     'Start with where you live and the personal details used to tailor your experience.',
     'Your answers guide suitability screening and the opportunities your agent can prepare.',
     'These declarations help licensed partners perform their KYC and AML review.',
-    'Your agent checks the evidence before it is prepared for a licensed partner.',
+    'Choose the evidence you want a licensed partner to review.',
+    'Check your one-page summary. Edit any section before your agent finds matches.',
   ];
   const preparedProfile: DemoProfile = {
     ...profile,
@@ -304,6 +368,8 @@ function DemoInvestorSetup() {
 
   function uploadPassport() {
     if (passportTimerRef.current) clearTimeout(passportTimerRef.current);
+    setPassportPreview(null);
+    setPassportName('Sample passport · expired 12 Jun 2025');
     setPassportState('uploading');
     passportTimerRef.current = setTimeout(() => {
       setPassportState('invalid');
@@ -314,7 +380,7 @@ function DemoInvestorSetup() {
   function finishSetup() {
     writeDemoProfile(preparedProfile);
     writeDemoAccountState({
-      ...DEFAULT_DEMO_ACCOUNT_STATE,
+      ...(searchParams.get('edit') === '1' ? readDemoAccountState() : DEFAULT_DEMO_ACCOUNT_STATE),
       ncbEvidenceFingerprint: demoIdentityFingerprint(preparedProfile),
       ncbClientStatus: 'evidence_ready',
     });
@@ -323,11 +389,16 @@ function DemoInvestorSetup() {
     } catch {
       // In-memory state still carries the completed profile to the next screen.
     }
-    router.push('/demo/home');
+    router.push('/demo/opportunities?research=1');
   }
 
   function continueSetup() {
     if (!stepComplete) return;
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep(SETUP_STEPS.length - 1);
+      return;
+    }
     if (step === SETUP_STEPS.length - 1) {
       finishSetup();
       return;
@@ -339,7 +410,7 @@ function DemoInvestorSetup() {
     <section className="min-h-screen bg-background font-sans text-foreground">
       <div className="mx-auto w-full max-w-[760px] px-5 pb-24 pt-8 sm:pt-10">
         <div className="mb-8 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2.5 no-underline">
+          <Link href="/" className="flex items-center gap-2.5 text-foreground no-underline">
             <span className="grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-primary font-display text-[17px] font-bold text-primary-foreground">
               C
             </span>
@@ -410,6 +481,39 @@ function DemoInvestorSetup() {
                     />
                   ))}
                 </div>
+                <Label htmlFor="other-citizenship" className="mt-4 block">
+                  Add another citizenship
+                </Label>
+                <select
+                  id="other-citizenship"
+                  className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm"
+                  value=""
+                  onChange={(event) => {
+                    if (event.target.value && !citizenships.includes(event.target.value))
+                      setCitizenships([...citizenships, event.target.value]);
+                  }}
+                >
+                  <option value="">Choose a country</option>
+                  {[...CORRIDOR_COUNTRIES, ...OTHER_COUNTRIES]
+                    .filter((country) => !CITIZENSHIP_OPTIONS.includes(country))
+                    .map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                </select>
+                {citizenships
+                  .filter((country) => !CITIZENSHIP_OPTIONS.includes(country))
+                  .map((country) => (
+                    <CheckChoice
+                      key={country}
+                      label={country}
+                      checked
+                      onChange={() =>
+                        setCitizenships(citizenships.filter((value) => value !== country))
+                      }
+                    />
+                  ))}
               </fieldset>
             </div>
           ) : null}
@@ -423,6 +527,13 @@ function DemoInvestorSetup() {
                 options={OBJECTIVE_OPTIONS}
                 onChange={(objective) => setProfile((current) => ({ ...current, objective }))}
                 singleColumn
+              />
+              <ChoiceGroup
+                legend="What total return are you targeting over your investment horizon?"
+                name="target-return"
+                value={profile.targetReturn}
+                options={['5–10%', '5–15%', '10–15%']}
+                onChange={(targetReturn) => setProfile((current) => ({ ...current, targetReturn }))}
               />
               <ChoiceGroup
                 legend="What is your time horizon?"
@@ -476,6 +587,19 @@ function DemoInvestorSetup() {
                 options={FATCA_OPTIONS}
                 onChange={setFatcaStatus}
               />
+              <p className="text-sm text-dim">
+                A U.S. person includes a U.S. citizen or resident alien for tax purposes, including
+                people meeting the green card or substantial presence test. Exceptions may apply.{' '}
+                <a
+                  className="underline"
+                  href="https://www.irs.gov/taxtopics/tc851"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Check the IRS guidance
+                </a>{' '}
+                before declaring your status.
+              </p>
               <fieldset className="m-0 min-w-0 border-0 p-0">
                 <legend className="mb-3 p-0 text-sm font-bold">
                   Source of funds (select all that apply)
@@ -533,44 +657,88 @@ function DemoInvestorSetup() {
                   ) : null}
                 </div>
 
-                {passportState === 'idle' ? (
-                  <Button type="button" variant="outline" className="mt-4" onClick={uploadPassport}>
+                <input
+                  ref={passportInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  className="sr-only"
+                  aria-label="Capture or upload identity document"
+                  onChange={(event) => {
+                    selectPassport(event.target.files?.[0]);
+                    event.target.value = '';
+                  }}
+                />
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => passportInputRef.current?.click()}
+                  >
                     <Upload className="h-4 w-4" aria-hidden />
-                    Upload passport
+                    {passportState === 'invalid'
+                      ? 'Upload a replacement passport'
+                      : 'Scan or upload passport'}
                   </Button>
-                ) : null}
-                {passportState === 'uploading' ? (
-                  <Button type="button" variant="outline" className="mt-4" disabled aria-busy>
-                    Checking passport…
+                  <Button type="button" variant="secondary" onClick={uploadPassport}>
+                    Try sample passport scan
                   </Button>
-                ) : null}
-                {passportState === 'invalid' ? (
-                  <div className="mt-4 rounded-xl border border-solid border-terra/40 bg-[#f7e9e2] p-4 dark:bg-terra/10">
-                    <p
-                      role="alert"
-                      className="flex items-start gap-2 text-sm text-[#8b431f] dark:text-terra"
-                    >
-                      <CircleAlert className="mt-0.5 h-4 w-4 flex-none" aria-hidden />
-                      {identityEvidence.currentDocument} cannot be prepared for partner review.
+                </div>
+                {passportError && (
+                  <p role="alert" className="mt-3 text-sm text-terra">
+                    {passportError}
+                  </p>
+                )}
+                {passportPreview && (
+                  <img
+                    src={passportPreview}
+                    alt="Your selected identity document for review"
+                    className="mt-4 max-h-64 w-full rounded-xl object-contain"
+                  />
+                )}
+                {passportName && !passportPreview && (
+                  <div
+                    className="mt-4 rounded-xl border border-dashed border-border bg-mint p-6"
+                    aria-label="Sample document preview"
+                  >
+                    <p className="font-mono text-xs">SPECIMEN · NOT A VALID ID</p>
+                    <p className="mt-3 font-display text-lg">{passportName}</p>
+                    {passportState === 'uploading' && (
+                      <output className="mt-2 block animate-pulse text-sm">
+                        Scanning sample document…
+                      </output>
+                    )}
+                  </div>
+                )}
+                {passportState === 'invalid' && (
+                  <div role="alert" className="mt-4 rounded-xl border border-terra/40 p-4 text-sm">
+                    <p>
+                      This sample passport expired on 12 June 2025. Choose a valid replacement; your
+                      agent cannot replace your identity document for you.
                     </p>
                     <Button
                       type="button"
                       variant="secondary"
                       className="mt-3"
-                      onClick={() => setPassportState('resolved')}
+                      onClick={() => {
+                        setPassportName('Valid sample passport · expires 18 Sep 2031');
+                        setPassportState('resolved');
+                      }}
                     >
-                      <Sparkles className="h-4 w-4" aria-hidden />
-                      Use my agent’s correction
+                      Select valid sample replacement
                     </Button>
                   </div>
-                ) : null}
-                {passportState === 'resolved' ? (
-                  <output className="mt-4 flex items-start gap-2 rounded-xl bg-mint p-4 text-sm leading-relaxed">
-                    <Check className="mt-0.5 h-4 w-4 flex-none text-success" aria-hidden />
-                    Your agent replaced the expired document with{' '}
-                    {identityEvidence.replacementDocument}.
+                )}
+                {passportState === 'resolved' && (
+                  <output className="mt-4 block rounded-xl bg-mint p-4 text-sm">
+                    {passportName || 'Identity evidence'} selected by you. Ready for partner review;
+                    identity and document validity have not been verified.
                   </output>
-                ) : null}
+                )}
+                <p className="mt-3 text-xs text-dim">
+                  Images stay in this browser preview and are not uploaded. On supported phones, the
+                  capture control opens the camera.
+                </p>
               </Card>
 
               <Card className="p-4 shadow-none sm:p-5">
@@ -598,7 +766,7 @@ function DemoInvestorSetup() {
                     onClick={() => setProofAddressAdded(true)}
                   >
                     <Upload className="h-4 w-4" aria-hidden />
-                    Upload proof of address
+                    Use sample proof of address
                   </Button>
                 )}
               </Card>
@@ -610,6 +778,81 @@ function DemoInvestorSetup() {
             </div>
           ) : null}
 
+          {step === 4 && (
+            <div className="space-y-5">
+              {[
+                {
+                  title: 'Personal details',
+                  step: 0,
+                  rows: [
+                    ['Name', preparedProfile.name],
+                    ['Residence', preparedProfile.residence],
+                    ['Age', preparedProfile.age],
+                    ['Citizenships', citizenships.join(', ')],
+                  ],
+                },
+                {
+                  title: 'Investment goals',
+                  step: 1,
+                  rows: [
+                    ['Objective', profile.objective],
+                    ['Target return', profile.targetReturn],
+                    ['Horizon', profile.horizon],
+                    ['Risk appetite', profile.risk],
+                    ['Access to funds', profile.liquidity],
+                    ['Financial situation', profile.financialSituation],
+                  ],
+                },
+                {
+                  title: 'Compliance declarations',
+                  step: 2,
+                  rows: [
+                    ['PEP status', pepStatus],
+                    ['FATCA status', fatcaStatus],
+                    ['Source of funds', sources.join(', ')],
+                    ['Tax identifier', `${taxIdType} ••••${taxIdLastFour}`],
+                  ],
+                },
+                {
+                  title: 'Documents',
+                  step: 3,
+                  rows: [
+                    [
+                      'Identity',
+                      passportState === 'resolved'
+                        ? 'Selected · pending partner verification'
+                        : 'Required',
+                    ],
+                    ['Address', proofAddressAdded ? 'Sample evidence selected' : 'Required'],
+                  ],
+                },
+              ].map((section) => (
+                <section key={section.title} className="rounded-xl border border-border p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="font-display text-lg font-bold">{section.title}</h2>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setReturnToReview(true);
+                        setStep(section.step);
+                      }}
+                    >
+                      Edit {section.title.toLowerCase()}
+                    </Button>
+                  </div>
+                  <dl className="space-y-2">
+                    {section.rows.map(([label, value]) => (
+                      <div key={label} className="flex flex-wrap justify-between gap-2 text-sm">
+                        <dt className="text-dim">{label}</dt>
+                        <dd className="m-0 font-medium">{value || 'Not provided'}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+            </div>
+          )}
           <div className="mt-7 flex gap-3 border-t border-border pt-5">
             {step > 0 ? (
               <Button
@@ -627,7 +870,11 @@ function DemoInvestorSetup() {
               disabled={!stepComplete}
               onClick={continueSetup}
             >
-              {step === SETUP_STEPS.length - 1 ? 'Open my dashboard' : 'Continue'}
+              {step === SETUP_STEPS.length - 1
+                ? 'Find my matches'
+                : returnToReview
+                  ? 'Save and review'
+                  : 'Continue'}
             </Button>
           </div>
         </Card>
