@@ -6,6 +6,8 @@ import {
 
 type Kind = 'Bond' | 'Fund' | 'Equity' | 'Real Estate' | 'Private';
 
+export const BLUE_MAHOE_PARTNER_NAME = 'Blue Mahoe Capital';
+
 export const DEMO_REFERENCE_PROFILE: DemoProfile = {
   ...DEFAULT_DEMO_PROFILE,
   name: 'Jevon',
@@ -44,9 +46,9 @@ const FEEDBACK_MATCHES: DemoOpportunity[] = [
     id: 'blue-mahoe-feedback',
     abbr: 'BMC',
     type: 'Equity',
-    partner: 'Blue Mahoe Capital',
+    partner: BLUE_MAHOE_PARTNER_NAME,
     regulator: 'Partner review required',
-    name: 'Blue Mahoe Capital',
+    name: BLUE_MAHOE_PARTNER_NAME,
     region: 'Guyana',
     metricLabel: 'Expected growth over 5 years',
     metric: '12.5%',
@@ -311,4 +313,18 @@ export function rankDemoRecommendations(profile: DemoProfile): DemoOpportunity[]
       };
     })
     .sort((a, b) => b.match - a.match);
+}
+
+/** The walkthrough always carries the requested Blue Mahoe scenario while the
+ * second slot remains the strongest profile-ranked comparison. Scores and fit
+ * explanations still come from the same suitability calculation. */
+export function selectDemoRecommendations(profile: DemoProfile, limit = 2): DemoOpportunity[] {
+  if (limit <= 0) return [];
+  const ranked = rankDemoRecommendations(profile);
+  const blueMahoe = ranked.find((opportunity) => opportunity.partner === BLUE_MAHOE_PARTNER_NAME);
+  if (!blueMahoe) return ranked.slice(0, limit);
+  const selected = [blueMahoe, ...ranked.filter((opportunity) => opportunity.id !== blueMahoe.id)]
+    .slice(0, limit)
+    .sort((a, b) => b.match - a.match);
+  return selected;
 }

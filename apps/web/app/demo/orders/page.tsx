@@ -95,8 +95,15 @@ export default function DemoOrdersPage() {
     ...routedOrders.map((order) => ({
       id: `routed-${order.id}`,
       name: order.name,
-      status: 'created' as const,
-      says: `Sent to ${order.partner} to accept.`,
+      status: order.status,
+      says:
+        order.status === 'accepted'
+          ? `${order.partner} accepted the instruction and is preparing execution${order.settlementEta ? ` for ${new Date(order.settlementEta).toLocaleDateString()}` : ''}.`
+          : order.status === 'settled'
+            ? `Settled by ${order.partner}. The position will appear when the partner next reports the account.`
+            : order.status === 'rejected'
+              ? (order.rejectedReason ?? `${order.partner} declined the instruction.`)
+              : `Sent to ${order.partner} to accept.`,
       authorised: 'Authorised today',
       amount: order.amount,
       byAgent: true,

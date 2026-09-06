@@ -2,7 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { demoVillaScreenReasons } from '../app/_components/AppScreen';
-import { DEMO_REFERENCE_PROFILE, rankDemoRecommendations } from '../lib/demo-recommendations';
+import {
+  BLUE_MAHOE_PARTNER_NAME,
+  DEMO_REFERENCE_PROFILE,
+  rankDemoRecommendations,
+  selectDemoRecommendations,
+} from '../lib/demo-recommendations';
 
 /**
  * Structural guards for the app shell, from three defects reported off a real
@@ -448,6 +453,7 @@ describe('app shell controls', () => {
     expect(matching).toContain('<DealCard');
     expect(matching).not.toContain('Top 2 recommendations');
     expect(matching).toContain('rankDemoRecommendations(profile)');
+    expect(matching).toContain('selectDemoRecommendations(profile)');
     expect(matching).toContain('demoVillaScreenReasons(profile, VILLA_SCREEN_CONTEXT)');
     expect(matching).toContain('writeDemoAccountState');
     expect(matching).toContain('nextDemoOrderId(selectedOpp.id');
@@ -457,6 +463,8 @@ describe('app shell controls', () => {
     expect(orders).toContain('Executed and settled by the institution that holds them');
     expect(orders).toContain('data-tour="customer-order-flow"');
     expect(orders).toContain('readDemoAccountState().opportunityOrders');
+    expect(orders).toContain('status: order.status');
+    expect(orders).toContain('`${order.partner} accepted the instruction');
     expect(orders).not.toContain('Partner onboarding');
 
     expect(advisor).toContain('I need quarterly access');
@@ -464,7 +472,7 @@ describe('app shell controls', () => {
     expect(advisor).not.toContain('How the agents reached this');
     expect(advisor).toContain('href="/demo/orders"');
     expect(advisor).toContain('liquidity: requestedLiquidity');
-    expect(advisor).toContain('rankDemoRecommendations(profile)');
+    expect(advisor).toContain('selectDemoRecommendations(profile)');
     expect(advisor).toContain('setDemoProfile(nextProfile)');
     expect(advisor).toContain('approvedActions');
     expect(advisor).toContain('nextDemoOrderId(`agent-${a.id}`');
@@ -485,6 +493,11 @@ describe('app shell controls', () => {
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');
     expect(partner).toContain('restoredEvidence.clientReference');
+    expect(partner).toContain('readDemoAccountState()');
+    expect(partner).toContain('demoPartnerFor(requestedOrder?.partner ?? BLUE_MAHOE_PARTNER_NAME)');
+    expect(partner).toContain('updateRequestedOrder(id');
+    expect(partner).toContain('{partner.name}.');
+    expect(partner).not.toContain('decision belongs to NCB');
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
@@ -606,6 +619,16 @@ describe('profile-driven demo recommendations', () => {
     const blueMahoe = results.find((result) => result.id === 'blue-mahoe-feedback');
     expect(blueMahoe?.match).toBeLessThan(98);
     expect(blueMahoe?.agentNote).toContain('exceeds your access preference');
+  });
+  test('keeps Blue Mahoe Capital in the recommended pair after profile changes', () => {
+    const recommendations = selectDemoRecommendations({
+      ...DEMO_REFERENCE_PROFILE,
+      risk: 'Conservative',
+      objective: 'Capital preservation',
+      liquidity: 'Quarterly access',
+    });
+    expect(recommendations).toHaveLength(2);
+    expect(recommendations.some((result) => result.partner === BLUE_MAHOE_PARTNER_NAME)).toBe(true);
   });
   test('a changed return target changes the fit explanation', () => {
     const results = rankDemoRecommendations({ ...DEMO_REFERENCE_PROFILE, targetReturn: '5–10%' });

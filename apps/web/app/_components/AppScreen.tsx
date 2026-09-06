@@ -122,6 +122,9 @@ export type DemoOpportunityOrder = {
   name: string;
   partner: string;
   amount: string;
+  status: 'created' | 'accepted' | 'settled' | 'rejected';
+  settlementEta: string | null;
+  rejectedReason: string | null;
 };
 
 export function nextDemoOrderId(baseId: string, orders: DemoOpportunityOrder[]): string {
@@ -308,15 +311,36 @@ export function readDemoAccountState(): DemoAccountState {
           ? candidate.ncbClientStatus
           : 'needs_evidence',
       opportunityOrders: Array.isArray(candidate.opportunityOrders)
-        ? candidate.opportunityOrders.filter(
-            (value): value is DemoOpportunityOrder =>
-              typeof value === 'object' &&
-              value !== null &&
-              typeof (value as Partial<DemoOpportunityOrder>).id === 'string' &&
-              typeof (value as Partial<DemoOpportunityOrder>).name === 'string' &&
-              typeof (value as Partial<DemoOpportunityOrder>).partner === 'string' &&
-              typeof (value as Partial<DemoOpportunityOrder>).amount === 'string',
-          )
+        ? candidate.opportunityOrders.flatMap((value) => {
+            if (typeof value !== 'object' || value === null) return [];
+            const order = value as Partial<DemoOpportunityOrder>;
+            if (
+              typeof order.id !== 'string' ||
+              typeof order.name !== 'string' ||
+              typeof order.partner !== 'string' ||
+              typeof order.amount !== 'string'
+            ) {
+              return [];
+            }
+            const status =
+              order.status === 'accepted' ||
+              order.status === 'settled' ||
+              order.status === 'rejected'
+                ? order.status
+                : 'created';
+            return [
+              {
+                id: order.id,
+                name: order.name,
+                partner: order.partner,
+                amount: order.amount,
+                status,
+                settlementEta: typeof order.settlementEta === 'string' ? order.settlementEta : null,
+                rejectedReason:
+                  typeof order.rejectedReason === 'string' ? order.rejectedReason : null,
+              },
+            ];
+          })
         : [],
     };
     inMemoryDemoAccountState = state;
