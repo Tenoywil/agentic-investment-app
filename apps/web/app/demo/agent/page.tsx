@@ -29,7 +29,7 @@ import { Label } from '@/app/_components/ui/label';
 import { Switch } from '@/app/_components/ui/switch';
 import { cn } from '@/app/_lib/utils';
 import type { AgentDisplayData } from '@/lib/agent-api';
-import { rankDemoRecommendations } from '@/lib/demo-recommendations';
+import { rankDemoRecommendations, selectDemoRecommendations } from '@/lib/demo-recommendations';
 import {
   ArrowLeft,
   ArrowRight,
@@ -95,7 +95,7 @@ const VILLA_SCREEN_CONTEXT = {
 };
 
 function comparisonReply(profile: DemoProfile): string {
-  const [first, second] = rankDemoRecommendations(profile);
+  const [first, second] = selectDemoRecommendations(profile);
   if (!first || !second) return REPLIES.summary ?? FALLBACK;
   return `Your current top matches are the <b>${first.name} at ${first.match}%</b> and the <b>${second.name} at ${second.match}%</b>. This order reflects your <b>${profile.risk.toLowerCase()}</b> risk appetite, <b>${profile.objective.toLowerCase()}</b> objective, <b>${profile.horizon}</b> horizon and <b>${profile.liquidity.toLowerCase()}</b> liquidity need. <b>${first.name}:</b> ${first.agentNote} <b>${second.name}:</b> ${second.agentNote} Caribbean exposure is not automatically better than a comparable US product, so I still compare net fees, tax, currency, liquidity and investor protections.`;
 }
@@ -106,7 +106,7 @@ function profileUpdateReply(previousProfile: DemoProfile, updatedProfile: DemoPr
       ? `Your liquidity need was already <b>${updatedProfile.liquidity.toLowerCase()}</b>, so I kept it unchanged`
       : `I updated your liquidity need from <b>${previousProfile.liquidity.toLowerCase()}</b> to <b>${updatedProfile.liquidity.toLowerCase()}</b>`;
   const ranked = rankDemoRecommendations(updatedProfile);
-  const topTwo = ranked.slice(0, 2);
+  const topTwo = selectDemoRecommendations(updatedProfile);
   const ncbPosition = ranked.findIndex((candidate) => candidate.id === 'ncbmm') + 1;
   const rankingSummary = `After re-ranking, your current top two are <b>${topTwo.map((candidate) => candidate.name).join('</b> and <b>')}</b>. The NCB USD Money Market Fund's same-day access improved its liquidity fit${ncbPosition > 0 ? ` and places it at #${ncbPosition}` : ''}.`;
   return `${update} and refreshed your recommendations. ${rankingSummary} The five-year villa note remains screened out. Review and approve any move before I route it.`;
@@ -759,6 +759,9 @@ export default function AgentPage() {
             {
               id: nextDemoOrderId(`agent-${a.id}`, accountState.opportunityOrders),
               ...order,
+              status: 'created',
+              settlementEta: null,
+              rejectedReason: null,
             },
           ],
     });

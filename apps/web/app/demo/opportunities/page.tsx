@@ -27,6 +27,7 @@ import {
   DEMO_OPPORTUNITIES as OPPS,
   type DemoOpportunity as Opp,
   rankDemoRecommendations,
+  selectDemoRecommendations,
 } from '@/lib/demo-recommendations';
 import { Check, CircleAlert, ShieldCheck, Target } from 'lucide-react';
 import Link from 'next/link';
@@ -61,7 +62,7 @@ function FeedbackComparison({
   return (
     <section aria-labelledby="feedback-matches" className="mb-8">
       <h2 id="feedback-matches" className="font-display text-2xl font-bold">
-        Top 2 matches
+        Recommended investments
       </h2>
       <p className="mb-4 mt-2 text-sm text-dim">
         {profile.name} · age {profile.age} · {profile.risk.toLowerCase()} risk appetite ·{' '}
@@ -95,7 +96,7 @@ function FeedbackComparison({
       >
         <table className="w-full min-w-[640px] text-left text-sm">
           <caption className="sr-only">
-            Compare the two leading investments for the example client
+            Compare the two recommended investments for the example client
           </caption>
           <thead>
             <tr className="border-b border-border">
@@ -271,6 +272,9 @@ function ExecDialog({ opp, onClose }: { opp: Opp | null; onClose: () => void }) 
           name: selectedOpp.name,
           partner: selectedOpp.partner,
           amount: amtFmt,
+          status: 'created',
+          settlementEta: null,
+          rejectedReason: null,
         },
       ],
     });
@@ -577,8 +581,10 @@ export default function OpportunitiesPage() {
   }, []);
 
   const ranked = rankDemoRecommendations(profile);
+  const recommendations = selectDemoRecommendations(profile);
   const screenedOut = BLOCKED.map((opportunity) => screenedOutForProfile(opportunity, profile));
-  const alternatives = ranked.slice(2);
+  const recommendationIds = new Set(recommendations.map((opportunity) => opportunity.id));
+  const alternatives = ranked.filter((opportunity) => !recommendationIds.has(opportunity.id));
   const shown = filter === 'All' ? alternatives : alternatives.filter((o) => o.type === filter);
   const count = (f: Kind | 'All') =>
     f === 'All' ? alternatives.length : alternatives.filter((o) => o.type === f).length;
@@ -653,7 +659,7 @@ export default function OpportunitiesPage() {
         </Button>
       </div>
       <FeedbackComparison
-        opportunities={ranked.slice(0, 2)}
+        opportunities={recommendations}
         profile={profile}
         onInvest={setSelected}
       />

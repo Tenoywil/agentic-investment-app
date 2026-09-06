@@ -2,9 +2,12 @@
 
 import {
   DEFAULT_DEMO_PROFILE,
+  type DemoOpportunityOrder,
   type DemoProfile,
   demoIdentityEvidence,
+  readDemoAccountState,
   readDemoProfile,
+  writeDemoAccountState,
 } from '@/app/_components/AppScreen';
 import { ConsoleHeader, ConsoleMobileHeader } from '@/app/_components/console/console-header';
 import { ConsoleMobileTabs, ConsoleSidebar } from '@/app/_components/console/console-sidebar';
@@ -26,6 +29,7 @@ import type {
   ProductInput,
   SettlementInput,
 } from '@/lib/console-api';
+import { BLUE_MAHOE_PARTNER_NAME, DEMO_OPPORTUNITIES } from '@/lib/demo-recommendations';
 import type { MePartner } from '@/lib/me-api';
 import { ArrowLeft, CheckCircle2, FileSearch, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
@@ -40,19 +44,60 @@ import { useEffect, useMemo, useState } from 'react';
  * auth cookie or live data source available to this page.
  */
 
-const PARTNER: MePartner = {
-  id: 'demo-partner',
-  code: 'NCBCM-JM',
-  name: 'NCB Capital Markets',
-  kind: 'Broker-dealer',
-  regulator: 'FSC_JAMAICA',
-  agreementStatus: 'live',
-  residency: 'Jamaica',
-  fundingInstructions: 'USD wire instructions are available for approved clients.',
-  withdrawalFeeFlatMinor: '0',
-  withdrawalFeeBps: 0,
-  gctBps: 0,
-};
+function demoPartnerFor(partnerName: string): MePartner {
+  const opportunity = DEMO_OPPORTUNITIES.find(
+    (candidate) => candidate.partner === partnerName && !candidate.blocked,
+  );
+  const code =
+    opportunity?.abbr ??
+    partnerName
+      .split(/\s+/)
+      .map((word) => word[0])
+      .join('')
+      .slice(0, 8)
+      .toUpperCase();
+  return {
+    id: `demo-partner-${code.toLowerCase()}`,
+    code,
+    name: partnerName,
+    kind: 'Investment partner',
+    regulator: opportunity?.regulator ?? 'Partner review required',
+    agreementStatus: 'live',
+    residency: opportunity?.region.split(' · ')[0] ?? 'Caribbean',
+    fundingInstructions: 'Funding instructions are available for accepted clients.',
+    withdrawalFeeFlatMinor: '0',
+    withdrawalFeeBps: 0,
+    gctBps: 0,
+  };
+}
+
+const DEFAULT_PARTNER: MePartner = demoPartnerFor(BLUE_MAHOE_PARTNER_NAME);
+
+function amountMinor(amount: string): string {
+  const major = Number(amount.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(major) ? String(Math.round(major * 100)) : '0';
+}
+
+function productRisk(risk: string | undefined): ConsoleProduct['risk'] {
+  if (!risk) return null;
+  const normalized = risk.toLowerCase();
+  if (normalized === 'low' || normalized === 'medium' || normalized === 'high') return normalized;
+  return null;
+}
+
+function updateRequestedOrder(
+  id: string,
+  update: Partial<Pick<DemoOpportunityOrder, 'status' | 'settlementEta' | 'rejectedReason'>>,
+): void {
+  const accountState = readDemoAccountState();
+  if (!accountState.opportunityOrders.some((order) => order.id === id)) return;
+  writeDemoAccountState({
+    ...accountState,
+    opportunityOrders: accountState.opportunityOrders.map((order) =>
+      order.id === id ? { ...order, ...update } : order,
+    ),
+  });
+}
 
 const OPERATOR = { name: 'Alex Morgan', email: 'operations@example.invalid' };
 const DEMO_PAGE_SIZE = 2;
@@ -62,10 +107,10 @@ const INITIAL_ORDERS: ConsoleOrder[] = [
   {
     id: 'demo-order-1',
     userId: 'demo-client-1',
-    partnerId: PARTNER.id,
+    partnerId: DEFAULT_PARTNER.id,
     instrumentId: 'demo-product-1',
-    instrumentName: 'Caribbean USD Income Fund',
-    instrumentAbbr: 'CUIF',
+    instrumentName: BLUE_MAHOE_PARTNER_NAME,
+    instrumentAbbr: 'BMC',
     approvalId: 'demo-approval-1',
     status: 'created',
     amountMinor: '500000',
@@ -87,7 +132,7 @@ const INITIAL_ORDERS: ConsoleOrder[] = [
   {
     id: 'demo-order-2',
     userId: 'demo-client-2',
-    partnerId: PARTNER.id,
+    partnerId: DEFAULT_PARTNER.id,
     instrumentId: 'demo-product-2',
     instrumentName: 'Regional Infrastructure Note 2032',
     instrumentAbbr: 'RIN32',
@@ -112,7 +157,7 @@ const INITIAL_ORDERS: ConsoleOrder[] = [
   {
     id: 'demo-order-3',
     userId: 'demo-client-3',
-    partnerId: PARTNER.id,
+    partnerId: DEFAULT_PARTNER.id,
     instrumentId: 'demo-product-3',
     instrumentName: 'Jamaica Government Global Bond 2036',
     instrumentAbbr: 'JGB36',
@@ -139,17 +184,17 @@ const INITIAL_ORDERS: ConsoleOrder[] = [
 const INITIAL_PRODUCTS: ConsoleProduct[] = [
   {
     id: 'demo-product-1',
-    name: 'Caribbean USD Income Fund',
-    type: 'fund',
-    abbr: 'CUIF',
+    name: BLUE_MAHOE_PARTNER_NAME,
+    type: 'equity',
+    abbr: 'BMC',
     currency: 'USD',
     minInvestmentMinor: '100000',
-    term: 'Open-ended',
-    metric: '6.1%',
-    metricLabel: 'trailing yield',
-    risk: 'medium',
-    description: 'Diversified regional fixed-income product.',
-    region: 'Caribbean',
+    term: '5 yr',
+    metric: '12.5%',
+    metricLabel: 'expected growth over 5 years',
+    risk: 'high',
+    description: 'Illustrative five-year growth opportunity from the feedback scenario.',
+    region: 'Guyana',
     status: 'live',
     blocked: false,
     createdAt: '2026-08-01T12:00:00.000Z',
@@ -253,6 +298,7 @@ const OTHER_SAMPLE_DECISIONS = [
 
 export default function DemoInstitutionsPage() {
   const [tab, setTab] = useState<TabKey>('overview');
+  const [partner, setPartner] = useState(DEFAULT_PARTNER);
   const [orders, setOrders] = useState(INITIAL_ORDERS);
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [status, setStatus] = useState('');
@@ -273,14 +319,66 @@ export default function DemoInstitutionsPage() {
     const restored = readDemoProfile(MARCUS_PROFILE);
     const restoredName = restored.name.trim() || 'Investor';
     const restoredEvidence = demoIdentityEvidence(restored);
+    const accountState = readDemoAccountState();
+    const requestedOrder = accountState.opportunityOrders.at(-1);
+    const activePartner = demoPartnerFor(requestedOrder?.partner ?? BLUE_MAHOE_PARTNER_NAME);
+    const requestedOpportunity = requestedOrder
+      ? DEMO_OPPORTUNITIES.find(
+          (candidate) =>
+            candidate.name === requestedOrder.name && candidate.partner === requestedOrder.partner,
+        )
+      : undefined;
     setProfile(restored);
-    setOrders((current) =>
-      current.map((order) =>
-        order.id === 'demo-order-1'
-          ? { ...order, clientRef: `${restoredName} · ${restoredEvidence.clientReference}` }
-          : order,
-      ),
+    setPartner(activePartner);
+    setOrders(
+      INITIAL_ORDERS.map((order, index) => {
+        const partnerOrder = { ...order, partnerId: activePartner.id };
+        if (index !== 0) return partnerOrder;
+        if (!requestedOrder) {
+          return {
+            ...partnerOrder,
+            clientRef: `${restoredName} · ${restoredEvidence.clientReference}`,
+          };
+        }
+        return {
+          ...partnerOrder,
+          id: requestedOrder.id,
+          instrumentId: `demo-product-${requestedOrder.id}`,
+          instrumentName: requestedOrder.name,
+          instrumentAbbr: requestedOpportunity?.abbr ?? activePartner.code,
+          status: requestedOrder.status,
+          amountMinor: amountMinor(requestedOrder.amount),
+          idempotencyKey: requestedOrder.id,
+          clientRef: `${restoredName} · ${restoredEvidence.clientReference}`,
+          settlementEta: requestedOrder.settlementEta,
+          rejectedReason: requestedOrder.rejectedReason,
+          acceptedAt:
+            requestedOrder.status === 'accepted' || requestedOrder.status === 'settled'
+              ? order.updatedAt
+              : null,
+          settledAt: requestedOrder.status === 'settled' ? order.updatedAt : null,
+        };
+      }),
     );
+    const primaryProduct = INITIAL_PRODUCTS[0];
+    if (requestedOrder && primaryProduct) {
+      setProducts([
+        {
+          ...primaryProduct,
+          id: `demo-product-${requestedOrder.id}`,
+          name: requestedOrder.name,
+          abbr: requestedOpportunity?.abbr ?? activePartner.code,
+          minInvestmentMinor: amountMinor(requestedOpportunity?.min ?? requestedOrder.amount),
+          term: requestedOpportunity?.term ?? null,
+          metric: requestedOpportunity?.metric ?? null,
+          metricLabel: requestedOpportunity?.metricLabel ?? null,
+          risk: productRisk(requestedOpportunity?.risk),
+          description: requestedOpportunity?.desc ?? null,
+          region: requestedOpportunity?.region ?? activePartner.residency,
+        },
+        ...INITIAL_PRODUCTS.slice(1),
+      ]);
+    }
   }, []);
 
   const citizenship = profile.citizenships;
@@ -345,6 +443,11 @@ export default function DemoInstitutionsPage() {
           : order,
       ),
     );
+    updateRequestedOrder(id, {
+      status: 'accepted',
+      settlementEta: settlementEta ?? null,
+      rejectedReason: null,
+    });
     setOrderOffset(0);
     return true;
   }
@@ -358,6 +461,7 @@ export default function DemoInstitutionsPage() {
           : order,
       ),
     );
+    updateRequestedOrder(id, { status: 'settled', rejectedReason: null });
     setOrderOffset(0);
     return true;
   }
@@ -375,6 +479,11 @@ export default function DemoInstitutionsPage() {
           : order,
       ),
     );
+    updateRequestedOrder(id, {
+      status: 'rejected',
+      settlementEta: null,
+      rejectedReason: reason ?? null,
+    });
     setOrderOffset(0);
     return true;
   }
@@ -450,7 +559,7 @@ export default function DemoInstitutionsPage() {
       className="app-shell bg-background font-sans text-foreground"
     >
       <ConsoleMobileHeader
-        partnerName={PARTNER.name}
+        partnerName={partner.name}
         context="Signed in · Simone Clarke"
         action={
           <Button
@@ -467,7 +576,7 @@ export default function DemoInstitutionsPage() {
       />
 
       <ConsoleSidebar
-        partner={PARTNER}
+        partner={partner}
         operator={OPERATOR}
         pendingOrders={pendingOrders}
         pendingReconciliation={pendingReviews}
@@ -487,7 +596,8 @@ export default function DemoInstitutionsPage() {
             <div className="min-w-0 flex-1">
               <b className="font-display text-base">{profileName}’s review pack is ready</b>
               <p className="mb-0 mt-0.5 text-sm text-dim">
-                Valid replacement ID received · final client-acceptance decision belongs to NCB.
+                Valid replacement ID received · final client-acceptance decision belongs to{' '}
+                {partner.name}.
               </p>
             </div>
             <Button type="button" onClick={() => navigateDemoTab('clients')}>
@@ -498,7 +608,7 @@ export default function DemoInstitutionsPage() {
 
         <TabsContent value="overview" className="mt-0">
           <OverviewTab
-            partner={PARTNER}
+            partner={partner}
             kpis={KPIS}
             kpisError={null}
             equity={EQUITY}
