@@ -517,7 +517,9 @@ describe('app shell controls', () => {
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
-    expect(partner).toContain('response target is within 3 business days');
+    expect(partner).toContain('Response target: within 3 business days');
+    expect(partner).toContain('const pendingReviewItems = reviewItems.filter');
+    expect(partner).toContain('total={pendingReviewItems.length}');
     expect(partner).toContain('review pack received');
     expect(partner).toContain('dark:bg-card');
     expect(dashboard).toContain('readDemoAccountState()');

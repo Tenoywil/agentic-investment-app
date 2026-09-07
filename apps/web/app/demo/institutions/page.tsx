@@ -31,7 +31,7 @@ import type {
 } from '@/lib/console-api';
 import { BLUE_MAHOE_PARTNER_NAME, DEMO_OPPORTUNITIES } from '@/lib/demo-recommendations';
 import type { MePartner } from '@/lib/me-api';
-import { ArrowLeft, CheckCircle2, FileSearch, ShieldCheck, UserCheck } from 'lucide-react';
+import { ArrowLeft, FileSearch, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -387,12 +387,13 @@ export default function DemoInstitutionsPage() {
   const reviewItems = [
     {
       ref: `${profileName} · ${identityEvidence.clientReference}`,
-      issue: 'Client review pack received',
-      evidence: `${identityEvidence.replacementSummary} · ${identityEvidence.addressEvidence} · ${identityEvidence.taxIdentifiers} · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizenship declared` : 'citizenship requires clarification'} · response target 3 business days`,
+      issue: 'Client acceptance review ready',
+      evidence: `${identityEvidence.replacementSummary} · ${identityEvidence.addressEvidence} · ${identityEvidence.taxIdentifiers} · ${citizenship.length > 0 ? `${citizenship.join(' + ')} citizenship declared` : 'citizenship requires clarification'}`,
       demoClient: true,
     },
     ...OTHER_REVIEW_ITEMS,
   ];
+  const pendingReviewItems = reviewItems.filter((item) => !reviewed.includes(item.ref));
   const sampleDecisions = [
     [
       `${profileName} review pack received`,
@@ -425,7 +426,7 @@ export default function DemoInstitutionsPage() {
     );
   }, [productQuery, productStatus, products]);
   const visibleProducts = filteredProducts.slice(productOffset, productOffset + DEMO_PAGE_SIZE);
-  const visibleReviews = reviewItems.slice(reviewOffset, reviewOffset + DEMO_PAGE_SIZE);
+  const visibleReviews = pendingReviewItems.slice(reviewOffset, reviewOffset + DEMO_PAGE_SIZE);
   const visibleDecisions = sampleDecisions.slice(auditOffset, auditOffset + DEMO_PAGE_SIZE);
 
   async function acceptOrder(id: string, settlementEta?: string) {
@@ -545,7 +546,7 @@ export default function DemoInstitutionsPage() {
   };
 
   const pendingOrders = orders.filter((order) => order.status === 'created').length;
-  const pendingReviews = reviewItems.filter((item) => !reviewed.includes(item.ref)).length;
+  const pendingReviews = pendingReviewItems.length;
   const navigateDemoTab = (next: TabKey) => {
     setTab(next);
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -733,17 +734,21 @@ export default function DemoInstitutionsPage() {
             <Card className="p-5 sm:p-6" data-tour="demo-institution-clients">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <b className="font-display text-lg">Client review queue</b>
+                  <b className="font-display text-lg">Reviews awaiting action</b>
                   <p className="mb-0 mt-1 text-[13px] text-faint">
-                    Consented KYC and AML evidence awaiting a human decision. The partner, not CCN,
-                    owns acceptance; this client’s response target is within 3 business days.
+                    {partner.name} reviews the consented KYC and AML evidence and records the final
+                    decision. Response target: within 3 business days.
                   </p>
                 </div>
-                <Badge>{pendingReviews} pending</Badge>
+                <Badge>{pendingReviews} awaiting action</Badge>
               </div>
               <div className="mt-4 space-y-3">
+                {visibleReviews.length === 0 ? (
+                  <div className="rounded-2xl border border-solid border-border p-5 text-sm text-dim">
+                    All client reviews are complete.
+                  </div>
+                ) : null}
                 {visibleReviews.map((item) => {
-                  const done = reviewed.includes(item.ref);
                   return (
                     <div
                       key={item.ref}
@@ -760,20 +765,19 @@ export default function DemoInstitutionsPage() {
                         <Button
                           type="button"
                           size="sm"
-                          variant={done ? 'outline' : 'default'}
-                          disabled={done}
-                          onClick={() => setReviewed((current) => [...current, item.ref])}
+                          onClick={() => {
+                            setReviewed((current) => [...current, item.ref]);
+                            const remaining = pendingReviewItems.length - 1;
+                            const lastPageOffset = Math.max(
+                              0,
+                              Math.floor((Math.max(remaining, 1) - 1) / DEMO_PAGE_SIZE) *
+                                DEMO_PAGE_SIZE,
+                            );
+                            setReviewOffset((current) => Math.min(current, lastPageOffset));
+                          }}
                         >
-                          {done ? (
-                            <CheckCircle2 className="h-4 w-4" aria-hidden />
-                          ) : (
-                            <UserCheck className="h-4 w-4" aria-hidden />
-                          )}
-                          {done
-                            ? 'Decision recorded'
-                            : item.demoClient
-                              ? 'Accept client'
-                              : 'Record review'}
+                          <UserCheck className="h-4 w-4" aria-hidden />
+                          {item.demoClient ? 'Accept client' : 'Complete review'}
                         </Button>
                       </div>
                     </div>
@@ -781,8 +785,8 @@ export default function DemoInstitutionsPage() {
                 })}
               </div>
               <ConsolePager
-                label="Client review queue"
-                total={reviewItems.length}
+                label="Reviews awaiting action"
+                total={pendingReviewItems.length}
                 offset={reviewOffset}
                 pageSize={DEMO_PAGE_SIZE}
                 visible={visibleReviews.length}
