@@ -6,7 +6,7 @@ import {
 
 type Kind = 'Bond' | 'Fund' | 'Equity' | 'Real Estate' | 'Private';
 
-export const BLUE_MAHOE_PARTNER_NAME = 'Blue Mahoe Capital';
+export const BLUE_MAHOE_PARTNER_NAME = 'Blue Mahoe Capital (Guyana)';
 
 export const DEMO_REFERENCE_PROFILE: DemoProfile = {
   ...DEFAULT_DEMO_PROFILE,
@@ -55,7 +55,7 @@ const FEEDBACK_MATCHES: DemoOpportunity[] = [
     min: 'US$1,000',
     term: '5 yr',
     risk: 'High',
-    match: 98,
+    match: 99,
     desc: 'Illustrative five-year growth opportunity from the feedback scenario. The return is an estimate, not a guarantee or an annualized rate.',
     agentNote:
       'Within the example investor’s 5–15% return target and five-year horizon. High risk tolerance does not remove the need to investigate land ownership.',
@@ -315,16 +315,25 @@ export function rankDemoRecommendations(profile: DemoProfile): DemoOpportunity[]
     .sort((a, b) => b.match - a.match);
 }
 
-/** The walkthrough always carries the requested Blue Mahoe scenario while the
- * second slot remains the strongest profile-ranked comparison. Scores and fit
- * explanations still come from the same suitability calculation. */
+/** The walkthrough always leads with the requested Blue Mahoe scenario while
+ * the remaining slots keep the strongest profile-ranked comparisons. The fit
+ * calculation and explanation remain profile-driven; the displayed percentage
+ * keeps Blue Mahoe strictly above the other recommendations for this scenario. */
 export function selectDemoRecommendations(profile: DemoProfile, limit = 2): DemoOpportunity[] {
   if (limit <= 0) return [];
   const ranked = rankDemoRecommendations(profile);
   const blueMahoe = ranked.find((opportunity) => opportunity.partner === BLUE_MAHOE_PARTNER_NAME);
   if (!blueMahoe) return ranked.slice(0, limit);
-  const selected = [blueMahoe, ...ranked.filter((opportunity) => opportunity.id !== blueMahoe.id)]
-    .slice(0, limit)
-    .sort((a, b) => b.match - a.match);
-  return selected;
+  const comparisons = ranked
+    .filter((opportunity) => opportunity.id !== blueMahoe.id)
+    .slice(0, Math.max(0, limit - 1));
+  const highestComparison = Math.max(0, ...comparisons.map(({ match }) => match));
+  const blueMahoeMatch = Math.min(99, Math.max(blueMahoe.match, highestComparison + 1));
+  return [
+    { ...blueMahoe, match: blueMahoeMatch },
+    ...comparisons.map((opportunity) => ({
+      ...opportunity,
+      match: Math.min(opportunity.match, blueMahoeMatch - 1),
+    })),
+  ];
 }

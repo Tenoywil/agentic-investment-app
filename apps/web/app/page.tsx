@@ -63,7 +63,7 @@ const NETWORK_PARTNERS: { code: string; name: string; color: string; tint: strin
   { code: 'BAR', name: 'Barita Investments', color: '#6b4a9e', tint: '#f0eaf8' },
   { code: 'REP', name: 'Republic Bank', color: '#1a6aa0', tint: '#e7f0f8' },
   { code: 'SYG', name: 'Sygnus Capital', color: '#8a5a2e', tint: '#f6eee2' },
-  { code: 'BMC', name: 'Blue Mahoe Capital', color: '#275b78', tint: '#e7f0f4' },
+  { code: 'BMC', name: 'Blue Mahoe Capital (Guyana)', color: '#275b78', tint: '#e7f0f4' },
   { code: 'RNV', name: 'Renovare Development', color: '#7a5b34', tint: '#f3eee5' },
 ];
 

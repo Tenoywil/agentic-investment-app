@@ -139,7 +139,7 @@ describe('authenticated surfaces carry no fabricated data', () => {
 describe('requested public and planning examples stay present', () => {
   it('the landing roster includes the two approved additions', () => {
     const landing = readFileSync(join(WEB, 'app/page.tsx'), 'utf8');
-    expect(landing).toContain("name: 'Blue Mahoe Capital'");
+    expect(landing).toContain("name: 'Blue Mahoe Capital (Guyana)'");
     expect(landing).toContain("name: 'Renovare Development'");
   });
 
