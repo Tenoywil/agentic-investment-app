@@ -427,9 +427,21 @@ describe('app shell controls', () => {
     expect(planning).toContain('Your goals');
     expect(planning).toContain('Create your investor profile');
     expect(planning).toContain("Let's get to know you better");
+    expect(planning).toContain('Where do you live?');
+    expect(planning).toContain('Full legal name');
+    expect(planning).toContain('What is your age group?');
+    expect(planning).toContain('Citizenship(s)');
+    expect(planning).toContain('What is your main investment objective?');
+    expect(planning).toContain('What is your time horizon?');
+    expect(planning).toContain('How much investment risk are you comfortable with?');
+    expect(planning).toContain('How quickly might you need access to this money?');
+    expect(planning).toContain('Which best describes your current financial situation?');
     expect(planning).toContain('Politically exposed person status');
     expect(planning).toContain('Scan or upload passport');
     expect(planning).toContain('Select valid sample replacement');
+    expect(planning).toContain('Source of funds (select all that apply)');
+    expect(planning).toContain('Last four digits of your tax identifier');
+    expect(planning).toContain('This sample passport expired on 12 June 2025');
     expect(planning).not.toContain('Use my agent’s correction');
     expect(planning).toContain('Review your investor profile');
     expect(planning).toContain(
@@ -451,6 +463,8 @@ describe('app shell controls', () => {
     expect(shell).toContain('resetDemoInvestorState');
     expect(matching).toContain('FILTERS.map');
     expect(matching).toContain('<DealCard');
+    expect(matching).toContain('Key risk to review');
+    expect(matching).toContain('{opportunity.match}%');
     expect(matching).not.toContain('Top 2 recommendations');
     expect(matching).toContain('rankDemoRecommendations(profile)');
     expect(matching).toContain('selectDemoRecommendations(profile)');
@@ -468,6 +482,8 @@ describe('app shell controls', () => {
     expect(orders).not.toContain('Partner onboarding');
 
     expect(advisor).toContain('I need quarterly access');
+    expect(advisor).toContain('Voice input');
+    expect(advisor).toContain('Ask your agent');
     expect(advisor).toContain('refreshed your recommendations');
     expect(advisor).not.toContain('How the agents reached this');
     expect(advisor).toContain('href="/demo/orders"');
@@ -490,6 +506,8 @@ describe('app shell controls', () => {
     expect(advisor).toContain('max-[900px]:hidden');
 
     expect(shell).toContain('expired 12 Jun 2025');
+    expect(shell).toContain('investor supplied a separate valid');
+    expect(shell).not.toContain('passport replaced with valid');
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');
     expect(partner).toContain('restoredEvidence.clientReference');
@@ -501,8 +519,24 @@ describe('app shell controls', () => {
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
+    expect(partner).toContain('response target is within 3 business days');
+    expect(partner).toContain('review pack received');
+    expect(partner).toContain('dark:bg-card');
     expect(dashboard).toContain('readDemoAccountState()');
     expect(dashboard).toContain('pendingApprovals.length');
+    expect(dashboard).toContain('Held across partners');
+    expect(dashboard).toContain('View portfolio →');
+    expect(dashboard).toContain('<Link href="/demo/opportunities">Invest</Link>');
+    expect(dashboard).toContain('Step 6 · Human in the loop');
+    expect(dashboard).toContain('simulated PDF review pack');
+    expect(dashboard).toContain('Response target: within 3 business days');
+    expect(dashboard).toContain('Step 7 · Dashboard');
+    expect(dashboard).toContain('Live updates and opportunities');
+    expect(dashboard).toContain('latestOrder.status');
+    expect(dashboard).toContain('leadingOpportunity.match');
+    expect(dashboard).toContain(
+      'profile.name === DEFAULT_DEMO_PROFILE.name ? DEMO_REFERENCE_PROFILE : profile',
+    );
     expect(dashboard).not.toContain('1 · Profile & goals');
     expect(dashboard).not.toContain('How the agents reached this');
   });
@@ -602,11 +636,14 @@ describe('profile-driven demo recommendations', () => {
   test('reproduces the reference comparison and keeps screened products out', () => {
     const results = rankDemoRecommendations(DEMO_REFERENCE_PROFILE);
     expect(results.slice(0, 2).map(({ name, match }) => ({ name, match }))).toEqual([
-      { name: 'Blue Mahoe Capital', match: 98 },
+      { name: 'Blue Mahoe Capital (Guyana)', match: 99 },
       { name: 'NCB Capital Markets', match: 92 },
     ]);
     expect(results.length).toBeGreaterThanOrEqual(5);
     expect(results.some((result) => result.blocked)).toBe(false);
+    expect(results[0]?.match).toBeGreaterThan(
+      Math.max(...results.slice(1).map(({ match }) => match)),
+    );
   });
   test('changes rankings and explains a shorter liquidity preference', () => {
     const results = rankDemoRecommendations({
@@ -617,10 +654,10 @@ describe('profile-driven demo recommendations', () => {
     });
     expect(results[0]?.risk).toBe('Low');
     const blueMahoe = results.find((result) => result.id === 'blue-mahoe-feedback');
-    expect(blueMahoe?.match).toBeLessThan(98);
+    expect(blueMahoe?.match).toBeLessThan(99);
     expect(blueMahoe?.agentNote).toContain('exceeds your access preference');
   });
-  test('keeps Blue Mahoe Capital in the recommended pair after profile changes', () => {
+  test('keeps Blue Mahoe Capital (Guyana) in the recommended pair after profile changes', () => {
     const recommendations = selectDemoRecommendations({
       ...DEMO_REFERENCE_PROFILE,
       risk: 'Conservative',
@@ -629,6 +666,8 @@ describe('profile-driven demo recommendations', () => {
     });
     expect(recommendations).toHaveLength(2);
     expect(recommendations.some((result) => result.partner === BLUE_MAHOE_PARTNER_NAME)).toBe(true);
+    expect(recommendations[0]?.partner).toBe(BLUE_MAHOE_PARTNER_NAME);
+    expect(recommendations[0]?.match).toBeGreaterThan(recommendations[1]?.match ?? 0);
   });
   test('a changed return target changes the fit explanation', () => {
     const results = rankDemoRecommendations({ ...DEMO_REFERENCE_PROFILE, targetReturn: '5–10%' });

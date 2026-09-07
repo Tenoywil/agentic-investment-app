@@ -24,6 +24,7 @@ import {
 } from '@/app/_components/ui/dialog';
 import { EmptyState } from '@/app/_components/ui/empty';
 import { APPROVAL_TONE_CLASS, APPROVAL_TONE_PILL, type ApprovalTone, cn } from '@/app/_lib/utils';
+import { DEMO_REFERENCE_PROFILE, selectDemoRecommendations } from '@/lib/demo-recommendations';
 import { CheckCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -259,6 +260,19 @@ export default function HomePage() {
   const pendingApprovals = APPROVALS.filter(
     (approval) => !accountState.approvedActions.includes(approval.id),
   );
+  const latestOrder = accountState.opportunityOrders.at(-1);
+  const recommendationProfile =
+    profile.name === DEFAULT_DEMO_PROFILE.name ? DEMO_REFERENCE_PROFILE : profile;
+  const leadingOpportunity = selectDemoRecommendations(recommendationProfile)[0];
+  const latestOrderStatus = latestOrder
+    ? latestOrder.status === 'created'
+      ? 'Awaiting partner response'
+      : latestOrder.status === 'accepted'
+        ? 'Accepted for execution'
+        : latestOrder.status === 'settled'
+          ? 'Settled'
+          : 'Partner declined'
+    : null;
 
   return (
     <AppScreen active="home" basePath="/demo">
@@ -425,6 +439,77 @@ export default function HomePage() {
             </Button>
           </div>
         </div>
+      </div>
+
+      <div className="g2 mt-[18px]">
+        <Card className="p-[22px]" data-tour="customer-human-review">
+          <div className={cn(UPPR, 'text-teal2')}>Step 6 · Human in the loop</div>
+          <h2 className="mt-2 font-display text-lg font-bold">Partner review and response</h2>
+          {latestOrder ? (
+            <>
+              <p className="mb-0 mt-2 text-sm leading-relaxed text-dim">
+                The simulated PDF review pack for {latestOrder.name} was sent to{' '}
+                <b className="text-foreground">{latestOrder.partner}</b>. Its team owns the decision
+                and reports the result back here.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{latestOrderStatus}</Badge>
+                <span className="text-xs text-faint">Response target: within 3 business days</span>
+              </div>
+            </>
+          ) : (
+            <p className="mb-0 mt-2 text-sm leading-relaxed text-dim">
+              Choose an investment to create its review pack and route it to the matching partner.
+              The partner’s response target is within 3 business days.
+            </p>
+          )}
+          <Button variant="outline" asChild className="mt-4">
+            <Link href={latestOrder ? '/demo/institutions' : '/demo/opportunities'}>
+              {latestOrder ? 'Open partner review' : 'Choose an investment'}
+            </Link>
+          </Button>
+        </Card>
+
+        <Card className="p-[22px]" data-tour="customer-live-updates">
+          <div className={cn(UPPR, 'text-teal2')}>Step 7 · Dashboard</div>
+          <h2 className="mt-2 font-display text-lg font-bold">Live updates and opportunities</h2>
+          <p className="mb-0 mt-2 text-sm leading-relaxed text-dim">
+            This dashboard updates from the same demo state when you or a partner acts.
+          </p>
+          <div className="mt-4 space-y-3">
+            {latestOrder ? (
+              <div className="rounded-xl border border-border bg-muted/20 p-3">
+                <div className="text-xs font-bold uppercase tracking-wide text-faint">
+                  Latest order update
+                </div>
+                <div className="mt-1 text-sm font-semibold">
+                  {latestOrder.name} · {latestOrderStatus}
+                </div>
+              </div>
+            ) : null}
+            {leadingOpportunity ? (
+              <div className="rounded-xl border border-border bg-muted/20 p-3">
+                <div className="text-xs font-bold uppercase tracking-wide text-faint">
+                  Leading opportunity
+                </div>
+                <div className="mt-1 flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                  <span className="font-semibold">{leadingOpportunity.name}</span>
+                  <span className="font-mono font-bold text-success">
+                    {leadingOpportunity.match}% match
+                  </span>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/demo/orders">View order updates</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/demo/opportunities">View opportunities</Link>
+            </Button>
+          </div>
+        </Card>
       </div>
 
       {/* Held / Allocation — first under the hero, matching the live home:

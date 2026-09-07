@@ -247,6 +247,7 @@ function DemoInvestorSetup() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const passportInputRef = useRef<HTMLInputElement>(null);
+  const previousStepRef = useRef(0);
   const [passportPreview, setPassportPreview] = useState<string | null>(null);
   const [passportName, setPassportName] = useState('');
   const [passportError, setPassportError] = useState('');
@@ -269,6 +270,12 @@ function DemoInvestorSetup() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (previousStepRef.current === step) return;
+    previousStepRef.current = step;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [step]);
 
   useEffect(() => {
     if (searchParams.get('edit') !== '1') return;
