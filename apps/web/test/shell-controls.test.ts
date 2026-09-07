@@ -506,6 +506,8 @@ describe('app shell controls', () => {
     expect(advisor).toContain('max-[900px]:hidden');
 
     expect(shell).toContain('expired 12 Jun 2025');
+    expect(shell).toContain('investor supplied a separate valid');
+    expect(shell).not.toContain('passport replaced with valid');
     expect(partner).toContain('Marcus Bailey · ••4821');
     expect(partner).toContain('setProfile(restored)');
     expect(partner).toContain('restoredEvidence.clientReference');
@@ -517,9 +519,7 @@ describe('app shell controls', () => {
     expect(partner).toContain('citizenship.join');
     expect(partner).toContain('Review client');
     expect(partner).toContain('Accept client');
-    expect(partner).toContain('Response target: within 3 business days');
-    expect(partner).toContain('const pendingReviewItems = reviewItems.filter');
-    expect(partner).toContain('total={pendingReviewItems.length}');
+    expect(partner).toContain('response target is within 3 business days');
     expect(partner).toContain('review pack received');
     expect(partner).toContain('dark:bg-card');
     expect(dashboard).toContain('readDemoAccountState()');

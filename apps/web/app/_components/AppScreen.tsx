@@ -206,7 +206,7 @@ export function demoIdentityEvidence(profile: DemoProfile): DemoIdentityEvidence
       ? `Use valid ${replacementCountry} passport`
       : 'Select citizenship in profile',
     replacementSummary: replacementCountry
-      ? `Expired ${currentCountry} passport replaced with valid ${replacementCountry} passport`
+      ? `Expired ${currentCountry} passport flagged; investor supplied a separate valid ${replacementCountry} passport for partner review`
       : 'Citizenship requires clarification before identity evidence can be selected',
     addressEvidence: `${profile.residence === 'United States' ? 'New York' : profile.residence} utility statement · Jul 2026`,
     taxIdentifiers: `${maskedTaxId} · ${profile.fatcaStatus || 'FATCA status requires clarification'} · ${profile.pepStatus || 'PEP status requires clarification'} · ${profile.sourceOfFunds.length > 0 ? `source of funds: ${profile.sourceOfFunds.join(', ')}` : 'source of funds requires clarification'}`,
